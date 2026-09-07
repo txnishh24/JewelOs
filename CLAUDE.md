@@ -16,10 +16,16 @@ before building it.
    `~/Downloads` — everything there is superseded. Zip *out* of here when you need to
    hand off a build; never build a fresh copy somewhere else. On 4 and 6 September two
    sessions edited batch13 in parallel without knowing, and the work had to be merged
-   by hand afterwards.
-2. Read `checks/README.md`. Eight AST-based scripts that find references to things that
+   by hand afterwards; on 8 September a session worked a whole batch out of a Downloads
+   zip and nearly shipped a build that reverted the batch14 fixes.
+2. **This folder is a git repo (since 8 September).** Run `git status` first, and
+   `git log --oneline -5` to see what the last session did. Commit before you hand
+   back a build. If `git status` is dirty when you arrive, another session is mid-change —
+   stop and ask rather than editing on top of it. That is what makes two of us safe here
+   at once.
+3. Read `checks/README.md`. Nine AST-based scripts that find references to things that
    were never created. Do not rebuild them.
-3. If a check script references a function that does not exist here, a newer working copy
+4. If a check script references a function that does not exist here, a newer working copy
    exists somewhere. Stop and ask.
 
 ## The codebase

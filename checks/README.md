@@ -1,6 +1,6 @@
 # JewelOS — automated checks
 
-Seven small programs that read the JewelOS source code and look for a specific
+Nine small programs that read the JewelOS source code and look for a specific
 family of mistakes: something the code refers to that was never actually created.
 That kind of mistake breaks a whole section of the app silently — no error
 message, the section just stops working or goes blank.
@@ -14,10 +14,11 @@ and never connect to anything.
 
 You don't need to run these yourself. Just tell your next AI session:
 
-> There are checking scripts in my Downloads folder under `jewelos-checks`.
-> Read the README there and run them against the new build before we change anything.
+> Run the checks before we change anything.
 
-That's all. It saves the session an hour of rebuilding them.
+That's all — `CLAUDE.md` in the folder above tells it where they are. (An older
+copy of these scripts sits in `~/Downloads/jewelos-checks`; ignore it. This folder
+is the live one.)
 
 ---
 
@@ -27,15 +28,20 @@ Run every check against an unpacked JewelOS build (the folder containing
 `index.html` and `js/`):
 
 ```
-cd /path/to/jewelos-checks
-node scope.js        /path/to/build
-node handlers.js     /path/to/build   # needs scope.js run first — it reads globals.json
-node css.js          /path/to/build
-node ids.js          /path/to/build
-node loadorder.js    /path/to/build
-node backup-check.js /path/to/build
-node roundtrip.js    /path/to/build
+cd /path/to/jewelos          # this folder — the source of truth
+node checks/scope.js        .
+node checks/handlers.js     .   # needs scope.js run first — it reads globals.json
+node checks/css.js          .
+node checks/ids.js          .
+node checks/loadorder.js    .
+node checks/backup-check.js .
+node checks/roundtrip.js    .
+node checks/making-basis.js .
+node checks/unquoted-args.js .
 ```
+
+Or just run `check.bat`, which does all of the above plus `node --check` on the
+ten modules and the regression suite in `tests/`.
 
 `node_modules` (acorn) is bundled, so it works offline.
 
@@ -50,6 +56,8 @@ node roundtrip.js    /path/to/build
 | `loadorder.js` | Startup code reading a global that a later `<script>` tag defines. |
 | `backup-check.js` | Drift between what the backup saves and what the restore reads back. |
 | `roundtrip.js` | Proves data survives export → wipe → restore, using the real source. |
+| `making-basis.js` | Making charges: gross basis on new sales, net preserved on records billed before the change, and the locked total matching the displayed breakdown. |
+| `unquoted-args.js` | Inline handlers splicing a value in unquoted — `onclick="fn('+id+')"`. Harmless for a number; for a string the browser reads the id as arithmetic, so the click throws silently and the button does nothing. This is what stopped order payments recording on 8 September. |
 
 ### Reading the output
 
