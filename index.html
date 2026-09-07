@@ -1,0 +1,3057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="theme-color" content="#1a1814"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="Sri Sai"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+<title>JewelOS v18 — Enterprise Jewellery Management SaaS</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   SRI SAI JEWELLERS — GOLD EDITION  v5.0
+   Tanishq · Vaman Hari Peth · Kalyan Jewellers inspired
+   Fonts: Cormorant Garamond (display) + Inter (UI)
+════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,600&family=Inter:wght@300;400;500;600&display=swap');
+/* font-display:swap — system font shown immediately while web fonts load */
+
+:root {
+  /* Gold palette */
+  --gold:#c9a34e;   --gold-light:#e8d49a;  --gold-dark:#8a6a1f;
+  --gold-bg:#fdf8f0; --gold-bg2:#f5eace;
+
+  /* Ivory / Parchment */
+  --ivory:#faf7f1;  --ivory2:#f3ece0;  --ivory3:#e8ddd0;
+
+  /* Matte ink */
+  --ink:#18160e;  --ink2:#2e2a1e;  --ink3:#5c5244;
+  --ink4:#9a8e7c;  --ink5:#c8bfb0;
+
+  /* Surfaces */
+  --surface:#ffffff; --bg:#faf7f1; --bg2:#f3ece0; --bg3:#e8ddd0;
+
+  /* Text */
+  --text:#18160e; --text2:#5c5244; --text3:#9a8e7c;
+
+  /* Semantic — muted luxury */
+  --danger:#a8312a;   --danger-bg:#fdf3f2;  --danger-soft:rgba(168,49,42,.07);
+  --success:#1c6040;  --success-bg:#f0f8f4; --success-soft:rgba(28,96,64,.07);
+  --warning:#8a4e0c;  --warning-bg:#fef8f0; --warning-soft:rgba(138,78,12,.07);
+  --info:#1a4a8a;     --info-bg:#f0f5fd;    --info-soft:rgba(26,74,138,.07);
+
+  /* Borders */
+  --border:rgba(160,140,90,.14);
+  --border2:rgba(160,140,90,.26);
+  --border3:rgba(160,140,90,.42);
+  --border-gold:rgba(201,163,78,.35);
+
+  /* Silver */
+  --silver:#9eafc2;  --silver-dark:#4a6070;
+
+  /* Radius */
+  --radius:10px;  --radius-lg:18px;  --radius-xl:26px;
+
+  /* Shadows */
+  --shadow:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,.08),0 1px 4px rgba(0,0,0,.04);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.10),0 2px 8px rgba(0,0,0,.05);
+  --shadow-gold:0 0 0 1px rgba(201,163,78,.2),0 4px 20px rgba(201,163,78,.1);
+
+  /* Motion */
+  --ease:cubic-bezier(.4,0,.2,1);
+  --t1:.14s var(--ease); --t2:.24s var(--ease); --t3:.38s var(--ease);
+
+  /* Aliases for platinum-theme vars used in edit bill JS */
+  --b1:rgba(160,140,90,.10); --b2:rgba(160,140,90,.20);
+  --ch-gold-d:var(--gold-dark); --ch0:var(--ivory);
+  --ch5:var(--text3); --ch6:var(--text2);
+  --em4:var(--success); --err:var(--danger); --err-bg:var(--danger-bg);
+  --ok-bg:var(--success-bg); --rl:var(--radius-lg); --sap5:var(--info);
+  --surf2:var(--bg2);
+
+  /* ── Component surface vars (used throughout) ─────── */
+  --card1:#ffffff;          /* primary card background   */
+  --card2:#f5f0e8;          /* secondary / input bg      */
+  --card2:#f5f0e8;          /* secondary card / input bg */
+  --text1:var(--ink);       /* primary text              */
+  --ink1:var(--ink);        /* heading text alias        */
+  --border-success:rgba(28,96,64,.3);
+  --background-primary:var(--bg);
+  --background-secondary:var(--bg2);
+  --background-danger:var(--danger-bg);
+  --background-warning:var(--warning-bg);
+  --background-success:var(--success-bg);
+  --background-info:var(--info-bg);
+  --color-text-primary:var(--ink);
+  --color-text-secondary:var(--text2);
+  --color-text-danger:var(--danger);
+  --color-text-warning:var(--warning);
+  --color-text-success:var(--success);
+  --color-text-info:var(--info);
+  --color-background-primary:var(--bg);
+  --color-background-secondary:var(--bg2);
+  --color-background-danger:var(--danger-bg);
+  --color-background-warning:var(--warning-bg);
+  --color-background-success:var(--success-bg);
+  --color-border-tertiary:var(--border);
+  --color-border-success:rgba(28,96,64,.3);
+  --border-radius-md:var(--radius);
+  --border-radius-lg:var(--radius-lg);
+}
+
+/* ── RESET ───────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;width:100%;}
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:var(--ivory);color:var(--ink);font-size:14px;line-height:1.6;
+  overscroll-behavior:none;-webkit-tap-highlight-color:transparent;
+  touch-action:pan-y; /* restrict native touch handling to vertical scroll only —
+    stops the browser's edge-swipe-back gesture from hijacking horizontal
+    swipes, which was revealing a white flash mid-transition since this
+    app has no actual "back" page to navigate to (it's a single-page app
+    with tabs, not real page navigation) */
+  -webkit-font-smoothing:antialiased;
+}
+.serif,h1,h2,h3{font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif;}
+
+/* ── TOPBAR ──────────────────────────────────────── */
+.topbar{
+  background:linear-gradient(108deg,#18160e 0%,#242118 52%,#18160e 100%);
+  padding:0 1.4rem 0 1.1rem;
+  display:flex;align-items:center;justify-content:space-between;
+  height:62px;position:sticky;top:0;z-index:200;
+  border-bottom:1px solid rgba(201,163,78,.18);
+  box-shadow:0 2px 24px rgba(0,0,0,.3);
+}
+.logo-wrap{display:flex;align-items:center;gap:12px;}
+.logo-svg{width:38px;height:38px;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(201,163,78,.3));}
+.logo-name{
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:20px;font-weight:600;color:#e8d49a;letter-spacing:.06em;line-height:1.1;
+}
+.logo-name span{font-style:italic;color:var(--gold);}
+.logo-sub{font-size:9px;color:#6a5c48;letter-spacing:.18em;text-transform:uppercase;margin-top:1px;}
+
+/* ── SYNC ────────────────────────────────────────── */
+.sync-dot{width:6px;height:6px;border-radius:50%;background:#3a3428;transition:background .4s;}
+.sync-dot.ok{background:var(--success);}
+.sync-dot.err{background:var(--danger);}
+.sync-dot.syncing{background:var(--gold);animation:pdot 1.2s ease-in-out infinite;}
+@keyframes pdot{0%,100%{opacity:1;}50%{opacity:.3;}}
+.sync-bar{position:fixed;top:62px;left:0;right:0;height:2px;z-index:199;overflow:hidden;pointer-events:none;}
+.sync-bar-inner{height:100%;width:0;background:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-light));transition:width .9s;}
+
+/* ── DESKTOP NAV TABS ────────────────────────────── */
+.dtabs{display:flex;gap:1px;align-items:center;}
+.dtab{
+  padding:7px 14px;border-radius:6px;font-size:12px;cursor:pointer;
+  border:none;background:transparent;color:#6a5c48;
+  font-family:inherit;white-space:nowrap;font-weight:500;
+  transition:all var(--t1);letter-spacing:.04em;
+}
+.dtab:hover{color:#e8d49a;background:rgba(255,255,255,.05);}
+.dtab.active{
+  background:linear-gradient(135deg,rgba(201,163,78,.22),rgba(201,163,78,.08));
+  color:#e8d49a;border:0.5px solid rgba(201,163,78,.3);
+}
+@media(min-width:640px){.dtabs{display:flex;}}
+
+/* ── MAIN ────────────────────────────────────────── */
+.main{padding:1.2rem 1rem 5.5rem;max-width:1040px;margin:0 auto;}
+@media(min-width:800px){.main{padding:1.4rem 1.6rem 2rem;}}
+.panel{display:none;}.panel.active{display:block;}
+
+/* ── METRIC CARDS ────────────────────────────────── */
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:1.2rem;}
+@media(min-width:600px){.metrics{grid-template-columns:repeat(4,1fr);}}
+.metric{
+  background:var(--surface);border:0.5px solid var(--border2);
+  border-radius:var(--radius-lg);padding:1.1rem 1.2rem;
+  box-shadow:var(--shadow-md);position:relative;overflow:hidden;
+  transition:box-shadow var(--t2),transform var(--t2);
+}
+.metric::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:var(--ma,linear-gradient(90deg,var(--gold-dark),var(--gold)));
+}
+.metric:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px);}
+.metric-label{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px;font-weight:600;}
+.metric-value{
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:26px;font-weight:600;color:var(--ink);line-height:1.1;
+}
+.metric-sub{font-size:11px;color:var(--text3);margin-top:6px;}
+
+/* ── CARDS ───────────────────────────────────────── */
+.card{
+  background:var(--surface);border-radius:var(--radius-lg);
+  border:0.5px solid var(--border2);padding:1.25rem;
+  margin-bottom:.9rem;box-shadow:var(--shadow);
+  transition:box-shadow var(--t2);
+}
+.card:hover{box-shadow:var(--shadow-md);}
+.card-title{
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:17px;font-weight:600;color:var(--ink);
+  margin-bottom:1rem;display:flex;align-items:center;
+  justify-content:space-between;gap:8px;letter-spacing:.02em;
+}
+.two-col{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:.9rem;}
+@media(min-width:600px){.two-col{grid-template-columns:1fr 1fr;}}
+
+/* ── STOCK BANNERS ───────────────────────────────── */
+.stock-banner{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:.9rem;}
+.sbox{border-radius:var(--radius-lg);padding:1.1rem 1.25rem;border:0.5px solid var(--border2);}
+.sbox-g{background:linear-gradient(135deg,var(--gold-bg),var(--gold-bg2));border-color:rgba(201,163,78,.3);}
+.sbox-s{background:linear-gradient(135deg,#f0f4f8,#e4ecf4);border-color:rgba(120,148,176,.22);}
+.sbox-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--gold-dark);margin-bottom:4px;}
+.sbox-wt{font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;font-weight:600;color:var(--gold-dark);}
+.sbox-s .sbox-title{color:var(--silver-dark);}
+.sbox-s .sbox-wt{color:var(--silver-dark);}
+.sbox-val{font-size:12px;color:var(--text3);margin-top:2px;}
+.sbox-rows{margin-top:10px;border-top:0.5px solid var(--border);padding-top:8px;}
+.sbox-row{display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:var(--ink3);}
+
+/* ── RATE BAR ────────────────────────────────────── */
+.rate-bar{
+  background:linear-gradient(108deg,#18160e,#242118 50%,#18160e);
+  border-radius:var(--radius-lg);padding:.9rem 1.25rem;margin-bottom:.9rem;
+  border:0.5px solid rgba(201,163,78,.2);
+}
+.rate-bar-title{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:8px;font-weight:700;}
+.rate-inputs{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;}
+.rate-item{display:flex;flex-direction:column;gap:3px;}
+.rate-item label{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;}
+.rate-iw{display:flex;align-items:center;gap:4px;}
+.rate-iw input{
+  width:82px;padding:5px 8px;background:rgba(255,255,255,.08);
+  border:0.5px solid rgba(201,163,78,.3);border-radius:7px;
+  font-size:13px;font-weight:600;color:#e8d49a;font-family:inherit;text-align:right;
+  transition:border-color var(--t1);
+}
+.rate-iw input:focus{outline:none;border-color:rgba(201,163,78,.6);background:rgba(255,255,255,.12);}
+.rate-unit{font-size:11px;color:var(--gold);}
+.rate-save{
+  margin-left:auto;padding:7px 18px;
+  background:linear-gradient(135deg,var(--gold-dark),var(--gold));
+  color:var(--ink);border:none;border-radius:8px;font-size:12px;font-weight:700;
+  cursor:pointer;font-family:inherit;transition:all var(--t1);letter-spacing:.04em;
+}
+.rate-save:hover{background:linear-gradient(135deg,var(--gold),var(--gold-light));box-shadow:var(--shadow-gold);}
+
+/* ── METAL TABS ──────────────────────────────────── */
+.metal-tabs{display:flex;gap:6px;margin-bottom:.9rem;}
+.mtab{
+  flex:1;padding:9px 14px;border-radius:var(--radius);font-size:13px;
+  font-weight:500;cursor:pointer;border:0.5px solid var(--border2);
+  background:var(--surface);color:var(--text3);
+  font-family:inherit;transition:all var(--t1);
+}
+/* Selected state is carried by .mtab-g / .mtab-s (set in setMetal), not .active —
+   nothing ever added .active, so both tabs used to render unselected. The
+   .mtab.<x> form keeps the selected rule at the same specificity as .mtab:hover
+   and later in the sheet, so hovering the selected tab does not flip its colour. */
+.mtab:hover{background:#f0f4f8;color:var(--silver-dark);border-color:rgba(120,148,176,.3);}
+.mtab.mtab-g{background:var(--gold-bg);color:var(--gold-dark);border-color:rgba(201,163,78,.35);}
+.mtab.mtab-s{background:#f0f4f8;color:var(--silver-dark);border-color:rgba(120,148,176,.3);}
+
+/* ── PILLS ───────────────────────────────────────── */
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.9rem;}
+.pill{
+  padding:5px 14px;border-radius:20px;font-size:12px;cursor:pointer;
+  border:0.5px solid var(--border2);background:transparent;color:var(--text3);
+  font-family:inherit;font-weight:500;transition:all var(--t1);
+}
+.pill:hover{border-color:var(--border-gold);color:var(--ink);}
+.pill.active{background:var(--gold-bg);color:var(--gold-dark);border-color:rgba(201,163,78,.4);font-weight:600;}
+
+/* ── SEARCH ROW ──────────────────────────────────── */
+.search-row{display:flex;gap:8px;margin-bottom:.9rem;flex-wrap:wrap;}
+.search-row input,.search-row select{
+  padding:9px 12px;border-radius:var(--radius);border:0.5px solid var(--border2);
+  background:var(--surface);font-size:13px;color:var(--ink);font-family:inherit;
+  transition:border-color var(--t1),box-shadow var(--t1);
+}
+.search-row input{flex:1;min-width:160px;}
+.search-row input:focus,.search-row select:focus{
+  outline:none;border-color:var(--border-gold);
+  box-shadow:0 0 0 3px rgba(201,163,78,.1);
+}
+
+/* ── BUTTONS ─────────────────────────────────────── */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 18px;border-radius:var(--radius);font-size:13px;font-weight:500;
+  cursor:pointer;border:0.5px solid var(--border2);background:var(--surface);
+  color:var(--ink);font-family:inherit;transition:all var(--t1);white-space:nowrap;
+}
+.btn:hover{background:var(--ivory2);border-color:var(--border3);}
+.btn:active{transform:scale(.97);}
+.btn-gold{
+  background:linear-gradient(135deg,var(--gold-dark),var(--gold));
+  color:var(--ink);border-color:transparent;font-weight:600;
+  box-shadow:0 2px 8px rgba(201,163,78,.25);
+}
+.btn-gold:hover{background:linear-gradient(135deg,var(--gold),var(--gold-light));box-shadow:var(--shadow-gold);}
+.btn-dark{
+  background:linear-gradient(135deg,#18160e,#242118);
+  color:#e8d49a;border-color:rgba(201,163,78,.2);font-weight:500;
+}
+.btn-dark:hover{background:linear-gradient(135deg,#242118,#302c1e);}
+.btn-danger{color:var(--danger);border-color:rgba(168,49,42,.25);background:transparent;}
+.btn-danger:hover{background:var(--danger-bg);}
+.btn-success{color:var(--success);border-color:rgba(28,96,64,.25);background:transparent;}
+.btn-success:hover{background:var(--success-bg);}
+.btn-info{color:var(--info);border-color:rgba(26,74,138,.22);background:transparent;}
+.btn-info:hover{background:var(--info-bg);}
+.btn-sm{padding:5px 12px;font-size:12px;border-radius:7px;}
+.btn-xs{padding:3px 8px;font-size:11px;border-radius:6px;}
+.btn-full{width:100%;}
+
+/* ── FORMS ───────────────────────────────────────── */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.fg{display:flex;flex-direction:column;gap:4px;}
+.fg label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.07em;}
+input,select,textarea{
+  width:100%;padding:9px 12px;background:var(--ivory);
+  border:0.5px solid var(--border2);border-radius:var(--radius);
+  font-size:13px;color:var(--ink);font-family:inherit;
+  transition:border-color var(--t1),box-shadow var(--t1);
+  -webkit-appearance:none;appearance:none;
+}
+input[type="checkbox"],input[type="radio"]{
+  width:16px;height:16px;flex:0 0 auto;padding:0;
+  -webkit-appearance:checkbox;appearance:checkbox;accent-color:var(--gold);
+}
+input:focus,select:focus,textarea:focus{
+  outline:none;border-color:var(--border-gold);background:var(--surface);
+  box-shadow:0 0 0 3px rgba(201,163,78,.1);
+}
+select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6' fill='%239a8e7c'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;
+  padding-right:30px;cursor:pointer;
+}
+.isuf{
+  display:flex;align-items:stretch;border:0.5px solid var(--border2);
+  border-radius:var(--radius);overflow:hidden;background:var(--ivory);
+}
+.isuf input{border:none;border-radius:0;background:transparent;box-shadow:none;}
+.isuf:focus-within{border-color:var(--border-gold);box-shadow:0 0 0 3px rgba(201,163,78,.1);background:var(--surface);}
+.suf{
+  padding:0 10px;font-size:11px;color:var(--text3);font-weight:700;
+  background:var(--ivory3);display:flex;align-items:center;
+  border-left:0.5px solid var(--border2);white-space:nowrap;
+}
+.divider{height:0.5px;background:linear-gradient(90deg,transparent,var(--border2),transparent);margin:1rem 0;}
+
+/* ── BADGES ──────────────────────────────────────── */
+.badge{display:inline-block;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600;white-space:nowrap;}
+.bg-gold{background:var(--gold-bg);color:var(--gold-dark);border:0.5px solid rgba(201,163,78,.3);}
+.bg-silver{background:#f0f4f8;color:var(--silver-dark);border:0.5px solid rgba(120,148,176,.3);}
+.bg-red{background:var(--danger-bg);color:var(--danger);}
+.bg-green{background:var(--success-bg);color:var(--success);}
+.bg-blue{background:var(--info-bg);color:var(--info);}
+.bg-amber{background:var(--warning-bg);color:var(--warning);}
+.bg-purple{background:#f3f0fd;color:#5840b0;}
+.version-tag{background:var(--info-bg);color:var(--info);font-size:11px;padding:2px 8px;border-radius:6px;margin-left:8px;font-weight:600;}
+
+/* ── TABLE ───────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto;border-radius:var(--radius);border:0.5px solid var(--border2);}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px;}
+th{
+  text-align:left;font-size:9.5px;font-weight:700;color:var(--text3);
+  padding:10px 14px;background:var(--ivory2);
+  border-bottom:0.5px solid var(--border2);text-transform:uppercase;
+  letter-spacing:.1em;white-space:nowrap;
+}
+td{padding:11px 14px;border-bottom:0.5px solid var(--border);color:var(--ink);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--gold-bg);}
+.sold-row td{opacity:.5;}
+.status-avail{
+  background:var(--success-bg);color:var(--success);border:0.5px solid rgba(28,96,64,.25);
+  border-radius:8px;padding:3px 11px;font-size:11px;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:all var(--t1);
+}
+.status-sold{
+  background:var(--danger-bg);color:var(--danger);border:0.5px solid rgba(168,49,42,.22);
+  border-radius:8px;padding:3px 11px;font-size:11px;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:all var(--t1);
+}
+
+/* ── SALE SUMMARY BOX ────────────────────────────── */
+.sum-box{
+  background:linear-gradient(135deg,var(--gold-bg),var(--ivory2));
+  border:0.5px solid rgba(201,163,78,.28);border-radius:var(--radius-lg);
+  padding:1.1rem 1.2rem;margin-top:1rem;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+}
+.sum-row{
+  display:flex;justify-content:space-between;font-size:13px;
+  padding:5px 0;border-bottom:0.5px solid rgba(201,163,78,.12);color:var(--ink3);
+}
+.sum-row:last-of-type{border-bottom:none;}
+.sum-total{
+  display:flex;justify-content:space-between;
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:20px;font-weight:600;color:var(--gold-dark);
+  padding:10px 0;margin-top:6px;border-top:0.5px solid rgba(201,163,78,.3);
+}
+
+/* ── SALE ITEM CARDS ─────────────────────────────── */
+.sale-card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;}
+.custom-item-card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+.item-num{font-size:10px;font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.08em;}
+.deduct-box{background:rgba(201,163,78,.05);border:0.5px dashed rgba(201,163,78,.32);border-radius:var(--radius);padding:10px 12px;margin-top:10px;}
+.deduct-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:8px;}
+.wt-calc-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--ink3);padding:7px 0;border-top:0.5px dashed rgba(201,163,78,.28);margin-top:7px;}
+.wt-calc-net{font-weight:700;font-size:14px;color:var(--gold-dark);}
+
+/* ── MODE TOGGLE ─────────────────────────────────── */
+.mode-toggle-wrap{display:flex;gap:4px;margin-bottom:1rem;background:var(--ivory3);border-radius:12px;padding:4px;}
+.mode-btn{flex:1;padding:9px 8px;border-radius:9px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:transparent;color:var(--text3);font-family:inherit;transition:all var(--t2);}
+.mode-btn:hover{color:var(--ink);}
+.active-stock,.active-custom{background:var(--surface);color:var(--ink);box-shadow:var(--shadow);font-weight:600;}
+
+/* ── PAY TOGGLES ─────────────────────────────────── */
+.pay-toggle{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;border:0.5px solid var(--border2);background:transparent;color:var(--text3);font-family:inherit;transition:all var(--t1);}
+.pay-toggle.active{border-color:var(--border-gold);color:var(--gold-dark);background:var(--gold-bg);}
+.pay-toggle.active.full{background:var(--success-bg);color:var(--success);border-color:rgba(28,96,64,.3);}
+.pay-toggle.active.adv{background:var(--warning-bg);color:var(--warning);border-color:rgba(138,78,12,.3);}
+.pay-toggle.active.pend{background:var(--danger-bg);color:var(--danger);border-color:rgba(168,49,42,.28);}
+
+/* Payment-history rows (renderPaymentHistory) and edit-history rows
+   (sale detail) — these carry no inline styles, so without these rules the
+   spans collapsed into one unformatted run of text. */
+.pay-hist-item{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:7px 10px;font-size:12px;color:var(--text2);
+  border-top:0.5px solid var(--border);
+}
+.pay-hist-item:first-of-type{border-top:0;}
+.pay-hist-badge{
+  display:inline-block;
+  font-weight:700;color:var(--success);background:var(--success-bg);
+  padding:2px 9px;border-radius:100px;font-size:11px;white-space:nowrap;
+}
+.edit-history-row{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:6px 10px;font-size:11.5px;color:var(--text2);
+  border-top:0.5px solid var(--border);
+}
+.edit-history-row:first-of-type{border-top:0;}
+.edit-history-row span:last-child{
+  color:var(--text3);text-align:right;flex:1;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* ── SPLIT PAYMENT ROWS ──────────────────────────── */
+.split-pay-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:end;margin-bottom:8px;}
+.split-add-btn{width:100%;padding:8px;border:0.5px dashed var(--border2);border-radius:var(--radius);background:transparent;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;margin-top:4px;transition:all var(--t1);}
+.split-add-btn:hover{border-color:var(--border-gold);color:var(--gold-dark);}
+
+/* ── ORDER CARDS ─────────────────────────────────── */
+.ord-card{background:var(--surface);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all var(--t2);box-shadow:0 1px 3px rgba(0,0,0,.04);}
+.ord-card:hover{border-color:var(--border-gold);box-shadow:var(--shadow-md);}
+.ord-card.urgent{border-left:3px solid var(--warning);background:linear-gradient(135deg,var(--warning-bg),var(--surface));}
+
+/* ── ORDER STATUS ────────────────────────────────── */
+.ord-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:100px;}
+.ord-st-new{background:#eef2f6;color:#3a4a5c;border:0.5px solid rgba(58,74,92,.25);}
+.ord-st-prog{background:#fff4e0;color:#a86a00;border:0.5px solid rgba(168,106,0,.25);}
+.ord-st-rdy{background:#e7f5ec;color:#1c6b3f;border:0.5px solid rgba(28,107,63,.25);}
+.ord-st-dlv{background:#e8eefc;color:#2a4d9b;border:0.5px solid rgba(42,77,155,.25);}
+.ord-st-cxl{background:#fdeaea;color:#9b2c2c;border:0.5px solid rgba(155,44,44,.25);}
+.ord-new{background:var(--info-bg);color:var(--info);}
+.ord-progress{background:var(--warning-bg);color:var(--warning);}
+.ord-ready{background:var(--success-bg);color:var(--success);}
+.ord-delivered{background:var(--ivory3);color:var(--text3);}
+.ord-cancelled{background:var(--danger-bg);color:var(--danger);}
+.status-btn{padding:6px 13px;border-radius:8px;font-size:12px;cursor:pointer;border:0.5px solid var(--border2);background:var(--surface);color:var(--ink3);font-family:inherit;transition:all var(--t1);}
+.status-btn:hover{background:var(--ivory2);}
+
+/* ── CHARTS ──────────────────────────────────────── */
+.bar-row{margin-bottom:10px;}
+.bar-top{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;color:var(--ink3);}
+.bar-track{height:7px;background:var(--ivory3);border-radius:4px;overflow:hidden;}
+.bar-g{height:100%;background:linear-gradient(90deg,var(--gold-dark),var(--gold));border-radius:4px;transition:width .7s var(--ease);}
+.bar-s{height:100%;background:linear-gradient(90deg,var(--silver-dark),var(--silver));border-radius:4px;transition:width .7s var(--ease);}
+
+/* ── BOTTOM NAV ──────────────────────────────────── */
+.bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,#1e1c12,#18160e);border-top:1px solid rgba(201,163,78,.16);z-index:200;padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 -4px 20px rgba(0,0,0,.25);}
+.bnav-inner{display:flex;}
+.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 7px;background:transparent;border:none;color:#5a5244;font-family:inherit;cursor:pointer;transition:color var(--t1);font-size:10px;font-weight:600;letter-spacing:.04em;}
+.bnav-btn:hover,.bnav-btn.active{color:var(--gold);}
+.bnav-icon{font-size:20px;line-height:1;}
+.bnav-label{font-size:9px;text-transform:uppercase;letter-spacing:.05em;}
+@media(max-width:639px){.bnav{display:block;}.dtabs{display:none;}}
+
+/* ── MODALS ──────────────────────────────────────── */
+.modal-bg{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(24,22,14,.7);z-index:500;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(3px);}
+.modal-bg.open{display:flex;}
+.modal{background:var(--surface);border-radius:var(--radius-xl);width:100%;max-width:600px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 12px 60px rgba(0,0,0,.22),0 0 0 0.5px rgba(201,163,78,.15);}
+.modal-header{padding:1.2rem 1.4rem;border-bottom:0.5px solid var(--border2);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:linear-gradient(135deg,var(--gold-bg),var(--surface));border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
+.modal-header h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:18px;font-weight:600;color:var(--ink);letter-spacing:.02em;}
+.modal-close{background:var(--ivory2);border:0.5px solid var(--border2);border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;transition:all var(--t1);}
+.modal-close:hover{background:var(--ivory3);color:var(--ink);}
+.modal-body{padding:1.4rem;overflow-y:auto;}
+
+/* ── TOAST ───────────────────────────────────────── */
+.toast{position:fixed;bottom:5.5rem;left:50%;transform:translateX(-50%) translateY(14px);background:linear-gradient(135deg,#18160e,#242118);color:#e8d49a;padding:10px 22px;border-radius:100px;font-size:13px;font-weight:500;z-index:9999;opacity:0;pointer-events:none;transition:all .22s var(--ease);white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.3),0 0 0 0.5px rgba(201,163,78,.18);letter-spacing:.03em;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+@media(min-width:640px){.toast{bottom:1.5rem;}}
+
+/* ── LOADING ─────────────────────────────────────── */
+.loading-screen{position:fixed;top:0;right:0;bottom:0;left:0;background:linear-gradient(160deg,#18160e,#22200a 55%,#18160e);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:999;}
+.loading-screen.hidden{display:none;}
+.loading-gem{font-size:52px;animation:spin 3s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;font-weight:600;color:#e8d49a;letter-spacing:.06em;}
+.loading-sub{font-size:12px;color:#5a5244;letter-spacing:.08em;}
+
+/* ── EMPTY STATE ─────────────────────────────────── */
+.empty{text-align:center;padding:3rem 1rem;color:var(--text3);}
+.empty-icon{font-size:44px;display:block;margin-bottom:12px;opacity:.4;}
+
+/* ── PIN SCREEN ──────────────────────────────────── */
+#pin-screen{position:fixed;top:0;right:0;bottom:0;left:0;background:linear-gradient(160deg,#18160e 0%,#2a1e0a 55%,#16120a 100%);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;touch-action:manipulation;}
+#pin-screen.hidden{display:none;}
+.pin-logo{font-size:54px;margin-bottom:10px;filter:drop-shadow(0 0 16px rgba(201,163,78,.4));}
+.pin-shop-name{font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;font-weight:600;color:#e8d49a;letter-spacing:.06em;margin-bottom:4px;text-align:center;}
+.pin-tagline{font-size:10px;color:#5a5244;text-transform:uppercase;letter-spacing:.18em;margin-bottom:36px;}
+.pin-label{font-size:12px;color:#9a8e7c;margin-bottom:18px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;min-height:18px;text-align:center;}
+.pin-dots{display:flex;gap:18px;margin-bottom:32px;}
+.pin-dot{width:18px;height:18px;border-radius:50%;border:1.5px solid rgba(201,163,78,.28);background:transparent;transition:all .15s;}
+.pin-dot.filled{background:linear-gradient(135deg,var(--gold),var(--gold-light));border-color:var(--gold);box-shadow:0 0 12px rgba(201,163,78,.45);}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;width:260px;}
+.pin-btn{background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.08);border-radius:50%;width:78px;height:78px;font-size:24px;font-weight:500;color:#e8d49a;cursor:pointer;font-family:'Cormorant Garamond',Georgia,serif;transition:background .1s,transform .1s;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none;-webkit-user-select:none;}
+.pin-btn:active,.pin-btn.pressed{background:rgba(201,163,78,.28);border-color:rgba(201,163,78,.6);transform:scale(.91);}
+.pin-btn.del{font-size:20px;color:#6a5c48;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+.pin-btn.empty{background:transparent;border:none;cursor:default;}
+.pin-error{color:var(--danger);font-size:13px;margin-top:16px;min-height:20px;text-align:center;letter-spacing:.02em;}
+.pin-shake{animation:shake .38s;}
+@keyframes shake{0%,100%{transform:translateX(0);}20%{transform:translateX(-9px);}40%{transform:translateX(9px);}60%{transform:translateX(-5px);}80%{transform:translateX(5px);}}
+/* ── GIRVI FORM ENHANCEMENTS ────────────────────────────────────── */
+#girvi-modal input:focus,
+#girvi-modal select:focus,
+#girvi-modal textarea:focus{
+  outline:none;
+  border-color:var(--gold) !important;
+  box-shadow:0 0 0 3px rgba(201,168,76,.18);
+}
+#girvi-modal input,
+#girvi-modal select,
+#girvi-modal textarea{
+  background:var(--card1) !important;
+  color:var(--ink) !important;
+  border:1.5px solid rgba(201,168,76,.35) !important;
+  border-radius:10px;
+  padding:9px 12px;
+  font-size:14px;
+  font-family:inherit;
+  width:100%;
+  box-sizing:border-box;
+  transition:border-color .15s,box-shadow .15s;
+}
+#girvi-modal label{
+  font-size:10px;
+  font-weight:700;
+  color:var(--gold-dark);
+  text-transform:uppercase;
+  letter-spacing:.07em;
+  display:block;
+  margin-bottom:4px;
+}
+#girvi-modal .gf-section-label{
+  font-size:10px;color:var(--gold-dark);font-weight:700;
+  text-transform:uppercase;letter-spacing:.08em;
+  margin-bottom:10px;padding-bottom:6px;
+  border-bottom:1px solid rgba(201,168,76,.25);
+}
+/* ── LOADING SKELETONS ───────────────────────────────────────────── */
+@keyframes shimmer{0%{background-position:-468px 0}100%{background-position:468px 0}}
+.skeleton{
+  background:linear-gradient(90deg,var(--card2) 25%,var(--card1) 50%,var(--card2) 75%);
+  background-size:936px 100%;
+  animation:shimmer 1.4s ease-in-out infinite;
+  border-radius:var(--radius);
+}
+.skel-line{height:14px;margin-bottom:8px;border-radius:4px;}
+.skel-line.short{width:60%;}
+.skel-line.medium{width:80%;}
+.skel-line.full{width:100%;}
+.skel-card{padding:14px;border-radius:var(--radius-lg);border:0.5px solid var(--border2);margin-bottom:10px;}
+.skel-row{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border2);}
+.skel-circle{width:36px;height:36px;border-radius:50%;flex-shrink:0;}
+
+.pin-change-btn{background:transparent;border:0.5px solid rgba(201,163,78,.2);border-radius:100px;padding:9px 22px;color:#6a5c48;font-size:11px;cursor:pointer;font-family:inherit;letter-spacing:.08em;text-transform:uppercase;transition:all .2s;touch-action:manipulation;}
+.pin-change-btn:hover{border-color:rgba(201,163,78,.4);color:#9a8e7c;}
+
+/* ── INACTIVITY OVERLAY ──────────────────────────── */
+#inactivity-overlay{position:fixed;top:0;right:0;bottom:0;left:0;background:linear-gradient(160deg,#18160e 0%,#2a1e0a 55%,#16120a 100%);z-index:10000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:2rem;text-align:center;}
+#inactivity-overlay.show{display:flex;}
+.inact-icon{font-size:58px;filter:drop-shadow(0 0 14px rgba(201,163,78,.3));}
+.inact-txt{font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;font-weight:600;color:#e8d49a;letter-spacing:.04em;}
+.inact-sub{font-size:13px;color:#6a5c48;margin-bottom:6px;}
+
+/* ── PRINT ───────────────────────────────────────── */
+.ord-section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);margin-bottom:8px;}
+.ord-item-card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px;}
+.ord-item-card .item-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.ord-adv-entry{background:var(--surface);border:0.5px solid var(--border2);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+.ord-adv-amount{font-size:15px;font-weight:700;color:var(--gold-dark);}
+.ord-adv-meta{font-size:11px;color:var(--text3);}
+.ord-timeline{margin:10px 0;}
+.ord-tl-item{display:flex;gap:10px;padding:6px 0;position:relative;}
+.ord-tl-item::before{content:'';position:absolute;left:7px;top:20px;bottom:-6px;width:1px;background:var(--border2);}
+.ord-tl-item:last-child::before{display:none;}
+.ord-tl-dot{width:15px;height:15px;border-radius:50%;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:8px;}
+.ord-tl-dot.done{background:var(--success);color:#fff;}
+.ord-tl-dot.active{background:var(--gold);color:var(--ink);}
+.ord-tl-dot.pending{background:var(--border2);color:var(--text3);}
+.ord-tl-content{flex:1;}
+.ord-tl-label{font-size:13px;font-weight:600;color:var(--ink);}
+.ord-tl-date{font-size:11px;color:var(--text3);}
+.ord-tl-note{font-size:11px;color:var(--text3);font-style:italic;margin-top:1px;}
+.ord-payment-section{background:linear-gradient(135deg,var(--gold-bg),var(--ivory2));border:0.5px solid rgba(201,163,78,.28);border-radius:var(--radius-lg);padding:14px 16px;margin:10px 0;}
+.ord-ledger-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px;}
+.ord-ledger-row:last-child{border-bottom:none;}
+.ledger-amt{font-weight:600;color:var(--success);}
+.ledger-bal{color:var(--danger);font-weight:700;}
+.priority-urgent{background:#fff3cd;color:#856404;border:0.5px solid #ffc107;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;}
+.priority-vip{background:#f3e8ff;color:#6f3fa0;border:0.5px solid #c084fc;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;}
+.priority-normal{display:none;}
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  body{background:#fff!important;}
+  .topbar,.bnav,.modal-close,.no-print,.sync-bar,.main,#loading-screen{display:none!important;}
+  .modal-bg{position:fixed!important;top:0!important;right:0!important;bottom:0!important;left:0!important;background:#fff!important;display:block!important;overflow:auto!important;padding:0!important;z-index:99999!important;}
+  .modal{max-height:none!important;box-shadow:none!important;width:100%!important;max-width:100%!important;border-radius:0!important;}
+  .modal-header{display:none!important;}
+  .modal-body{padding:0!important;}
+}
+@media(min-width:640px){.show{opacity:1;transform:translateX(-50%) translateY(0);}}
+/* ═══════════════════════════════════════════════════════════════
+   JEWELOS SAAS — Auth, Onboarding, Multi-tenant UI
+════════════════════════════════════════════════════════════════ */
+
+/* ── Auth screen (login / signup) ── */
+#saas-auth-screen{
+  position:fixed;top:0;right:0;bottom:0;left:0;background:var(--bg);z-index:1100;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;
+  padding:max(1.5rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
+  overflow-y:auto; overflow-x:hidden;
+}
+.auth-box{
+  width:100%;max-width:400px;background:var(--card1);
+  border-radius:20px;border:0.5px solid var(--border2);
+  padding:2rem 1.8rem;box-shadow:0 12px 60px rgba(0,0,0,.18);
+}
+.auth-logo{text-align:center;margin-bottom:1.5rem;}
+.auth-logo-mark{
+  width:56px;height:56px;background:linear-gradient(135deg,var(--gold-dark),var(--gold));
+  border-radius:14px;display:inline-flex;align-items:center;justify-content:center;
+  font-size:28px;margin-bottom:10px;box-shadow:0 4px 16px rgba(201,163,78,.35);
+}
+.auth-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;margin-bottom:3px;}
+.auth-sub{font-size:12px;color:var(--text3);}
+.auth-tab-row{display:flex;gap:0;margin-bottom:1.4rem;border-radius:10px;overflow:hidden;border:1px solid var(--border2);}
+.auth-tab{flex:1;padding:9px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;background:var(--card2);color:var(--text3);border:none;font-family:inherit;transition:all .15s;}
+.auth-tab.active{background:var(--gold);color:#1a1200;}
+.auth-field{margin-bottom:11px;}
+.auth-field label{display:block;font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
+.auth-field input,.auth-field select{
+  width:100%;box-sizing:border-box;padding:12px 13px;
+  border-radius:10px;border:1px solid var(--border2);
+  background:var(--card2);color:var(--text1);
+  font-size:16px;font-family:inherit;
+}
+.auth-field input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,163,78,.15);}
+.auth-btn{
+  width:100%;padding:14px;border-radius:11px;border:none;
+  background:linear-gradient(135deg,var(--gold-dark),var(--gold));
+  color:#1a1200;font-size:15px;font-weight:700;cursor:pointer;
+  font-family:inherit;margin-top:4px;transition:opacity .15s;
+  min-height:48px; -webkit-tap-highlight-color:transparent;
+}
+.auth-btn:hover{opacity:.9;}
+.auth-err{font-size:12px;color:#ef4444;text-align:center;margin-top:8px;min-height:18px;}
+.auth-link{font-size:12px;color:var(--text3);text-align:center;margin-top:12px;}
+.auth-link a{color:var(--gold);cursor:pointer;text-decoration:none;font-weight:600;}
+
+/* Mobile sign-in redesign (Aug 2026) — designed intentionally for small
+   viewports, not just a shrunk desktop layout. Fixes: input font-size
+   16px above (prevents iOS Safari auto-zoom-on-focus, a jarring UX bug
+   below 16px); flex-direction:column on #saas-auth-screen above (footer
+   was rendering BESIDE the auth box, not below it, causing horizontal
+   overflow on any phone narrower than ~500px); safe-area-inset padding
+   above (notched phones); and the sizing/spacing tightened here so
+   nothing touches the screen edge and tap targets meet the ~44px
+   minimum recommended for comfortable thumb use. */
+@media(max-width:480px){
+  .auth-box{
+    padding:1.6rem 1.3rem;border-radius:16px;
+    max-width:100%;
+  }
+  .auth-logo-mark{width:48px;height:48px;font-size:24px;}
+  .auth-title{font-size:22px;}
+  .auth-sub{font-size:11.5px;}
+  .auth-tab{padding:11px 6px;font-size:12.5px;min-height:44px;}
+  .auth-field{margin-bottom:13px;}
+  .auth-field input,.auth-field select{padding:13px 14px;min-height:48px;}
+  .auth-btn{padding:15px;font-size:15px;}
+  #saas-auth-screen{padding-left:1rem;padding-right:1rem;gap:.75rem;}
+  #saas-auth-screen > div:last-child{
+    font-size:10px;line-height:1.8;padding:0 .5rem;
+  }
+}
+/* ── Shop onboarding ── */
+#saas-onboard-screen{
+  position:fixed;top:0;right:0;bottom:0;left:0;background:var(--bg);z-index:1100;
+  display:flex;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto;
+}
+.onboard-box{width:100%;max-width:460px;background:var(--card1);border-radius:20px;border:0.5px solid var(--border2);padding:2rem 1.8rem;box-shadow:0 12px 60px rgba(0,0,0,.18);}
+
+/* ── Plan badge ── */
+.plan-badge{
+  display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;
+  border-radius:100px;text-transform:uppercase;letter-spacing:.06em;margin-left:6px;
+}
+.plan-badge.free{background:#334155;color:#94a3b8;}
+.plan-badge.basic{background:#1e3a5f;color:#60a5fa;}
+.plan-badge.pro{background:#3d2a00;color:var(--gold);}
+
+/* ── Top bar user info ── */
+.topbar-shop{font-size:12px;color:var(--text3);font-weight:500;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.topbar-user{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;}
+
+/* ── Role badge ── */
+.role-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:100px;background:#22c55e22;color:#22c55e;}
+.role-badge.staff{background:#f59e0b22;color:#f59e0b;}
+
+/* ── Activity log ── */
+.log-row{display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:12px;}
+.log-row:last-child{border-bottom:none;}
+
+/* ── Feature gate overlay ── */
+.gate-overlay{
+  position:absolute;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.55);
+  border-radius:inherit;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:8px;z-index:10;backdrop-filter:blur(3px);
+}
+.gate-lock{font-size:28px;margin-bottom:4px;}
+.gate-txt{font-size:13px;font-weight:700;color:#fff;text-align:center;}
+.gate-plan{font-size:11px;color:var(--gold);font-weight:600;}
+
+/* ── Pricing modal ── */
+#pricing-modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.72);z-index:1200;overflow-y:auto;padding:1.5rem;}
+.pricing-grid{display:grid;grid-template-columns:1fr;gap:14px;max-width:520px;margin:0 auto;}
+@media(min-width:480px){.pricing-grid{grid-template-columns:repeat(3,1fr);}}
+.plan-card{background:var(--card1);border:0.5px solid var(--border2);border-radius:16px;padding:1.4rem 1.2rem;text-align:center;}
+.plan-card.popular{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold);}
+.plan-name{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;margin-bottom:4px;}
+.plan-price{font-size:28px;font-weight:800;color:var(--gold);margin:10px 0 4px;}
+.plan-per{font-size:11px;color:var(--text3);}
+.plan-features{text-align:left;margin:14px 0;font-size:12px;color:var(--text2);}
+.plan-features li{padding:4px 0;list-style:none;display:flex;align-items:center;gap:6px;}
+
+/* ── Settings panel additions ── */
+#panel-settings{display:none;}
+#panel-settings.active{display:block;}
+
+/* ══════════════════════════════════════════════════════════════════
+   GIRVI MODULE v20 — Enterprise Pawn Management
+   Edit · Ledger · Timeline · Documents · Renewal · Overdue · PDF
+════════════════════════════════════════════════════════════════════ */
+
+/* ── Edit Modal ── */
+#girvi-edit-modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:950;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.ge-wrap{max-width:520px;margin:16px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5),0 0 0 1px rgba(201,168,76,.15);}
+.ge-header{display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .8rem;background:linear-gradient(135deg,rgba(201,168,76,.12),rgba(201,168,76,.04));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(201,168,76,.2);}
+.ge-header h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;font-weight:700;color:var(--gold-dark);letter-spacing:.02em;}
+.ge-close{background:var(--ivory2);border:0.5px solid var(--border2);border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;}
+.ge-tabs{display:flex;gap:4px;padding:.6rem 1rem;background:var(--ivory2);border-bottom:0.5px solid var(--border);}
+.ge-tab{flex:1;padding:7px 6px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--text3);font-family:inherit;text-align:center;transition:all .15s;letter-spacing:.03em;}
+.ge-tab.active{background:var(--surface);color:var(--gold-dark);box-shadow:var(--shadow);}
+.ge-tab-panel{display:none;padding:1rem 1.2rem 1.4rem;}
+.ge-tab-panel.active{display:block;}
+.ge-section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin:1rem 0 .5rem;padding-bottom:4px;border-bottom:0.5px solid var(--border);}
+.ge-row{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px;}
+.ge-row.tri{grid-template-columns:1fr 1fr 1fr;}
+.ge-row.full{grid-template-columns:1fr;}
+.ge-fg{display:flex;flex-direction:column;gap:4px;}
+.ge-fg label{font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
+.ge-fg input,.ge-fg select,.ge-fg textarea{
+  padding:9px 11px;background:var(--card1);border:1.5px solid rgba(201,168,76,.35);
+  border-radius:10px;font-size:13px;color:var(--ink);font-family:inherit;
+  transition:border-color .15s,box-shadow .15s;width:100%;box-sizing:border-box;
+}
+.ge-fg input:focus,.ge-fg select:focus,.ge-fg textarea:focus{
+  outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,.15);
+}
+.ge-save-bar{padding:.9rem 1.2rem 1.3rem;display:flex;gap:8px;}
+.ge-audit-entry{display:flex;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:12px;}
+.ge-audit-entry:last-child{border-bottom:none;}
+.ge-audit-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.ge-audit-dot.edit{background:var(--info);}
+.ge-audit-dot.payment{background:var(--success);}
+.ge-audit-dot.created{background:var(--gold);}
+.ge-audit-dot.closed{background:var(--text3);}
+.ge-audit-dot.renewal{background:var(--warning);}
+.ge-audit-dot.defaulted{background:var(--danger);}
+
+/* ── Payment Ledger Modal ── */
+#girvi-ledger-modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:960;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.gl-wrap{max-width:500px;margin:16px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);}
+.gl-header{display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .8rem;background:linear-gradient(135deg,rgba(28,96,64,.1),rgba(28,96,64,.03));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(28,96,64,.2);}
+.gl-header h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;font-weight:700;color:var(--success);letter-spacing:.02em;}
+.gl-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:.8rem 1.2rem;background:linear-gradient(135deg,var(--success-bg),var(--surface));}
+.gl-sum-card{text-align:center;padding:8px;background:var(--surface);border-radius:10px;border:0.5px solid var(--border);}
+.gl-sum-val{font-family:'Cormorant Garamond',Georgia,serif;font-size:18px;font-weight:700;}
+.gl-sum-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-top:2px;}
+.gl-body{padding:0 1.2rem 1.2rem;}
+.gl-entry{display:flex;justify-content:space-between;align-items:flex-start;padding:11px 12px;background:var(--surface);border-radius:10px;margin-bottom:7px;border:0.5px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.04);}
+.gl-entry-left{}
+.gl-entry-amt{font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;font-weight:700;}
+.gl-entry-amt.credit{color:var(--success);}
+.gl-entry-amt.debit{color:var(--danger);}
+.gl-entry-meta{font-size:11px;color:var(--text3);margin-top:2px;}
+.gl-entry-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;text-transform:uppercase;letter-spacing:.04em;margin-top:4px;}
+.gl-entry-right{text-align:right;}
+.gl-entry-date{font-size:12px;font-weight:600;color:var(--ink3);}
+.gl-entry-time{font-size:10px;color:var(--text3);}
+.gl-add-form{background:var(--gold-bg);border:0.5px solid rgba(201,168,76,.25);border-radius:12px;padding:14px;margin-top:12px;}
+.gl-add-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gold-dark);margin-bottom:10px;}
+.gl-type-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+.gl-type-btn{padding:5px 12px;border-radius:100px;font-size:11px;font-weight:600;cursor:pointer;border:0.5px solid var(--border);background:var(--surface);color:var(--text3);font-family:inherit;transition:all .14s;}
+.gl-type-btn.active{border-color:var(--gold);color:var(--gold-dark);background:rgba(201,168,76,.12);}
+
+/* ── Customer Timeline Modal ── */
+#girvi-timeline-modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:955;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.gt-wrap{max-width:480px;margin:16px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);}
+.gt-header{display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .8rem;background:linear-gradient(135deg,rgba(26,74,138,.1),rgba(26,74,138,.03));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(26,74,138,.2);}
+.gt-header h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;font-weight:700;color:var(--info);letter-spacing:.02em;}
+.gt-body{padding:0 1.2rem 1.4rem;}
+.gt-item{display:flex;gap:12px;padding:9px 0;}
+.gt-item:not(:last-child){border-bottom:0.5px solid var(--border);}
+.gt-dot{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;}
+.gt-dot.created{background:rgba(201,168,76,.2);}
+.gt-dot.payment{background:rgba(28,96,64,.15);}
+.gt-dot.edit{background:rgba(26,74,138,.12);}
+.gt-dot.renewal{background:rgba(138,78,12,.12);}
+.gt-dot.closed{background:rgba(100,116,139,.12);}
+.gt-dot.defaulted{background:rgba(168,49,42,.12);}
+.gt-dot.whatsapp{background:rgba(37,211,102,.12);}
+.gt-content{}
+.gt-title{font-size:13px;font-weight:600;color:var(--ink);}
+.gt-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+
+/* ── Executive Dashboard (Girvi) ── */
+.girvi-exec-dash{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:1rem;}
+@media(min-width:600px){.girvi-exec-dash{grid-template-columns:repeat(4,1fr);}}
+.ged-card{background:var(--surface);border:0.5px solid var(--border2);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
+.ged-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ged-accent,var(--gold));}
+.ged-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:4px;}
+.ged-val{font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:700;color:var(--ink);line-height:1.1;}
+.ged-sub{font-size:10px;color:var(--text3);margin-top:4px;}
+
+/* ── Advanced Search Bar (Girvi) ── */
+.girvi-adv-search{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:.8rem;background:var(--surface);border:0.5px solid var(--border2);border-radius:12px;padding:10px 12px;}
+.girvi-adv-search input,.girvi-adv-search select{
+  padding:7px 10px;border-radius:8px;border:0.5px solid var(--border2);
+  background:var(--ivory);font-size:12px;color:var(--ink);font-family:inherit;
+  transition:border-color .14s;
+}
+.girvi-adv-search input:focus,.girvi-adv-search select:focus{
+  outline:none;border-color:var(--border-gold);box-shadow:0 0 0 2px rgba(201,168,76,.1);
+}
+.girvi-adv-search input.main-search{flex:1;min-width:130px;font-size:13px;}
+.girvi-search-chip{padding:5px 10px;border-radius:100px;font-size:11px;font-weight:600;cursor:pointer;border:0.5px solid var(--border);background:transparent;color:var(--text3);font-family:inherit;transition:all .13s;}
+.girvi-search-chip.active{background:var(--gold-bg);color:var(--gold-dark);border-color:rgba(201,168,76,.4);}
+
+/* ── Edit button on girvi card (new) ── */
+.gca.edit-btn{color:var(--info);}
+.gca.edit-btn:hover{background:var(--info-bg);}
+.gca.ledger-btn{color:var(--success);}
+.gca.ledger-btn:hover{background:var(--success-bg);}
+
+/* ── Renewal Modal ── */
+#girvi-renewal-modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:965;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.grn-wrap{max-width:440px;margin:20px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);}
+
+/* ── Receipt Preview Modal ── */
+#girvi-receipt-modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:970;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.grr-wrap{max-width:500px;margin:16px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);}
+
+/* ── Overdue / Auction Flow ── */
+.girvi-overdue-banner{background:linear-gradient(135deg,rgba(168,49,42,.08),rgba(168,49,42,.04));border:0.5px solid rgba(168,49,42,.25);border-radius:12px;padding:12px 14px;margin-bottom:.8rem;}
+.girvi-overdue-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--danger);margin-bottom:8px;}
+.girvi-overdue-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:12px;border-bottom:0.5px solid rgba(168,49,42,.1);}
+.girvi-overdue-row:last-child{border-bottom:none;}
+.girvi-auction-stage{display:inline-block;padding:2px 9px;border-radius:100px;font-size:10px;font-weight:700;}
+.stage-warn{background:rgba(138,78,12,.12);color:var(--warning);}
+.stage-crit{background:rgba(168,49,42,.12);color:var(--danger);}
+.stage-auction{background:rgba(127,29,29,.15);color:#7f1d1d;}
+
+/* ── Maturity Calendar ── */
+.girvi-maturity-bar{display:flex;flex-direction:column;gap:4px;}
+.maturity-row{display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 0;border-bottom:0.5px solid var(--border);}
+.maturity-row:last-child{border-bottom:none;}
+.maturity-date{font-size:11px;font-weight:700;color:var(--text2);min-width:60px;}
+.maturity-bar-track{flex:1;height:6px;background:var(--ivory3);border-radius:3px;overflow:hidden;}
+.maturity-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold-dark),var(--gold));}
+.maturity-amt{font-size:11px;font-weight:700;color:var(--gold-dark);min-width:60px;text-align:right;}
+
+/* ── Document Upload Area ── */
+.doc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;}
+.doc-slot{border:1.5px dashed rgba(201,168,76,.35);border-radius:10px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;background:rgba(201,168,76,.04);transition:all .15s;position:relative;overflow:hidden;}
+.doc-slot:hover{border-color:var(--gold);background:rgba(201,168,76,.08);}
+.doc-slot.filled{border-style:solid;border-color:rgba(28,96,64,.3);background:rgba(28,96,64,.04);}
+.doc-slot-icon{font-size:20px;opacity:.5;}
+.doc-slot-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;text-align:center;}
+.doc-slot img{width:100%;height:100%;object-fit:cover;position:absolute;top:0;right:0;bottom:0;left:0;border-radius:8px;}
+.doc-slot-del{position:absolute;top:4px;right:4px;background:var(--danger);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10;}
+
+/* ── Reminder Tags ── */
+.reminder-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:100px;font-size:11px;font-weight:600;margin:3px 3px 0 0;}
+.reminder-chip.wa{background:rgba(37,211,102,.12);color:#25d366;border:0.5px solid rgba(37,211,102,.3);}
+.reminder-chip.sms{background:var(--info-soft);color:var(--info);border:0.5px solid rgba(26,74,138,.2);}
+.reminder-chip.app{background:var(--gold-bg);color:var(--gold-dark);border:0.5px solid rgba(201,168,76,.3);}
+
+/* ── Girvi Card Edit Button (injected into action bar) ── */
+.girvi-card-badge-edit{
+  display:inline-flex;align-items:center;gap:3px;
+  font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;
+  background:rgba(26,74,138,.08);color:var(--info);border:0.5px solid rgba(26,74,138,.2);
+  cursor:pointer;font-family:inherit;transition:all .13s;
+}
+.girvi-card-badge-edit:hover{background:var(--info-bg);}
+
+/* ── Collection Efficiency Bar ── */
+.coll-eff-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.coll-eff-label{font-size:12px;color:var(--ink3);min-width:80px;}
+.coll-eff-track{flex:1;height:8px;background:var(--ivory3);border-radius:4px;overflow:hidden;}
+.coll-eff-fill{height:100%;border-radius:4px;transition:width .6s var(--ease);}
+.coll-eff-pct{font-size:11px;font-weight:700;min-width:36px;text-align:right;}
+/* ═══════════════════════════════════════════════════════════════
+   INTELLIGENCE LAYER v10 — Owner Control Dashboard
+════════════════════════════════════════════════════════════════ */
+
+/* Today's Actions strip */
+.action-strip{display:grid;gap:8px;margin-bottom:1.1rem;}
+.action-item{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:11px 14px;border-radius:12px;cursor:pointer;
+  border:0.5px solid transparent;transition:box-shadow .15s;
+}
+.action-item:hover{box-shadow:0 2px 12px rgba(0,0,0,.12);}
+.action-item.urgent{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.25);}
+.action-item.warning{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25);}
+.action-item.info{background:rgba(96,165,250,.08);border-color:rgba(96,165,250,.25);}
+.action-item.ok{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.25);}
+.action-icon{font-size:20px;flex-shrink:0;margin-top:1px;}
+.action-body{flex:1;}
+.action-title{font-size:13px;font-weight:700;margin-bottom:2px;}
+.action-sub{font-size:11px;color:var(--text3);}
+.action-cta{font-size:11px;font-weight:700;color:var(--gold);margin-top:4px;text-decoration:underline;cursor:pointer;}
+
+/* Insight cards */
+.insights-row{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:1.1rem;}
+@media(min-width:600px){.insights-row{grid-template-columns:1fr 1fr;}}
+.insight-card{
+  padding:12px 14px;border-radius:12px;border:0.5px solid var(--border2);
+  background:var(--card1);display:flex;align-items:flex-start;gap:10px;
+}
+.insight-card.positive{border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.06);}
+.insight-card.negative{border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.06);}
+.insight-card.neutral{border-color:rgba(148,163,184,.2);}
+.insight-card.alert{border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.06);}
+.insight-icon{font-size:22px;flex-shrink:0;}
+.insight-text{font-size:12px;line-height:1.5;color:var(--text2);}
+.insight-text strong{color:var(--text1);font-size:13px;}
+.insight-badge{
+  display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;
+  border-radius:100px;margin-left:4px;vertical-align:middle;
+}
+.ib-up{background:rgba(34,197,94,.2);color:#22c55e;}
+.ib-down{background:rgba(239,68,68,.2);color:#ef4444;}
+.ib-flat{background:rgba(148,163,184,.15);color:#94a3b8;}
+
+/* Financial snapshot bar */
+.fin-snapshot{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:1.1rem;
+}
+@media(min-width:640px){.fin-snapshot{grid-template-columns:repeat(4,1fr);}}
+.fin-snap-card{
+  background:var(--card1);border-radius:12px;border:0.5px solid var(--border2);
+  padding:12px 14px;
+}
+#dash-more summary::-webkit-details-marker{display:none;}
+#dash-more[open] summary span:last-child{transform:rotate(180deg);display:inline-block;}
+.fsn-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:4px;}
+.fsn-val{font-size:20px;font-weight:800;line-height:1.1;}
+.fsn-sub{font-size:10px;color:var(--text3);margin-top:4px;}
+.fsn-trend{font-size:11px;font-weight:700;margin-top:3px;}
+.trend-up{color:#22c55e;}.trend-down{color:#ef4444;}.trend-flat{color:#94a3b8;}
+
+/* Intelligence tag badges */
+.itag{display:inline-block;font-size:9px;font-weight:800;padding:2px 7px;border-radius:100px;margin-right:3px;text-transform:uppercase;letter-spacing:.06em;}
+.itag-vip{background:rgba(201,168,76,.2);color:var(--gold);}
+.itag-risk{background:rgba(239,68,68,.2);color:#ef4444;}
+.itag-freq{background:rgba(96,165,250,.2);color:#60a5fa;}
+.itag-new{background:rgba(34,197,94,.2);color:#22c55e;}
+.itag-dead{background:rgba(148,163,184,.15);color:#94a3b8;}
+.itag-hot{background:rgba(251,146,60,.2);color:#fb923c;}
+.itag-overdue{background:rgba(239,68,68,.15);color:#ef4444;}
+
+/* Dead stock / fast movers */
+.inv-intel-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:12px;}
+.inv-intel-row:last-child{border-bottom:none;}
+.inv-days-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;flex-shrink:0;}
+
+/* Sparkline mini chart */
+.sparkline{display:flex;align-items:flex-end;gap:2px;height:28px;}
+.spark-bar{flex:1;border-radius:2px 2px 0 0;min-width:4px;transition:height .3s;}
+
+/* Section header with action */
+.section-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;}
+.section-hdr-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);}
+.section-hdr-action{font-size:11px;color:var(--gold);cursor:pointer;font-weight:600;}
+
+/* Score ring */
+.score-ring{
+  width:52px;height:52px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;font-weight:800;border:3px solid;
+}
+
+/* Order pipeline */
+.pipeline{display:flex;gap:0;margin-bottom:1rem;overflow-x:auto;}
+.pipe-stage{flex:1;min-width:60px;text-align:center;padding:8px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);transition:all .15s;white-space:nowrap;}
+.pipe-stage.active{color:var(--gold);border-bottom-color:var(--gold);}
+.pipe-stage .pipe-count{display:block;font-size:20px;font-weight:800;color:var(--text1);margin-bottom:2px;}
+
+/* ═══════════════════════════════════════════════════════════════
+   GROWTH LAYER v11 — Automation, CLV, Demo, Referral
+════════════════════════════════════════════════════════════════ */
+
+/* Demo mode banner */
+#demo-banner{
+  position:fixed;top:0;left:0;right:0;z-index:1300;
+  background:linear-gradient(90deg,#7c3aed,#a855f7);
+  color:#fff;text-align:center;padding:7px 16px;font-size:12px;
+  font-weight:700;letter-spacing:.04em;display:none;
+}
+#demo-banner.visible{display:block;}
+body.demo-mode header.topbar{top:34px;}
+body.demo-mode main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
+
+/* WhatsApp automation panel */
+.wa-rule{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:11px 14px;border-radius:11px;border:0.5px solid var(--border2);
+  background:var(--card2);margin-bottom:8px;
+}
+.wa-rule-icon{font-size:20px;flex-shrink:0;}
+.wa-rule-body{flex:1;}
+.wa-rule-title{font-size:13px;font-weight:700;margin-bottom:2px;}
+.wa-rule-sub{font-size:11px;color:var(--text3);}
+.wa-toggle{
+  position:relative;width:38px;height:20px;flex-shrink:0;
+  cursor:pointer;
+}
+.wa-toggle input{opacity:0;width:0;height:0;}
+.wa-toggle-slider{
+  position:absolute;top:0;right:0;bottom:0;left:0;border-radius:100px;
+  background:#334155;transition:background .2s;
+}
+.wa-toggle-slider::after{
+  content:'';position:absolute;width:14px;height:14px;
+  border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .2s;
+}
+.wa-toggle input:checked + .wa-toggle-slider{background:#25d366;}
+.wa-toggle input:checked + .wa-toggle-slider::after{transform:translateX(18px);}
+
+/* CLV tier bars */
+.clv-tier{
+  display:flex;align-items:center;gap:10px;padding:8px 0;
+  border-bottom:0.5px solid var(--border);font-size:12px;
+}
+.clv-bar-track{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+.clv-bar-fill{height:100%;border-radius:3px;transition:width .5s;}
+
+/* PDF export button */
+.btn-pdf{
+  background:linear-gradient(135deg,#dc2626,#ef4444);
+  color:#fff;border:none;border-radius:9px;
+  padding:9px 16px;font-size:13px;font-weight:700;
+  cursor:pointer;font-family:inherit;
+}
+.btn-wa{
+  background:linear-gradient(135deg,#16a34a,#22c55e);
+  color:#fff;border:none;border-radius:9px;
+  padding:9px 16px;font-size:13px;font-weight:700;
+  cursor:pointer;font-family:inherit;
+}
+
+/* Daily digest card */
+.digest-section{margin-bottom:10px;}
+.digest-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:5px;}
+.digest-row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;}
+.digest-row strong{color:var(--text1);}
+
+/* Onboarding wizard */
+#onboard-wizard{
+  position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.65);z-index:1200;
+  display:none;align-items:center;justify-content:center;padding:1.5rem;
+}
+#onboard-wizard.visible{display:flex;}
+.wizard-box{
+  max-width:460px;width:100%;background:var(--card1);
+  border-radius:20px;padding:2rem 1.8rem;
+  box-shadow:0 16px 60px rgba(0,0,0,.25);
+}
+.wizard-step{display:none;}.wizard-step.active{display:block;}
+.wizard-progress{
+  display:flex;gap:4px;margin-bottom:1.4rem;
+}
+.wizard-dot{
+  flex:1;height:4px;border-radius:2px;
+  background:var(--bg3);transition:background .3s;
+}
+.wizard-dot.done{background:var(--gold);}
+
+/* Settings tabs */
+.settings-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:1rem;overflow-x:auto;}
+.settings-tab{
+  padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;
+  color:var(--text3);border-bottom:2px solid transparent;white-space:nowrap;
+  transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;
+  font-family:inherit;
+}
+.settings-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+
+/* Upgrade nudge inline */
+.upgrade-nudge{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  background:linear-gradient(135deg,rgba(201,168,76,.08),rgba(201,168,76,.03));
+  border:0.5px solid rgba(201,168,76,.25);border-radius:10px;
+  font-size:12px;cursor:pointer;margin-top:8px;
+}
+.upgrade-nudge-icon{font-size:18px;}
+.upgrade-nudge-text{flex:1;color:var(--text2);}
+.upgrade-nudge-cta{font-size:11px;font-weight:700;color:var(--gold);white-space:nowrap;}
+
+/* ═══════════════════════════════════════════════════════════════
+   GIRVI ENGINE v15 — Daily Collection Assistant
+   v13: girvi cloud save, day-based interest, safeConfirm, XSS guard
+   v14: Supabase-backed cross-device auth (auth_store table)
+   v15: PIN system full rewrite — SHA-256 (fast on mobile), pinLocked
+        guard prevents double-input, touch/click deduplication,
+        bigger buttons, dynamic shop name, Forgot PIN reset button
+════════════════════════════════════════════════════════════════ */
+
+/* Control panel header */
+.girvi-cp{
+  background:linear-gradient(135deg,#1a1200 0%,#2a1e04 50%,#1a1200 100%);
+  border-radius:16px;padding:1.1rem 1.2rem;margin-bottom:.9rem;
+  border:0.5px solid rgba(201,168,76,.2);
+}
+.girvi-cp-title{
+  font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.1em;color:rgba(201,168,76,.6);margin-bottom:.8rem;
+}
+.girvi-kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.girvi-kpi{text-align:center;}
+.girvi-kpi-val{font-size:20px;font-weight:800;line-height:1.1;color:#f8f0dc;}
+.girvi-kpi-val.danger{color:#ef4444;}
+.girvi-kpi-val.warning{color:#f59e0b;}
+.girvi-kpi-val.success{color:#22c55e;}
+.girvi-kpi-lbl{font-size:9px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;}
+
+/* Today's action list */
+.girvi-action{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:10px 13px;border-radius:11px;margin-bottom:7px;
+  cursor:pointer;transition:transform .1s;
+  border-left:3px solid transparent;
+}
+.girvi-action:active{transform:scale(.98);}
+.girvi-action.red{background:rgba(239,68,68,.08);border-left-color:#ef4444;}
+.girvi-action.amber{background:rgba(245,158,11,.08);border-left-color:#f59e0b;}
+.girvi-action.blue{background:rgba(96,165,250,.08);border-left-color:#60a5fa;}
+.girvi-action.green{background:rgba(34,197,94,.08);border-left-color:#22c55e;}
+.girvi-action-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+.girvi-action-body{flex:1;min-width:0;}
+.girvi-action-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.girvi-action-sub{font-size:11px;color:var(--text3);margin-top:1px;}
+.girvi-action-right{text-align:right;flex-shrink:0;margin-left:8px;}
+.girvi-action-amt{font-size:16px;font-weight:800;}
+.girvi-action-days{font-size:10px;color:var(--text3);}
+.girvi-action-btns{display:flex;gap:5px;margin-top:5px;}
+.girvi-action-btn{
+  padding:4px 10px;border-radius:100px;border:none;
+  font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;
+}
+.gab-call{background:rgba(34,197,94,.15);color:#22c55e;}
+.gab-wa{background:rgba(37,211,102,.15);color:#25d366;}
+.gab-pay{background:var(--gold);color:#1a1200;}
+.gab-view{background:rgba(148,163,184,.1);color:var(--text2);}
+
+/* Girvi list cards — premium redesign */
+.girvi-card{
+  background:var(--card1);border-radius:14px;
+  border:1px solid rgba(201,168,76,.18);
+  margin-bottom:10px;overflow:hidden;
+  box-shadow:0 1px 6px rgba(0,0,0,.06);
+  transition:box-shadow .15s;cursor:pointer;
+}
+.girvi-card:active{transform:scale(.99);}
+.girvi-card-top{padding:12px 14px 8px;}
+.girvi-card-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.girvi-card-id{font-size:10px;font-weight:700;color:var(--gold);letter-spacing:.06em;}
+.girvi-card-date{font-size:10px;color:var(--text3);}
+.girvi-card-body{display:flex;justify-content:space-between;align-items:flex-end;gap:8px;}
+.girvi-card-left{flex:1;min-width:0;}
+.girvi-card-name{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.girvi-card-phone{font-size:12px;color:var(--text3);margin-top:1px;}
+.girvi-card-item{font-size:11px;color:var(--text3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.girvi-card-right{text-align:right;flex-shrink:0;}
+.girvi-card-outstanding{font-size:clamp(18px,5vw,24px);font-weight:800;line-height:1;}
+.girvi-card.status-active{border-left:3px solid var(--gold);}
+.girvi-card.status-overdue,.girvi-card.status-defaulted{border-left:3px solid #ef4444;}
+.girvi-card.status-atrisk{border-left:3px solid #f97316;}
+.girvi-card.status-closed{border-left:3px solid #64748b;opacity:.7;}
+.girvi-card-outstanding.red{color:#ef4444;font-weight:800;}
+.girvi-card-outstanding.amber{color:#d97706;font-weight:800;}
+.girvi-card-outstanding.green{color:#16a34a;font-weight:800;}
+.girvi-card-outstanding.normal{color:var(--gold-dark);}
+.girvi-card-principal{font-size:10px;color:var(--text3);margin-top:2px;}
+.girvi-card-interest{font-size:11px;color:#f59e0b;font-weight:600;margin-top:1px;}
+.girvi-card-days{
+  display:inline-block;font-size:10px;font-weight:700;
+  padding:2px 8px;border-radius:100px;margin-top:3px;
+}
+.days-overdue{background:rgba(239,68,68,.15);color:#ef4444;}
+.days-soon{background:rgba(245,158,11,.15);color:#f59e0b;}
+.days-safe{background:rgba(34,197,94,.12);color:#22c55e;}
+.days-na{background:rgba(148,163,184,.1);color:#94a3b8;}
+/* Chip active state (Feature 10) */
+.girvi-search-chip.active{
+  background:var(--gold)!important;color:#1a1200!important;
+  border-color:var(--gold)!important;font-weight:700;
+}
+/* Adj amount input highlight */
+#gd-adj-amount:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,168,76,.18);}
+/* Notes list */
+#gd-note-input:focus{outline:none;border-color:var(--gold);}
+
+/* Card action strip */
+.girvi-card-actions{
+  display:grid;grid-template-columns:1fr 1fr 1fr 1fr;
+  border-top:0.5px solid var(--border);
+}
+.gca{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:9px 4px;gap:2px;
+  font-size:10px;font-weight:700;color:var(--text3);
+  cursor:pointer;border:none;background:none;font-family:inherit;
+  transition:background .12s;
+}
+.gca:active{background:rgba(255,255,255,.04);}
+.gca-icon{font-size:16px;}
+.gca.pay-btn{color:var(--gold);}
+.gca.wa-btn{color:#25d366;}
+.gca.call-btn{color:#22c55e;}
+
+/* Wizard steps for girvi form */
+.gf-wizard{display:none;}
+.gf-wizard.active{display:block;}
+.gf-step-nav{
+  display:flex;gap:4px;margin-bottom:1.1rem;
+}
+.gf-step-dot{
+  flex:1;height:3px;border-radius:2px;
+  background:var(--bg3);transition:background .25s;
+}
+.gf-step-dot.active{background:var(--gold);}
+.gf-step-dot.done{background:rgba(201,168,76,.4);}
+
+/* Total payable preview box */
+.girvi-preview{
+  background:linear-gradient(135deg,rgba(201,168,76,.1),rgba(201,168,76,.04));
+  border:1px solid rgba(201,168,76,.25);border-radius:12px;
+  padding:12px 16px;margin-bottom:1rem;
+}
+.girvi-preview-row{display:flex;justify-content:space-between;font-size:13px;padding:2px 0;}
+.girvi-preview-total{
+  display:flex;justify-content:space-between;
+  border-top:1px solid rgba(201,168,76,.2);margin-top:8px;padding-top:8px;
+  font-size:17px;font-weight:800;
+}
+.girvi-preview-total .val{color:var(--gold);}
+
+/* Detail modal premium */
+.gd-timeline{position:relative;padding-left:20px;}
+.gd-timeline::before{content:'';position:absolute;left:6px;top:0;bottom:0;width:1.5px;background:var(--border);}
+.gd-tl-item{position:relative;margin-bottom:12px;}
+.gd-tl-dot{position:absolute;left:-17px;top:4px;width:9px;height:9px;border-radius:50%;border:2px solid var(--card1);}
+.gd-tl-text{font-size:12px;color:var(--text2);}
+.gd-tl-date{font-size:10px;color:var(--text3);}
+
+/* Hinglish WA message box */
+.wa-msg-box{
+  background:#054d23;border-radius:12px;padding:12px 14px;
+  font-size:13px;color:#dcf8c6;line-height:1.55;
+  border:0.5px solid rgba(37,211,102,.2);margin-bottom:10px;
+  font-family:'Segoe UI',sans-serif;
+}
+.wa-msg-header{font-size:10px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+
+/* ── Pagination ─────────────────────────────────────────────────── */
+.pg-bar { display:flex; align-items:center; gap:5px; padding:8px 0; flex-wrap:wrap; }
+.pg-bar .btn-sm { min-width:32px; padding:5px 10px; font-size:12px; font-weight:600; border-radius:7px; cursor:pointer; border:1px solid var(--border2); background:var(--surface); color:var(--ink3); transition:all .15s; }
+.pg-bar .btn-sm:hover { background:var(--gold-bg); color:var(--gold-dark); border-color:var(--gold); }
+.pg-bar .btn-gold { background:var(--gold) !important; color:#fff !important; border-color:var(--gold) !important; }
+.pg-info { font-size:11px; color:var(--text3); margin-left:4px; }
+
+
+</style>
+</head>
+<body>
+
+<!-- DEMO MODE BANNER -->
+<div id="demo-banner">
+  🎭 DEMO MODE — Sample data loaded. <a onclick="exitDemoMode()" style="color:#fde68a;cursor:pointer;text-decoration:underline;margin-left:8px;">Exit &amp; create your account →</a>
+</div>
+
+<!-- ONBOARDING WIZARD -->
+<div id="onboard-wizard">
+  <div class="wizard-box">
+    <div class="wizard-progress" id="wizard-progress"></div>
+    <div id="wizard-steps"></div>
+  </div>
+</div>
+
+<!-- DAILY DIGEST MODAL -->
+<div id="digest-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.65);z-index:1100;overflow-y:auto;padding:1.5rem;">
+  <div style="max-width:480px;margin:0 auto 80px;background:var(--card1);border-radius:18px;padding:1.4rem 1.3rem;box-shadow:0 8px 40px rgba(0,0,0,.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.1rem;">
+      <div style="font-size:17px;font-weight:700;">📊 Daily Business Digest</div>
+      <button onclick="document.getElementById('digest-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div id="digest-body"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button onclick="shareDigestWhatsApp()" class="btn-wa" style="flex:1;">📱 Share via WhatsApp</button>
+      <button onclick="document.getElementById('digest-modal').style.display='none'" class="btn" style="flex:1;">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- WHATSAPP AUTOMATION MODAL -->
+<div id="wa-automation-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.65);z-index:1100;overflow-y:auto;padding:1.5rem;">
+  <div style="max-width:500px;margin:0 auto 80px;background:var(--card1);border-radius:18px;padding:1.4rem 1.3rem;box-shadow:0 8px 40px rgba(0,0,0,.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+      <div style="font-size:17px;font-weight:700;">📱 WhatsApp Reminders</div>
+      <button onclick="document.getElementById('wa-automation-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:1rem;">Automatic reminders — JewelOS tells you exactly who to message and with what text. One tap to send.</div>
+    <div id="wa-rules-list"></div>
+    <div style="margin-top:14px;"><button onclick="runAllWaReminders()" class="btn-wa" style="width:100%;padding:12px;">📱 Run All Due Reminders Now</button></div>
+  </div>
+</div>
+
+<!-- PDF PREVIEW MODAL -->
+<div id="pdf-preview-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.75);z-index:1150;overflow-y:auto;padding:1rem;">
+  <div style="max-width:600px;margin:0 auto 60px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 60px rgba(0,0,0,.4);">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--card1);border-bottom:1px solid var(--border);">
+      <div style="font-size:15px;font-weight:700;color:var(--text1);">PDF Preview</div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="printPdfPreview()" class="btn-pdf">🖨️ Print / Save PDF</button>
+        <button onclick="document.getElementById('pdf-preview-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;">✕</button>
+      </div>
+    </div>
+    <div id="pdf-preview-body" style="padding:2rem;font-family:'Segoe UI',sans-serif;color:#111;font-size:13px;line-height:1.6;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ SAAS AUTH SCREEN -->
+<div id="saas-auth-screen" style="display:none;">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="auth-logo-mark">💎</div>
+      <div class="auth-title">JewelOS</div>
+      <div class="auth-sub">Smart management for jewellery shops</div>
+    </div>
+    <div class="auth-tab-row">
+      <button class="auth-tab active" id="auth-tab-login" onclick="showAuthTab('login')">Sign In</button>
+      <button class="auth-tab" id="auth-tab-signup" onclick="showAuthTab('signup')">Create Account</button>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div id="auth-login-form">
+      <div class="auth-field"><label>Email</label><input id="auth-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+      <div class="auth-field"><label>Password</label><input id="auth-password" type="password" placeholder="Your password" autocomplete="current-password"></div>
+      <button class="auth-btn" onclick="saasLogin()">Sign In →</button>
+      <div class="auth-err" id="auth-login-err"></div>
+      <div class="auth-link"><a onclick="showForgotPassword()">Forgot password?</a></div>
+      <div id="auth-cloud-status" style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;"></div>
+    </div>
+
+    <!-- SIGNUP FORM -->
+    <div id="auth-signup-form" style="display:none;">
+      <div class="auth-field"><label>Your Name</label><input id="signup-name" type="text" placeholder="Owner / Manager name"></div>
+      <div class="auth-field"><label>Email</label><input id="signup-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+      <div class="auth-field"><label>Password</label><input id="signup-password" type="password" placeholder="Min 8 characters" autocomplete="new-password"></div>
+      <div class="auth-field"><label>Shop Name</label><input id="signup-shop" type="text" placeholder="e.g. Sri Sai Jewellers"></div>
+      <div class="auth-field"><label>City</label><input id="signup-city" type="text" placeholder="e.g. Mumbai"></div>
+      <button class="auth-btn" onclick="saasSignup()">Create Free Account →</button>
+      <div class="auth-err" id="auth-signup-err"></div>
+      <div class="auth-link" style="font-size:11px;color:var(--text3);">Free forever • No credit card needed</div>
+      <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:8px;line-height:1.6;">
+        By creating an account you agree to our
+        <a onclick="showLegalModal('terms')" style="color:var(--gold);cursor:pointer;text-decoration:underline;">Terms of Service</a>
+        and
+        <a onclick="showLegalModal('privacy')" style="color:var(--gold);cursor:pointer;text-decoration:underline;">Privacy Policy</a>
+      </div>
+    </div>
+
+    <!-- FORGOT PASSWORD FORM -->
+    <div id="auth-forgot-form" style="display:none;">
+      <div id="forgot-step-email">
+        <div class="auth-field"><label>Email</label><input id="forgot-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+        <button class="auth-btn" id="forgot-request-btn" onclick="forgotPasswordRequestCode()">Send reset code →</button>
+        <div class="auth-err" id="forgot-err"></div>
+      </div>
+      <div id="forgot-step-code" style="display:none;">
+        <input type="hidden" id="forgot-code-email">
+        <div class="auth-field"><label>6-digit code</label><input id="forgot-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456"></div>
+        <div class="auth-field"><label>New password</label><input id="forgot-new-password" type="password" placeholder="Min 8 characters" autocomplete="new-password"></div>
+        <button class="auth-btn" id="forgot-reset-btn" onclick="forgotPasswordSubmitReset()">Reset password →</button>
+        <div class="auth-err" id="forgot-code-err"></div>
+      </div>
+      <div class="auth-link"><a onclick="cancelForgotPassword()">← Back to sign in</a></div>
+    </div>
+  </div>
+  <div style="text-align:center;padding:12px 0;font-size:10px;color:var(--text3);">
+    <a onclick="showLegalModal('privacy')" style="color:var(--text3);cursor:pointer;text-decoration:underline;margin:0 8px;">Privacy Policy</a>
+    <a onclick="showLegalModal('terms')" style="color:var(--text3);cursor:pointer;text-decoration:underline;margin:0 8px;">Terms of Service</a>
+    <span style="margin:0 8px;">© 2025 JewelOS</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ ONBOARDING SCREEN -->
+<div id="saas-onboard-screen" style="display:none;">
+  <div class="onboard-box">
+    <div style="text-align:center;margin-bottom:1.5rem;">
+      <div style="font-size:36px;margin-bottom:8px;">🏪</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;">Set Up Your Shop</div>
+      <div style="font-size:12px;color:var(--text3);">Takes 30 seconds. You can change this later.</div>
+    </div>
+    <div class="auth-field"><label>Shop Name *</label><input id="ob-shopname" type="text" placeholder="e.g. Sri Sai Jewellers"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="auth-field"><label>City *</label><input id="ob-city" type="text" placeholder="Mumbai"></div>
+      <div class="auth-field"><label>Phone</label><input id="ob-phone" type="tel" placeholder="10-digit number"></div>
+    </div>
+    <div class="auth-field"><label>GSTIN (optional)</label><input id="ob-gstin" type="text" placeholder="22AAAAA0000A1Z5" style="text-transform:uppercase"></div>
+    <div class="auth-field"><label>Currency / Locale</label>
+      <select id="ob-locale" style="width:100%;box-sizing:border-box;padding:10px 13px;border-radius:10px;border:1px solid var(--border2);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;">
+        <option value="en-IN">🇮🇳 Indian Rupee (₹)</option>
+        <option value="en-US">🇺🇸 US Dollar ($)</option>
+        <option value="en-AE">🇦🇪 UAE Dirham (د.إ)</option>
+      </select>
+    </div>
+    <button class="auth-btn" onclick="saasOnboardSave()" style="margin-top:8px;">Start Managing My Shop →</button>
+    <div class="auth-err" id="ob-err"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ LEGAL MODAL -->
+<div id="legal-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.72);z-index:2000;overflow-y:auto;padding:1.5rem;">
+  <div style="max-width:640px;margin:0 auto;background:var(--card1);border-radius:18px;padding:2rem;position:relative;">
+    <button onclick="document.getElementById('legal-modal').style.display='none'" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;">✕</button>
+    <div id="legal-modal-content" style="font-size:13px;line-height:1.8;color:var(--text2);"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ PRICING MODAL -->
+<div id="pricing-modal">
+  <div style="max-width:560px;margin:0 auto 80px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;">Upgrade Your Plan</div>
+      <button onclick="document.getElementById('pricing-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;padding:4px 8px;">✕</button>
+    </div>
+    <div class="pricing-grid">
+      <!-- FREE -->
+      <div class="plan-card">
+        <div class="plan-name">Free</div>
+        <div class="plan-price">₹0</div>
+        <div class="plan-per">forever</div>
+        <ul class="plan-features">
+          <li>✅ Up to 50 products</li>
+          <li>✅ Basic sales billing</li>
+          <li>✅ 1 user</li>
+          <li>❌ Girvi / Loans</li>
+          <li>❌ Reports & analytics</li>
+          <li>❌ WhatsApp reminders</li>
+          <li>❌ Orders module</li>
+        </ul>
+        <button class="auth-btn" style="font-size:13px;padding:10px;" onclick="document.getElementById('pricing-modal').style.display='none'">Current Plan</button>
+      </div>
+      <!-- BASIC -->
+      <div class="plan-card">
+        <div class="plan-name">Basic</div>
+        <div class="plan-price">₹499</div>
+        <div class="plan-per">per month</div>
+        <ul class="plan-features">
+          <li>✅ Unlimited products</li>
+          <li>✅ Sales + Orders</li>
+          <li>✅ 3 staff users</li>
+          <li>✅ Reports</li>
+          <li>❌ Girvi / Loans</li>
+          <li>❌ WhatsApp reminders</li>
+          <li>✅ CSV Export</li>
+        </ul>
+        <button class="auth-btn" style="font-size:13px;padding:10px;" onclick="upgradePlan('basic')">Upgrade to Basic</button>
+      </div>
+      <!-- PRO -->
+      <div class="plan-card popular">
+        <div style="font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">⭐ Most Popular</div>
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">₹999</div>
+        <div class="plan-per">per month</div>
+        <ul class="plan-features">
+          <li>✅ Everything in Basic</li>
+          <li>✅ Full Girvi module</li>
+          <li>✅ Unlimited users</li>
+          <li>✅ WhatsApp reminders</li>
+          <li>✅ PDF invoices</li>
+          <li>✅ Priority support</li>
+          <li>✅ Data backup</li>
+        </ul>
+        <button class="auth-btn" style="font-size:13px;padding:10px;" onclick="upgradePlan('pro')">Upgrade to Pro</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div id="inactivity-overlay">
+  <div class="inact-icon">&#128274;</div>
+  <div class="inact-txt">Session Locked</div>
+  <div class="inact-sub">Tap anywhere or enter PIN to continue</div>
+  <button class="btn btn-gold" onclick="dismissInactivity()" style="padding:12px 32px;font-size:15px;">&#128272; Enter PIN to Unlock</button>
+</div>
+
+<!-- PIN LOCK SCREEN -->
+<div id="pin-screen" class="hidden">
+  <div class="pin-logo">&#128142;</div>
+  <div class="pin-shop-name" id="pin-shop-name">JewelOS</div>
+  <div class="pin-tagline">Owner Access Only</div>
+  <div class="pin-label" id="pin-label">Enter PIN</div>
+  <div class="pin-dots" id="pin-dots">
+    <div class="pin-dot" id="pd0"></div>
+    <div class="pin-dot" id="pd1"></div>
+    <div class="pin-dot" id="pd2"></div>
+    <div class="pin-dot" id="pd3"></div>
+  </div>
+  <div class="pin-pad" id="pin-pad"></div>
+  <div class="pin-error" id="pin-error"></div>
+  <div style="display:flex;gap:12px;margin-top:28px;flex-wrap:wrap;justify-content:center;">
+    <button class="pin-change-btn" id="pin-change-btn">&#128273; Change PIN</button>
+    <button class="pin-change-btn" id="pin-forgot-btn" style="color:#c47a7a;border-color:rgba(180,60,60,.3);">&#8635; Forgot PIN</button>
+  </div>
+</div>
+
+<div class="loading-screen" id="loading-screen">
+  <div class="loading-gem">&#128142;</div>
+  <div class="loading-text" id="loading-shop-name">JewelOS</div>
+  <div class="loading-sub" id="loading-msg">Connecting to cloud...</div>
+  <div id="loading-offline-btn" style="display:none;margin-top:18px;">
+    <button onclick="window._forceOfflineBoot&&window._forceOfflineBoot()"
+      style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.4);color:#c9a84c;
+             padding:10px 22px;border-radius:24px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">
+      📴 Continue Offline
+    </button>
+    <div style="font-size:11px;color:rgba(201,168,76,.5);margin-top:8px;">Network seems slow — your local data is safe</div>
+  </div>
+</div>
+
+<!-- SYNC PROGRESS BAR -->
+<div class="sync-bar"><div class="sync-bar-inner" id="sync-bar-inner"></div></div>
+
+<header class="topbar">
+  <div class="logo-wrap">
+    <svg class="logo-svg" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="19" cy="19" r="18" fill="#0e0d0a"/>
+      <circle cx="19" cy="19" r="17.2" fill="none" stroke="url(#gr)" stroke-width="1.6"/>
+      <circle cx="19" cy="2.5" r="1" fill="#c9a84c" opacity="0.8"/><circle cx="19" cy="35.5" r="1" fill="#c9a84c" opacity="0.8"/>
+      <circle cx="2.5" cy="19" r="1" fill="#c9a84c" opacity="0.8"/><circle cx="35.5" cy="19" r="1" fill="#c9a84c" opacity="0.8"/>
+      <polygon points="19,7 26,16 19,20 12,16" fill="url(#gf1)"/>
+      <polygon points="19,20 26,16 28,25 19,31" fill="url(#gf2)"/>
+      <polygon points="19,20 12,16 10,25 19,31" fill="url(#gf3)"/>
+      <polygon points="10,25 19,31 28,25 19,20" fill="url(#gf4)"/>
+      <line x1="19" y1="14" x2="19" y2="9.5" stroke="#ffe88a" stroke-width="0.7" opacity="0.5"/>
+      <defs>
+        <linearGradient id="gr" x1="0" y1="0" x2="38" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#e8d49a"/><stop offset="50%" stop-color="#c9a84c"/><stop offset="100%" stop-color="#8a6a1f"/></linearGradient>
+        <linearGradient id="gf1" x1="12" y1="7" x2="26" y2="20" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffe060"/><stop offset="100%" stop-color="#c9a84c"/></linearGradient>
+        <linearGradient id="gf2" x1="26" y1="16" x2="19" y2="31" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#c9a84c"/><stop offset="100%" stop-color="#7a5c18"/></linearGradient>
+        <linearGradient id="gf3" x1="12" y1="16" x2="19" y2="31" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#b89438"/><stop offset="100%" stop-color="#6a4e14"/></linearGradient>
+        <linearGradient id="gf4" x1="10" y1="25" x2="28" y2="25" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#8a6a1f"/><stop offset="50%" stop-color="#e0b84a"/><stop offset="100%" stop-color="#8a6a1f"/></linearGradient>
+      </defs>
+    </svg>
+    <div>
+      <div class="logo-name" id="header-shop-name"><span>JewelOS</span></div>
+      <div class="logo-sub" id="header-user-info">Loading...</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="display:flex;align-items:center;gap:5px;">
+      <div class="sync-dot" id="sync-dot"></div>
+      <button onclick="forceSync()" title="Force sync" style="background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.12);border-radius:100px;padding:5px 12px;color:#9a8c78;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.18s;" onmouseover="this.style.background='rgba(201,168,76,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">&#9729; Sync</button>
+
+      <button onclick="switchTab('settings')" title="Settings & account" style="background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.12);border-radius:100px;padding:5px 12px;color:#9a8c78;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.18s;" onmouseover="this.style.background='rgba(201,168,76,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">&#9881; Settings</button>
+      <button onclick="saasLogout()" title="Sign out" style="background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.12);border-radius:100px;padding:5px 12px;color:#9a8c78;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.18s;" onmouseover="this.style.background='rgba(168,49,42,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">&#9888; Sign Out</button>
+      <span id="sync-label" style="font-size:10px;color:#7a6c5a;font-weight:600;letter-spacing:0.04em;"></span>
+    </div>
+    <nav class="dtabs" id="dtabs">
+      <button class="dtab active" onclick="switchTab('dashboard')">Dashboard</button>
+      <button class="dtab" onclick="switchTab('inventory')">Inventory</button>
+      <button class="dtab" onclick="switchTab('sales')">Record Sale</button>
+      <button class="dtab" onclick="switchTab('orders')">Orders</button>
+      <button class="dtab" onclick="switchTab('girvi')" id="dtab-girvi">&#129354; Girvi</button>
+      <button class="dtab" onclick="switchTab('customers')">Customers</button>
+      <button class="dtab" onclick="switchTab('reports')">Reports</button>
+      <button class="dtab" onclick="switchTab('settings')">&#9881;</button>
+    </nav>
+  </div>
+</header>
+
+<main class="main">
+
+<!-- DASHBOARD -->
+<div id="panel-dashboard" class="panel active">
+
+  <!-- ONBOARDING CHECKLIST — shown only for new shops -->
+  <div id="onboarding-checklist" style="display:none;background:linear-gradient(135deg,#fffbea,#fff8e7);border:1px solid rgba(201,168,76,0.35);border-radius:var(--radius-lg);padding:1rem 1.2rem;margin-bottom:.85rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:13px;font-weight:700;color:var(--gold-dark);">👋 Welcome! Set up your shop in 4 steps</div>
+      <button onclick="document.getElementById('onboarding-checklist').style.display='none'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;">✕</button>
+    </div>
+    <div id="onboarding-steps" style="display:flex;flex-direction:column;gap:7px;"></div>
+    <div style="margin-top:10px;font-size:11px;color:var(--text3);">This guide disappears once all steps are done.</div>
+  </div>
+
+  <!-- 0. HEADER: date + live rates (glanceable in <1s) -->
+  <div class="section-hdr" style="margin-bottom:.5rem;">
+    <div class="section-hdr-title" id="dash-date" style="font-size:13px;color:var(--ink3);"></div>
+    <div id="dash-rates-strip" style="display:flex;gap:14px;font-size:12px;font-weight:700;cursor:pointer;" onclick="switchTab('inventory')" title="Tap to update rates"></div>
+  </div>
+
+  <!-- 1. TODAY — the answer to "what happened today" -->
+  <div class="fin-snapshot" id="dash-today-strip"></div>
+
+  <!-- 2. TODAY'S ACTIONS — what needs doing right now -->
+  <div class="card" style="padding:.8rem 1rem;">
+    <div class="section-hdr">
+      <div class="section-hdr-title">⚡ Today's Actions</div>
+    </div>
+    <div class="action-strip" id="dash-actions"></div>
+  </div>
+
+  <!-- 3. BUSINESS SNAPSHOT — the four numbers an owner needs before deciding anything -->
+  <div class="fin-snapshot" id="dash-business-snapshot"></div>
+
+  <!-- 4. RECENT ACTIVITY -->
+  <div class="card">
+    <div class="card-title">&#128717; Recent Activity</div>
+    <div id="recent-sales"></div>
+  </div>
+
+  <!-- 5. EVERYTHING ELSE — still here, just not competing for attention on open -->
+  <details class="card" id="dash-more" style="padding:.8rem 1rem;">
+    <summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--ink3);list-style:none;display:flex;justify-content:space-between;align-items:center;">
+      <span>More details &amp; reports</span><span style="font-weight:400;">▾</span>
+    </summary>
+    <div style="margin-top:12px;">
+      <div class="card" style="padding:.8rem 1rem;">
+        <div class="section-hdr">
+          <div class="section-hdr-title">🧠 Business Insights</div>
+          <div class="section-hdr-action" onclick="renderDash()">Refresh</div>
+        </div>
+        <div class="insights-row" id="dash-insights"></div>
+      </div>
+
+      <div class="stock-banner" id="stock-banner"></div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">&#127775; Gold by Purity <span style="font-size:12px;font-weight:400;color:var(--ink3);">available stock</span></div>
+          <div id="gold-breakdown"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">&#11088; Silver by Purity <span style="font-size:12px;font-weight:400;color:var(--ink3);">available stock</span></div>
+          <div id="silver-breakdown"></div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title" style="color:var(--danger);">&#9201; Pending Balances (detail)</div>
+          <div id="dash-pending-bal"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">&#128221; Orders Due Soon</div>
+          <div id="dash-orders-due"></div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">&#128200; Top Categories</div>
+          <div id="dash-top-cats"></div>
+        </div>
+        <div id="dash-more-girvi"></div>
+      </div>
+    </div>
+  </details>
+
+</div>
+
+<!-- INVENTORY -->
+<div id="panel-inventory" class="panel">
+  <div class="metal-tabs" style="margin-bottom:10px;">
+    <button class="mtab mtab-g active" id="invsub-tab-stock" onclick="switchInvSub('stock')">&#128230; Stock</button>
+    <button class="mtab" id="invsub-tab-purchases" onclick="switchInvSub('purchases')">&#129534; Purchases</button>
+  </div>
+  <div id="inv-sub-stock">
+  <div class="rate-bar">
+    <div class="rate-bar-title">&#9733; Today's Market Rate</div>
+    <div class="rate-inputs">
+      <div class="rate-item"><label>24K/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-g24" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
+      <div class="rate-item"><label>22K/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-g22" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
+      <div class="rate-item"><label>18K/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-g18" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
+      <div class="rate-item"><label>14K/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-g14" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
+      <div class="rate-item"><label>Silver/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-sil" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
+      <button class="rate-save" onclick="saveRates()">&#10003; Save &amp; Sync</button>
+    </div>
+  </div>
+  <div class="metal-tabs">
+    <button class="mtab mtab-g" id="mtab-gold" onclick="setMetal('gold')">&#127775; Gold Items</button>
+    <button class="mtab" id="mtab-silver" onclick="setMetal('silver')">&#11088; Silver Items</button>
+  </div>
+  <div class="card">
+    <div class="card-title">
+      <span id="add-form-title">Add Gold Product</span>
+      <button class="btn btn-dark" onclick="toggleAdd()" id="add-btn">+ Add product</button>
+      <button class="btn btn-sm" onclick="openBarcodeLabels()" title="Print barcode labels for available stock" style="margin-left:6px;">&#127991; Labels</button>
+    </div>
+    <div id="add-form" style="display:none">
+      <div class="form-grid">
+        <div class="fg"><label>Product name</label><input id="f-name" placeholder="e.g. Necklace, Ring..."/></div>
+        <div class="fg"><label>Category</label><select id="f-cat"><option>Rings</option><option>Necklaces / Haar</option><option>Earrings</option><option>Jhumkas</option><option>Bangles</option><option>Kankanalu</option><option>Bracelets</option><option>Anklets / Payal</option><option>Pendants</option><option>Chains</option><option>Mangalsutras</option><option>Maang Tikka</option><option>Nose Ring / Nath</option><option>Armlet / Bajuband</option><option>Waist Belt / Kamarbandh</option><option>Jadau</option><option>Other</option></select></div>
+        <div class="fg"><label>Purity</label><select id="f-purity"></select></div>
+        <div class="fg"><label>HUID Number</label><input id="f-huid" placeholder="e.g. ABC123456" maxlength="20" style="text-transform:uppercase"/></div>
+        <div class="fg"><label>SKU / Item Code</label><input id="f-sku" placeholder="Auto if empty"/></div>
+        <div class="fg"><label>Gross Weight (g)</label><div class="isuf"><input id="f-wt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
+        <div class="fg"><label>Net Weight (g) <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-netwt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
+        <div class="fg"><label>Purchase Rate ₹/g <span style="font-size:10px;color:var(--text3)">(cost price)</span></label><div class="isuf"><input id="f-costrate" type="number" inputmode="decimal" placeholder="Rate you paid"/><span class="suf">₹/g</span></div></div>
+        <div class="fg"><label>Making Charge ₹/g <span style="font-size:10px;color:var(--text3)">(per gram MC)</span></label><div class="isuf"><input id="f-mcrate" type="number" inputmode="decimal" placeholder="0"/><span class="suf">₹/g</span></div></div>
+        <div class="fg"><label>Photo / Product URL</label><input id="f-photo" placeholder="Paste image link" type="url"/></div>
+        <div class="fg"><label>Notes</label><input id="f-notes" placeholder="Optional"/></div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-gold" onclick="addProduct()">&#9729; Save &amp; Sync</button>
+        <button class="btn" onclick="toggleAdd()">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" id="inv-title">Gold Products</div>
+    <div class="search-row">
+      <input id="inv-search" placeholder="Search name, SKU or HUID..." oninput="debouncedRenderInv()"/>
+      <select id="inv-status-filter" onchange="renderInv()" style="width:auto;padding:9px 28px 9px 10px;font-size:13px;">
+        <option value="all">All</option><option value="available">Available</option><option value="sold">Sold</option><option value="returned">Returned (needs inspection)</option>
+      </select>
+    </div>
+    <div class="pills" id="cat-pills"></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Product</th><th>HUID</th><th>Purity</th><th>Gross Wt</th><th>Net Wt</th><th>Mkt Value</th><th>Photo</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="inv-body"></tbody>
+      </table>
+    <div id="inv-pagination" style="padding:6px 0;"></div>
+    </div>
+    <div id="inv-footer" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:13px;color:var(--text2);"></div>
+  </div>
+  </div>
+  <div id="inv-sub-purchases" style="display:none;"></div>
+</div>
+
+<!-- SALES -->
+<div id="panel-sales" class="panel">
+  <div class="card">
+    <div class="card-title" style="border-bottom:0.5px solid var(--border);padding-bottom:0.9rem;margin-bottom:1rem;">&#128179; New Sale / Invoice <span style="font-size:12px;font-weight:400;color:var(--ink3);margin-left:4px;">Enter customer and item details</span></div>
+
+    <!-- BILL TYPE SELECTOR -->
+    <div style="display:flex;gap:0;background:var(--bg2);border-radius:12px;padding:4px;margin-bottom:14px;border:1px solid var(--border);">
+      <button id="sform-btype-gst" onclick="setSaleFormBillType('gst')" style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,var(--gold-dark),var(--gold));color:#1a1200;transition:all .2s;">&#128196; GST Bill</button>
+      <button id="sform-btype-memo" onclick="setSaleFormBillType('memo')" style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;background:transparent;color:var(--text2);transition:all .2s;">&#128203; Memo Bill</button>
+    </div>
+
+    <div class="form-grid" style="margin-bottom:12px">
+      <div class="fg"><label>Invoice No.</label><input id="s-invno" placeholder="Auto-generated"/></div>
+      <div class="fg"><label>Date</label><input id="s-date" type="date"/></div>
+      <div class="fg"><label>Customer name *</label><input id="s-cust" placeholder="Customer name" oninput="custAutocomplete()"/></div>
+      <div class="fg"><label>Customer phone</label><input id="s-phone" type="tel" inputmode="tel" placeholder="+91 XXXXX XXXXX"/></div>
+      <div class="fg"><label>Customer address</label><input id="s-addr" placeholder="Optional"/></div>
+      <!-- payment mode moved to Paying Now section -->
+    </div>
+    <div id="cust-suggestions" style="display:none;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-top:-6px;margin-bottom:10px;max-height:150px;overflow-y:auto;"></div>
+    <!-- SALE MODE TOGGLE -->
+    <div class="mode-toggle-wrap">
+      <button class="mode-btn active-stock" id="mode-btn-stock" onclick="setSaleMode('stock')">
+        &#128230; Stock Sale<br><span style="font-size:10px;font-weight:400;opacity:0.85;">Sell from inventory</span>
+      </button>
+      <button class="mode-btn" id="mode-btn-custom" onclick="setSaleMode('custom')">
+        &#128296; Custom / Handmade<br><span style="font-size:10px;font-weight:400;opacity:0.85;">Made-to-order billing</span>
+      </button>
+    </div>
+    <!-- STOCK MODE -->
+    <div id="sale-mode-stock">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;">Items sold</div>
+      <div id="sale-items"></div>
+      <button class="btn" onclick="addSI()" style="margin-top:8px">+ Add item</button>
+    </div>
+    <!-- CUSTOM MODE -->
+    <div id="sale-mode-custom" style="display:none;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;">Items — Custom / Handmade</div>
+      <div id="custom-sale-items"></div>
+      <button class="btn btn-info" onclick="addCustomSI()" style="margin-top:8px;width:100%;">+ Add Another Item</button>
+    </div>
+    <div class="divider"></div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;">Charges &amp; Adjustments</div>
+    <div class="form-grid">
+      <div class="fg"><label>Extra making (&#8377;)</label><input id="s-making" type="number" inputmode="decimal" value="0" oninput="updateSum()"/></div>
+      <div class="fg"><label>Extra diamond (&#8377;)</label><input id="s-diamond" type="number" inputmode="decimal" value="0" oninput="updateSum()"/></div>
+      <div class="fg" id="s-gst-wrap"><label>GST %</label><input id="s-gst" type="number" inputmode="decimal" value="0" placeholder="e.g. 3" oninput="updateSum()"/></div>
+      <div class="fg"><label>Discount (&#8377;)</label><input id="s-disc" type="number" inputmode="decimal" value="0" oninput="updateSum()"/></div>
+    </div>
+
+    <!-- PAYMENT SECTION (Tanishq-style) -->
+    <div style="margin:14px 0 10px;background:var(--bg2);border-radius:var(--radius-lg);padding:14px 16px;border:1px solid var(--border);" id="payment-section">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text2);margin-bottom:12px;">&#128176; Payment Details</div>
+
+      <!-- OLD GOLD EXCHANGE -->
+      <div style="background:linear-gradient(135deg,rgba(201,168,76,0.08),rgba(201,168,76,0.04));border:1px solid rgba(201,168,76,0.25);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;">
+        <!-- Old Gold header + mode toggle -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gold-dark);">&#9851; Old Gold / Exchange</div>
+          <div style="display:flex;gap:0;border:1px solid rgba(201,168,76,0.35);border-radius:6px;overflow:hidden;">
+            <button id="og-mode-direct" onclick="setOgMode('direct')"
+              style="padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:var(--gold);color:#1a1814;font-family:inherit;">
+              &#8377; Direct Amount
+            </button>
+            <button id="og-mode-calc" onclick="setOgMode('calc')"
+              style="padding:4px 12px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--gold-dark);font-family:inherit;">
+              &#9878; Wt &amp; Purity
+            </button>
+          </div>
+        </div>
+
+        <!-- MODE A: Direct rupee entry (default) -->
+        <div id="og-direct-row">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="fg" style="flex:1;margin:0;">
+              <label>Old gold amount given (&#8377;)</label>
+              <div class="isuf">
+                <span class="suf" style="order:-1;border-right:1px solid var(--border2);border-left:none;border-radius:var(--radius) 0 0 var(--radius);">&#8377;</span>
+                <input id="s-oldgold-direct" type="text" inputmode="decimal"
+                  placeholder="Enter rupee value directly"
+                  style="font-size:15px;font-weight:700;color:var(--gold-dark);border-radius:0 var(--radius) var(--radius) 0;"
+                  oninput="updateSum()"/>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:5px;">
+            e.g. if you assessed old gold at &#8377;45,000 — just enter that directly
+          </div>
+        </div>
+
+        <!-- MODE B: Weight + purity calculation -->
+        <div id="og-calc-row" style="display:none;">
+          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
+            <div class="fg">
+              <label>Old gold weight (g)</label>
+              <div class="isuf"><input id="s-oldgold-wt" type="text" inputmode="decimal" placeholder="0.000" oninput="updateSum()"/><span class="suf">g</span></div>
+            </div>
+            <div class="fg">
+              <label>Old gold purity</label>
+              <select id="s-oldgold-purity" onchange="updateSum()">
+                <option value="">— select —</option>
+                <option value="24K">24K</option>
+                <option value="22K">22K</option>
+                <option value="18K">18K</option>
+                <option value="14K">14K</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label>Calculated value (&#8377;)</label>
+              <input id="s-oldgold-val" type="text" inputmode="decimal" placeholder="Auto-calculated"
+                oninput="var el=document.getElementById('s-oldgold-val');if(el)el._manualEdit=(el.value.length>0);updateSum();"
+                style="color:var(--gold-dark);font-weight:600;background:var(--bg2);"/>
+            </div>
+          </div>
+          <div id="s-oldgold-display" style="font-size:12px;color:var(--text3);margin-top:4px;display:none;"></div>
+        </div>
+      </div>
+
+      <!-- ADVANCE PREVIOUSLY PAID (from order) -->
+      <div style="margin-bottom:10px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text2);margin-bottom:8px;">&#9989; Advance Already Paid</div>
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+          <div class="fg">
+            <label>Advance amount (&#8377;)</label>
+            <input id="s-prev-advance" type="number" inputmode="decimal" value="0" placeholder="From order booking" oninput="updateSum()"/>
+          </div>
+          <div class="fg">
+            <label>Advance paid via</label>
+            <select id="s-prev-advance-mode">
+              <option value="Cash">Cash</option>
+              <option value="UPI">UPI</option>
+              <option value="Card">Card</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="Gold">Gold (exchanged)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- NOW PAYING — balance settlement -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text2);margin-bottom:8px;">&#128179; Paying Now</div>
+        <div id="balance-due-row" style="display:none;margin-bottom:8px;padding:8px 10px;background:rgba(192,57,43,0.08);border-radius:6px;border-left:3px solid var(--danger);">
+          <span style="font-size:12px;color:var(--danger);font-weight:700;">Balance Due: </span>
+          <span id="s-bal-due-display" style="font-size:14px;font-weight:900;color:var(--danger);">&#8377;0</span>
+        </div>
+        <div id="split-payments-wrap"></div>
+        <button class="split-add-btn" onclick="addSplitRow()">+ Add another payment mode</button>
+        <!-- hidden legacy field for compatibility -->
+        <input type="hidden" id="s-advance" value="0"/>
+        <input type="hidden" id="s-pay" value="Cash"/>
+        <!-- Still pending after payment -->
+        <div id="still-pending-row" style="display:none;margin-top:8px;padding:7px 10px;background:rgba(180,83,9,0.07);border-radius:6px;border-left:3px solid var(--warning);">
+          <span style="font-size:12px;color:var(--warning);font-weight:700;">Still pending: </span>
+          <span id="s-still-pending" style="font-size:13px;font-weight:800;color:var(--warning);">&#8377;0</span>
+          <span style="font-size:11px;color:var(--text3);margin-left:6px;">Will show as balance due</span>
+        </div>
+        <div id="fully-cleared-row" style="display:none;margin-top:8px;padding:7px 10px;background:rgba(45,122,79,0.08);border-radius:6px;border-left:3px solid var(--success);">
+          <span style="font-size:13px;color:var(--success);font-weight:700;">&#10003; Fully Settled — No balance due</span>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="fg">
+        <label>Notes / Occasion</label>
+        <input id="s-notes" placeholder="e.g. Anniversary, Birthday gift..."/>
+      </div>
+    </div>
+
+    <div class="sum-box">
+      <div class="sum-row"><span>Gold value</span><span id="ss-gv">&#8377;0</span></div>
+      <div class="sum-row"><span>Making charges</span><span id="ss-mc">&#8377;0</span></div>
+      <div class="sum-row"><span>Diamond charges</span><span id="ss-dc">&#8377;0</span></div>
+      <div class="sum-row"><span>Subtotal</span><span id="ss-sub">&#8377;0</span></div>
+      <div class="sum-row" id="ss-gst-row"><span>GST</span><span id="ss-gst">&#8377;0</span></div>
+      <div class="sum-row"><span>Discount</span><span id="ss-disc">&#8377;0</span></div>
+      <div class="sum-total"><span>Grand Total</span><span id="ss-total">&#8377;0</span></div>
+      <div id="payment-summary-row" style="margin-top:8px;padding-top:10px;border-top:1px dashed var(--border2);">
+        <!-- dynamically filled by updateSum() -->
+      </div>
+    </div>
+    <div style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-gold btn-full" onclick="recordSale()">&#9729; Record &amp; Sync Sale</button>
+      <button class="btn btn-info" onclick="previewInvoice()">&#128196; Preview Bill</button>
+      <button class="btn btn-full" onclick="clearSale()">Clear</button>
+    </div>
+  </div>
+</div>
+
+<!-- ORDERS -->
+<div id="panel-orders" class="panel">
+
+  <!-- METRICS -->
+  <div class="metrics" id="ord-metrics"></div>
+  <div id="ord-urgent-wrap"></div>
+
+  <!-- ADD ORDER CARD -->
+  <div class="card">
+    <div class="card-title">
+      &#128221; Custom Orders
+      <span style="font-size:11px;font-weight:400;color:var(--text3);">Production tracking</span>
+      <button class="btn btn-dark" onclick="toggleOrdForm()" id="ord-add-btn">+ New Order</button>
+    </div>
+
+    <div id="ord-form" style="display:none;">
+      <!-- CUSTOMER -->
+      <div class="ord-section-label">Customer Details</div>
+      <div class="form-grid">
+        <div class="fg"><label>Customer Name *</label><input id="of-cust" placeholder="Full name" oninput="ordCustAuto()"/></div>
+        <div class="fg"><label>Phone *</label><input id="of-phone" type="tel" inputmode="tel" placeholder="+91 XXXXX XXXXX"/></div>
+        <div class="fg"><label>Address</label><input id="of-addr" placeholder="Optional"/></div>
+      </div>
+      <div id="of-cust-sug" style="display:none;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-top:-6px;margin-bottom:10px;max-height:120px;overflow-y:auto;"></div>
+
+      <!-- ITEMS -->
+      <div class="ord-section-label" style="margin-top:16px;">
+        Order Items
+        <span style="font-size:11px;font-weight:400;color:var(--text3);">(each item: metal, weight, making charges)</span>
+      </div>
+      <div id="of-items-wrap"></div>
+      <button class="btn btn-sm btn-info" onclick="addOrdItem()" style="width:100%;margin-bottom:14px;">+ Add Another Item</button>
+
+      <!-- PRICING & DELIVERY -->
+      <div class="ord-section-label">Pricing & Delivery</div>
+      <div class="form-grid">
+        <div class="fg"><label>Rough Quotation (&#8377;)</label><input id="of-quote" type="number" inputmode="decimal" placeholder="Approx total" oninput="calcOrdEst()"/></div>
+        <div class="fg"><label>Delivery Date *</label><input id="of-delivery" type="date"/></div>
+        <div class="fg"><label>Final Rate (&#8377;) <span style="font-size:10px;color:var(--text3);">optional</span></label><input id="of-finalrate" type="number" inputmode="decimal" placeholder="Confirm later"/></div>
+        <div class="fg"><label>Gold Deposited (g)</label><div class="isuf"><input id="of-golddeposit" type="number" inputmode="decimal" placeholder="0.00" step="0.01" oninput="calcOrdEst()"/><span class="suf">g</span></div></div>
+        <div class="fg"><label>Deposited Gold Purity</label>
+          <select id="of-goldpurity" onchange="calcOrdEst()">
+            <option value="24K">24K</option>
+            <option value="22K" selected>22K</option>
+            <option value="18K">18K</option>
+            <option value="14K">14K</option>
+          </select>
+        </div>
+        <div class="fg"><label>Priority</label>
+          <select id="of-priority">
+            <option value="normal">Normal</option>
+            <option value="urgent">Urgent</option>
+            <option value="vip">VIP</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- INITIAL ADVANCE -->
+      <div class="ord-section-label" style="margin-top:4px;">Initial Advance Payment</div>
+      <div style="background:var(--gold-bg);border:0.5px solid rgba(201,163,78,.28);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;">
+        <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+          <div class="fg"><label>Amount (&#8377;)</label><input id="of-adv-amt" type="number" inputmode="decimal" placeholder="0" oninput="calcOrdEst()"/></div>
+          <div class="fg"><label>Mode</label>
+            <select id="of-adv-mode">
+              <option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option><option>Gold</option>
+            </select>
+          </div>
+          <div class="fg"><label>Reference / UPI ID</label><input id="of-adv-ref" placeholder="Optional"/></div>
+          <div class="fg"><label>Notes</label><input id="of-adv-note" placeholder="Optional"/></div>
+        </div>
+      </div>
+
+      <!-- ORDER SUMMARY -->
+      <div style="background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:1rem;margin-top:4px;">
+        <div class="ord-section-label" style="margin:0 0 8px;">Order Summary</div>
+        <div class="sum-row"><span>Rough Quotation</span><span id="oe-total">&#8377;0</span></div>
+        <div class="sum-row"><span>Advance Paid</span><span id="oe-adv" style="color:var(--success);">&#8377;0</span></div>
+        <div class="sum-row"><span>Gold Deposited</span><span id="oe-goldep" style="color:var(--gold-dark);">0g</span></div>
+        <div class="sum-total"><span>Balance on Delivery</span><span id="oe-bal" style="color:var(--danger);">&#8377;0</span></div>
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-gold" onclick="saveOrder()">&#9729; Save &amp; Sync Order</button>
+        <button class="btn" onclick="toggleOrdForm()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ORDERS LIST -->
+  <div class="card">
+    <div class="card-title">
+      All Orders
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <select id="ord-filter" onchange="renderOrders()" style="width:auto;padding:6px 26px 6px 10px;font-size:12px;">
+          <option value="all">All Status</option>
+          <option value="new">New</option>
+          <option value="progress">In Progress</option>
+          <option value="ready">Ready</option>
+          <option value="delivered">Delivered</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+    </div>
+    <div class="search-row"><input id="ord-search" placeholder="Search by customer, order ID..." oninput="debouncedRenderOrders()"/></div>
+    <div id="ord-list"></div>
+  </div>
+</div>
+
+<!-- ORDER DETAIL MODAL -->
+<div class="modal-bg" id="ord-modal">
+  <div class="modal">
+    <div class="modal-header"><h2 id="ord-modal-title">Order Details</h2><button class="modal-close" onclick="closeOrdModal()">&#10005;</button></div>
+    <div class="modal-body" id="ord-modal-body"></div>
+  </div>
+</div>
+
+<!-- CUSTOMERS -->
+<div id="panel-customers" class="panel">
+  <!-- BALANCE DUE TRACKER BANNER -->
+  <div id="bal-tracker-banner" style="display:none;background:linear-gradient(135deg,#fdf0ee,#fde8e8);border:1px solid rgba(192,57,43,0.25);border-radius:var(--radius-lg);padding:1rem 1.1rem;margin-bottom:0.85rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--danger);margin-bottom:3px;">&#9201; Pending Balance Dues</div>
+        <div style="font-size:13px;color:var(--text2)" id="bal-summary-text"></div>
+      </div>
+      <div style="font-size:22px;font-weight:700;color:var(--danger)" id="bal-total-amt"></div>
+    </div>
+    <div id="bal-due-list" style="margin-top:10px;"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">
+      &#128101; Customer Records
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button onclick="showAddCustomerModal()" class="btn btn-gold btn-sm" style="font-size:11px;padding:5px 10px;">+ Add Customer</button>
+        <select id="cust-sort" onchange="renderCustomers()" style="width:auto;padding:6px 26px 6px 10px;font-size:12px;">
+          <option value="purchases">Most purchases</option>
+          <option value="amount">Highest spent</option>
+          <option value="recent">Most recent</option>
+          <option value="balance">Has balance due</option>
+        </select>
+      </div>
+    </div>
+    <div class="search-row"><input id="cust-search" placeholder="Search by name or phone..." oninput="debouncedRenderCustomers()"/></div>
+    <div id="cust-list"></div>
+  </div>
+</div>
+
+<!-- REPORTS -->
+<div id="panel-reports" class="panel">
+  <!-- MONTH SELECTOR -->
+  <div class="card" style="padding:0.85rem 1.1rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+      <div style="font-size:16px;font-weight:700;">&#128200; Monthly Report</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn btn-sm" onclick="changeMonth(-1)">&#8249;</button>
+        <span id="month-label" style="font-size:14px;font-weight:600;min-width:120px;text-align:center;"></span>
+        <button class="btn btn-sm" onclick="changeMonth(1)">&#8250;</button>
+        <button class="btn btn-sm btn-gold" onclick="setMonthToday()">This Month</button>
+      </div>
+    </div>
+  </div>
+  <div class="metrics" id="rep-metrics"></div>
+
+  <!-- GSTR-1 EXPORT CARD -->
+  <div class="card" style="border:1px solid rgba(201,163,76,0.3);">
+    <div class="card-title">📋 GST Filing Export
+      <span style="font-size:11px;font-weight:400;color:var(--text3);">GSTR-1 compatible CSV</span>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
+      Export your GST sales as a GSTR-1 B2C/B2B summary CSV. Upload directly to the GST portal or share with your CA.
+      Includes: Invoice No, Date, Customer GSTIN, Taxable Value, IGST/CGST/SGST split, HSN 7113.
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;" id="gstr1-month-btns"></div>
+    <div style="margin-top:10px;">
+      <button onclick="exportGSTR1()" class="btn btn-gold">⬇ Export All GST Sales (GSTR-1)</button>
+    </div>
+  </div>
+
+  <!-- MONTHLY CHART -->
+  <div class="card">
+    <div class="card-title">&#128200; Revenue trend <span style="font-size:12px;color:var(--ink3);font-weight:400;" id="rep-chart-label"></span></div>
+    <div id="rep-chart" style="display:flex;align-items:flex-end;gap:3px;height:90px;padding:0 4px;"></div>
+    <div id="rep-chart-labels" style="display:flex;gap:3px;margin-top:4px;padding:0 4px;"></div>
+  </div>
+  <div class="two-col">
+    <div class="card"><div class="card-title">Top products <span style="font-size:11px;color:var(--text3);font-weight:400;" id="rep-top-label"></span></div><div class="tbl-wrap"><table><thead><tr><th>Product</th><th>Units</th><th>Wt sold</th></tr></thead><tbody id="top-prods"></tbody></table></div></div>
+    <div class="card"><div class="card-title">By category</div><div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Units</th><th>Total wt</th></tr></thead><tbody id="cat-perf"></tbody></table></div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Sales in <span id="rep-hist-label"></span>
+      <button class="btn btn-sm" onclick="exportMonthCSV()">&#11015; Export CSV</button>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Items</th><th>Wt</th><th>Payment</th><th>Total</th><th>Balance</th><th></th></tr></thead><tbody id="sales-hist"></tbody></table></div>
+  </div>
+
+  <!-- TOP CUSTOMERS + AGING ROW -->
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">&#127942; Top Customers</div>
+      <div id="rep-top-custs"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">&#9201; Pending Aging</div>
+      <div id="rep-aging"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ GIRVI PANEL -->
+<div id="panel-girvi" class="panel">
+
+  <!-- GIRVI EXECUTIVE DASHBOARD (v20) -->
+  <div class="girvi-exec-dash" id="girvi-exec-dash"></div>
+
+  <!-- OVERDUE BANNER (v20) -->
+  <div id="girvi-overdue-banner"></div>
+
+  <!-- CONTROL PANEL HEADER -->
+  <div class="girvi-cp" id="girvi-cp"></div>
+
+  <!-- TODAY'S ACTIONS -->
+  <div class="card" style="padding:.8rem 1rem;" id="girvi-today-card">
+    <div class="section-hdr">
+      <div class="section-hdr-title">⚡ Aaj Ka Kaam (Today's Actions)</div>
+      <div class="section-hdr-action" onclick="renderGirvi()">Refresh</div>
+    </div>
+    <div id="girvi-today-actions"></div>
+  </div>
+
+  <!-- SEARCH + FILTER BAR (v20 Advanced) -->
+  <div class="girvi-adv-search">
+    <input id="girvi-search" class="main-search" type="text" placeholder="🔍 Name / Phone / GRV-ID / Ornament" oninput="resetGirviPage()">
+    <select id="girvi-filter-status" onchange="resetGirviPage()" style="font-size:12px;">
+      <option value="all">All Status</option>
+      <option value="active">Active</option>
+      <option value="overdue">Overdue</option>
+      <option value="atrisk">At Risk</option>
+      <option value="defaulted">Defaulted</option>
+      <option value="closed">Closed</option>
+      <option value="archived">🗃 Archived</option>
+    </select>
+    <select id="girvi-filter-metal" onchange="resetGirviPage()" style="font-size:12px;">
+      <option value="all">All Metal</option>
+      <option value="gold">Gold</option>
+      <option value="silver">Silver</option>
+    </select>
+    <button class="girvi-search-chip" id="girvi-chip-due7" onclick="toggleGirviChip('due7',this)">⏰ Due in 7d</button>
+    <button class="girvi-search-chip" id="girvi-chip-highval" onclick="toggleGirviChip('highval',this)">💰 ₹50K+</button>
+    <button class="girvi-search-chip" id="girvi-chip-bycust" onclick="toggleGirviViewMode(this)">👤 By Customer</button>
+    <button class="btn btn-gold" onclick="openGirviForm()" style="white-space:nowrap;border-radius:9px;padding:7px 14px;font-size:12px;">＋ New Girvi</button>
+  </div>
+
+  <!-- GIRVI CARDS LIST -->
+  <div style="font-size:11px;color:var(--text3);padding:2px 4px 6px;" id="girvi-count-label"></div>
+  <div id="girvi-list"></div>
+
+</div>
+
+<!-- ── GIRVI WIZARD MODAL ─────────────────────────────────────────────── -->
+<div id="girvi-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.8);z-index:900;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+  <div style="max-width:480px;margin:20px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.4),0 0 0 1px rgba(201,168,76,.18);">
+
+    <!-- Modal header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .6rem;background:linear-gradient(135deg,rgba(201,168,76,.1),rgba(201,168,76,.03));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(201,168,76,.2);">
+      <div style="font-size:16px;font-weight:700;color:var(--gold-dark);" id="girvi-modal-title">🪙 New Girvi</div>
+      <button onclick="closeGirviModal()" style="background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;padding:2px 6px;line-height:1;">✕</button>
+    </div>
+
+    <!-- Step progress dots -->
+    <div class="gf-step-nav" id="gf-step-nav" style="padding:0 1.3rem;"></div>
+
+    <!-- Step label -->
+    <div style="padding:0 1.3rem;margin-bottom:.8rem;">
+      <div style="font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;" id="gf-step-label"></div>
+    </div>
+
+    <!-- STEP 1: Customer -->
+    <div class="gf-wizard active" id="gf-step-1" style="padding:0 1.3rem;">
+      <div style="margin-bottom:9px;">
+        <label style="display:block;font-weight:700;font-size:12px;color:var(--ink);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Customer Name *</label>
+        <input id="gf-cust" type="text" placeholder="Enter customer name" autocomplete="off"
+          style="width:100%;box-sizing:border-box;padding:10px 14px;border-radius:11px;border:1.5px solid var(--border-gold);background:var(--card1);color:var(--ink);font-size:15px;font-family:inherit;font-weight:600;outline:none;" onfocus="this.style.borderColor='var(--gold-dark)'" onblur="this.style.borderColor='var(--border-gold)'">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px;">
+        <div>
+          <label style="display:block;font-weight:700;font-size:12px;color:var(--ink);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Phone *</label>
+          <input id="gf-phone" type="tel" placeholder="10-digit number" inputmode="tel"
+            style="width:100%;box-sizing:border-box;padding:10px 13px;border-radius:11px;border:1.5px solid var(--border-gold);background:var(--card1);color:var(--ink);font-size:15px;font-family:inherit;outline:none;" onfocus="this.style.borderColor='var(--gold-dark)'" onblur="this.style.borderColor='var(--border-gold)'">
+        </div>
+        <div>
+          <label style="display:block;font-weight:700;font-size:12px;color:var(--ink);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Risk Level</label>
+          <select id="gf-risk" style="width:100%;box-sizing:border-box;padding:10px 10px;border-radius:11px;border:1.5px solid var(--border-gold);background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">
+            <option value="low">🟢 Low Risk</option>
+            <option value="medium" selected>🟡 Medium Risk</option>
+            <option value="high">🔴 High Risk</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:9px;">
+        <label style="display:block;font-weight:700;font-size:12px;color:var(--ink);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Address</label>
+        <input id="gf-addr" type="text" placeholder="Optional"
+          style="width:100%;box-sizing:border-box;padding:10px 13px;border-radius:11px;border:1.5px solid var(--border-gold);background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;outline:none;" onfocus="this.style.borderColor='var(--gold-dark)'" onblur="this.style.borderColor='var(--border-gold)'">
+      </div>
+      <div style="margin-bottom:4px;">
+        <label style="display:block;font-weight:700;font-size:12px;color:var(--ink);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Aadhaar / PAN</label>
+        <input id="gf-idproof" type="text" placeholder="Optional"
+          style="width:100%;box-sizing:border-box;padding:10px 13px;border-radius:11px;border:1.5px solid #C9A84C;background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;text-transform:uppercase;outline:none;" onfocus="this.style.borderColor='var(--gold-dark)'" onblur="this.style.borderColor='var(--border-gold)'">
+      </div>
+    </div>
+
+    <!-- STEP 2: Items (multi-item) -->
+    <div class="gf-wizard" id="gf-step-2" style="padding:0 1.1rem;">
+      <div id="gf-items-list" style="margin-bottom:10px;"></div>
+      <button onclick="gfAddItem()" style="width:100%;padding:10px;border-radius:11px;border:1.5px dashed rgba(201,168,76,.4);background:rgba(201,168,76,.04);color:var(--gold-dark);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:12px;">
+        <span style="font-size:18px;line-height:1;">+</span> Add Another Item
+      </button>
+      <div id="gf-items-summary" style="display:none;background:linear-gradient(135deg,rgba(201,168,76,.1),rgba(201,168,76,.04));border:1px solid rgba(201,168,76,.25);border-radius:11px;padding:12px 14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;text-align:center;margin-bottom:10px;">
+          <div><div style="font-size:20px;font-weight:800;color:var(--gold);" id="gf-total-items">0</div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Items</div></div>
+          <div><div style="font-size:20px;font-weight:800;color:var(--ink);" id="gf-total-weight">0g</div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Total Wt</div></div>
+          <div><div style="font-size:18px;font-weight:800;color:var(--gold-dark);" id="gf-total-mktval">&#8377;0</div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Mkt Value</div></div>
+        </div>
+        <div style="border-top:1px solid rgba(201,168,76,.2);padding-top:8px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:11px;color:var(--text3);">Suggested loan <span style="color:var(--gold-dark);font-weight:600;">(70% LTV)</span></div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="font-size:16px;font-weight:800;color:var(--gold-dark);" id="gf-suggested-loan">&#8377;0</div>
+            <button onclick="gfUseSuggestedLoan()" style="padding:4px 12px;border-radius:100px;border:1px solid var(--gold);background:rgba(201,168,76,.12);color:var(--gold-dark);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">Use &#8599;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: Loan -->
+    <!-- STEP 3 — photograph the pledged ornaments -->
+    <div class="gf-wizard" id="gf-step-3" style="padding:0 1.3rem;">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
+        Photograph each ornament as it is taken in. Stored on the customer's profile,
+        so you have a record of exactly what was pledged.
+      </div>
+      <!-- capture="environment" opens the rear camera straight away on a phone,
+           and still falls back to a normal file picker on a desktop browser. -->
+      <input type="file" id="gf-photo-input" accept="image/*" capture="environment"
+             style="display:none;" onchange="gfAddPhotos(this)"/>
+      <button type="button" onclick="document.getElementById('gf-photo-input').click()"
+              style="width:100%;padding:13px;border-radius:12px;border:1.5px dashed var(--gold-dark);background:rgba(201,168,76,.07);color:var(--gold-dark);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">
+        📷 Take / choose photo
+      </button>
+      <div id="gf-photo-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;"></div>
+      <div id="gf-photo-note" style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5;"></div>
+    </div>
+
+    <div class="gf-wizard" id="gf-step-4" style="padding:0 1.3rem;">
+      <div style="position:relative;margin-bottom:9px;">
+        <label style="display:block;font-weight:700;font-size:12px;color:var(--ink);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Loan Amount *</label>
+        <span style="position:absolute;left:14px;bottom:14px;color:var(--text3);font-size:16px;font-weight:700;">₹</span>
+        <input id="gf-principal" type="number" step="100" placeholder="Enter loan amount" inputmode="numeric"
+          style="width:100%;box-sizing:border-box;padding:14px 14px 14px 30px;border-radius:11px;border:1.5px solid #C9A84C;background:var(--card1);color:var(--ink);font-size:20px;font-family:inherit;font-weight:800;outline:none;" oninput="girviAutoCalc()" onfocus="this.style.borderColor='var(--gold-dark)'" onblur="this.style.borderColor='var(--border-gold)'">
+      </div>
+      <!-- Quick amount buttons -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+        <div style="font-size:11px;color:var(--ink);width:100%;font-weight:700;">Quick amounts:</div>
+        <button onclick="setGirviAmount(5000)"  style="padding:5px 12px;border-radius:100px;border:1px solid #C9A84C;background:var(--card1);color:var(--gold-dark);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">₹5K</button>
+        <button onclick="setGirviAmount(10000)" style="padding:5px 12px;border-radius:100px;border:1px solid #C9A84C;background:var(--card1);color:var(--gold-dark);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">₹10K</button>
+        <button onclick="setGirviAmount(25000)" style="padding:5px 12px;border-radius:100px;border:1px solid #C9A84C;background:var(--card1);color:var(--gold-dark);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">₹25K</button>
+        <button onclick="setGirviAmount(50000)" style="padding:5px 12px;border-radius:100px;border:1px solid #C9A84C;background:var(--card1);color:var(--gold-dark);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">₹50K</button>
+        <button onclick="setGirviAmount(100000)" style="padding:5px 12px;border-radius:100px;border:1px solid #C9A84C;background:var(--card1);color:var(--gold-dark);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">₹1L</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px;">
+        <div>
+          <div style="font-size:12px;color:var(--ink);margin-bottom:5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Interest Rate</div>
+          <div style="display:flex;gap:4px;">
+            <input id="gf-rate" type="number" step="0.1" value="2" inputmode="decimal"
+              style="flex:1 1 auto;min-width:0;padding:10px;border-radius:11px;border:1.5px solid #C9A84C;background:var(--card1);color:var(--ink);font-size:15px;font-family:inherit;font-weight:700;outline:none;" oninput="girviAutoCalc()" onfocus="this.style.borderColor='var(--gold-dark)'" onblur="this.style.borderColor='var(--border-gold)'">
+            <select id="gf-ratetype" onchange="girviAutoCalc()" style="flex:0 0 78px;width:78px;padding:8px 6px;border-radius:11px;border:1.5px solid #C9A84C;background:var(--card1);color:var(--ink);font-size:11px;font-family:inherit;outline:none;">
+              <option value="monthly">%/mo</option>
+              <option value="yearly">%/yr</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--ink);margin-bottom:5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Duration (months)</div>
+          <input id="gf-duration" type="number" min="1" placeholder="e.g. 3"
+            style="width:100%;box-sizing:border-box;padding:10px 13px;border-radius:11px;border:1.5px solid #C9A84C;background:var(--card1);color:var(--ink);font-size:15px;font-family:inherit;font-weight:700;outline:none;" oninput="updateGirviDueDate();girviAutoCalc();" onfocus="this.style.borderColor='var(--gold-dark)'" onblur="this.style.borderColor='var(--border-gold)'">
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;margin-bottom:10px;">
+        <input type="checkbox" id="gf-compound" onchange="girviAutoCalc()" style="width:16px;height:16px;accent-color:var(--gold);">
+        Compound interest (advanced)
+      </label>
+      <!-- Financer margin tracking — optional, additive (see girviMargin() in 04-orders-detail.js) -->
+      <details style="margin-bottom:10px;">
+        <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;">💰 Funded by a Financer? (optional)</summary>
+        <div style="margin-top:8px;font-size:11px;color:var(--text3);margin-bottom:8px;">If this loan is funded by a financer, track their rate here to see your margin automatically.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;">
+          <div>
+            <div style="font-size:11px;color:var(--ink);margin-bottom:5px;font-weight:600;">Financer Name</div>
+            <input id="gf-financer-name" type="text" placeholder="e.g. XYZ Finance"
+              style="width:100%;box-sizing:border-box;padding:9px;border-radius:10px;border:1px solid var(--border2);background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--ink);margin-bottom:5px;font-weight:600;">Financer Rate</div>
+            <div style="display:flex;gap:4px;">
+              <input id="gf-financer-rate" type="number" step="0.1" placeholder="e.g. 1"
+                style="flex:1 1 auto;min-width:0;padding:9px;border-radius:10px;border:1px solid var(--border2);background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">
+              <select id="gf-financer-ratetype" style="flex:0 0 74px;width:74px;padding:7px 4px;border-radius:10px;border:1px solid var(--border2);background:var(--card1);color:var(--ink);font-size:10px;font-family:inherit;outline:none;">
+                <option value="monthly">%/mo</option>
+                <option value="yearly">%/yr</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </details>
+      <!-- Live calculation preview -->
+      <div class="girvi-preview" id="gf-preview" style="display:none;">
+        <div id="gf-preview-rows"></div>
+        <div class="girvi-preview-total">
+          <span>Total Payable</span>
+          <span class="val" id="gf-preview-total">₹0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4: Dates + Notes -->
+    <div class="gf-wizard" id="gf-step-5" style="padding:0 1.3rem;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px;">
+        <div>
+          <div style="font-size:12px;color:var(--ink);margin-bottom:5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Start Date</div>
+          <input id="gf-start" type="date" oninput="updateGirviDueDate()"
+            style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:11px;border:1.5px solid var(--border-gold);background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;outline:none;" onfocus="this.style.borderColor='var(--gold-dark)'" onblur="this.style.borderColor='var(--border-gold)'">
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--ink);margin-bottom:5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Due Date (auto)</div>
+          <div id="gf-duedate-display" style="padding:10px 12px;border-radius:11px;border:1.5px solid #C9A84C;background:var(--card1);color:var(--gold-dark);font-size:13px;font-weight:700;min-height:38px;display:flex;align-items:center;">Auto</div>
+        </div>
+      </div>
+      <div style="margin-bottom:9px;">
+        <label style="display:block;font-weight:700;font-size:12px;color:var(--ink);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Notes</label>
+        <textarea id="gf-notes" placeholder="Optional — item condition, witness, etc." rows="3"
+          style="width:100%;box-sizing:border-box;padding:10px 13px;border-radius:11px;border:1.5px solid #C9A84C;background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;resize:none;outline:none;" onfocus="this.style.borderColor='var(--gold-dark)'" onblur="this.style.borderColor='var(--border-gold)'"></textarea>
+      </div>
+      <!-- Final summary preview -->
+      <div class="girvi-preview" id="gf-final-preview" style="display:none;">
+        <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Loan Summary</div>
+        <div id="gf-final-rows"></div>
+      </div>
+    </div>
+
+    <!-- Modal footer: step navigation -->
+    <div style="padding:.9rem 1.3rem 1.3rem;display:flex;gap:8px;" id="gf-footer">
+      <button id="gf-back-btn" onclick="girviWizardBack()" style="flex:1;padding:12px;border-radius:11px;border:1.5px solid #C9A84C;background:var(--card1);color:var(--gold-dark);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:none;">← Back</button>
+      <button id="gf-next-btn" onclick="girviWizardNext()" style="flex:2;padding:12px;border-radius:11px;border:none;background:linear-gradient(135deg,var(--gold-dark),var(--gold));color:var(--ink);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── GIRVI DETAIL MODAL (Premium) ───────────────────────────────────── -->
+<div id="girvi-detail-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.82);z-index:901;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+  <div style="max-width:500px;margin:20px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .8rem;background:linear-gradient(135deg,rgba(201,168,76,.12),rgba(201,168,76,.04));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(201,168,76,.2);";border-bottom:0.5px solid var(--border);">
+      <div style="font-size:16px;font-weight:700;" id="gd-title">Girvi Detail</div>
+      <button onclick="closeGirviDetail()" style="background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;padding:2px 6px;line-height:1;">✕</button>
+    </div>
+    <div id="gd-body" style="padding:1rem 1.3rem 1.3rem;"></div>
+  </div>
+</div>
+
+
+
+<!-- ════════════════════════════════ GIRVI EDIT MODAL (v20) ════════════ -->
+<div id="girvi-edit-modal">
+  <div class="ge-wrap">
+    <div class="ge-header">
+      <h2 id="ge-modal-title">✏️ Edit Girvi</h2>
+      <button class="ge-close" onclick="closeGirviEditModal()">✕</button>
+    </div>
+    <div class="ge-tabs">
+      <button class="ge-tab active" onclick="geTab('customer',this)">Customer</button>
+      <button class="ge-tab" onclick="geTab('ornament',this)">Ornament</button>
+      <button class="ge-tab" onclick="geTab('loan',this)">Loan</button>
+      <button class="ge-tab" onclick="geTab('docs',this)">Docs</button>
+      <button class="ge-tab" onclick="geTab('audit',this)">Audit</button>
+    </div>
+
+    <!-- TAB: Customer -->
+    <div class="ge-tab-panel active" id="ge-panel-customer">
+      <div class="ge-section">Customer Information</div>
+      <div class="ge-row"><div class="ge-fg"><label>Customer Name *</label><input id="ge-cust" placeholder="Full name"/></div><div class="ge-fg"><label>Mobile *</label><input id="ge-phone" type="tel" placeholder="10-digit"/></div></div>
+      <div class="ge-row full"><div class="ge-fg"><label>Address</label><input id="ge-addr" placeholder="Street, City"/></div></div>
+      <div class="ge-row"><div class="ge-fg"><label>Aadhaar / PAN</label><input id="ge-idproof" placeholder="XXXX XXXX XXXX" style="text-transform:uppercase"/></div><div class="ge-fg"><label>Risk Level</label><select id="ge-risk"><option value="low">🟢 Low</option><option value="medium" selected>🟡 Medium</option><option value="high">🔴 High</option></select></div></div>
+      <div class="ge-row full"><div class="ge-fg"><label>Staff / Agent</label><input id="ge-staff" placeholder="Staff name handling this loan"/></div></div>
+      <div class="ge-section" style="margin-top:.8rem;">Remarks</div>
+      <div class="ge-row full"><div class="ge-fg"><textarea id="ge-remarks" rows="3" placeholder="Condition of items, witness name, any special notes…"></textarea></div></div>
+    </div>
+
+    <!-- TAB: Ornament -->
+    <div class="ge-tab-panel" id="ge-panel-ornament">
+      <div id="ge-items-list"></div>
+      <button onclick="geAddItem()" style="width:100%;padding:9px;border-radius:10px;border:1.5px dashed rgba(201,168,76,.4);background:rgba(201,168,76,.04);color:var(--gold-dark);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px;">+ Add Another Item</button>
+    </div>
+
+    <!-- TAB: Loan -->
+    <div class="ge-tab-panel" id="ge-panel-loan">
+      <div class="ge-section">Loan Terms</div>
+      <div class="ge-row"><div class="ge-fg"><label>Loan Amount (₹) *</label><input id="ge-principal" type="number" placeholder="e.g. 25000" inputmode="numeric"/></div><div class="ge-fg"><label>Interest Rate</label><input id="ge-rate" type="number" step="0.1" placeholder="2"/></div></div>
+      <div class="ge-row"><div class="ge-fg"><label>Interest Type</label><select id="ge-ratetype"><option value="monthly">% per Month</option><option value="yearly">% per Year</option></select></div><div class="ge-fg"><label>Duration (months)</label><input id="ge-duration" type="number" placeholder="e.g. 3"/></div></div>
+      <div class="ge-row"><div class="ge-fg"><label>Start Date</label><input id="ge-startdate" type="date"/></div><div class="ge-fg"><label>Due Date (auto)</label><div id="ge-duedate-display" style="padding:9px 11px;border-radius:10px;border:1.5px solid rgba(201,168,76,.35);background:var(--card1);color:var(--gold-dark);font-size:13px;font-weight:700;min-height:38px;display:flex;align-items:center;">—</div></div></div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;margin-bottom:10px;"><input type="checkbox" id="ge-compound" style="width:16px;height:16px;accent-color:var(--gold);"> Compound interest</label>
+      <div class="ge-section">Edit Reason (Audit)</div>
+      <div class="ge-row full"><div class="ge-fg"><input id="ge-edit-reason" placeholder="e.g. Weight correction after reweighing, customer request…"/></div></div>
+      <div id="ge-recalc-preview" style="display:none;background:var(--gold-bg);border:0.5px solid rgba(201,168,76,.25);border-radius:10px;padding:12px;margin-top:8px;font-size:12px;"></div>
+    </div>
+
+    <!-- TAB: Documents -->
+    <div class="ge-tab-panel" id="ge-panel-docs">
+      <div class="ge-section">Aadhaar / KYC Docs</div>
+      <div class="doc-grid" id="ge-docs-kyc"></div>
+      <div class="ge-section" style="margin-top:1rem;">Ornament Photos</div>
+      <div class="doc-grid" id="ge-docs-ornament"></div>
+      <div class="ge-section" style="margin-top:1rem;">Other (Signature, Receipt)</div>
+      <div class="doc-grid" id="ge-docs-other"></div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px;">Tap a slot to paste an image URL. Images are stored as links.</div>
+    </div>
+
+    <!-- TAB: Audit Log -->
+    <div class="ge-tab-panel" id="ge-panel-audit">
+      <div class="ge-section">Change History</div>
+      <div id="ge-audit-list"></div>
+    </div>
+
+    <div class="ge-save-bar">
+      <button class="btn btn-gold" style="flex:2;" onclick="saveGirviEdit()">💾 Save Changes</button>
+      <button class="btn" style="flex:1;" onclick="closeGirviEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ GIRVI LEDGER MODAL (v20) ═══════ -->
+<div id="girvi-ledger-modal">
+  <div class="gl-wrap">
+    <div class="gl-header">
+      <h2 id="gl-modal-title">💸 Payment Ledger</h2>
+      <button class="ge-close" onclick="closeGirviLedgerModal()">✕</button>
+    </div>
+    <div class="gl-summary" id="gl-summary"></div>
+    <div class="gl-body">
+      <div id="gl-entries"></div>
+      <div class="gl-add-form">
+        <div class="gl-add-title">📥 Record New Transaction</div>
+        <div class="gl-type-row" id="gl-type-row">
+          <button class="gl-type-btn active" onclick="glSetType('payment',this)">💰 Payment</button>
+          <button class="gl-type-btn" onclick="glSetType('interest',this)">📈 Interest</button>
+          <button class="gl-type-btn" onclick="glSetType('waiver',this)">🏷 Waiver</button>
+          <button class="gl-type-btn" onclick="glSetType('penalty',this)">⚠ Penalty</button>
+          <button class="gl-type-btn" onclick="glSetType('refund',this)">↩ Refund</button>
+        </div>
+        <div class="ge-row"><div class="ge-fg"><label>Amount (₹)</label><input id="gl-amount" type="number" placeholder="0" inputmode="numeric" oninput="glUpdateBalance()"/></div><div class="ge-fg"><label>Mode</label><select id="gl-mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div></div>
+        <div class="ge-row"><div class="ge-fg"><label>Date</label><input id="gl-date" type="date"/></div><div class="ge-fg"><label>Reference / UPI ID</label><input id="gl-ref" placeholder="Optional"/></div></div>
+        <div style="margin-bottom:8px;" id="gl-balance-preview"></div>
+        <div class="ge-fg" style="margin-bottom:10px;"><label>Note</label><input id="gl-note" placeholder="e.g. Interest cleared for Dec 2024"/></div>
+        <button class="btn btn-gold" style="width:100%;" onclick="submitLedgerEntry()">📥 Record Entry</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ GIRVI TIMELINE MODAL (v20) ═══════ -->
+<div id="girvi-timeline-modal">
+  <div class="gt-wrap">
+    <div class="gt-header">
+      <h2 id="gt-modal-title">📋 Customer Timeline</h2>
+      <button class="ge-close" onclick="document.getElementById('girvi-timeline-modal').style.display='none'">✕</button>
+    </div>
+    <div class="gt-body" id="gt-body"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ GIRVI RENEWAL MODAL (v20) ═══════ -->
+<div id="girvi-renewal-modal">
+  <div class="grn-wrap">
+    <div class="ge-header">
+      <h2 id="grn-modal-title">🔄 Renew Girvi</h2>
+      <button class="ge-close" onclick="closeGirviRenewalModal()">✕</button>
+    </div>
+    <div style="padding:1rem 1.2rem 1.4rem;" id="grn-body"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ GIRVI RECEIPT MODAL (v20) ════════ -->
+<div id="girvi-receipt-modal">
+  <div class="grr-wrap">
+    <div class="ge-header">
+      <h2 id="grr-modal-title">🧾 Girvi Receipt</h2>
+      <button class="ge-close" onclick="document.getElementById('girvi-receipt-modal').style.display='none'">✕</button>
+    </div>
+    <div style="padding:.8rem 1.2rem 1.4rem;" id="grr-body"></div>
+    <div style="padding:.8rem 1.2rem 1.2rem;display:flex;gap:8px;flex-wrap:wrap;border-top:0.5px solid var(--border);">
+      <button class="btn btn-gold" style="flex:2;" onclick="printGirviReceipt()">🖨 Print Receipt</button>
+      <button class="btn btn-dark" style="flex:1;" onclick="shareGirviReceiptWA()">💬 WhatsApp</button>
+      <button class="btn" onclick="document.getElementById('girvi-receipt-modal').style.display='none'">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ SETTINGS PANEL -->
+<div id="panel-settings" class="panel">
+
+  <div class="card" style="padding:.6rem 1rem .2rem;">
+    <div class="settings-tabs">
+      <button class="settings-tab active" data-tab="profile" onclick="showSettingsTab('profile')">🏪 Shop</button>
+      <button class="settings-tab" data-tab="automation" onclick="showSettingsTab('automation')">📱 Automation</button>
+      <button class="settings-tab" data-tab="analytics" onclick="showSettingsTab('analytics')">📊 Analytics</button>
+      <button class="settings-tab" data-tab="team" onclick="showSettingsTab('team')">👥 Team</button>
+      <button class="settings-tab" data-tab="plan" onclick="showSettingsTab('plan')">⭐ Plan</button>
+      <button class="settings-tab" data-tab="audit" onclick="showSettingsTab('audit')">📋 Audit</button>
+      <button class="settings-tab" data-tab="data" onclick="showSettingsTab('data')">💾 Data</button>
+      <button class="settings-tab" data-tab="account" onclick="showSettingsTab('account')">👤 Account</button>
+    </div>
+  </div>
+
+  <div id="stab-profile" class="stab-content">
+    <div class="card">
+      <div class="card-title">🏪 Shop Profile</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Shop Name</div><input id="set-shopname" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;"></div>
+        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">City</div><input id="set-city" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;"></div>
+        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Phone</div><input id="set-phone" type="tel" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;"></div>
+        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">GSTIN</div><input id="set-gstin" type="text" placeholder="22AAAAA0000A1Z5" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;text-transform:uppercase;"></div>
+      </div>
+      <button onclick="saveShopProfile()" class="btn btn-gold">Save Profile</button>
+    </div>
+    <div class="card">
+      <div class="card-title">🎭 Demo Mode</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Load sample data to explore all features before entering real data.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button onclick="loadDemoData()" class="btn btn-gold">Load Demo Data</button>
+        <button onclick="clearDemoData()" class="btn" style="color:#ef4444;">Clear All Data</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="stab-automation" class="stab-content" style="display:none;">
+    <div id="wa-how-it-works" style="background:rgba(37,211,102,0.08);border:1px solid rgba(37,211,102,0.3);border-radius:var(--radius-lg);padding:12px 15px;margin-bottom:12px;display:none;">
+      <div style="font-size:12px;font-weight:700;color:#25d366;margin-bottom:5px;">📱 How WhatsApp Reminders work</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.7;">
+        JewelOS generates a pre-filled message and opens WhatsApp for you to send it.
+        <strong>You tap Send in WhatsApp</strong> — one tap per customer.<br>
+        <span style="color:var(--text3);font-size:11px;">For fully automated sending without manual steps, see Settings → Profile for WhatsApp Business API setup.</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📱 WhatsApp Reminders Rules</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Configure reminders. One-tap send — never sends without your confirmation.</div>
+      <div id="set-wa-rules"></div>
+      <button onclick="document.getElementById('wa-automation-modal').style.display='block';renderWaRules();" class="btn btn-gold" style="margin-top:10px;">⚙️ Manage Rules</button>
+    </div>
+    <div class="card">
+      <div class="card-title">📊 Daily Digest</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Daily summary: revenue, pending dues, overdue girvi, top actions.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button onclick="showDailyDigest()" class="btn btn-gold">📊 View Today's Digest</button>
+        <button onclick="scheduleDailyDigest()" class="btn" id="digest-schedule-btn">⏰ Schedule Daily Alert</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px;" id="digest-schedule-info"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 Message Templates</div>
+      <div id="set-wa-templates"></div>
+    </div>
+    <div class="card" style="border:1px solid rgba(201,163,76,0.3);">
+      <div class="card-title">📧 Email Digest (Automated)
+        <span style="font-size:11px;font-weight:400;color:var(--text3);">Runs daily at 9am even when app is closed</span>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.7;">
+        Get a daily email summary of: overdue Girvi loans, pending balances, yesterday's revenue, and top action items.<br>
+        <strong>Setup:</strong> Uses Supabase pg_cron + Resend.com (free tier: 100 emails/day).
+      </div>
+      <div style="font-size:12px;font-weight:600;color:var(--gold-dark);margin-bottom:8px;">Setup steps:</div>
+      <ol style="font-size:11px;color:var(--text3);line-height:2;padding-left:1.2rem;margin-bottom:12px;">
+        <li>Sign up free at <strong>resend.com</strong> → get your API key</li>
+        <li>Add key to Supabase: Settings → Edge Functions → Secrets → <code>RESEND_API_KEY</code></li>
+        <li>Create Edge Function <code>daily-digest</code> (template in docs)</li>
+        <li>Enable pg_cron: <code>SELECT cron.schedule('daily-digest', '0 3 * * *', $$SELECT net.http_post(...)$$)</code></li>
+      </ol>
+      <div class="fg" style="margin-bottom:10px;">
+        <label>Your email for digest</label>
+        <input id="set-digest-email" type="email" placeholder="owner@example.com"/>
+      </div>
+      <button onclick="saveDigestEmail()" class="btn btn-gold btn-sm">Save Email</button>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px;">Email stored locally — used by the Edge Function when you set it up.</div>
+    </div>
+  </div>
+
+  <div id="stab-analytics" class="stab-content" style="display:none;">
+    <div class="card"><div class="card-title">👑 Customer Lifetime Value</div><div id="set-clv-list"></div></div>
+    <div class="card"><div class="card-title">📈 Profit Trends (6 months)</div><div id="set-profit-trend"></div></div>
+    <div class="card"><div class="card-title">🏷️ Category Growth</div><div id="set-cat-growth"></div></div>
+    <div class="card"><div class="card-title">🔒 Capital Allocation</div><div id="set-capital-alloc"></div></div>
+  </div>
+
+  <div id="stab-team" class="stab-content" style="display:none;">
+    <div class="card" id="set-staff-card">
+      <div class="card-title">👥 Team Members</div>
+      <div id="set-staff-list" style="margin-bottom:12px;"></div>
+      <button onclick="openInviteStaff()" class="btn btn-gold" id="set-invite-btn">+ Invite Staff Member</button>
+    </div>
+    <div class="card" id="set-invite-form" style="display:none;">
+      <div class="card-title">📧 Invite Staff</div>
+      <div style="display:grid;gap:8px;margin-bottom:12px;">
+        <input id="inv-name" type="text" placeholder="Staff name" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;">
+        <input id="inv-email" type="email" placeholder="Email address" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;">
+        <select id="inv-role" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;">
+          <option value="manager">Manager (full edit access)</option>
+          <option value="staff">Staff (view + add only)</option>
+          <option value="readonly">Read Only (view reports)</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="document.getElementById('set-invite-form').style.display='none'" class="btn" style="flex:1;">Cancel</button>
+        <button onclick="sendStaffInvite()" class="btn btn-gold" style="flex:2;">Send Invite</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 Activity Log</div>
+      <div id="set-activity-log"></div>
+    </div>
+  </div>
+
+  <div id="stab-plan" class="stab-content" style="display:none;">
+    <div class="card">
+      <div class="card-title">⭐ Your Plan <span id="set-plan-badge"></span></div>
+      <div id="set-plan-info" style="font-size:13px;color:var(--text2);margin-bottom:12px;"></div>
+    </div>
+    <div class="card"><div class="card-title">🔒 Feature Access</div><div id="set-plan-gates"></div></div>
+    <div class="card" style="border:1px solid var(--border-gold);">
+      <div class="card-title">💳 Payment Setup (Razorpay)
+        <span style="font-size:11px;font-weight:400;color:var(--text3);">Required to accept subscription payments</span>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.6;">
+        1. Sign up free at <strong>razorpay.com</strong><br>
+        2. Go to Settings → API Keys → Generate Key<br>
+        3. Copy your <strong>Key ID</strong> (starts with rzp_live_ or rzp_test_) and paste below
+      </div>
+      <div class="fg" style="margin-bottom:10px;">
+        <label>Razorpay Key ID</label>
+        <input id="set-rzp-key" type="text" placeholder="rzp_live_XXXXXXXXXXXXXXXX" style="font-family:monospace;font-size:12px;" oninput="this.value=this.value.trim()"/>
+      </div>
+      <button onclick="saveRazorpayKey()" class="btn btn-gold btn-sm">Save Key</button>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px;">Your key is stored locally and never sent to our servers. Use rzp_test_ for testing, rzp_live_ for production.</div>
+    </div>
+  </div>
+
+  <div id="stab-data" class="stab-content" style="display:none;">
+    <!-- Supabase Setup Guide Card -->
+    <div class="card" style="border:1.5px solid var(--gold);margin-bottom:12px;">
+      <div class="card-title">&#9729; Cloud Setup
+        <span id="cloud-status-badge" style="font-size:10px;padding:2px 8px;border-radius:100px;font-weight:600;margin-left:4px;">&#9898; Checking...</span>
+      </div>
+      <div id="cloud-status-line" style="font-size:11px;color:var(--text3);margin-bottom:8px;"></div>
+      <div class="card-title" style="font-size:12px;font-weight:500;margin-top:4px;">SQL Setup
+        <button class="btn btn-sm btn-gold" onclick="document.getElementById('sql-block').style.display=document.getElementById('sql-block').style.display==='none'?'':'none'">Toggle SQL</button>
+      </div>
+      <div id="sql-block" style="display:none;">
+        <div style="font-size:12px;color:var(--text3);margin-bottom:8px;">
+          JewelOS's browser code never talks to Supabase tables directly — it never has, and never should, be given
+          permission to. All reads and writes go through two secure Edge Functions instead:
+          <b>Browser &rarr; store-proxy &rarr; Supabase</b> for shop data and counters, and
+          <b>Browser &rarr; auth-gateway &rarr; Supabase</b> for login/signup. Those functions hold the service-role
+          key on the server only — it is never shipped to the browser. Run the migrations below once in the Supabase
+          SQL Editor (or via <code>supabase db push</code>) and deploy the three Edge Functions
+          (<code>store-proxy</code>, <code>auth-gateway</code>, <code>razorpay-webhook</code>); that's the entire setup.
+          There is no anon/public policy to add for <code>store</code>, <code>auth_store</code>, or <code>counters</code>
+          &mdash; access to all three is intentionally locked down to server-side code only.
+        </div>
+        <pre id="sql-setup-pre" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px;font-size:10.5px;overflow-x:auto;white-space:pre;color:var(--ink2);line-height:1.65;max-height:280px;overflow-y:auto;">-- JewelOS — secure production setup
+-- Run supabase/migrations/001_lockdown_rls.sql, then
+-- supabase/migrations/002_atomic_transactions.sql, in the Supabase SQL
+-- Editor (or `supabase db push` from the repo). Both files are idempotent
+-- and safe to re-run.
+--
+-- What they do, in short:
+--   * Create store / auth_store / counters / login_attempts /
+--     payment_events / password_reset_tokens.
+--   * Enable Row Level Security on every one of them.
+--   * Grant NOTHING to anon or authenticated — this is intentional.
+--     There is no "USING (true)" policy anywhere in this schema.
+--     Only the service_role key (used exclusively inside the
+--     store-proxy / auth-gateway / razorpay-webhook Edge Functions,
+--     never sent to the browser) can read or write these tables.
+--   * Add increment_shop_counter() and store_cas_write(), the atomic
+--     Postgres functions store-proxy calls for invoice/order/Girvi
+--     numbering and for conflict-safe multi-device saves.
+--
+-- Then deploy the Edge Functions:
+--   supabase functions deploy store-proxy
+--   supabase functions deploy auth-gateway
+--   supabase functions deploy razorpay-webhook
+--
+-- The browser only ever calls those three function URLs — never a
+-- Supabase table URL (/rest/v1/...) directly.</pre>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+          <button onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('sql-setup-pre').textContent).then(function(){toast('Setup notes copied!');})" class="btn btn-sm">&#128203; Copy Setup Notes</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">💾 Backup &amp; Export</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <button onclick="exportFullBackup()" class="btn btn-gold">⬇ JSON Backup</button>
+        <button onclick="exportCSV()" class="btn">📊 Export CSV</button>
+        <button onclick="showPdfReport()" class="btn-pdf" style="padding:8px 14px;font-size:12px;">🖨️ PDF Report</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button onclick="importBackup()" class="btn">⬆ Restore Backup</button>
+        <button onclick="repairAndReload()" class="btn" style="color:var(--text3);">🔧 Repair Display</button>
+      </div>
+      <input type="file" id="backup-file-input" accept=".json" style="display:none;" onchange="processBackupFile(this)">
+      <div style="font-size:11px;color:var(--text3);margin-top:10px;" id="set-last-backup"></div>
+    </div>
+  </div>
+
+  <div id="stab-account" class="stab-content" style="display:none;">
+    <div class="card">
+      <div class="card-title">👤 Account</div>
+      <div id="set-account-info" style="font-size:13px;color:var(--text2);margin-bottom:12px;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button onclick="changePassword()" class="btn">Change Password</button>
+        <button onclick="saasLogout()" class="btn" style="color:#ef4444;border-color:#ef444444;">Sign Out</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📄 Legal</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button onclick="showLegalModal('privacy')" class="btn btn-sm">Privacy Policy</button>
+        <button onclick="showLegalModal('terms')" class="btn btn-sm">Terms of Service</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🔧 Developer Tools
+        <span style="font-size:11px;font-weight:400;color:var(--text3);">Owner only</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button onclick="cloudDiag()" class="btn btn-sm btn-gold">🔍 Cloud Diagnostics</button>
+        <button onclick="resetSaveLock()" class="btn btn-sm">🔒 Reset Save Lock</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Audit Log Tab -->
+  <div id="stab-audit" class="stab-content" style="display:none;">
+    <div class="card">
+      <div class="card-title" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;">
+        <span>&#128203; Audit &amp; Activity</span>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm btn-gold" id="audit-subtab-trail-btn" onclick="showAuditSubtab('trail')">Audit Trail</button>
+          <button class="btn btn-sm" id="audit-subtab-activity-btn" onclick="showAuditSubtab('activity')">Activity Log</button>
+        </div>
+      </div>
+
+      <div id="audit-subtab-trail">
+        <div style="font-size:12px;color:var(--text3);margin:8px 0 12px;">
+          Financial adjustment trail (e.g. Girvi payment corrections) — synced across all your devices.
+          <button class="btn btn-sm" onclick="renderAuditLog()" style="margin-left:6px;">&#8635; Refresh</button>
+        </div>
+        <div id="audit-log-list"><div style="text-align:center;color:var(--text3);padding:20px;">Click Refresh to load audit log.</div></div>
+      </div>
+
+      <div id="audit-subtab-activity" style="display:none;">
+        <div style="font-size:12px;color:var(--text3);margin:8px 0 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;">
+          <span>Every staff member's actions, grouped by who did them and when they logged in — synced across all devices.</span>
+          <div>
+            <select id="activity-role-filter" onchange="renderActivityLogGrouped()" style="font-size:12px;padding:4px 8px;border-radius:6px;border:0.5px solid var(--border2);">
+              <option value="all">All</option>
+              <option value="owner">Owner</option>
+              <option value="manager">Manager</option>
+              <option value="staff">Staff</option>
+            </select>
+            <button class="btn btn-sm" onclick="renderActivityLogGrouped()">&#8635; Refresh</button>
+          </div>
+        </div>
+        <div id="activity-log-grouped"><div style="text-align:center;color:var(--text3);padding:20px;">Click Refresh to load activity log.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+<nav class="bnav">
+  <div class="bnav-inner">
+    <button class="bnav-btn active" onclick="switchTab('dashboard')" id="bn-dashboard"><span class="bnav-icon">&#128202;</span><span class="bnav-label">Home</span></button>
+    <button class="bnav-btn" onclick="switchTab('inventory')" id="bn-inventory"><span class="bnav-icon">&#128230;</span><span class="bnav-label">Stock</span></button>
+    <button class="bnav-btn" onclick="switchTab('sales')" id="bn-sales"><span class="bnav-icon">&#128179;</span><span class="bnav-label">Sale</span></button>
+    <button class="bnav-btn" onclick="switchTab('girvi')" id="bn-girvi"><span class="bnav-icon">&#129354;</span><span class="bnav-label">Girvi</span></button>
+    <button class="bnav-btn" onclick="switchTab('orders')" id="bn-orders"><span class="bnav-icon">&#128221;</span><span class="bnav-label">Orders</span></button>
+    <button class="bnav-btn" onclick="switchTab('customers')" id="bn-customers"><span class="bnav-icon">&#128101;</span><span class="bnav-label">Customers</span></button>
+    <button class="bnav-btn" onclick="switchTab('reports')" id="bn-reports"><span class="bnav-icon">&#128200;</span><span class="bnav-label">Reports</span></button>
+    <button class="bnav-btn" onclick="switchTab('settings')" id="bn-settings"><span class="bnav-icon">&#9881;</span><span class="bnav-label">Settings</span></button>
+  </div>
+</nav>
+<!-- Safe confirm modal — replaces all window.confirm() -->
+<div id="safe-confirm-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.72);z-index:10001;align-items:center;justify-content:center;padding:1.5rem;backdrop-filter:blur(3px);">
+  <div style="background:var(--surface);border-radius:20px;width:100%;max-width:380px;padding:1.5rem;box-shadow:0 12px 60px rgba(0,0,0,.4);border:0.5px solid var(--border2);">
+    <div id="safe-confirm-title" style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--ink);"></div>
+    <div id="safe-confirm-msg" style="font-size:13px;color:var(--text2);margin-bottom:1.4rem;line-height:1.6;"></div>
+    <div style="display:flex;gap:8px;">
+      <button id="safe-confirm-cancel" style="flex:1;padding:11px;border-radius:11px;border:0.5px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>
+      <button id="safe-confirm-ok" style="flex:2;padding:11px;border-radius:11px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Confirm</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- PERSISTENT SAVE ERROR BANNER -->
+<div id="save-error-banner" style="display:none;position:fixed;top:62px;left:0;right:0;z-index:900;background:#dc2626;color:#fff;font-size:12px;font-weight:600;padding:8px 16px;display:none;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.3);">
+  <span>⚠ Last save failed — your data is safe locally.</span>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button onclick="forceSync();dismissSaveError();" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);border-radius:6px;color:#fff;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">Retry</button>
+    <button onclick="dismissSaveError()" style="background:none;border:none;color:rgba(255,255,255,.8);font-size:16px;cursor:pointer;padding:0 4px;">✕</button>
+  </div>
+</div>
+
+<!-- INVOICE MODAL -->
+<!-- Password modal (replaces window.prompt() for changePassword/forcePasswordReset — see js/05-auth-login.js) -->
+<div class="modal-bg" id="pwd-modal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header"><h2 id="pwd-modal-title">&#128274; Change Password</h2><button class="modal-close" id="pwd-close-btn" onclick="closePwdModal()">&#10005;</button></div>
+    <div class="modal-body">
+      <p id="pwd-modal-msg" style="margin:0 0 1rem;color:var(--text3);font-size:14px;line-height:1.5;"></p>
+      <div class="fg" id="pwd-current-wrap" style="margin-bottom:.9rem;">
+        <label>Current Password</label>
+        <div style="position:relative;">
+          <input type="password" id="pwd-current" autocomplete="current-password" style="width:100%;padding-right:2.4rem;"/>
+          <button type="button" onclick="togglePwdVis('pwd-current')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;">&#128065;</button>
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:.4rem;">
+        <label>New Password (min 8 characters)</label>
+        <div style="position:relative;">
+          <input type="password" id="pwd-new" autocomplete="new-password" style="width:100%;padding-right:2.4rem;"/>
+          <button type="button" onclick="togglePwdVis('pwd-new')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;">&#128065;</button>
+        </div>
+      </div>
+      <div id="pwd-error" style="color:#c0392b;font-size:13px;margin-top:.5rem;min-height:18px;"></div>
+      <div style="display:flex;gap:.6rem;margin-top:1.1rem;">
+        <button class="btn btn-gold" id="pwd-submit-btn" onclick="submitPwdModal()" style="flex:1;">Set Password</button>
+        <button class="btn" id="pwd-cancel-btn" onclick="closePwdModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-bg" id="invoice-modal">
+  <div class="modal">
+    <div class="modal-header"><h2>&#128196; Bill Preview</h2><button class="modal-close" onclick="closeModal()">&#10005;</button></div>
+    <div class="modal-body">
+      <!-- Bill type toggle -->
+      <div style="display:flex;gap:6px;margin-bottom:12px;background:var(--bg2);border-radius:12px;padding:4px;" class="no-print">
+        <button id="btype-gst" onclick="setBillType('gst')" style="flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,var(--gold-dark),var(--gold));color:#1a1200;transition:all .2s;">&#128196; GST Tax Invoice</button>
+        <button id="btype-memo" onclick="setBillType('memo')" style="flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;background:transparent;color:var(--text2);transition:all .2s;">&#128203; Memo / Cash Bill</button>
+      </div>
+      <div id="invoice-content"></div>
+      <div style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap" class="no-print">
+        <button class="btn btn-gold btn-full" onclick="downloadPDF()" id="pdf-btn">&#11015; Download PDF</button>
+        <button class="btn btn-success btn-full" onclick="shareWhatsApp()">&#128279; Share on WhatsApp</button>
+        <button class="btn btn-info btn-full" onclick="window.print()">&#128424; Print Bill</button>
+        <button class="btn btn-full" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT PRODUCT MODAL -->
+<div class="modal-bg" id="edit-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>&#9998; Edit Product</h2>
+      <button class="modal-close" onclick="closeEditModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ep-id"/>
+      <div class="form-grid">
+        <div class="fg"><label>Product name</label><input id="ep-name" placeholder="e.g. Necklace, Ring..."/></div>
+        <div class="fg"><label>Category</label>
+          <select id="ep-cat">
+
+            <option>Rings</option>
+            <option>Necklaces / Haar</option>
+            <option>Earrings</option>
+            <option>Jhumkas</option>
+            <option>Bangles</option>
+            <option>Kankanalu</option>
+            <option>Bracelets</option>
+            <option>Anklets / Payal</option>
+            <option>Pendants</option>
+            <option>Chains</option>
+            <option>Mangalsutras</option>
+            <option>Maang Tikka</option>
+            <option>Nose Ring / Nath</option>
+            <option>Armlet / Bajuband</option>
+            <option>Waist Belt / Kamarbandh</option>
+            <option>Jadau</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="fg"><label>Purity</label><select id="ep-purity"></select></div>
+        <div class="fg"><label>HUID Number</label><input id="ep-huid" placeholder="e.g. ABC123456" style="text-transform:uppercase"/></div>
+        <div class="fg"><label>SKU / Item Code</label><input id="ep-sku"/></div>
+        <div class="fg"><label>Gross Weight (g)</label>
+          <div class="isuf"><input id="ep-wt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div>
+        </div>
+        <div class="fg"><label>Net Weight (g)</label>
+          <div class="isuf"><input id="ep-netwt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div>
+        </div>
+        <div class="fg"><label>Photo / Product URL</label><input id="ep-photo" type="url" placeholder="Paste image link"/></div>
+        <div class="fg"><label>Notes</label><input id="ep-notes" placeholder="Optional"/></div>
+      </div>
+      <div style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-gold" onclick="saveEditProd()">&#9729; Save Changes</button>
+        <button class="btn" onclick="closeEditModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT BILL MODAL -->
+<div class="modal-bg" id="edit-bill-modal">
+  <div class="modal" style="max-width:660px;">
+    <div class="modal-header">
+      <h2>&#9998; Edit Bill <span class="version-tag" id="eb-version-tag">v1</span></h2>
+      <button class="modal-close" onclick="closeEditBillModal()">&#10005;</button>
+    </div>
+    <div class="modal-body" id="edit-bill-body">
+      <!-- filled dynamically -->
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOMER HISTORY MODAL -->
+<!-- CUSTOMER EDIT MODAL -->
+<div id="cust-edit-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.65);z-index:1500;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:var(--card1);border-radius:18px;padding:1.5rem;width:100%;max-width:420px;position:relative;">
+    <button onclick="document.getElementById('cust-edit-modal').style.display='none'" style="position:absolute;top:12px;right:14px;background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;">✕</button>
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:1rem;color:var(--ink1);">Customer Details</h3>
+    <div class="fg"><label>Full Name *</label><input id="ce-name" placeholder="Customer full name"/></div>
+    <div class="fg"><label>Phone Number</label><input id="ce-phone" type="tel" placeholder="10-digit mobile number"/></div>
+    <div class="fg"><label>Address</label><input id="ce-addr" placeholder="City or full address"/></div>
+    <div class="fg"><label>Email</label><input id="ce-email" type="email" placeholder="email@example.com"/></div>
+    <div class="fg"><label>Notes</label><textarea id="ce-notes" rows="2" placeholder="Any notes about this customer..." style="resize:vertical;"></textarea></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button id="ce-save-btn" class="btn btn-gold" style="flex:1;">Save Customer</button>
+      <button onclick="document.getElementById('cust-edit-modal').style.display='none'" class="btn" style="flex:0 0 auto;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="cust-modal">
+  <div class="modal">
+    <div class="modal-header"><h2 id="cust-modal-title">Customer History</h2><button class="modal-close" onclick="closeCustModal()">&#10005;</button></div>
+    <div class="modal-body" id="cust-modal-body"></div>
+  </div>
+</div>
+
+
+  <script src="js/00-config-state.js"></script>
+  <script src="js/01-sync-core.js"></script>
+  <script src="js/02-ui-inactivity-modals.js"></script>
+  <script src="js/03-billing-numbers.js"></script>
+  <script src="js/04-orders-detail.js"></script>
+  <script src="js/05-auth-login.js"></script>
+  <script src="js/06-inventory-stock.js"></script>
+  <script src="js/07-settings-plans.js"></script>
+  <script src="js/08-girvi-viewmode.js"></script>
+  <script src="js/09-purchases.js"></script>

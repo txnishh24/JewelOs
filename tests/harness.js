@@ -1,0 +1,84 @@
+// ─────────────────────────────────────────────────────────────────────────
+// JewelOS test harness
+// Loads the REAL app source files (js/00-*.js .. js/08-*.js) into a
+// sandboxed Node VM with minimal browser stubs, so tests run against the
+// actual production code — not a hand-copied re-implementation of it.
+// If someone edits app logic without updating this harness, tests still
+// exercise the true current behavior.
+// ─────────────────────────────────────────────────────────────────────────
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+function makeFakeElement(){
+  var el = {
+    style: {}, dataset: {}, classList: {
+      add(){}, remove(){}, toggle(){}, contains(){ return false; }
+    },
+    children: [], innerHTML: '', textContent: '', value: '',
+    appendChild(){}, addEventListener(){}, removeEventListener(){},
+    querySelectorAll(){ return []; }, querySelector(){ return null; },
+    getAttribute(){ return null; }, setAttribute(){}, remove(){}
+  };
+  return el;
+}
+
+function buildSandbox(){
+  var _local = {}, _session = {};
+  var sandbox = {
+    console: console,
+    Date: Date, Math: Math, JSON: JSON, Array: Array, Object: Object,
+    parseInt: parseInt, parseFloat: parseFloat, isNaN: isNaN, isFinite: isFinite,
+    encodeURIComponent: encodeURIComponent, decodeURIComponent: decodeURIComponent,
+    setTimeout: function(fn){ return 0; }, // no-op: we're testing pure logic, not timing behavior
+    clearTimeout: function(){},
+    setInterval: function(fn){ return 0; }, // no-op: prevents a live interval keeping Node alive forever
+    clearInterval: function(){},
+    localStorage: {
+      getItem: function(k){ return _local.hasOwnProperty(k) ? _local[k] : null; },
+      setItem: function(k,v){ _local[k] = String(v); },
+      removeItem: function(k){ delete _local[k]; }
+    },
+    sessionStorage: {
+      getItem: function(k){ return _session.hasOwnProperty(k) ? _session[k] : null; },
+      setItem: function(k,v){ _session[k] = String(v); },
+      removeItem: function(k){ delete _session[k]; }
+    },
+    document: {
+      getElementById: function(){ return makeFakeElement(); },
+      querySelectorAll: function(){ return []; },
+      querySelector: function(){ return null; },
+      addEventListener: function(){}, removeEventListener: function(){},
+      createElement: function(){ return makeFakeElement(); },
+      hidden: false
+    },
+    window: { addEventListener: function(){}, removeEventListener: function(){} },
+    addEventListener: function(){}, removeEventListener: function(){},
+    navigator: { onLine: true }, // no serviceWorker key — 'in' check should be false, matching Node
+    location: { href: 'http://localhost/', reload: function(){}, hostname: 'localhost' },
+    crypto: { randomUUID: function(){ return 'test-' + Math.random().toString(36).slice(2); } },
+    fetch: function(){ return Promise.resolve({ ok:true, json: function(){ return Promise.resolve([]); } }); },
+    toast: function(){}, // UI no-op in tests
+    __resetStorage: function(){ _local = {}; _session = {}; }
+  };
+  sandbox.window = sandbox; // window.X === X, matches browser global behavior
+  vm.createContext(sandbox);
+  return sandbox;
+}
+
+function loadApp(){
+  var sandbox = buildSandbox();
+  var jsDir = path.join(__dirname, '..', 'js');
+  var files = fs.readdirSync(jsDir).filter(function(f){ return f.endsWith('.js'); }).sort();
+  files.forEach(function(f){
+    var code = fs.readFileSync(path.join(jsDir, f), 'utf-8');
+    try{
+      vm.runInContext(code, sandbox, { filename: f });
+    }catch(e){
+      throw new Error('Failed loading ' + f + ': ' + e.message);
+    }
+  });
+  return sandbox;
+}
+
+module.exports = { loadApp: loadApp };

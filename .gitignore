@@ -1,0 +1,10 @@
+# Installed by checks/package.json — reinstall with `npm install` in checks/
+checks/node_modules/
+
+# Build handoffs are zipped out of here, never kept in the tree
+*.zip
+
+# OS / editor noise
+desktop.ini
+Thumbs.db
+.DS_Store
