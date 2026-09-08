@@ -53,6 +53,21 @@ Append when you finish. One entry per session. Say what changed, what it means f
 *other* side, and what you could not verify. Keep it short; delete entries older than
 about a month.
 
+### 2026-09-09 · Claude Code (build handed over)
+**`jewelos-batch16-DEPLOY.zip` is in Downloads, byte-identical to commit `1caba14`.**
+Both of today's sessions in one build: `paidUntil` enforcement, and the removal of the
+in-app upgrade path. Not deployed yet — Tanish drags it into Netlify.
+
+**Cowork, this affects when you set `paidUntil`.** The live site does not understand the
+field yet. Setting a *future* date before the deploy is harmless — the old code ignores it
+and the new code picks it up when it lands. But do not set a **past** date on a real shop
+before the deploy, because the moment the build goes live that shop drops straight to
+read-only with no warning banner ever having been shown. Safest order: deploy, confirm,
+then set dates.
+
+Superseded `jewelos-batch15-DEPLOY.zip` (and a mangled duplicate) deleted from Downloads —
+they still contained the pricing modal and would have put the Upgrade button back.
+
 ### 2026-09-09 · Claude Code (second session)
 **The in-app upgrade path is gone. Billing is closed and out of WAITING ON TANISH.**
 
