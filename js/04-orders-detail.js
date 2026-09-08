@@ -1492,6 +1492,157 @@ var SAAS = {
 var _PRO_LIMITS = { maxProducts:999999, maxUsers:999, girvi:true, reports:true, whatsapp:true, orders:true, csvExport:true };
 var PLAN_LIMITS = { free:_PRO_LIMITS, basic:_PRO_LIMITS, pro:_PRO_LIMITS };
 
+// ── SUBSCRIPTION WINDOW ──────────────────────────────────────────────
+// Orthogonal to PLAN_LIMITS. Plans answer "which features"; this answers
+// "is the subscription current". One product, one price — nothing here
+// looks at SAAS.plan and nothing here should ever be made to.
+//
+// SAAS.shop.paidUntil is set by Tanish through Supabase and arrives on the
+// shop record from auth-gateway at login. The client only ever READS it:
+// auth_store is server-written, and update-shop takes a five-field
+// allow-list that does not include paidUntil, so a shop cannot extend its
+// own subscription. (The shop's own JSON blob would have been the wrong
+// home for exactly that reason — it is client-writable via store-proxy.)
+//
+// Enforcement here is client-side and bypassable in devtools. That is a
+// deliberate, accepted trade for now; real enforcement belongs in
+// store-proxy later.
+var SUB_GRACE_DAYS = 7;   // full access continues this long past paidUntil
+var SUB_WARN_DAYS  = 7;   // banner starts this many days before paidUntil
+
+function subPaidUntil(){
+  var raw = (typeof SAAS !== 'undefined' && SAAS.shop) ? SAAS.shop.paidUntil : null;
+  if(!raw) return null;
+  // A bare 'YYYY-MM-DD' is parsed as UTC midnight by the Date constructor,
+  // which reads back as the PREVIOUS day anywhere behind UTC — the shop would
+  // lose a day of subscription. Build it from local parts instead. Anything
+  // with a time in it (a full ISO timestamp) is left to the parser.
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(raw).trim());
+  var d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+            : new Date(raw);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Whole days from today to paidUntil. 0 = expires today (still paid).
+// Negative = days since it lapsed. null = no date on the record.
+function subDaysLeft(){
+  var until = subPaidUntil();
+  if(!until) return null;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var end   = new Date(until.getFullYear(), until.getMonth(), until.getDate());
+  return Math.round((end - today) / 86400000);
+}
+
+// 'ok' | 'warn' | 'grace' | 'readonly'
+// No paidUntil means no restriction. Every shop that exists today has no
+// value yet, and a deploy must never lock anybody out of their own books.
+function subState(){
+  var d = subDaysLeft();
+  if(d === null)              return 'ok';
+  if(d > SUB_WARN_DAYS)       return 'ok';
+  if(d >= 0)                  return 'warn';       // ends today or within a week
+  if(d >= -SUB_GRACE_DAYS)    return 'grace';      // lapsed, still full access
+  return 'readonly';
+}
+
+function subReadOnly(){ return subState() === 'readonly'; }
+
+// Gate for the four things read-only stops: a new bill/sale, a purchase
+// bill, and a new girvi loan. Everything else stays open on purpose —
+// login, viewing, printing, backup, and taking a girvi repayment.
+// Returns true when the action may proceed.
+function subGuard(action){
+  if(!subReadOnly()) return true;
+  toast('⚠ Subscription expired — ' + action + ' is paused. You can still view, print and back up your data.');
+  return false;
+}
+
+function subPaidUntilText(){
+  var until = subPaidUntil();
+  if(!until) return null;
+  var mm = String(until.getMonth() + 1); if(mm.length < 2) mm = '0' + mm;
+  var dd = String(until.getDate());      if(dd.length < 2) dd = '0' + dd;
+  return fmtDate(until.getFullYear() + '-' + mm + '-' + dd);
+}
+
+// The "Paid until <date>" line for Settings → Account, so Tanish can tell a
+// shop where it stands without asking anyone. Returns '' when no paidUntil is
+// set, rather than inventing a status for a shop never given one.
+function subAccountLineHtml(){
+  var when = subPaidUntilText();
+  if(!when) return '';
+  var st = subState();
+  var colour = (st === 'ok') ? 'var(--success)' : (st === 'warn') ? 'var(--warning)' : 'var(--danger)';
+  var suffix = (st === 'grace')    ? ' — ended, in grace period'
+             : (st === 'readonly') ? ' — expired, read-only'
+             : '';
+  return '<div style="margin-top:6px;">Paid until <b style="color:' + colour + ';">' +
+         escHtml(when) + '</b>' + suffix + '</div>';
+}
+
+// The warn banner is dismissible, but the dismissal is keyed to the day, so
+// it comes back tomorrow and the shop cannot click once and forget about it
+// for a week. Grace and read-only cannot be dismissed at all.
+function _subDismissKey(){
+  return (typeof shopScopedKey === 'function')
+    ? shopScopedKey('jewelos_sub_banner_dismissed')
+    : 'jewelos_sub_banner_dismissed';
+}
+
+// Local calendar day, not toISOString()'s UTC one. subDaysLeft() counts from
+// local midnight, so the dismissal has to roll over at local midnight too —
+// otherwise "tomorrow" arrives at 05:30 in India and the two halves of this
+// feature disagree about what day it is.
+function _subToday(){
+  var d = new Date();
+  var mm = String(d.getMonth() + 1); if(mm.length < 2) mm = '0' + mm;
+  var dd = String(d.getDate());      if(dd.length < 2) dd = '0' + dd;
+  return d.getFullYear() + '-' + mm + '-' + dd;
+}
+
+function subDismissBanner(){
+  try{ localStorage.setItem(_subDismissKey(), _subToday()); }catch(e){}
+  renderSubBanner();
+}
+
+function renderSubBanner(){
+  var el = document.getElementById('sub-banner');
+  if(!el) return;
+  var state = subState();
+  var when  = subPaidUntilText();
+
+  if(state === 'ok'){
+    el.className = ''; el.innerHTML = '';
+    if(document.body) document.body.classList.remove('sub-banner-on');
+    return;
+  }
+
+  if(state === 'warn'){
+    var today = _subToday();
+    var seen = null;
+    try{ seen = localStorage.getItem(_subDismissKey()); }catch(e){}
+    if(seen === today){
+      el.className = ''; el.innerHTML = '';
+      if(document.body) document.body.classList.remove('sub-banner-on');
+      return;
+    }
+    var d = subDaysLeft();
+    el.className = 'visible warn';
+    el.innerHTML = '⏳ Your subscription ends on ' + escHtml(when) +
+      (d === 0 ? ' — today' : ' — ' + d + ' day' + (d === 1 ? '' : 's') + ' left') +
+      '<button class="sub-x" onclick="subDismissBanner()" title="Hide until tomorrow">✕</button>';
+  } else if(state === 'grace'){
+    el.className = 'visible lapsed';
+    el.innerHTML = '⚠ Your subscription ended on ' + escHtml(when) +
+      '. Renew to keep billing — everything still works for now.';
+  } else {
+    el.className = 'visible lapsed';
+    el.innerHTML = '🔒 Subscription expired on ' + escHtml(when) +
+      ' — read-only. You can still view, print and back up your data.';
+  }
+  if(document.body) document.body.classList.add('sub-banner-on');
+}
+
 // ── SUPABASE SAAS TABLE KEYS ─────────────────────────────────────────
 // Each shop gets its own row in Supabase `store` table, keyed by shop_id
 // FIX v18: All fetch calls now use _getShopRowKey() — no hardcoded 'main'

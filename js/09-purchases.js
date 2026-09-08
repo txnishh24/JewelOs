@@ -710,6 +710,7 @@ function _purchaseCommit(snapshot, onDone){
 }
 
 function savePurchase(){
+  if(!subGuard('saving a purchase bill')) return;
   if(_purchaseSubmitLock){ toast('Already saving — please wait'); return; }
   var cfg = pbCfg();
   var date = document.getElementById('pb-f-date').value;

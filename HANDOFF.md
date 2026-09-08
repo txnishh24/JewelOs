@@ -33,10 +33,14 @@ Belt and braces: `git status` on arrival. Dirty tree means someone was mid-chang
 
 Neither Claude can decide these. Don't re-litigate them each session; just surface them.
 
-- **Billing: with it, or free and invoiced by hand?** Open since 3 Sep. Every account
-  currently gets Pro, and the Upgrade button tells the customer to create their own
-  Razorpay account — money would route to themselves. Either answer is fine. The
-  dead-end button is not.
+- ~~**Billing: with it, or free and invoiced by hand?**~~ **DECIDED 9 Sep.** Paid monthly
+  from day one, no free trial. Tanish demos in person, they pay by UPI, he marks them paid
+  by setting `paidUntil` in Supabase. No in-app payment, and none planned for now.
+  Enforcement built 9 Sep — see the LOG entry below.
+- **The Upgrade button is now actively wrong, not just a dead end.** It still tells the
+  customer to create their own Razorpay account, which would route their money to
+  themselves — and there is no longer any in-app payment for it to lead to. Hiding it is
+  a product call, so it is here rather than done. The pricing modal is still reachable too.
 - **Demo mode.** The live site opens with "DEMO MODE — sample data loaded". Decide what a
   jeweller should see first.
 
@@ -47,6 +51,65 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
 Append when you finish. One entry per session. Say what changed, what it means for the
 *other* side, and what you could not verify. Keep it short; delete entries older than
 about a month.
+
+### 2026-09-09 · Claude Code
+**Subscription expiry is built. `paidUntil` on the shop record now drives banners and a
+read-only mode. In this folder, NOT deployed.**
+
+**Cowork — the field you will be setting.** `paidUntil` lives on the shop record in
+`auth_store` → `shops[]`, alongside `name`/`city`/`plan`. Set it per shop when Tanish
+takes a UPI payment. Format `YYYY-MM-DD` (a full ISO timestamp also works). A date-only
+value is deliberately read as a **local** calendar day — `new Date('2026-10-09')` is UTC
+midnight, which reads back as the 8th anywhere behind UTC and would quietly rob the shop
+of a day.
+
+**No Edge Function change was needed and none was made.** `login` already returns the
+whole shop record, so the value reaches the client on its own; and `update-shop` writes
+through a five-field allow-list (`name, city, phone, gstin, locale`) that cannot reach
+`paidUntil`. So the client can only ever read it — which is why it went here rather than
+in the shop's own JSON blob, which is client-writable through store-proxy.
+
+**What happens as it runs out** — 7-day warning, 7-day grace:
+
+| paidUntil | State | Behaviour |
+|---|---|---|
+| more than 7 days away | `ok` | nothing |
+| within 7 days, incl. today | `warn` | amber banner, dismissible; returns next day |
+| lapsed, up to 7 days | `grace` | red banner, **full access still** |
+| lapsed more than 7 days | `readonly` | red banner, writes blocked |
+
+**No `paidUntil` means no restriction.** Every shop that exists today has no value yet, so
+deploying this changes nothing for anybody until you start setting dates. Deliberate — a
+deploy must never lock a jeweller out of his own books.
+
+**Read-only blocks exactly three things:** a new sale, a purchase bill, a new girvi loan.
+Login, viewing, printing, editing existing records and **full backup** all keep working
+forever, however far past expiry. I verified the backup runs 40 days past expiry and
+produced a real filename.
+
+**UNSETTLED, as Tanish asked me to flag: recording a girvi repayment stays allowed in
+read-only.** If a customer walks in to repay a pawn loan and collect his gold, blocking it
+hurts him, not the shop that owes us money. Tanish chose to lose that leverage and may
+revisit. There is a comment on `submitGirviPayment` and a test that fails if someone adds
+a guard — check here before "fixing" that omission.
+
+**Not touched:** `PLAN_LIMITS`. Everyone still gets every feature; this only answers "is
+the subscription current", never "which tier". A test asserts the subscription code never
+references plans.
+
+**Enforcement is client-side and bypassable in devtools.** Accepted for now; real
+enforcement belongs in store-proxy later.
+
+Settings → Account now shows "Paid until &lt;date&gt;", with the state after it, so Tanish
+can tell a shop where it stands without asking either of us. Shows nothing when no date
+is set.
+
+Verified: 50/50 regression tests (12 new, covering both grace boundaries at day 7 and day
+8), all nine checks at their previous baseline, and I drove the real app in a browser —
+all eight date states, the three blocks firing with their messages, a ₹5,000 repayment
+recorded while read-only, backup working past grace, dismissal returning the next day, and
+the banner colours and topbar offset. Not verified: a real phone, and anything involving
+an actual Supabase round trip — I never touched the database.
 
 ### 2026-09-08 · Claude Code
 **Answered the `total: 0 / subtotal: 0 / gst: 0` question. Two of the three are nothing;

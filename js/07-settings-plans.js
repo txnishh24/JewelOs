@@ -778,6 +778,9 @@ function updateGirviDueDate(){
 
 // ── SAVE ENTRY (replaces old) ──────────────────────────────────────────
 function saveGirviEntry(){
+  // Creating a NEW loan is blocked read-only; editing an existing one is not,
+  // and taking a repayment (submitGirviPayment) is deliberately never blocked.
+  if(!GF_EDIT_ID && !subGuard('creating a new girvi loan')) return;
   var cust      = (document.getElementById('gf-cust').value||'').trim();
   var phone     = (document.getElementById('gf-phone').value||'').trim();
   var principal = parseFloat(document.getElementById('gf-principal').value);
@@ -1654,6 +1657,10 @@ function updatePayBalance(outstanding){
     : 'Balance after payment: <strong>\u20b9'+Math.round(remaining).toLocaleString('en-IN')+'</strong>';
 }
 
+// DELIBERATELY NOT SUBSCRIPTION-GATED. If a customer walks in to repay a pawn
+// loan and collect his gold, blocking it hurts him, not the shop that owes us
+// money. Tanish chose to lose that leverage; flagged in HANDOFF as unsettled,
+// so do not "fix" this omission without checking there first.
 function submitGirviPayment(gid){
   if(_girviLocked(gid)){ toast('Payment already being recorded — please wait'); return; }
   var g = (S.girvi||[]).find(function(x){return x.id===gid;});

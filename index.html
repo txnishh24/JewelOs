@@ -1052,6 +1052,25 @@ tr:hover td{background:var(--gold-bg);}
 body.demo-mode header.topbar{top:34px;}
 body.demo-mode main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 
+/* Subscription state — same geometry as the demo banner above, so the
+   topbar offset rule can be shared. Amber while the subscription is
+   running out, red once it has lapsed. */
+#sub-banner{
+  position:fixed;top:0;left:0;right:0;z-index:1300;
+  color:#fff;text-align:center;padding:7px 16px;font-size:12px;
+  font-weight:700;letter-spacing:.04em;display:none;
+}
+#sub-banner.visible{display:block;}
+#sub-banner.warn{background:linear-gradient(90deg,#b45309,#d97706);}
+#sub-banner.lapsed{background:linear-gradient(90deg,#991b1b,#dc2626);}
+#sub-banner .sub-x{
+  margin-left:10px;cursor:pointer;opacity:.85;font-weight:400;
+  border:none;background:none;color:#fff;font-size:14px;line-height:1;
+}
+#sub-banner .sub-x:hover{opacity:1;}
+body.sub-banner-on header.topbar{top:34px;}
+body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
+
 /* WhatsApp automation panel */
 .wa-rule{
   display:flex;align-items:flex-start;gap:10px;
@@ -1327,6 +1346,8 @@ body.demo-mode main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 <body>
 
 <!-- DEMO MODE BANNER -->
+<div id="sub-banner"></div>
+
 <div id="demo-banner">
   🎭 DEMO MODE — Sample data loaded. <a onclick="exitDemoMode()" style="color:#fde68a;cursor:pointer;text-decoration:underline;margin-left:8px;">Exit &amp; create your account →</a>
 </div>

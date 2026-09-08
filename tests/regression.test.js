@@ -588,6 +588,141 @@ test('no new unscoped localStorage key holds shop state', function(){
     'raw shop-state keys must go through shopScopedKey():\n      ' + offenders.join('\n      '));
 });
 
+// ── subscription window (paidUntil) ────────────────────────────────────
+console.log('\nSubscription window — paidUntil:');
+
+// Local-parts date string N days from today. Built by hand rather than with
+// toISOString(), which would shift the day in any timezone ahead of UTC.
+function _subDate(n){
+  var d = new Date(); d.setHours(12,0,0,0); d.setDate(d.getDate() + n);
+  var mm = String(d.getMonth() + 1); if(mm.length < 2) mm = '0' + mm;
+  var dd = String(d.getDate());      if(dd.length < 2) dd = '0' + dd;
+  return d.getFullYear() + '-' + mm + '-' + dd;
+}
+function _subApp(paidUntil){
+  var a = require('./harness.js').loadApp();
+  a.SAAS.shop = { id: 'shop_test', name: 'Test', paidUntil: paidUntil };
+  a.toast = function(){};
+  return a;
+}
+
+test('a shop with no paidUntil is never restricted', function(){
+  // Every shop that exists today has no value yet. A deploy must not lock
+  // anyone out of their own customer list, stock and loan book.
+  var a = _subApp(undefined);
+  assert(a.subState() === 'ok', 'expected ok, got ' + a.subState());
+  assert(a.subReadOnly() === false, 'a shop with no paidUntil must not be read-only');
+  assert(a.subDaysLeft() === null, 'expected null days left');
+});
+
+test('more than 7 days left: no banner, no restriction', function(){
+  var a = _subApp(_subDate(30));
+  assert(a.subState() === 'ok', 'expected ok, got ' + a.subState());
+  assert(a.subDaysLeft() === 30, 'expected 30 days left, got ' + a.subDaysLeft());
+});
+
+test('within 7 days: warns but does not restrict', function(){
+  [7, 3, 1].forEach(function(n){
+    var a = _subApp(_subDate(n));
+    assert(a.subState() === 'warn', n + ' days out: expected warn, got ' + a.subState());
+    assert(a.subReadOnly() === false, n + ' days out must not be read-only');
+  });
+});
+
+test('the last paid day still counts as paid', function(){
+  // paidUntil = today means access through today, not from midnight.
+  var a = _subApp(_subDate(0));
+  assert(a.subDaysLeft() === 0, 'expected 0 days left, got ' + a.subDaysLeft());
+  assert(a.subState() === 'warn', 'expected warn on the final day, got ' + a.subState());
+  assert(a.subReadOnly() === false, 'the final paid day must not be read-only');
+});
+
+test('lapsed but inside the 7-day grace: full access continues', function(){
+  [-1, -4, -7].forEach(function(n){
+    var a = _subApp(_subDate(n));
+    assert(a.subState() === 'grace', n + ' days past: expected grace, got ' + a.subState());
+    assert(a.subReadOnly() === false, n + ' days past must still have full access');
+  });
+});
+
+test('grace boundary: day 7 is grace, day 8 is read-only', function(){
+  var last = _subApp(_subDate(-7));
+  var past = _subApp(_subDate(-8));
+  assert(last.subReadOnly() === false, '7 days past expiry must still be writable');
+  assert(past.subReadOnly() === true,  '8 days past expiry must be read-only');
+});
+
+test('past grace: subGuard blocks a write and explains why', function(){
+  var a = _subApp(_subDate(-40));
+  var said = [];
+  a.toast = function(m){ said.push(m); };
+  assert(a.subState() === 'readonly', 'expected readonly, got ' + a.subState());
+  assert(a.subGuard('recording a sale') === false, 'subGuard must block past grace');
+  assert(said.length === 1, 'expected one toast, got ' + said.length);
+  assert(/view, print and back up/.test(said[0]), 'the message must say what still works: ' + said[0]);
+});
+
+test('subGuard lets writes through whenever the subscription is current', function(){
+  [_subDate(30), _subDate(1), _subDate(-3), undefined].forEach(function(d){
+    var a = _subApp(d);
+    assert(a.subGuard('x') === true, 'expected pass for paidUntil=' + d + ' (' + a.subState() + ')');
+  });
+});
+
+test('a date-only paidUntil is read as a local day, not UTC midnight', function(){
+  // new Date('2026-10-09') is UTC midnight, which is the 8th anywhere behind
+  // UTC — the shop would silently lose a day.
+  var a = _subApp('2026-10-09');
+  var d = a.subPaidUntil();
+  assert(d.getFullYear() === 2026 && d.getMonth() === 9 && d.getDate() === 9,
+    'expected local 9 Oct 2026, got ' + d.toString());
+});
+
+test('the three write paths are subscription-gated', function(){
+  var fs = require('fs'), path = require('path');
+  var JS_DIR = path.join(__dirname, '..', 'js');
+  var src = {
+    'recordSale (02)':       fs.readFileSync(path.join(JS_DIR, '02-ui-inactivity-modals.js'), 'utf-8'),
+    'savePurchase (09)':     fs.readFileSync(path.join(JS_DIR, '09-purchases.js'), 'utf-8'),
+    'saveGirviEntry (07)':   fs.readFileSync(path.join(JS_DIR, '07-settings-plans.js'), 'utf-8')
+  };
+  Object.keys(src).forEach(function(k){
+    assert(/subGuard\(/.test(src[k]), k + ' must call subGuard()');
+  });
+});
+
+test('backup and girvi repayment are NOT gated, even years past expiry', function(){
+  var fs = require('fs'), path = require('path');
+  var JS_DIR = path.join(__dirname, '..', 'js');
+  // Deliberate. Backup: the data is the jeweller's own and holding it hostage
+  // is wrong. Repayment: blocking it hurts his customer, not the shop that
+  // owes us money — flagged unsettled in HANDOFF. If this test fails because
+  // someone added a guard, check HANDOFF before "fixing" it.
+  var auth  = fs.readFileSync(path.join(JS_DIR, '05-auth-login.js'), 'utf-8');
+  var girvi = fs.readFileSync(path.join(JS_DIR, '07-settings-plans.js'), 'utf-8');
+  var backupFn = auth.slice(auth.indexOf('function exportFullBackup'));
+  backupFn = backupFn.slice(0, backupFn.indexOf('\nfunction '));
+  assert(!/subGuard\(/.test(backupFn), 'exportFullBackup must never be subscription-gated');
+
+  var payFn = girvi.slice(girvi.indexOf('function submitGirviPayment'));
+  payFn = payFn.slice(0, payFn.indexOf('\nfunction '));
+  assert(!/subGuard\(/.test(payFn), 'submitGirviPayment must never be subscription-gated');
+});
+
+test('subscription state never consults the plan', function(){
+  var fs = require('fs'), path = require('path');
+  var JS_DIR = path.join(__dirname, '..', 'js');
+  // One product, one price. paidUntil answers "is it current", not "which tier".
+  var orders = fs.readFileSync(path.join(JS_DIR, '04-orders-detail.js'), 'utf-8');
+  var block = orders.slice(orders.indexOf('// ── SUBSCRIPTION WINDOW'));
+  block = block.slice(0, block.indexOf('\n// ── SUPABASE SAAS TABLE KEYS'));
+  // Comments are allowed to mention plans — that is how the block explains
+  // that it is orthogonal to them. Only the executable lines are checked.
+  var code = block.split('\n').filter(function(l){ return !/^\s*(\/\/|\*|\/\*)/.test(l); }).join('\n');
+  assert(!/PLAN_LIMITS|canAccess\(|SAAS\.plan/.test(code),
+    'the subscription helpers must not reference plans');
+});
+
 console.log('\n' + '='.repeat(50));
 console.log(passed + ' passed, ' + failed + ' failed');
 if(failed > 0){

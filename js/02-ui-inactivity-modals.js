@@ -98,6 +98,9 @@ function lowItems(){return S.products.filter(function(p){return p.qty<=p.alert&&
 
 // ─── TABS ─────────────────────────────────────────────────────────────────
 function renderTab(tab){
+  // Re-checked on every screen change so the state stays honest across a
+  // session left open overnight, and the warn banner returns the next day.
+  if(typeof renderSubBanner === 'function') renderSubBanner();
   // Show skeleton for slow-loading panels before real render
   if(tab==='inventory')  showSkeleton('inv-body','8','table');
   if(tab==='girvi'){     showSkeleton('girvi-list','5','card'); var _gl=document.getElementById('girvi-list'); if(_gl) _gl.dataset.page='0'; }
@@ -1252,6 +1255,7 @@ function deductSoldStock(items, sale){
 var _saleSubmitLock = false;
 
 function recordSale(){
+  if(!subGuard('recording a sale')) return;
   if(_saleSubmitLock){ toast('Sale already being recorded — please wait'); return; }
   if(!document.getElementById('s-cust').value.trim()){toast('Enter customer name');return;}
   var sale=buildSaleObj();

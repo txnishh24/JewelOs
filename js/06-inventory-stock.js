@@ -804,7 +804,7 @@ function showSettingsTab(tab){
     if(lb&&ls) lb.textContent='Last sync: '+new Date(parseInt(ls)).toLocaleString('en-IN');
     // Account
     var acc=document.getElementById('set-account-info');
-    if(acc) acc.innerHTML='<b>'+escHtml(SAAS.user.name)+'</b> &bull; '+escHtml(SAAS.user.email)+' &bull; <span class="role-badge '+(SAAS.user.role==='owner'?'':'staff')+'">'+escHtml(SAAS.user.role)+'</span>';
+    if(acc) acc.innerHTML='<b>'+escHtml(SAAS.user.name)+'</b> &bull; '+escHtml(SAAS.user.email)+' &bull; <span class="role-badge '+(SAAS.user.role==='owner'?'':'staff')+'">'+escHtml(SAAS.user.role)+'</span>'+subAccountLineHtml();
   };
 }());
 

@@ -104,6 +104,9 @@ function saasSetSession(user, shop, sessionToken){
     localStorage.setItem(AUTH_KEY, JSON.stringify({userId:user.id, shopId:shop.id, ts:Date.now()}));
     if(sessionToken) sessionStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
   } catch(e){ console.warn('[JewelOS] Could not save session to localStorage'); }
+  // paidUntil arrives on the shop record from auth-gateway, so the banner can
+  // be drawn as soon as the session is set — on fresh login and on reload.
+  if(typeof renderSubBanner === 'function') renderSubBanner();
 }
 
 function saasGetSession(){
@@ -898,9 +901,12 @@ function renderSettings(){
   }
 
   // Account info
+  // NOTE: this whole function is replaced by the tabs patch in
+  // 06-inventory-stock.js, which does not call the original. The account
+  // card that actually renders is the one there — put changes in that copy.
   var accEl = document.getElementById('set-account-info');
   if(accEl){
-    accEl.innerHTML = '<b>'+escHtml(SAAS.user.name)+'</b> &bull; '+escHtml(SAAS.user.email)+' &bull; <span class="role-badge '+(SAAS.user.role==='owner'?'':'staff')+'">'+escHtml(SAAS.user.role)+'</span>';
+    accEl.innerHTML = '<b>'+escHtml(SAAS.user.name)+'</b> &bull; '+escHtml(SAAS.user.email)+' &bull; <span class="role-badge '+(SAAS.user.role==='owner'?'':'staff')+'">'+escHtml(SAAS.user.role)+'</span>' + subAccountLineHtml();
   }
 }
 
