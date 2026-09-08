@@ -436,8 +436,9 @@ function updateHeaderUI(){
   var shopNameEl = document.getElementById('header-shop-name');
   var userInfoEl = document.getElementById('header-user-info');
   if(shopNameEl && SAAS.shop){
-    var planBadge = '<span class="plan-badge '+SAAS.plan+'">'+SAAS.plan.toUpperCase()+'</span>';
-    shopNameEl.innerHTML = '<span>'+escHtml(SAAS.shop.name||'My Shop')+'</span> '+planBadge;
+    // No plan badge. One product at one price — a tier label on every screen
+    // told the jeweller he was on a lesser version of something.
+    shopNameEl.innerHTML = '<span>'+escHtml(SAAS.shop.name||'My Shop')+'</span>';
   }
   if(userInfoEl && SAAS.user){
     userInfoEl.textContent = SAAS.user.name + ' \u00b7 ' + (SAAS.user.role||'owner');
@@ -460,11 +461,7 @@ function applyFeatureGates(){
   if(!canAccess('girvi')){
     if(girviDtab) girviDtab.style.opacity = '0.4';
   }
-  // Reports — add gate on free
-  if(!canAccess('reports')){
-    var repPanel = document.getElementById('panel-reports');
-    if(repPanel) addGateOverlay(repPanel, 'Reports', 'basic');
-  }
+  // Reports gate removed — every shop has reports.
   // WhatsApp gate
   if(!canAccess('whatsapp')){
     // WhatsApp buttons will check canAccess() before acting
@@ -497,22 +494,15 @@ function applyFeatureGates(){
   }
 }
 
-function addGateOverlay(el, featureName, requiredPlan){
-  el.style.position = 'relative';
-  var overlay = document.createElement('div');
-  overlay.className = 'gate-overlay';
-  overlay.innerHTML =
-    '<div class="gate-lock">\ud83d\udd12</div>'+
-    '<div class="gate-txt">'+featureName+' requires '+requiredPlan.charAt(0).toUpperCase()+requiredPlan.slice(1)+'</div>'+
-    '<div class="gate-plan">Upgrade to unlock →</div>'+
-    '<button onclick="document.getElementById(\'pricing-modal\').style.display=\'block\'" style="margin-top:10px;padding:8px 20px;border-radius:100px;border:none;background:var(--gold);color:#1a1200;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">See Plans</button>';
-  el.appendChild(overlay);
-}
+// addGateOverlay() removed with the pricing modal. It painted a padlock over a
+// panel and offered "Upgrade to unlock" — there is nothing to upgrade to.
+// Whether a shop can work is decided by paidUntil, not by tier.
 
 function guardFeature(feature, requiredPlan){
-  if(canAccess(feature)) return true;
-  document.getElementById('pricing-modal').style.display = 'block';
-  return false;
+  // Kept because callers still guard on it, but every feature is available to
+  // every shop, so this only ever returns true. It no longer opens a pricing
+  // modal, because there is no longer a pricing modal.
+  return canAccess(feature);
 }
 
 // ── ACTIVITY LOG ─────────────────────────────────────────────────────
@@ -569,12 +559,6 @@ function guardWrite(action){
 
 // ── STAFF MANAGEMENT ────────────────────────────────────────────────
 function openInviteStaff(){
-  if(!canAccess('reports') && SAAS.plan === 'free'){
-    // Free plan: only 1 user
-    toast('\u26a0 Upgrade to Basic or Pro to add staff members');
-    document.getElementById('pricing-modal').style.display = 'block';
-    return;
-  }
   document.getElementById('set-invite-form').style.display = '';
   document.getElementById('inv-name').focus();
 }
@@ -666,7 +650,18 @@ function showLegalModal(type){
   modal.style.display = 'block';
 }
 
-// ── UPGRADE PLAN — Razorpay Integration ──────────────────────────────
+// ── IN-APP PAYMENT — PARKED, NOT REACHABLE ───────────────────────────
+// upgradePlan / _openRazorpay / _activatePlan / saveRazorpayKey below are
+// intentionally kept but no longer reachable from the UI. JewelOS is sold
+// face to face: Tanish demos it, the shop pays by UPI, and he sets paidUntil
+// in Supabase. There is no in-app payment, and the Upgrade button that used
+// to lead here told the jeweller to create his OWN Razorpay account — which
+// would have routed his money to himself.
+//
+// DO NOT DELETE. This comes back when there are enough customers to justify
+// automating collection. Re-entry point would be a button calling
+// upgradePlan(); everything downstream of that still works.
+// The razorpay-webhook Edge Function is likewise still deployed and parked.
 // Plan prices in paise (INR × 100)
 var PLAN_PRICES = { basic: 49900, pro: 99900 };
 var PLAN_NAMES  = { basic: 'Basic ₹499/mo', pro: 'Pro ₹999/mo' };
@@ -708,7 +703,7 @@ function _openRazorpay(plan){
       'Payment setup required',
       'To accept payments, add your Razorpay Key ID in Settings \u2192 Billing \u2192 Payment Setup. Get your key at razorpay.com (free signup).',
       function(){
-        document.getElementById('pricing-modal').style.display='none';
+        var _pm = document.getElementById('pricing-modal'); if(_pm) _pm.style.display='none';
         switchTab('settings');
       }
     );
@@ -772,7 +767,7 @@ function _activatePlan(plan, paymentId){
     SAAS.shop.plan = plan;
     SAAS.plan      = plan;
   }
-  document.getElementById('pricing-modal').style.display = 'none';
+  var _pm = document.getElementById('pricing-modal'); if(_pm) _pm.style.display = 'none';  // parked: no such modal now
   applyFeatureGates();
   updateHeaderUI();
   renderSettings();
@@ -813,20 +808,7 @@ function renderSettings(){
   if(sp) sp.value = SAAS.shop.phone || '';
   if(sg) sg.value = SAAS.shop.gstin || '';
 
-  // Plan info
-  var planBadgeEl = document.getElementById('set-plan-badge');
-  var planInfoEl  = document.getElementById('set-plan-info');
-  if(planBadgeEl) planBadgeEl.innerHTML = '<span class="plan-badge '+SAAS.plan+'">'+SAAS.plan.toUpperCase()+'</span>';
-  if(planInfoEl){
-    var features = PLAN_LIMITS[SAAS.plan]||PLAN_LIMITS['free'];
-    planInfoEl.innerHTML =
-      '<b>'+SAAS.plan.charAt(0).toUpperCase()+SAAS.plan.slice(1)+'</b> plan &bull; ' +
-      'Products: '+(features.maxProducts>9999?'Unlimited':features.maxProducts)+' &bull; ' +
-      'Users: '+(features.maxUsers>99?'Unlimited':features.maxUsers)+' &bull; ' +
-      (features.girvi?'\u2705 Girvi':'\u274c Girvi')+' &bull; ' +
-      (features.reports?'\u2705 Reports':'\u274c Reports')+' &bull; ' +
-      (features.whatsapp?'\u2705 WhatsApp':'\u274c WhatsApp');
-  }
+  // Plan badge and feature list removed with the Plan settings tab.
 
   // Staff list
   var staffEl = document.getElementById('set-staff-list');
@@ -1061,11 +1043,6 @@ function processBackupFile(input){
 
 // ── WHATSAPP INTEGRATION ─────────────────────────────────────────────
 function sendWhatsApp(phone, message){
-  if(!canAccess('whatsapp')){
-    toast('\u26a0 WhatsApp reminders require Pro plan');
-    document.getElementById('pricing-modal').style.display = 'block';
-    return;
-  }
   if(!phone){ toast('\u26a0 No phone number on file'); return; }
   var clean = phone.replace(/\D/g,'');
   if(clean.length === 10) clean = '91' + clean;

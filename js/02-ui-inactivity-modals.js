@@ -128,21 +128,8 @@ function switchTab(tab){
     toast('\u26a0 Ask the owner for access to ' + tab);
     tab = 'sales'; // redirect to sales
   }
-  // ── Plan-based feature gating ────────────────────────────────────────
-  // These tabs map directly to PLAN_FEATURES flags. Previously the only
-  // enforcement was a cosmetic opacity dim on the tab button — clicking it
-  // (or navigating some other way, e.g. a dashboard shortcut card) still
-  // rendered the full feature with no restriction at all, regardless of
-  // plan. That meant Girvi, Orders, and Reports were effectively free for
-  // every shop, undermining the plan tiers entirely.
-  var planGatedTabs = { girvi:'girvi', orders:'orders', reports:'reports' };
-  if(planGatedTabs[tab] && typeof canAccess === 'function' && !canAccess(planGatedTabs[tab])){
-    toast('\u26a0 ' + tab.charAt(0).toUpperCase()+tab.slice(1) + ' requires a paid plan — upgrade to unlock');
-    var pm = document.getElementById('pricing-modal');
-    if(pm) pm.style.display = 'block';
-    tab = 'dashboard'; // redirect away from the gated panel
-  }
-  // ────────────────────────────────────────────────────────────────────
+  // Plan-based tab gating removed. Every shop gets every module; whether it
+  // can write is decided by paidUntil (subGuard), not by tier.
   // Save scroll position of current active panel before switching
   ['dashboard','inventory','sales','orders','girvi','customers','reports','settings'].forEach(function(t){
     var cp = document.getElementById('panel-'+t);

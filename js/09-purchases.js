@@ -23,12 +23,7 @@ function pbToggleSettings(){
 
 // ── SUB-TAB SWITCH (Inventory ⇄ Purchases) ──────────────────────────────
 function switchInvSub(which){
-  if(which === 'purchases' && typeof canAccess === 'function' && !canAccess('purchases')){
-    toast('\u26a0 Purchase Bill History requires a paid plan — upgrade to unlock');
-    var pm = document.getElementById('pricing-modal');
-    if(pm) pm.style.display = 'block';
-    which = 'stock';
-  }
+  // Purchases plan gate removed — every shop has purchase bills.
   var stockEl = document.getElementById('inv-sub-stock');
   var purchEl = document.getElementById('inv-sub-purchases');
   var tabStock = document.getElementById('invsub-tab-stock');
@@ -1441,9 +1436,6 @@ function pbPrintList(){
 
 // ── EXPORT (CSV — opens cleanly in Excel) ────────────────────────────
 function pbExportCsv(){
-  if(typeof canAccess === 'function' && !canAccess('csvExport')){
-    toast('\u26a0 CSV/Excel export requires a paid plan'); return;
-  }
   var rows = pbGetFiltered();
   var cfg = pbCfg();
   var headers = ['Bill No','Date','Supplier','Supplier Invoice #','Purchase Type','Total Items','Gross Wt','Net Wt','Wastage %','Purity','Total Amount','Amount Paid','Pending','Payment Status','Payment Method','Employee','Notes'];

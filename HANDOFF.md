@@ -33,16 +33,17 @@ Belt and braces: `git status` on arrival. Dirty tree means someone was mid-chang
 
 Neither Claude can decide these. Don't re-litigate them each session; just surface them.
 
-- ~~**Billing: with it, or free and invoiced by hand?**~~ **DECIDED 9 Sep.** Paid monthly
-  from day one, no free trial. Tanish demos in person, they pay by UPI, he marks them paid
-  by setting `paidUntil` in Supabase. No in-app payment, and none planned for now.
-  Enforcement built 9 Sep — see the LOG entry below.
-- **The Upgrade button is now actively wrong, not just a dead end.** It still tells the
-  customer to create their own Razorpay account, which would route their money to
-  themselves — and there is no longer any in-app payment for it to lead to. Hiding it is
-  a product call, so it is here rather than done. The pricing modal is still reachable too.
 - **Demo mode.** The live site opens with "DEMO MODE — sample data loaded". Decide what a
   jeweller should see first.
+- **The renewal contact number.** `JEWELOS_RENEW_CONTACT` at the top of the subscription
+  block in `04-orders-detail.js` is empty, so Settings → Account currently reads
+  "Contact support@jewelos.in to renew". Give Claude Code the number to put there.
+
+**Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
+outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUntil` in
+Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
+(`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
+or re-add tier UI.
 
 ---
 
@@ -51,6 +52,47 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
 Append when you finish. One entry per session. Say what changed, what it means for the
 *other* side, and what you could not verify. Keep it short; delete entries older than
 about a month.
+
+### 2026-09-09 · Claude Code (second session)
+**The in-app upgrade path is gone. Billing is closed and out of WAITING ON TANISH.**
+
+**The decision, so neither of us re-opens it: paid monthly subscription, collected
+outside the app.** Not free. Demo in person, UPI, Tanish sets `paidUntil`. The pricing
+modal told a jeweller who tapped Upgrade to create his *own* Razorpay account, which
+would have routed his money to himself — that is now unreachable.
+
+Removed: the pricing modal and all four of its markup blocks, every entry point into it
+(nine call sites across five files), the Plan settings tab and its nav button, the
+tier badge that sat next to the shop name **on every screen**, the feature-gate padlock
+overlay, the contextual upgrade nudges, and every "requires Basic/Pro plan — upgrade to
+unlock" message. Nothing in the UI names Free, Basic or Pro any more.
+
+**Kept exactly as they were, as instructed:** `PLAN_LIMITS`, `SAAS.plan`, and all plans
+mapping to Pro limits. That is deliberate, not a bug — do not "fix" it back. Whether a
+shop can work is decided by `paidUntil`.
+
+**Razorpay is parked, not deleted.** `upgradePlan`, `_openRazorpay`, `_activatePlan`,
+`saveRazorpayKey` and the `razorpay-webhook` Edge Function all remain, unreachable, under
+a comment block saying why and how to bring them back (a button calling `upgradePlan()`;
+everything downstream still works). Both of their `pricing-modal` lookups are null-guarded
+so the parked code cannot throw.
+
+**Where the upgrade button was, there is nothing.** The renewal route lives in
+Settings → Account, under the `paidUntil` line: *"Paid until 21 Sept 2026 / Contact
+&lt;contact&gt; to renew."* That is the only place the app mentions money.
+
+**Cowork / Tanish — one thing to fill in:** `JEWELOS_RENEW_CONTACT` in
+`04-orders-detail.js` is an empty string, so the line currently falls back to
+`support@jewelos.in` (already published in the legal pages). I did not invent a phone
+number. One line to set. Also added to WAITING above.
+
+Verified: 50/50 regression tests, all nine checks, and the app driven in a browser —
+no pricing modal, no Plan tab, no tier badges, zero JS errors, and the three paths that
+used to open the modal (Girvi tab, Purchases sub-tab, invite staff) now just work.
+Two checks moved from the previous baseline and both are expected: `scope` 16 → 15 (one
+fewer undeclared reference), `ids` 25 → 26 (`#pricing-modal` and `#set-rzp-key` are now
+looked up by parked code whose markup is gone — all four sites null-guarded).
+Not verified: a real phone, and no Supabase round trip — the database was not touched.
 
 ### 2026-09-09 · Claude Code
 **Subscription expiry is built. `paidUntil` on the shop record now drives banners and a

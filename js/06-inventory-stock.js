@@ -758,7 +758,6 @@ function showSettingsTab(tab){
   // Lazy-render analytics when tab opens
   if(tab==='analytics') renderSettingsAnalytics();
   if(tab==='automation') renderSettingsAutomation();
-  if(tab==='plan')       renderSettingsPlan();
 }
 
 // Patch renderSettings to use tabs
@@ -1108,11 +1107,6 @@ function renderWaRules(){
 
 // Run all enabled WA reminders — collect who to message and show batch
 function runAllWaReminders(){
-  if(!canAccess('whatsapp')){
-    toast('\u26a0 WhatsApp reminders require Pro plan');
-    document.getElementById('pricing-modal').style.display='block';
-    return;
-  }
   var rules   = getWaRules();
   var enabled = rules.filter(function(r){return r.enabled;});
   var queue   = [];

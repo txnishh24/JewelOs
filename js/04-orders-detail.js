@@ -1565,9 +1565,18 @@ function subPaidUntilText(){
   return fmtDate(until.getFullYear() + '-' + mm + '-' + dd);
 }
 
+// ── THE ONLY PLACE THE APP MENTIONS MONEY ────────────────────────────
+// Set this to the number a shop should call or WhatsApp to renew. Until it is
+// set the line falls back to the support address already published in the
+// legal pages, so a half-configured build never shows a jeweller a placeholder.
+// The in-app upgrade path was removed on 9 Sep — renewal happens face to face.
+var JEWELOS_RENEW_CONTACT = '';                    // e.g. '+91 98765 43210'
+var JEWELOS_RENEW_FALLBACK = 'support@jewelos.in'; // already in the legal pages
+
 // The "Paid until <date>" line for Settings → Account, so Tanish can tell a
-// shop where it stands without asking anyone. Returns '' when no paidUntil is
-// set, rather than inventing a status for a shop never given one.
+// shop where it stands without asking anyone, and the shop knows how to renew.
+// Returns '' when no paidUntil is set, rather than inventing a status for a
+// shop never given one.
 function subAccountLineHtml(){
   var when = subPaidUntilText();
   if(!when) return '';
@@ -1576,8 +1585,11 @@ function subAccountLineHtml(){
   var suffix = (st === 'grace')    ? ' — ended, in grace period'
              : (st === 'readonly') ? ' — expired, read-only'
              : '';
+  var contact = JEWELOS_RENEW_CONTACT || JEWELOS_RENEW_FALLBACK;
   return '<div style="margin-top:6px;">Paid until <b style="color:' + colour + ';">' +
-         escHtml(when) + '</b>' + suffix + '</div>';
+         escHtml(when) + '</b>' + suffix + '</div>' +
+         '<div style="margin-top:3px;font-size:12px;color:var(--text3);">Contact ' +
+         escHtml(contact) + ' to renew.</div>';
 }
 
 // The warn banner is dismissible, but the dismissal is keyed to the day, so

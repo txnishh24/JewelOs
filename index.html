@@ -718,14 +718,6 @@ tr:hover td{background:var(--gold-bg);}
 }
 .onboard-box{width:100%;max-width:460px;background:var(--card1);border-radius:20px;border:0.5px solid var(--border2);padding:2rem 1.8rem;box-shadow:0 12px 60px rgba(0,0,0,.18);}
 
-/* ── Plan badge ── */
-.plan-badge{
-  display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;
-  border-radius:100px;text-transform:uppercase;letter-spacing:.06em;margin-left:6px;
-}
-.plan-badge.free{background:#334155;color:#94a3b8;}
-.plan-badge.basic{background:#1e3a5f;color:#60a5fa;}
-.plan-badge.pro{background:#3d2a00;color:var(--gold);}
 
 /* ── Top bar user info ── */
 .topbar-shop{font-size:12px;color:var(--text3);font-weight:500;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -738,28 +730,6 @@ tr:hover td{background:var(--gold-bg);}
 /* ── Activity log ── */
 .log-row{display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:12px;}
 .log-row:last-child{border-bottom:none;}
-
-/* ── Feature gate overlay ── */
-.gate-overlay{
-  position:absolute;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.55);
-  border-radius:inherit;display:flex;align-items:center;justify-content:center;
-  flex-direction:column;gap:8px;z-index:10;backdrop-filter:blur(3px);
-}
-.gate-lock{font-size:28px;margin-bottom:4px;}
-.gate-txt{font-size:13px;font-weight:700;color:#fff;text-align:center;}
-.gate-plan{font-size:11px;color:var(--gold);font-weight:600;}
-
-/* ── Pricing modal ── */
-#pricing-modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.72);z-index:1200;overflow-y:auto;padding:1.5rem;}
-.pricing-grid{display:grid;grid-template-columns:1fr;gap:14px;max-width:520px;margin:0 auto;}
-@media(min-width:480px){.pricing-grid{grid-template-columns:repeat(3,1fr);}}
-.plan-card{background:var(--card1);border:0.5px solid var(--border2);border-radius:16px;padding:1.4rem 1.2rem;text-align:center;}
-.plan-card.popular{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold);}
-.plan-name{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;margin-bottom:4px;}
-.plan-price{font-size:28px;font-weight:800;color:var(--gold);margin:10px 0 4px;}
-.plan-per{font-size:11px;color:var(--text3);}
-.plan-features{text-align:left;margin:14px 0;font-size:12px;color:var(--text2);}
-.plan-features li{padding:4px 0;list-style:none;display:flex;align-items:center;gap:6px;}
 
 /* ── Settings panel additions ── */
 #panel-settings{display:none;}
@@ -1156,16 +1126,6 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 }
 .settings-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
 
-/* Upgrade nudge inline */
-.upgrade-nudge{
-  display:flex;align-items:center;gap:10px;padding:10px 14px;
-  background:linear-gradient(135deg,rgba(201,168,76,.08),rgba(201,168,76,.03));
-  border:0.5px solid rgba(201,168,76,.25);border-radius:10px;
-  font-size:12px;cursor:pointer;margin-top:8px;
-}
-.upgrade-nudge-icon{font-size:18px;}
-.upgrade-nudge-text{flex:1;color:var(--text2);}
-.upgrade-nudge-cta{font-size:11px;font-weight:700;color:var(--gold);white-space:nowrap;}
 
 /* ═══════════════════════════════════════════════════════════════
    GIRVI ENGINE v15 — Daily Collection Assistant
@@ -1502,65 +1462,6 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════ PRICING MODAL -->
-<div id="pricing-modal">
-  <div style="max-width:560px;margin:0 auto 80px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem;">
-      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;">Upgrade Your Plan</div>
-      <button onclick="document.getElementById('pricing-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;padding:4px 8px;">✕</button>
-    </div>
-    <div class="pricing-grid">
-      <!-- FREE -->
-      <div class="plan-card">
-        <div class="plan-name">Free</div>
-        <div class="plan-price">₹0</div>
-        <div class="plan-per">forever</div>
-        <ul class="plan-features">
-          <li>✅ Up to 50 products</li>
-          <li>✅ Basic sales billing</li>
-          <li>✅ 1 user</li>
-          <li>❌ Girvi / Loans</li>
-          <li>❌ Reports & analytics</li>
-          <li>❌ WhatsApp reminders</li>
-          <li>❌ Orders module</li>
-        </ul>
-        <button class="auth-btn" style="font-size:13px;padding:10px;" onclick="document.getElementById('pricing-modal').style.display='none'">Current Plan</button>
-      </div>
-      <!-- BASIC -->
-      <div class="plan-card">
-        <div class="plan-name">Basic</div>
-        <div class="plan-price">₹499</div>
-        <div class="plan-per">per month</div>
-        <ul class="plan-features">
-          <li>✅ Unlimited products</li>
-          <li>✅ Sales + Orders</li>
-          <li>✅ 3 staff users</li>
-          <li>✅ Reports</li>
-          <li>❌ Girvi / Loans</li>
-          <li>❌ WhatsApp reminders</li>
-          <li>✅ CSV Export</li>
-        </ul>
-        <button class="auth-btn" style="font-size:13px;padding:10px;" onclick="upgradePlan('basic')">Upgrade to Basic</button>
-      </div>
-      <!-- PRO -->
-      <div class="plan-card popular">
-        <div style="font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">⭐ Most Popular</div>
-        <div class="plan-name">Pro</div>
-        <div class="plan-price">₹999</div>
-        <div class="plan-per">per month</div>
-        <ul class="plan-features">
-          <li>✅ Everything in Basic</li>
-          <li>✅ Full Girvi module</li>
-          <li>✅ Unlimited users</li>
-          <li>✅ WhatsApp reminders</li>
-          <li>✅ PDF invoices</li>
-          <li>✅ Priority support</li>
-          <li>✅ Data backup</li>
-        </ul>
-        <button class="auth-btn" style="font-size:13px;padding:10px;" onclick="upgradePlan('pro')">Upgrade to Pro</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 
 <div id="inactivity-overlay">
@@ -2617,7 +2518,6 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
       <button class="settings-tab" data-tab="automation" onclick="showSettingsTab('automation')">📱 Automation</button>
       <button class="settings-tab" data-tab="analytics" onclick="showSettingsTab('analytics')">📊 Analytics</button>
       <button class="settings-tab" data-tab="team" onclick="showSettingsTab('team')">👥 Team</button>
-      <button class="settings-tab" data-tab="plan" onclick="showSettingsTab('plan')">⭐ Plan</button>
       <button class="settings-tab" data-tab="audit" onclick="showSettingsTab('audit')">📋 Audit</button>
       <button class="settings-tab" data-tab="data" onclick="showSettingsTab('data')">💾 Data</button>
       <button class="settings-tab" data-tab="account" onclick="showSettingsTab('account')">👤 Account</button>
@@ -2732,29 +2632,6 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
     </div>
   </div>
 
-  <div id="stab-plan" class="stab-content" style="display:none;">
-    <div class="card">
-      <div class="card-title">⭐ Your Plan <span id="set-plan-badge"></span></div>
-      <div id="set-plan-info" style="font-size:13px;color:var(--text2);margin-bottom:12px;"></div>
-    </div>
-    <div class="card"><div class="card-title">🔒 Feature Access</div><div id="set-plan-gates"></div></div>
-    <div class="card" style="border:1px solid var(--border-gold);">
-      <div class="card-title">💳 Payment Setup (Razorpay)
-        <span style="font-size:11px;font-weight:400;color:var(--text3);">Required to accept subscription payments</span>
-      </div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.6;">
-        1. Sign up free at <strong>razorpay.com</strong><br>
-        2. Go to Settings → API Keys → Generate Key<br>
-        3. Copy your <strong>Key ID</strong> (starts with rzp_live_ or rzp_test_) and paste below
-      </div>
-      <div class="fg" style="margin-bottom:10px;">
-        <label>Razorpay Key ID</label>
-        <input id="set-rzp-key" type="text" placeholder="rzp_live_XXXXXXXXXXXXXXXX" style="font-family:monospace;font-size:12px;" oninput="this.value=this.value.trim()"/>
-      </div>
-      <button onclick="saveRazorpayKey()" class="btn btn-gold btn-sm">Save Key</button>
-      <div style="font-size:11px;color:var(--text3);margin-top:8px;">Your key is stored locally and never sent to our servers. Use rzp_test_ for testing, rzp_live_ for production.</div>
-    </div>
-  </div>
 
   <div id="stab-data" class="stab-content" style="display:none;">
     <!-- Supabase Setup Guide Card -->

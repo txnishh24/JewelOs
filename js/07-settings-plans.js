@@ -1,38 +1,6 @@
-function renderSettingsPlan(){
-  var pb=document.getElementById('set-plan-badge');
-  var pi=document.getElementById('set-plan-info');
-  if(pb) pb.innerHTML='<span class="plan-badge '+(SAAS.plan||'free')+'">'+(SAAS.plan||'FREE').toUpperCase()+'</span>';
-  if(pi){
-    var limits=PLAN_LIMITS[SAAS.plan||'free']||PLAN_LIMITS['free'];
-    pi.innerHTML='<b>'+(SAAS.plan||'Free').charAt(0).toUpperCase()+(SAAS.plan||'free').slice(1)+'</b> &bull; '+
-      'Products: '+(limits.maxProducts>9999?'Unlimited':limits.maxProducts)+' &bull; '+
-      'Users: '+(limits.maxUsers>99?'Unlimited':limits.maxUsers)+' &bull; '+
-      (limits.girvi?'\u2705 Girvi':'\u274c Girvi')+' &bull; '+
-      (limits.reports?'\u2705 Reports':'\u274c Reports')+' &bull; '+
-      (limits.whatsapp?'\u2705 WhatsApp':'\u274c WhatsApp');
-  }
-  var gatesEl=document.getElementById('set-plan-gates');
-  if(gatesEl){
-    var allFeatures=[
-      {key:'girvi',    label:'\ud83e\udea9 Girvi Loans',     req:'pro'},
-      {key:'reports',  label:'\ud83d\udcca Smart Reports',   req:'basic'},
-      {key:'whatsapp', label:'\ud83d\udcf1 WhatsApp Auto',   req:'pro'},
-      {key:'orders',   label:'\ud83d\udccb Orders Module',   req:'basic'},
-      {key:'csvExport',label:'\ud83d\udcc4 CSV/PDF Export',  req:'basic'},
-    ];
-    gatesEl.innerHTML=allFeatures.map(function(f){
-      var has=canAccess(f.key);
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px;">'+
-        '<span>'+(has?'\u2705':'\ud83d\udd12')+' '+f.label+'</span>'+
-        (has
-          ?'<span style="font-size:11px;color:#22c55e;font-weight:600;">Active</span>'
-          :'<span class="upgrade-nudge" style="padding:4px 10px;margin:0;" onclick="document.getElementById(\'pricing-modal\').style.display=\'block\'">'+
-             '<span style="font-size:11px;color:var(--gold);font-weight:700;">Upgrade to '+f.req.toUpperCase()+' \u2192</span>'+
-           '</span>')+
-      '</div>';
-    }).join('');
-  }
-}
+// renderSettingsPlan() removed with the Plan settings tab. It rendered a tier
+// badge and a locked/unlocked feature list; there is one product at one price,
+// and whether a shop can work is decided by paidUntil, not by tier.
 
 // ── PDF REPORT EXPORT ─────────────────────────────────────────────────
 function showPdfReport(){
@@ -124,11 +92,6 @@ function printPdfPreview(){
 
 // ── CSV EXPORT ────────────────────────────────────────────────────────
 function exportCSV(){
-  if(!canAccess('csvExport')){
-    toast('\u26a0 CSV export requires Basic plan');
-    document.getElementById('pricing-modal').style.display='block';
-    return;
-  }
   var rows = [['Invoice','Date','Customer','Phone','Items','Weight(g)','Total','Paid','Balance','GST','Profit']];
   S.sales.forEach(function(s){
     var t=calcSaleTotals(s); var p=calcSaleProfit(s);
@@ -216,59 +179,9 @@ function dismissWizard(){
   };
 }());
 
-// ── PLAN UPGRADE NUDGES (contextual) ─────────────────────────────────
-function checkUpgradeNudge(context){
-  var plan = SAAS.plan || 'free';
-  if(plan === 'pro') return; // already max
-
-  var nudges = {
-    free_products: {
-      trigger: plan==='free' && S.products.length >= 40,
-      msg: 'You\'re at '+(S.products.length)+'/50 products on Free. Upgrade to Basic for unlimited.',
-      requiredPlan:'basic'
-    },
-    free_reports: {
-      trigger: plan==='free',
-      msg: 'Unlock smart reports, CSV export, and orders on Basic plan.',
-      requiredPlan:'basic'
-    },
-    basic_girvi: {
-      trigger: plan==='basic',
-      msg: 'Upgrade to Pro for Girvi loans, WhatsApp automation, and unlimited users.',
-      requiredPlan:'pro'
-    }
-  };
-
-  var nudge = nudges[context];
-  if(!nudge || !nudge.trigger) return;
-
-  var existing = document.getElementById('upgrade-nudge-'+context);
-  if(existing) return; // already shown
-
-  var div = document.createElement('div');
-  div.id = 'upgrade-nudge-'+context;
-  div.className = 'upgrade-nudge';
-  div.onclick = function(){ document.getElementById('pricing-modal').style.display='block'; };
-  div.innerHTML =
-    '<div class="upgrade-nudge-icon">\ud83d\ude80</div>'+
-    '<div class="upgrade-nudge-text">'+nudge.msg+'</div>'+
-    '<div class="upgrade-nudge-cta">Upgrade \u2192</div>';
-
-  // Inject into relevant panel
-  var panel = document.getElementById('panel-inventory') || document.getElementById('panel-dashboard');
-  if(panel) panel.insertBefore(div, panel.firstChild);
-}
-
-// Check nudges after every render
-(function(){
-  var _origRenderDash = renderDash;
-  renderDash = function(){
-    _origRenderDash();
-    checkUpgradeNudge('free_products');
-    checkUpgradeNudge('free_reports');
-    checkUpgradeNudge('basic_girvi');
-  };
-}());
+// checkUpgradeNudge() removed. It told a shop it was on Free and should
+// upgrade to Basic for unlimited products — none of which is true any more.
+// The upgrade-nudge layer that used to wrap renderDash is gone with the nudges.
 
 // ─── END GROWTH LAYER v11 ───
 
