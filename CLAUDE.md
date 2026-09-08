@@ -12,6 +12,12 @@ before building it.
 
 ## Before touching anything
 
+0. **Read `HANDOFF.md` first, and write to it last.** Two Claudes work on JewelOS and
+   they cannot see each other: Cowork (the chat) has the live database, Gmail, the
+   Control Room and the brain folder, and none of that is visible from here. `HANDOFF.md`
+   is the only thing both of us read. Claim the **NOW** line before you start, release it
+   when you stop, and append a LOG entry before you hand back. A commit message does not
+   reach the other side.
 1. **This folder is the source of truth.** Do not go looking for a newer zip in
    `~/Downloads` — everything there is superseded. Zip *out* of here when you need to
    hand off a build; never build a fresh copy somewhere else. On 4 and 6 September two

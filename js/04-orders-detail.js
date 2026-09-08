@@ -560,9 +560,16 @@ function normaliseData(){
     if(!s.payStatus) s.payStatus = 'paid';
     if(!s.invNo && s.invoiceNo)   s.invNo = s.invoiceNo;
     if(!s.invNo && s.invoice_no)  s.invNo = s.invoice_no;
-    s.total    = parseFloat(s.total)    || parseFloat(s.amount) || 0;
-    s.subtotal = parseFloat(s.subtotal) || parseFloat(s.sub)    || 0;
-    s.balance  = parseFloat(s.balance)  || 0;
+    // total / subtotal / balance are NOT stored on a sale. Money is derived by
+    // calcSaleTotals() from the item lines, lockedRates and lockedGrand — one
+    // source of truth, per the financial engine note in 01-sync-core.js.
+    // These three lines used to coerce legacy field names (`amount`, `sub`) that
+    // nothing has written for a long time, so every saved sale ended up carrying
+    // total:0, subtotal:0, balance:0. Nothing read them — but anyone looking at
+    // the raw database sees a ₹1.2 lakh bill with total:0 and reasonably concludes
+    // money is being lost. That false alarm has now cost a round trip, so the
+    // dead normalisation is removed rather than the zeros explained again.
+    // Read the real figures with calcSaleTotals(sale): .sub, .gstAmt, .grand, .bal.
     (s.items||[]).forEach(function(it){
       if(!it.grossWt && it.grossWeight) it.grossWt = it.grossWeight;
       if(!it.netWt && it.weight)        it.netWt   = it.weight;
