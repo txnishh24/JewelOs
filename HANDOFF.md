@@ -53,6 +53,42 @@ Append when you finish. One entry per session. Say what changed, what it means f
 *other* side, and what you could not verify. Keep it short; delete entries older than
 about a month.
 
+**Every entry ends with a hand-back line. This is not optional.**
+
+```
+→ FOR COWORK: <the one thing to do next, or "nothing — FYI only">
+```
+```
+→ FOR CLAUDE CODE: <the one thing to do next, or "nothing — FYI only">
+```
+
+Put it on the last line, on its own, even when the answer is "nothing". A narrative
+paragraph is not a hand-back — the other side should not have to read six paragraphs to
+find out whether it is being asked for something. If there is genuinely nothing to do,
+say so explicitly, so the silence is a decision rather than an oversight.
+
+Both sides do this. That is what stops "who changed this and when" from being a guess.
+
+### 2026-09-09 · Claude Code (protocol)
+**Every LOG entry now ends with a hand-back line.** Tanish's rule: after a change, the
+side that made it says what the *other* side should do — both ways — so nobody has to
+reconstruct who did what and what it means for them.
+
+The convention is written into the LOG header above, into `jewelos/CLAUDE.md` rule 0, and
+into `jewelos-brain/CLAUDE.md` under "End every session here", so it is enforced by the
+documents rather than by either of us remembering. I also retrofitted the three entries
+below, whose asks were real but buried in prose.
+
+`→ FOR COWORK:` from me, `→ FOR CLAUDE CODE:` from you, last line, on its own. Write
+"nothing — FYI only" when there is nothing; that makes the silence deliberate.
+
+No code touched.
+
+→ FOR CLAUDE CODE (i.e. me, next session): keep doing it. It is a rule in CLAUDE.md now.
+→ FOR COWORK: adopt the same line at the end of your entries. Your copy of the rule is in
+`jewelos-brain/CLAUDE.md`. Three of my recent entries now carry a `→ FOR COWORK` ask —
+the renewal number and the deploy-then-set-dates sequencing are the live ones.
+
 ### 2026-09-09 · Claude Code (build handed over)
 **`jewelos-batch16-DEPLOY.zip` is in Downloads, byte-identical to commit `1caba14`.**
 Both of today's sessions in one build: `paidUntil` enforcement, and the removal of the
@@ -67,6 +103,10 @@ then set dates.
 
 Superseded `jewelos-batch15-DEPLOY.zip` (and a mangled duplicate) deleted from Downloads —
 they still contained the pricing modal and would have put the Upgrade button back.
+
+→ FOR COWORK: wait for Tanish to confirm the deploy landed before setting any `paidUntil`
+dates. A future date early is harmless; a **past** date before the deploy drops that shop
+straight to read-only the moment it lands, with no warning banner ever shown.
 
 ### 2026-09-09 · Claude Code (second session)
 **The in-app upgrade path is gone. Billing is closed and out of WAITING ON TANISH.**
@@ -108,6 +148,10 @@ Two checks moved from the previous baseline and both are expected: `scope` 16 �
 fewer undeclared reference), `ids` 25 → 26 (`#pricing-modal` and `#set-rzp-key` are now
 looked up by parked code whose markup is gone — all four sites null-guarded).
 Not verified: a real phone, and no Supabase round trip — the database was not touched.
+
+→ FOR COWORK: get Tanish's renewal number and set `JEWELOS_RENEW_CONTACT` in
+`04-orders-detail.js` (or hand it to Claude Code). Until then Settings → Account reads
+"Contact support@jewelos.in to renew".
 
 ### 2026-09-09 · Claude Code
 **Subscription expiry is built. `paidUntil` on the shop record now drives banners and a
@@ -161,6 +205,10 @@ Settings → Account now shows "Paid until &lt;date&gt;", with the state after i
 can tell a shop where it stands without asking either of us. Shows nothing when no date
 is set.
 
+→ FOR COWORK: `paidUntil` on the shop record in `auth_store` → `shops[]` is yours to set,
+format `YYYY-MM-DD`. Nothing happens for any shop until you do. Read the sequencing note
+in the build-handover entry above first.
+
 Verified: 50/50 regression tests (12 new, covering both grace boundaries at day 7 and day
 8), all nine checks at their previous baseline, and I drove the real app in a browser —
 all eight date states, the three blocks firing with their messages, a ₹5,000 repayment
@@ -208,6 +256,13 @@ the third found something real, and it is yours to look at in the data.**
 
 Also committed your `HANDOFF.md` and `CLAUDE.md` changes, which were sitting untracked.
 Not verified: nothing visual — no browser automation here.
+
+→ FOR COWORK: INV-027 and INV-032 in shop `65a3ce29` still show line items that do not
+sum to their own stated total (locked flat, breakdown renders per-gram). They are test
+bills — deleting or re-entering them is the simplest fix, and it is your lane, not mine.
+
+_(Entries above this line predate the hand-back convention, added 9 Sep. Left as they
+were; their asks were answered at the time.)_
 
 ### 2026-09-08 · Cowork
 Set up this file after Tanish said the two of us keep losing each other's work. No code

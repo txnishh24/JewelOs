@@ -18,6 +18,18 @@ before building it.
    is the only thing both of us read. Claim the **NOW** line before you start, release it
    when you stop, and append a LOG entry before you hand back. A commit message does not
    reach the other side.
+
+   **End every LOG entry with the hand-back line — always, even when it is "nothing":**
+
+   ```
+   → FOR COWORK: <the one thing to do next, or "nothing — FYI only">
+   ```
+
+   Cowork ends its entries with `→ FOR CLAUDE CODE:` the same way. A narrative
+   paragraph is not a hand-back: the other side should not have to read six paragraphs
+   to work out whether it is being asked for something. Writing "nothing" makes the
+   silence a decision instead of an oversight, and is what stops "who did this, and what
+   am I meant to do about it" from being a guess.
 1. **This folder is the source of truth.** Do not go looking for a newer zip in
    `~/Downloads` — everything there is superseded. Zip *out* of here when you need to
    hand off a build; never build a fresh copy somewhere else. On 4 and 6 September two
