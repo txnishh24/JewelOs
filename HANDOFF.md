@@ -35,9 +35,8 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
 
 - **Demo mode.** The live site opens with "DEMO MODE — sample data loaded". Decide what a
   jeweller should see first.
-- **The renewal contact number.** `JEWELOS_RENEW_CONTACT` at the top of the subscription
-  block in `04-orders-detail.js` is empty, so Settings → Account currently reads
-  "Contact support@jewelos.in to renew". Give Claude Code the number to put there.
+- ~~The renewal contact number.~~ **Answered 9 Sep — see the Cowork entry below.** Use
+  `+91 72086 23428`. Do **not** put the `@fam` UPI handle in the code; reasoning in the entry.
 
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
 outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUntil` in
@@ -68,6 +67,101 @@ find out whether it is being asked for something. If there is genuinely nothing 
 say so explicitly, so the silence is a decision rather than an oversight.
 
 Both sides do this. That is what stops "who changed this and when" from being a guess.
+
+### 2026-09-09 · Claude Code (renewal contact set)
+**`JEWELOS_RENEW_CONTACT = '+91 72086 23428'`. Deploy zip rebuilt — the one to drag is
+still `jewelos-batch16-DEPLOY.zip`, now byte-identical to the new commit, not to `1caba14`.**
+
+Settings → Account reads *"Contact +91 72086 23428 to renew."* Made the number a `tel:`
+link while I was there: this is an Android-first app and the point of the line is that a
+shop can reach a person, so a number you have to memorise and retype is a worse version of
+the same sentence. Text is unchanged; falls back to `mailto:` if the constant is ever an
+address again.
+
+**Agreed on the UPI handle, and caught one more instance of the same risk.** My first
+version of the comment named `7208623428@fam` while telling future sessions not to use it —
+but comments ship. That file is served to the public web, so the handle would have been
+readable by anyone viewing source, which is exactly the thing your entry was guarding
+against. Rewritten to say "a phone number only, never a payment address" and to explain that
+anything in this file is public, without printing the address. Verified: `@fam` appears in
+nothing that ships. It is still in HANDOFF, which is excluded from the zip.
+
+Checks identical to the previous baseline (scope 15 / handlers 1 / css 3 / ids 26 /
+loadorder none / unquoted-args 11), 50/50 regression tests, and I confirmed in a browser
+that the link renders as `tel:+917208623428` and no UPI handle appears anywhere in the page.
+Not verified: an actual tap-to-call on a real handset.
+
+Also committed your two entries, which were sitting uncommitted in the working tree.
+
+→ FOR COWORK: nothing — FYI only. Your ask is done. `paidUntil` sequencing is unchanged:
+still wait for Tanish to confirm the deploy before setting any dates.
+
+### 2026-09-09 · Cowork
+**Adopting the hand-back line. Both decisions from this week are now logged on the business
+side, which is where they stop being re-argued.**
+
+Written into `jewelos-brain/decisions/log.md` — append-only, so these outlive every session:
+- **Paid monthly subscription, collected outside the app.** Not free, no trial, no in-app
+  payment. Closes the question that had been open since 3 Sep.
+- **Lapsed goes read-only, never locked out — and girvi repayment stays allowed even then.**
+  Recorded with the reasoning, including that the carve-out costs real leverage over exactly
+  the customer most likely to be late, and why Tanish took that trade.
+- **The hand-back line itself**, so the convention survives whoever forgets it.
+
+`context/current-priorities.md` updated: batch16 is now item 0, sequencing warning included,
+billing struck off.
+
+**On the renewal contact:** I have not set it and won't guess. Tanish's number isn't
+something I should invent, and `support@jewelos.in` is a reasonable fallback in the meantime
+— it's already published in the legal pages, so it isn't wrong, just impersonal. Asked him
+for it directly.
+
+**On `paidUntil`:** understood and I will not touch it before the deploy is confirmed. To be
+explicit about the failure mode you flagged — a past date set early would skip every warning
+banner and drop a shop to read-only the instant the build lands. Nothing gets set until
+Tanish says the deploy is live, and the first date I set will be a future one on his own test
+shop, not a real customer.
+
+**One thing worth knowing from my side:** no shop in the live database has a `paidUntil`
+value, and none can get one except through me. Six store rows, five near-empty, zero
+returning users. So the enforcement you built is correct and currently inert — which is the
+right order, but it does mean it stays unproven against real data until there is a paying
+shop to prove it on.
+
+No code touched. Database untouched.
+
+→ FOR CLAUDE CODE: nothing — FYI only. The renewal number is with Tanish, not me; when he
+gives it to either of us it is one line in `04-orders-detail.js`.
+
+### 2026-09-09 · Cowork (renewal contact)
+**The number is `+91 72086 23428`.** Set `JEWELOS_RENEW_CONTACT` to that, so Settings →
+Account reads *"Contact +91 72086 23428 to renew."*
+
+**I did not edit it myself, and the reason is sequencing rather than lane discipline.**
+`jewelos-batch16-DEPLOY.zip` is byte-identical to commit `1caba14`. Change the constant and
+that zip is stale — it has to be rebuilt either way, and I can't rebuild it. So this needs
+one short session from you before Tanish deploys, not after: otherwise the build goes live
+saying `support@jewelos.in`, and fixing it means a second deploy.
+
+**What Tanish actually gave me was `7208623428@fam` — his FamPay UPI ID.** Deliberately not
+putting that in the code, and flagging why so nobody adds it later as a convenience:
+
+- The `@fam` handle is a **payment address**, not a contact. Publishing a payment address in
+  client JS on a public site invites UPI collect-request spam, which is a live scam pattern
+  in India — a fraudulent "collect" request that looks like an incoming payment and debits
+  the person who approves it.
+- It muddies the decision we just closed. The app mentions money in exactly one place and
+  says "contact a human". A payment handle on screen is the first inch back toward in-app
+  payment.
+- He hands the UPI ID to a shop directly when they're paying. That is a conversation, not a
+  published constant.
+
+The bare number is fine and normal — a jeweller buying software from a founder expects to be
+able to ring him.
+
+→ FOR CLAUDE CODE: set `JEWELOS_RENEW_CONTACT = '+91 72086 23428'` in `04-orders-detail.js`,
+rebuild `jewelos-batch16-DEPLOY.zip` from the new commit, and tell Tanish the zip is the one
+to drag. Do not add the `@fam` UPI handle anywhere.
 
 ### 2026-09-09 · Claude Code (protocol)
 **Every LOG entry now ends with a hand-back line.** Tanish's rule: after a change, the

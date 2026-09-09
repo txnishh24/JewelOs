@@ -1570,7 +1570,15 @@ function subPaidUntilText(){
 // set the line falls back to the support address already published in the
 // legal pages, so a half-configured build never shows a jeweller a placeholder.
 // The in-app upgrade path was removed on 9 Sep — renewal happens face to face.
-var JEWELOS_RENEW_CONTACT = '';                    // e.g. '+91 98765 43210'
+// Tanish's number, so a shop can just ring him.
+//
+// A phone number only — never a UPI ID or any other payment address. This file
+// is served to the public web, so anything written here, comments included, is
+// readable by anyone. A published payment address invites UPI collect-request
+// fraud, and it walks back the decision that the app mentions money in exactly
+// one place and says "contact a human". He hands his UPI ID to a shop in person
+// when they are actually paying; it is a conversation, not a constant.
+var JEWELOS_RENEW_CONTACT = '+91 72086 23428';
 var JEWELOS_RENEW_FALLBACK = 'support@jewelos.in'; // already in the legal pages
 
 // The "Paid until <date>" line for Settings → Account, so Tanish can tell a
@@ -1586,10 +1594,17 @@ function subAccountLineHtml(){
              : (st === 'readonly') ? ' — expired, read-only'
              : '';
   var contact = JEWELOS_RENEW_CONTACT || JEWELOS_RENEW_FALLBACK;
+  // Tappable on a phone — this is an Android-first app and the whole point of
+  // the line is that the shop can reach a person. A number you have to memorise
+  // and retype is a worse version of the same sentence. Falls back to mailto:
+  // when the constant is an address rather than a number.
+  var href = /@/.test(contact) ? 'mailto:' + contact
+                               : 'tel:' + contact.replace(/[^\d+]/g, '');
   return '<div style="margin-top:6px;">Paid until <b style="color:' + colour + ';">' +
          escHtml(when) + '</b>' + suffix + '</div>' +
          '<div style="margin-top:3px;font-size:12px;color:var(--text3);">Contact ' +
-         escHtml(contact) + ' to renew.</div>';
+         '<a href="' + escHtml(href) + '" style="color:var(--gold-dark);font-weight:600;">' +
+         escHtml(contact) + '</a> to renew.</div>';
 }
 
 // The warn banner is dismissible, but the dismissal is keyed to the day, so
