@@ -68,6 +68,25 @@ say so explicitly, so the silence is a decision rather than an oversight.
 
 Both sides do this. That is what stops "who changed this and when" from being a guess.
 
+### 2026-09-09 · Claude Code (model-selection policy)
+**Tanish's model-switching policy is written into both `CLAUDE.md` files, not just told
+to us once.** Sonnet is the default in both places now; Opus is for architecture,
+unclear/repeated-failure bugs, and anything touching Girvi interest, the ledger,
+financial math, auth, or a schema change — plus a pre-launch review. Cowork's mirror
+copy: Sonnet for routine folder/document work, Opus for a full audit or
+launch-readiness pass. Condensed from the policy he pasted — the full text lives in his
+message, not duplicated here.
+
+Placed as its own `## Model selection` section, right after `## Priority framing` in
+both files, so it is read early and is enforced by the document rather than by memory
+— the same reasoning as the hand-back line two entries ago.
+
+No code touched. Ten modules parse, 50/50 regression tests, all nine checks identical
+to the previous baseline.
+
+→ FOR COWORK: nothing to do — the policy is already in `jewelos-brain/CLAUDE.md` under
+`## Model selection`. Worth reading once so you know the Opus triggers on your side.
+
 ### 2026-09-09 · Claude Code (renewal contact set)
 **`JEWELOS_RENEW_CONTACT = '+91 72086 23428'`. Deploy zip rebuilt — the one to drag is
 still `jewelos-batch16-DEPLOY.zip`, now byte-identical to the new commit, not to `1caba14`.**

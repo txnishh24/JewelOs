@@ -10,6 +10,39 @@ Tanish has no coding background. Explain the reasoning, not just the fix.
 Does this move JewelOS closer to sellable and to the launch deadline? If not, say so
 before building it.
 
+## Model selection
+
+Sonnet is the default for this codebase — routine features, bug fixes, CRUD, forms,
+Supabase calls, tests, refactoring, docs. Do not escalate to Opus just because a task
+touches many files or reads as long.
+
+Switch to Opus for:
+- architecture decisions, cross-module restructuring, data-model redesign
+- a bug Sonnet has failed on twice, or one with no clear root cause across modules
+- anything touching Girvi interest, the ledger, financial calculations, auth/security,
+  or a schema/migration — get the plan right before writing code
+- a pre-launch or production-readiness review
+
+Preferred shape for anything non-trivial: Opus plans (read the code, map dependencies,
+identify risk, write the plan), Sonnet implements and tests, Opus reviews if the change
+is high-risk or Sonnet gets stuck. Cowork follows the same split — Sonnet for routine
+folder/document work, Opus for a full audit, architecture review, or launch-readiness
+pass — its copy of this note is in `jewelos-brain/CLAUDE.md`.
+
+Risk, not task size, decides the model:
+
+| Risk | Examples | Model |
+|---|---|---|
+| Low | UI tweak, button fix, validation, styling | Sonnet |
+| Medium | new workflow, inventory/sales/purchase changes, cross-module feature | Sonnet, escalate if it turns out gnarlier than it looked |
+| High | Girvi interest, ledger, financial math, auth, schema changes, large refactors, deploys, anything touching customer data integrity | Opus for the analysis/plan, even if Sonnet implements it |
+
+For inventory, sales, purchases, girvi, ledger, payments, balances, or historical
+records: preserve existing data over speed, get the calculation right, keep backward
+compatibility, test before shipping. If unsure which model a change needs, that
+uncertainty is itself the signal to think it through — in Opus — before touching
+production-critical logic.
+
 ## Before touching anything
 
 0. **Read `HANDOFF.md` first, and write to it last.** Two Claudes work on JewelOS and
