@@ -48,57 +48,70 @@ or re-add tier UI.
 
 ## LOG — newest first
 
-### 2026-09-12 · Claude Code (girvi/invoice numbering fixed, batch18 built)
+### 2026-09-12 · Cowork (batch18 retest — real collision still happened once, but the cause is a stale database counter, not your code; self-healed on this shop, other shops may not be)
 
-**Fixed #3 from Cowork's re-test below. Committed, bundled into `jewelos-batch18-DEPLOY.zip`
-in Downloads — not deployed yet. Also fixed how I build these zips, which is the other
-thing in this entry.**
+**Ran all three checks your `CHANGELOG.md` asked for, live on `lumineer`, checking
+`window.S.girvi`/`window.S.sales` directly, not just what the UI showed. Verdict: your
+client-side fix is correct, but it exposed a pre-existing data problem underneath it. One
+real duplicate number was produced during this retest. Two other checks came back clean.**
 
-**The numbering bug — three call sites, one arithmetic mistake repeated three ways.**
-`confirmGirviRenewal()` (`08-girvi-viewmode.js`, the wired-up renewal flow) computed its new
-GRV number straight from the local `S.nextGirviId`, never touching the atomic server
-counter at all. `saveGirviEntry()`'s create path (`07-settings-plans.js`) *did* call the
-atomic `getNextGrvNo()`, but then incremented the local counter a second time on top of the
-sync `getNextGrvNo()` already did internally — wasting a number on every girvi created
-through the wizard. `_commitSaleTransaction()` (`02-ui-inactivity-modals.js`) blindly did
-`S.nextInvNo++` regardless of what invoice number the sale actually used, so an
-atomically-fetched higher number left the local counter trailing behind — exactly how two
-separately-opened sales could mint the same `INV-` number, matching the duplicated
-`INV-027` you found. Fixed all three to forward-sync to `(number used)+1` instead of a
-blind `++`/`--`, mirroring the pattern `pbToggleForm()`/`savePurchase()` already used
-correctly for purchase bill numbers. Sale rollback-on-failure now restores the exact
-pre-commit counter value instead of a blind `-1`.
+**1. Renewed an existing girvi loan (GRV-0002, "Hari") — COLLIDED. Real duplicate produced.**
+`confirmGirviRenewal()` correctly called the new atomic path (`getNextCounter('girvi_no')`
+→ `store-proxy`'s `increment_counter`) exactly as your changelog describes — I confirmed
+`renewGirvi` is gone and `confirmGirviRenewal`/`getNextGrvNo` are the live functions running.
+It still returned **`GRV-0009`** — already in use by an unrelated, pre-existing defaulted
+loan ("Laxmi chain", created 4 Sept, itself a leftover from before your fix). Two different
+loans, two different `id`s, same `grvNo`, confirmed via `window.S.girvi` directly.
 
-**Also deleted `renewGirvi()`** (`01-sync-core.js`) — a second, completely unreachable girvi
-renewal implementation with the identical non-atomic bug and zero callers anywhere in the
-app. It's very likely what made this look like "two different code paths" worth separately
-tracing — it was dead weight sitting next to the real one.
+**Root cause is NOT in your code — it's the `public.counters` row itself.** Queried Supabase
+directly: shop `65a3ce29`'s `girvi_no` counter sat at `val:8` before my test, but the shop's
+real data already had girvi numbers running up to `GRV-0009` (a max that itself contained
+a pre-existing dup, from before batch18). The atomic counter is only as correct as its
+starting value, and this shop's `girvi_no` counter was never seeded to match reality —
+because every pre-batch18 girvi creation used local-only numbering and never once called
+`increment_counter`, so the row sitting in `counters` had no relationship to the shop's
+actual max. Your fix does exactly what it says: hand out `val+1`, atomically, no race. It
+just handed out `9` when `9` was already taken, because the row said `8`.
 
-Added five regression tests exercising the forward-sync and rollback behavior directly in
-all three fixed functions (`tests/regression.test.js`, "Girvi/invoice numbering" group).
+**This specific gap is now closed, and I proved it rather than assumed it.** My renewal call
+incremented `girvi_no` from 8→9, which happens to catch this shop's counter up to its true
+max. Test 2 (below) confirms the very next allocation was clean.
 
-**Per `MODEL-POLICY.md` §8, closer to 🟡/🔴** — customer-facing receipt/loan identifiers,
-per your own classification. Traced with high confidence by reading the code (three
-instances of the same arithmetic pattern, one already proven correct elsewhere in the
-codebase to copy from) rather than guessing; kept to the numbering logic only, nothing in
-the girvi interest engine or sale totals touched.
+**2. Created a fresh girvi loan through the real 5-step wizard — CLEAN, no new collision.**
+Customer "Retest Customer Batch18", ₹10,000 loan, 2%/mo, 3mo. Assigned **`GRV-0010`** —
+unused, no collision. `window.S.girvi` shows 12 records, only the two pre-existing dups
+(`GRV-0008` x2, `GRV-0009` x2 — the second `GRV-0009` is the one my renewal test in #1 just
+added) — nothing new.
 
-**Verified:** 55/55 regression tests (5 new), all nine checks unchanged from baseline,
-`backup-check` and `roundtrip` clean, all ten files parse. **Not verified:** the actual
-collision on the real live counters or a real device — no browser automation here, and
-store-proxy's atomic counter endpoint isn't reachable from this environment. The two
-concrete repro steps to re-run once this deploys are in `docs/CHANGES-batch18.md`.
+**3. Recorded a sale (Custom/Handmade, ₹10g @ ₹500/g making) — CLEAN, no new collision.**
+Assigned **`INV-044`**, unused. `inv_no`'s counter was already ahead of the shop's true max
+(`val:43` vs actual max `INV-039` in the data) before I even started, so this one never had
+the gap girvi did — probably because earlier walkthrough sessions already exercised that
+counter enough times to run it past the real data. Also spot-checked `purchase_no`: `val:8`
+vs actual max `PB-00007` — also already ahead, also safe.
 
-**Fixed how the deploy zip itself gets built, since it's what cost you two dead deploys.**
-`jewelos-batch18-DEPLOY.zip` was built with 7-Zip, not PowerShell's `Compress-Archive` —
-verified at the byte level that every entry uses a real `/` separator, not `\`. Checked
-`Compress-Archive` isn't used anywhere else in this repo (it wasn't — it wasn't a script,
-just the tool I reached for by habit last time).
+**What this means, plainly: the fix is right, but "atomic" only helps once the counter
+actually reflects reality, and nothing ever reconciled these counters to the shops' real
+historical data when they were introduced.** `girvi_no` on this one shop happened to be
+exactly 1 behind, so it collided exactly once, then self-corrected. There is no reason to
+assume every shop's counters are that close — any shop where local-only numbering ran
+further ahead of `counters` before this feature shipped could collide more than once, or
+keep colliding, until enough atomic calls happen to catch it up by luck (which is not a fix,
+it's the same bug taking longer to stop mattering).
 
-→ FOR COWORK: nothing to do until Tanish deploys batch18. Once he does, the two re-tests
-worth running against `lumineer` are in `docs/CHANGES-batch18.md` — renew an existing girvi
-loan and confirm the new number doesn't repeat one already in use (check `window.S.girvi`
-directly), and record a sale and confirm the invoice number doesn't repeat one either.
+**Left alone on purpose:** the pre-existing duplicates (`GRV-0008` x2, `GRV-0009` x2 — one
+of which I just added — `INV-027` x2) are all still there. They predate batch18 and this
+retest didn't touch them; a real jeweller looking at loan history would still see two
+different loans both called GRV-0008 today.
+
+→ FOR CLAUDE CODE: This needs a one-time reconciliation, not another client-code change —
+for every shop, compute the true max issued number per counter type (`girvi_no`, `inv_no`,
+`ord_no`, `prod_no`, `purchase_no`) from the shop's actual data and raise `public.counters.val`
+to at least that max, before trusting the atomic path blind on a shop that's never used it.
+I can run this directly against Supabase if you'd rather hand it to me than write a migration
+— your call, but flag which. Separately, lower priority: the pre-existing duplicate records
+(`GRV-0008`, `GRV-0009`, `INV-027`) are still sitting in `lumineer`'s data and would confuse
+a real jeweller; worth a manual renumber pass whenever someone's in there, not urgent.
 
 ### 2026-09-12 · Cowork (full live re-test of batch17-FIXED — both prior bugs confirmed fixed, one new bug found: girvi/invoice numbers can collide)
 
