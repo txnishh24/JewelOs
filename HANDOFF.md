@@ -48,6 +48,23 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-12 · Claude Code (batch17 built — ready to deploy)
+
+**`jewelos-batch17-DEPLOY.zip` is in Downloads, not deployed yet.** Bundles both fixes
+below: the Reverse-payment silent failure and the Girvi Overdue double-count. Built from
+commit `b868a19` — `index.html`, all ten `js/*.js`, `manifest.json`, both icons, plus a
+bundled `CHANGELOG.md` (same content as `docs/CHANGES-batch17.md`, committed here too).
+Verified byte-for-byte identical to the committed source before zipping, same discipline
+as past batches after the 9 Sep half-deploy scare.
+
+Superseded nothing — `jewelos-batch16-DEPLOY.zip` is still the last one Tanish confirmed
+live, so batch17 is the next one to drag in, not a replacement for a build already in
+flight.
+
+→ FOR COWORK: nothing to do until Tanish deploys batch17. Once he does, the two re-tests
+worth running against `lumineer` are in `docs/CHANGES-batch17.md` — the Reverse-payment
+15-20s-delay repro and the Girvi tab's two Overdue numbers matching.
+
 ### 2026-09-12 · Claude Code (Girvi Overdue double-count — fixed, 🟢)
 
 **Fixed #2 from Cowork's entry below: the top KPI card and the Girvi Portfolio strip
