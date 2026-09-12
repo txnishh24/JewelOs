@@ -48,6 +48,58 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-12 · Claude Code (girvi/invoice numbering fixed, batch18 built)
+
+**Fixed #3 from Cowork's re-test below. Committed, bundled into `jewelos-batch18-DEPLOY.zip`
+in Downloads — not deployed yet. Also fixed how I build these zips, which is the other
+thing in this entry.**
+
+**The numbering bug — three call sites, one arithmetic mistake repeated three ways.**
+`confirmGirviRenewal()` (`08-girvi-viewmode.js`, the wired-up renewal flow) computed its new
+GRV number straight from the local `S.nextGirviId`, never touching the atomic server
+counter at all. `saveGirviEntry()`'s create path (`07-settings-plans.js`) *did* call the
+atomic `getNextGrvNo()`, but then incremented the local counter a second time on top of the
+sync `getNextGrvNo()` already did internally — wasting a number on every girvi created
+through the wizard. `_commitSaleTransaction()` (`02-ui-inactivity-modals.js`) blindly did
+`S.nextInvNo++` regardless of what invoice number the sale actually used, so an
+atomically-fetched higher number left the local counter trailing behind — exactly how two
+separately-opened sales could mint the same `INV-` number, matching the duplicated
+`INV-027` you found. Fixed all three to forward-sync to `(number used)+1` instead of a
+blind `++`/`--`, mirroring the pattern `pbToggleForm()`/`savePurchase()` already used
+correctly for purchase bill numbers. Sale rollback-on-failure now restores the exact
+pre-commit counter value instead of a blind `-1`.
+
+**Also deleted `renewGirvi()`** (`01-sync-core.js`) — a second, completely unreachable girvi
+renewal implementation with the identical non-atomic bug and zero callers anywhere in the
+app. It's very likely what made this look like "two different code paths" worth separately
+tracing — it was dead weight sitting next to the real one.
+
+Added five regression tests exercising the forward-sync and rollback behavior directly in
+all three fixed functions (`tests/regression.test.js`, "Girvi/invoice numbering" group).
+
+**Per `MODEL-POLICY.md` §8, closer to 🟡/🔴** — customer-facing receipt/loan identifiers,
+per your own classification. Traced with high confidence by reading the code (three
+instances of the same arithmetic pattern, one already proven correct elsewhere in the
+codebase to copy from) rather than guessing; kept to the numbering logic only, nothing in
+the girvi interest engine or sale totals touched.
+
+**Verified:** 55/55 regression tests (5 new), all nine checks unchanged from baseline,
+`backup-check` and `roundtrip` clean, all ten files parse. **Not verified:** the actual
+collision on the real live counters or a real device — no browser automation here, and
+store-proxy's atomic counter endpoint isn't reachable from this environment. The two
+concrete repro steps to re-run once this deploys are in `docs/CHANGES-batch18.md`.
+
+**Fixed how the deploy zip itself gets built, since it's what cost you two dead deploys.**
+`jewelos-batch18-DEPLOY.zip` was built with 7-Zip, not PowerShell's `Compress-Archive` —
+verified at the byte level that every entry uses a real `/` separator, not `\`. Checked
+`Compress-Archive` isn't used anywhere else in this repo (it wasn't — it wasn't a script,
+just the tool I reached for by habit last time).
+
+→ FOR COWORK: nothing to do until Tanish deploys batch18. Once he does, the two re-tests
+worth running against `lumineer` are in `docs/CHANGES-batch18.md` — renew an existing girvi
+loan and confirm the new number doesn't repeat one already in use (check `window.S.girvi`
+directly), and record a sale and confirm the invoice number doesn't repeat one either.
+
 ### 2026-09-12 · Cowork (full live re-test of batch17-FIXED — both prior bugs confirmed fixed, one new bug found: girvi/invoice numbers can collide)
 
 **Re-tested the fixed deploy live on `lumineer jewelOs`, real entries, real clicks, per
