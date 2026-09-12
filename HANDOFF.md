@@ -48,6 +48,144 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-12 · Cowork (full live re-test of batch17-FIXED — both prior bugs confirmed fixed, one new bug found: girvi/invoice numbers can collide)
+
+**Re-tested the fixed deploy live on `lumineer jewelOs`, real entries, real clicks, per
+Tanish's ask to walk everything and list bugs step by step. Bottom line: the Reverse-payment
+race and the Girvi Overdue mismatch are both genuinely fixed and re-verified. Found one new,
+reproducible bug while doing it — girvi/invoice numbers are not guaranteed unique.**
+
+**1. Reverse-payment race (previously fixed by Claude Code) — RE-VERIFIED FIXED.**
+On ORD-004, added the ₹10,000 advance's Reverse action, waited 20 seconds with the confirm
+dialog open (the exact repro window Claude Code asked for), then confirmed. Both the UI and
+`window.S.orders` agree: advance is ₹0, a `Reversed: ₹10,000` ledger line exists. No silent
+failure. Confidence: high — this is the specific race window that broke it before.
+
+**2. Girvi Overdue label mismatch (previously fixed) — RE-VERIFIED FIXED.**
+Top KPI card and the underlying `defaulted`-inclusive filter now agree: both show 2. Checked
+`window.S.girvi` directly, not just the rendered number.
+
+**3. NEW BUG — Girvi and Sale invoice numbers can collide (not unique).**
+Created one new Girvi loan through the actual 5-step wizard (real customer, real ring, real
+₹25,000/2%/3mo terms) and it was assigned **`GRV-0008`** — already in use by an existing,
+unrelated, defaulted loan (`brfbrbhrjfj`, created 4 Sept). Two different loans, two different
+`id`s, same displayed Girvi number. Checked the rest of the data for the same class of bug:
+**`INV-027` is also duplicated** — two sales, same customer, same date, same amount
+(₹2,40,427.50), so that one may be an old double-submit rather than pure numbering, but it's
+the same symptom.
+
+Root cause (from reading `08-girvi-viewmode.js` and `01-sync-core.js`): new-Girvi numbering
+runs through **two different code paths** that both bump `S.nextGirviId`
+(`08-girvi-viewmode.js:955` for renewals, `01-sync-core.js:1739` and `07-settings-plans.js:763`
+for new entries), plus a fallback in three more places that recomputes from
+`(S.girvi||[]).length+1` when `S.nextGirviId` is falsy. If the counter field on the cloud
+record ever falls behind — a save from an older tab, a code path that creates a record
+without bumping it, or two devices saving close together — the next number handed out can
+repeat one already in use. This is the same shape as the counter-drift issue already logged
+for invoice numbers (`decisions/log.md`, 6 Sep) and the orphan-counter issue in
+`current-priorities.md` — client-side incrementing counters with no server-side atomicity.
+Girvi and sale numbers are what a customer would see on a printed receipt, so a repeat isn't
+cosmetic — two different loans/bills could show the same reference number if someone came
+back asking "what did I pay against GRV-0008."
+
+**4. New Girvi wizard, step by step — all working, no crashes.** Customer details → items
+pledged (single "+ Add Another Item" button, confirms the old duplicate-button bug stays
+fixed) → ornament photo capture (present, correctly optional, did not test actual photo
+upload — no image file available in this environment) → loan terms (**interest rate field is
+now visibly labelled "INTEREST RATE" with a value, confirming the "invisible on step 3" fix
+holds**) → review & create. Total Payable math checked by hand (₹25,000 + 3mo × 2% simple =
+₹26,500) — correct.
+
+**5. New Order creation → Order-to-Sale conversion, step by step — all working.** No
+Notes/Occasion fields on the order form (confirms removal). Created ORD-006 with a per-gram
+making charge (₹500/g × 20g gross). Converting it to a sale correctly pre-filled customer
+name/phone, switched to Custom/Handmade billing (no SKU exists for a made-to-order piece),
+and **carried the making charge through on gross weight** (bill line showed "Making
+(₹500/g)" × 20.00g gross, matching the batch15 fix). Also re-tested the specific
+"abandoned mid-conversion" scenario that used to strand orders: opened the pre-filled sale
+form, then navigated away without submitting — order status stayed `new`, `billedSaleId`
+stayed null. Not stuck. Orders list re-rendered cleanly the whole time (no redraw crash).
+
+**6. Purchases — manual wastage field confirmed present and correctly designed.** Saw the
+"Wastage % (as agreed with supplier)" field live in the Add Purchase Bill form. Reading
+`09-purchases.js`: it's stored as `null` (not 0) when left blank, and the form separately
+shows what the entered gross/net weights *imply* as a cross-check against what was typed —
+a real reconciliation feature, not a guess. Did not complete a full purchase bill save (lost
+my place mid-form to a stray click, not worth re-fighting given everything else outstanding)
+— logic read is solid, so this is "verified by code + UI presence," not "verified end-to-end."
+
+**7. JSON Backup — confirmed it produces a real file, not a phantom download.** Called the
+same `exportFullBackup()` the button calls; it built an 86,609-byte `application/json` blob.
+Previously this was "inconclusive" — now confirmed it actually produces real data.
+
+**8. Not a code bug, flag anyway: the live Netlify subdomain shows a "Build your own site
+with Netlify AI" widget floating over the app.** Confirmed it's not part of JewelOS's own
+DOM — it's a Netlify platform overlay on the free `*.netlify.app` subdomain. Cosmetic today,
+but a real jeweller mid-demo seeing an unrelated "build a website" prompt over their
+inventory screen looks unprofessional. Goes away with a custom domain — worth doing before
+the first real shop, not urgent before that.
+
+**One correction to how I got here:** spent real time chasing what looked like the PIN lock
+silently auto-unlocking with no PIN entered. Instrumented `_pinAddDigit` and caught real
+`pointerdown` events on the 1-2-3-4 buttons — but that's consistent with Tanish clicking the
+screen himself while I was mid-debug (this session's browser pane is visible/shared), not an
+app bug. Dropping it; flagging so nobody re-discovers the same red herring.
+
+Test data left behind on `lumineer jewelOs`, on purpose (matches the existing pattern of test
+entries already in this shop): customer "Test QA Walkthrough" with GRV-0008 (the duplicate),
+order ORD-006 "QA Order Test". Not cleaned up — useful as a live repro of bug #3 until it's
+fixed.
+
+→ FOR CLAUDE CODE: Fix the girvi/invoice numbering so two records can never share a number —
+either a single source of truth for `nextGirviId`/`nextInvNo` that every creation path reads
+and bumps atomically (no `.length+1` fallback scattered across three files), or check-and-
+bump against the actual max existing number at save time rather than trusting a counter field
+that can go stale. Classify per MODEL-POLICY.md — this touches financial/receipt identifiers
+across two record types, closer to 🟡/🔴 than routine. Everything else in this entry is
+FYI/confirmation, no action needed.
+
+---
+
+### 2026-09-12 · Cowork (deploy outage root-caused — zip has backslash paths, not forward slashes)
+
+**Tanish deployed `jewelos-batch17-DEPLOY.zip` twice. Both times the live site came up with
+zero app logic — all ten `js/*.js` files 404, site stuck forever on "Connecting to
+cloud...". This was not a partial deploy like 9 Sep, and not a cache issue (confirmed with
+cache-busting fetches against the live origin, `age:0`, real 404s). Root cause found and
+worked around; the actual fix belongs in whatever builds this zip.**
+
+`unzip -l` on the zip Tanish is dragging shows every JS entry named like
+`js\00-config-state.js` — **backslash**, not `js/00-config-state.js`. Windows zip tooling
+(this looks like `Compress-Archive` or similar) stores the path with the OS's own
+separator instead of the ZIP spec's mandatory forward slash. Netlify's unzip step reads
+that literally: it creates one oddly-named file `js\00-config-state.js` sitting at the
+site root, not a `js` folder containing `00-config-state.js`. So every request to the real
+path `/js/00-config-state.js` 404s — for all ten files, identically, on both attempts,
+because whatever re-built the zip the second time made the exact same mistake again.
+
+**This will keep happening on every future deploy zip until the build step is fixed to
+emit POSIX-style (`/`) separators regardless of what OS builds it** — `zipfile` in Python
+does this correctly by default; PowerShell's `Compress-Archive` does not, and needs the
+entries renamed or a different tool used.
+
+**Confirmed the actual code fixes from Claude Code's entry below are genuinely inside this
+zip** — extracted it, `01-sync-core.js` has the `safe-confirm-overlay` guard, `08-girvi-
+viewmode.js`'s `overdue` filter now includes `defaulted`. The two bug fixes were never the
+problem; the zip's own internal structure was.
+
+**Unblocked Tanish without touching any JewelOS source:** extracted the zip, rewrote every
+entry's separator to `/`, rezipped, sent it to him as `jewelos-batch17-DEPLOY-FIXED.zip`
+and wrote it into his Downloads folder. This is a packaging fix only, not a code change —
+nothing in `js/`, `index.html`, or anything else was touched, byte-identical content,
+different archive structure.
+
+→ FOR CLAUDE CODE: whatever step produces `jewelos-batch*-DEPLOY.zip` needs to stop using a
+tool that writes backslash separators. If it's a script, switch it to Python's `zipfile`
+module (writes `/` correctly on Windows) or 7-Zip's zip mode, not `Compress-Archive`.
+Cheap to verify — `unzip -l` the next zip before handing it over, entries should read
+`js/00-config-state.js`, never `js\00-config-state.js`. This is the second deploy in a row
+lost to it.
+
 ### 2026-09-12 · Claude Code (both bugs from Cowork's walkthrough fixed, batch17 built)
 
 **Fixed #1 and #2 from Cowork's entry below. Both committed, both bundled into
