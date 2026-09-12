@@ -1338,7 +1338,17 @@ function _commitSaleTransaction(sale){
   // BEFORE the (single) cloud save — this is what makes the eventual
   // saveToCloud() one atomic write instead of two.
   S.sales.push(sale);
-  S.nextSaleId++; S.nextInvNo++;
+  S.nextSaleId++;
+  // Forward-sync, not a blind increment: sale.invNo may already be a
+  // higher, atomically-fetched number (initSaleDate() -> getNextInvNo())
+  // than whatever S.nextInvNo currently holds, or — on the local-fallback
+  // path — exactly equal to it. A blind S.nextInvNo++ here left the local
+  // counter trailing behind numbers already handed out, which is how two
+  // separately-opened sales could mint the same INV- number. Snapshot the
+  // pre-commit value so a failed save can restore it exactly, not just -1.
+  var _prevNextInvNo = S.nextInvNo;
+  var _usedInvNo = parseInt((sale.invNo||'').replace(/\D/g,''),10);
+  S.nextInvNo = (_usedInvNo>=S.nextInvNo) ? _usedInvNo+1 : S.nextInvNo+1;
   if(UI.saleMode!=='custom'){
     deductSoldStock(saleItemsForStock, sale);
   }
@@ -1366,7 +1376,10 @@ function _commitSaleTransaction(sale){
       var failIdx = S.sales.findIndex(function(s){ return s.id===sale.id; });
       if(failIdx !== -1) S.sales.splice(failIdx, 1);
       S.nextSaleId = Math.max(1, S.nextSaleId-1);
-      S.nextInvNo  = Math.max(1, S.nextInvNo-1);
+      // Restore the exact pre-commit snapshot, not a blind -1 — the
+      // forward-sync above may have jumped S.nextInvNo ahead by more
+      // than one if sale.invNo carried an atomically-fetched number.
+      S.nextInvNo  = _prevNextInvNo;
       stockSnapshot.forEach(function(snap){
         var p=S.products.find(function(x){return x.id===snap.id;});
         if(p){ p.qty=snap.qty; p.weight=snap.weight; p.netWeight=snap.netWeight; p.status=snap.status; }

@@ -760,8 +760,16 @@ function saveGirviEntry(){
     ledger:[{type:'created',note:'Girvi created \u20b9'+principal,ts:new Date().toISOString()}]
   };
   getNextGrvNo(function(grvNo){
+    // getNextGrvNo() advances S.nextGirviId to (number used)+1 itself on
+    // the atomic-counter path, but NOT on the local-fallback path (where
+    // grvNo is just built from the current S.nextGirviId) — so the
+    // forward-sync below is still required for that case. Read the
+    // number back out of grvNo rather than trusting S.nextGirviId
+    // directly, since which of those two paths ran isn't known here.
+    var usedNum = parseInt(grvNo.slice(4),10)||S.nextGirviId;
     _grvFormData.grvNo = grvNo;
-    _grvFormData._seq  = S.nextGirviId;
+    _grvFormData._seq  = usedNum;
+    if(usedNum>=S.nextGirviId) S.nextGirviId=usedNum+1;
     if(!S.girvi) S.girvi=[];
     S.girvi.push(_grvFormData);
     var _gCust = linkGirviToCustomer(_grvFormData);
@@ -777,7 +785,6 @@ function saveGirviEntry(){
       _grvFormData.photoCount = GF_PHOTOS.length;
       GF_PHOTOS = [];
     }
-    S.nextGirviId++;
     closeGirviModal();
     if(typeof saasActivityLog==='function') saasActivityLog('girvi','Girvi created: '+grvNo+' \u20b9'+principal);
     saveToCloud(function(err){
@@ -1663,6 +1670,7 @@ var _geEditId = null;
 var _glGirviId = null;
 var _glEntryType = 'payment';
 var _grnGirviId = null;
+var _grnPendingGrvNo = null; // atomic girvi number pre-fetched when the renewal modal opens
 var GE_ITEMS = [];
 var _girviChips = {};
 var GIRVI_VIEW_MODE = (function(){

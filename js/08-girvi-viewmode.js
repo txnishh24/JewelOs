@@ -894,6 +894,14 @@ function openGirviRenewalModal(gid){
   if(!g){toast('Not found');return;}
   if(g.status==='closed'){toast('Already closed');return;}
   _grnGirviId=gid;
+  // P0-2 hardening: pre-fetch an atomic girvi number the moment the
+  // renewal modal opens, same pattern pbToggleForm() uses for purchase
+  // bill numbers — so confirmGirviRenewal() can use a server-issued,
+  // concurrency-safe number instead of a purely local one.
+  _grnPendingGrvNo = null;
+  getNextCounter('girvi_no', function(err, val){
+    if(typeof val === 'number') _grnPendingGrvNo = val;
+  });
   document.getElementById('grn-modal-title').innerHTML='\ud83d\udd04 Renew \u2014 '+escHtml(g.grvNo);
   var outstanding=girviOutstandingWithPenalty(g).amount;
   var penObj=girviOutstandingWithPenalty(g);
@@ -951,9 +959,15 @@ function confirmGirviRenewal(){
   if(!g.ledger)g.ledger=[];
   g.ledger.push({type:'renewal',note:'Renewed \u2192 new principal \u20b9'+Math.round(newPrincipal).toLocaleString('en-IN'),ts:ts,user:currentUser});
 
-  // Create new entry
-  var newSeq=S.nextGirviId||((S.girvi||[]).length+1);
+  // Create new entry. Use the atomic counter fetched when the modal
+  // opened when it resolved in time; otherwise fall back to the local
+  // sequential counter — same fallback contract every other counter in
+  // the app uses when store-proxy is unreachable (see pbToggleForm /
+  // savePurchase in 09-purchases.js for the pattern this mirrors).
+  var newSeq=(typeof _grnPendingGrvNo==='number')?_grnPendingGrvNo:(S.nextGirviId||((S.girvi||[]).length+1));
   var grvNo='GRV-'+String(newSeq).padStart(4,'0');
+  if(newSeq>=S.nextGirviId) S.nextGirviId=newSeq+1;
+  _grnPendingGrvNo=null;
   var newG=JSON.parse(JSON.stringify(g));
   newG.id=(typeof crypto.randomUUID==='function')?crypto.randomUUID():(Date.now().toString(36)+Math.random().toString(36).slice(2));
   newG._seq=newSeq;
@@ -971,7 +985,6 @@ function confirmGirviRenewal(){
   newG.ledger=[{type:'created',note:'Renewal of '+g.grvNo+'. Principal: \u20b9'+Math.round(newPrincipal).toLocaleString('en-IN'),ts:ts,user:currentUser}];
 
   S.girvi.push(newG);
-  S.nextGirviId=(newSeq+1);
 
   if(typeof auditLog==='function') auditLog('create','girvi',newG.id,'Renewal from '+g.grvNo);
   if(typeof saasActivityLog==='function') saasActivityLog('girvi',g.grvNo+' renewed as '+grvNo);

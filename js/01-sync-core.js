@@ -1719,46 +1719,6 @@ function girviOutstandingWithPenalty(g){
   return { amount: total, base: base, penalty: penalty, penaltyMonths: overdueMonths, risk: risk };
 }
 
-// ── GIRVI RENEWAL ────────────────────────────────────────────────────
-// Renewal = close current, open new girvi with outstanding as new principal
-function renewGirvi(gid){
-  var g = (S.girvi||[]).find(function(x){ return x.id===gid; });
-  if(!g){ toast('Girvi not found'); return; }
-  if(g.status==='closed'){ toast('Already closed'); return; }
-  var outstanding = girviOutstandingWithPenalty(g).amount;
-  safeConfirm(
-    'Renew ' + g.grvNo + '?',
-    'New principal = \u20b9' + Math.round(outstanding).toLocaleString('en-IN') + '. This will close the current loan and open a fresh one.',
-    function(){
-      // Close current
-      g.status = 'closed';
-      g.closedAt = new Date().toISOString();
-      if(!g.ledger)g.ledger=[];
-      g.ledger.push({ type:'renewal', note:'Renewed. Outstanding \u20b9'+Math.round(outstanding)+' rolled into new girvi', ts:new Date().toISOString() });
-      // Open new
-      var grvNo = 'GRV-'+String(S.nextGirviId).padStart(4,'0');
-      var newG = JSON.parse(JSON.stringify(g)); // copy item/customer details
-      newG.id         = (typeof crypto.randomUUID==='function') ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2);
-      newG._seq       = S.nextGirviId;
-      newG.grvNo      = grvNo;
-      newG.createdAt  = new Date().toISOString();
-      newG.startDate  = new Date().toISOString().slice(0,10);
-      newG.principal  = Math.round(outstanding);
-      newG.status     = 'active';
-      newG.payments   = [];
-      newG.closedAt   = null;
-      newG.ledger     = [{ type:'created', note:'Renewal of '+g.grvNo+'. Principal: \u20b9'+Math.round(outstanding), ts:new Date().toISOString() }];
-      S.girvi.push(newG);
-      S.nextGirviId++;
-      if(typeof saasActivityLog==='function') saasActivityLog('girvi','Girvi '+g.grvNo+' renewed as '+grvNo);
-      saveToCloud(function(err){
-        if(!err){ closeGirviDetail(); renderGirvi(); renderDash(); toast('\u2705 Girvi renewed as '+grvNo); }
-      });
-    }
-  );
-  return;
-}
-
 // ── PROFIT SUMMARY HELPERS ───────────────────────────────────────────
 function calcMonthProfit(year, month){
   var sales = S.sales.filter(function(s){

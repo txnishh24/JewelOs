@@ -495,6 +495,101 @@ test('purchase bill number uses the atomic counter when it resolved in time, and
   assert(app2.pbUI.pendingBillNo === 500, 'expected pre-fetched atomic bill number, got ' + app2.pbUI.pendingBillNo);
 });
 
+// ── Girvi/invoice numbering (12 Sep 2026) ───────────────────────────────
+// Cowork found GRV-0008 assigned to two unrelated loans live on the
+// lumineer test shop, and a duplicated INV-027. Root cause: several
+// creation paths blindly did S.nextXxx++/-- instead of syncing forward
+// to (number actually used)+1, so the local counter could drift behind
+// numbers already handed out by the atomic counter — see HANDOFF.md.
+console.log('\nGirvi/invoice numbering (12 Sep hardening):');
+
+test('a sale using an atomically-fetched invoice number advances S.nextInvNo past it, not by a blind +1', function(){
+  var app2 = _freshSaleHarness();
+  app2.S.nextInvNo = 5; // local counter lagging behind the server-issued number
+  app2.saveToCloud = function(cb){ cb(null); };
+  var sale = _sale('1');
+  sale.invNo = 'INV-0050'; // as if getNextInvNo() resolved an atomic 50 while local counter sat at 5
+  app2._commitSaleTransaction(sale);
+  assert(app2.S.nextInvNo === 51, 'expected nextInvNo to jump past the number actually used (51), got ' + app2.S.nextInvNo);
+});
+
+test('a failed sale save restores S.nextInvNo to its exact pre-commit value, not a blind -1', function(){
+  var app2 = _freshSaleHarness();
+  app2.S.nextInvNo = 5;
+  app2.saveToCloud = function(cb){ cb(new Error('network down')); };
+  var sale = _sale('1');
+  sale.invNo = 'INV-0050';
+  app2._commitSaleTransaction(sale);
+  assert(app2.S.nextInvNo === 5, 'expected nextInvNo restored to its pre-commit value (5) after rollback, got ' + app2.S.nextInvNo);
+});
+
+test('girvi renewal pre-fetches an atomic girvi number the moment the modal opens', function(){
+  var app2 = require('./harness.js').loadApp();
+  var val = 900;
+  app2.getNextCounter = function(name, cb){ cb(null, val++); }; // simulates store-proxy resolving fast
+  app2.S.girvi = [{ id:'g1', grvNo:'GRV-0001', status:'active', principal:1000,
+    interestRate:2, rateType:'monthly', duration:3, startDate:'2026-01-01', ledger:[] }];
+  app2.openGirviRenewalModal('g1');
+  assert(app2._grnPendingGrvNo === 900, 'expected pre-fetched atomic girvi number, got ' + app2._grnPendingGrvNo);
+});
+
+test('confirming a girvi renewal uses the pre-fetched atomic number and advances S.nextGirviId past it', function(){
+  var app2 = require('./harness.js').loadApp();
+  app2.S.girvi = [{ id:'g1', grvNo:'GRV-0001', status:'active', principal:1000,
+    interestRate:2, rateType:'monthly', duration:3, startDate:'2026-01-01', ledger:[] }];
+  app2.S.nextGirviId = 5; // local counter lagging behind the pre-fetched value
+  app2._grnGirviId = 'g1';
+  app2._grnPendingGrvNo = 900; // as if openGirviRenewalModal's pre-fetch already resolved
+  var _origGetById = app2.document.getElementById;
+  app2.document.getElementById = function(id){
+    if(id === 'grn-principal') return { value:'1200' };
+    if(id === 'grn-rate')      return { value:'2' };
+    if(id === 'grn-duration')  return { value:'3' };
+    if(id === 'grn-ratetype')  return { value:'monthly' };
+    return _origGetById(id); // toast(), etc. still need a real fake element (classList &c.)
+  };
+  app2.saveToCloud = function(cb){ cb(null); };
+  app2.renderGirvi = function(){};
+  app2.renderDash = function(){};
+  app2.confirmGirviRenewal();
+  assert(app2.S.girvi.length === 2, 'expected the renewed loan pushed alongside the closed original, got ' + app2.S.girvi.length);
+  var newLoan = app2.S.girvi[1];
+  assert(newLoan.grvNo === 'GRV-0900', 'expected the renewal to use the pre-fetched atomic number GRV-0900, got ' + newLoan.grvNo);
+  assert(app2.S.nextGirviId === 901, 'expected nextGirviId to advance past the number actually used, got ' + app2.S.nextGirviId);
+});
+
+test('a new girvi entry does not skip a number when the atomic counter resolves (no double-increment)', function(){
+  var app2 = require('./harness.js').loadApp();
+  var val = 700;
+  app2.getNextCounter = function(name, cb){ cb(null, val++); };
+  app2.S.girvi = [];
+  app2.S.nextGirviId = 1;
+  app2.GF_EDIT_ID = null;
+  app2.GF_ITEMS = [{ type:'ring', metal:'gold', purity:'22K', grossWt:5, netWt:5, qty:1, desc:'Ring' }];
+  app2.GF_PHOTOS = [];
+  app2.linkGirviToCustomer = function(){ return null; };
+  app2.closeGirviModal = function(){};
+  app2.saveToCloud = function(cb){ cb(null); };
+  app2.renderGirvi = function(){};
+  app2.renderDash = function(){};
+  app2.saasActivityLog = function(){};
+  var _origGetById = app2.document.getElementById;
+  app2.document.getElementById = function(id){
+    if(id === 'gf-cust')      return { value:'Test Cust' };
+    if(id === 'gf-phone')     return { value:'9999999999' };
+    if(id === 'gf-principal') return { value:'1000' };
+    if(id === 'gf-rate')      return { value:'2' };
+    if(id === 'gf-risk')      return { value:'low' };
+    if(id === 'gf-ratetype')  return { value:'monthly' };
+    if(id === 'gf-compound')  return { checked:false };
+    return _origGetById(id); // toast(), etc. still need a real fake element (classList &c.)
+  };
+  app2.saveGirviEntry();
+  assert(app2.S.girvi.length === 1, 'expected exactly one girvi created, got ' + app2.S.girvi.length);
+  assert(app2.S.girvi[0].grvNo === 'GRV-0700', 'expected the atomic number GRV-0700 to be used, got ' + app2.S.girvi[0].grvNo);
+  assert(app2.S.nextGirviId === 701, 'expected nextGirviId to advance by exactly one (701), got ' + app2.S.nextGirviId + ' — a double-increment here is how GRV numbers used to get skipped');
+});
+
 // ── batch14 fixes (Sep 2026) ───────────────────────────────────────────
 console.log('\nbatch14 fixes:');
 
