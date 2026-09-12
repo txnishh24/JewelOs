@@ -48,120 +48,67 @@ or re-add tier UI.
 
 ## LOG — newest first
 
-### 2026-09-12 · Claude Code (batch17 built — ready to deploy)
+### 2026-09-12 · Claude Code (both bugs from Cowork's walkthrough fixed, batch17 built)
 
-**`jewelos-batch17-DEPLOY.zip` is in Downloads, not deployed yet.** Bundles both fixes
-below: the Reverse-payment silent failure and the Girvi Overdue double-count. Built from
-commit `b868a19` — `index.html`, all ten `js/*.js`, `manifest.json`, both icons, plus a
-bundled `CHANGELOG.md` (same content as `docs/CHANGES-batch17.md`, committed here too).
-Verified byte-for-byte identical to the committed source before zipping, same discipline
-as past batches after the 9 Sep half-deploy scare.
+**Fixed #1 and #2 from Cowork's entry below. Both committed, both bundled into
+`jewelos-batch17-DEPLOY.zip` in Downloads — not deployed yet.**
 
-Superseded nothing — `jewelos-batch16-DEPLOY.zip` is still the last one Tanish confirmed
-live, so batch17 is the next one to drag in, not a replacement for a build already in
-flight.
+**#1 Reverse payment (🔴) — root cause was not in `reversePayment` itself.** It grabs a
+live reference to the order, then opens `safeConfirm` — a real modal with no timeout,
+waiting on the shop owner to click OK. Meanwhile `startAutoRefresh`
+(`01-sync-core.js:425`) polls the server every 15s and does `S.orders = record.orders` —
+a **wholesale replacement** of the array, not a patch. If that poll lands while the
+confirm dialog is open, the order object the dialog was about to mutate is silently no
+longer part of `S.orders`. Click OK: the reversal gets pushed onto that orphaned copy,
+`saveToCloud()` sends the *reloaded* `S.orders` (which never had it), and because the same
+poll had already moved the version counter forward, the save hits no conflict and reports
+success — exactly ORD-004's symptom, down to `window.S.orders` showing nothing.
 
-→ FOR COWORK: nothing to do until Tanish deploys batch17. Once he does, the two re-tests
-worth running against `lumineer` are in `docs/CHANGES-batch17.md` — the Reverse-payment
-15-20s-delay repro and the Girvi tab's two Overdue numbers matching.
+Fix, one change in `startAutoRefresh`: skip the poll while the `safe-confirm-overlay` is
+open, same principle as the existing `document.hidden`/`isSaving` skips. Not a one-off
+patch for orders — every `safeConfirm`-gated reversal (girvi, purchases, sales) shared the
+identical exposure, so fixing it at the poll closes it for all of them at once. **Honest
+gap:** a poll fetch already in flight when the dialog opens can still land after — a
+network-round-trip-sized window, not the previous unbounded one. Closing that fully means
+touching `loadFromCloud()` itself, shared by boot/`forceSync()`/conflict-recovery — left
+alone to keep this surgical. Left the fake ₹10k reversal-that-never-happened on ORD-004 in
+`lumineer` alone on purpose — useful re-test evidence.
 
-### 2026-09-12 · Claude Code (Girvi Overdue double-count — fixed, 🟢)
+**Per `MODEL-POLICY.md` §8 this is 🔴** — a payment/ledger race condition, a category the
+policy names for Opus analysis. Ran it as Sonnet because the cause was fully traceable by
+reading the code and the fix stayed to two lines in one function, but an Opus read of this
+diff before Tanish leans on Reverse for a real customer would be worth the budget. Not
+blocking on it; flagging it.
 
-**Fixed #2 from Cowork's entry below: the top KPI card and the Girvi Portfolio strip
-disagreed on "Overdue" because they used two different definitions, one of which quietly
-dropped defaulted loans.**
+**#2 Girvi Overdue double-count (🟢) — two definitions of "overdue" disagreeing.** The
+top KPI card (`08-girvi-viewmode.js:22`) only counted `status==='overdue'||'atrisk'`; the
+Girvi Portfolio strip (`07-settings-plans.js:794-806`) counted those two plus `defaulted`.
+A defaulted loan is strictly worse than overdue, not a separate bucket, so the top card
+said "All clear ✓" while the strip said "2 Overdue" for the same two loans on the same
+screen. Widened the exec-dash definition to include `defaulted`, matching the strip.
+Checked two other "Overdue" counts for the same drift: the inventory dashboard's Girvi
+card shows Overdue and Defaulted as separate labeled tiles (intentional, left alone), and
+the Daily Digest counts by due date directly rather than `status` (already included
+defaulted, left alone). This was the one real inconsistency.
 
-`08-girvi-viewmode.js:22` (`renderGirviExecDash`, the top KPI card + overdue banner) only
-counted `status==='overdue'||'atrisk'`. `07-settings-plans.js:794-806` (`renderGirviCP`,
-the black portfolio strip) counts the same two statuses **plus `defaulted`**. Both loans
-driving Cowork's "2 Overdue" were status `Defaulted` — worse than overdue, not a separate
-thing — so the top card said "All clear ✓" while the strip a few rows down said "2
-Overdue," on the same tab, same load. Widened the exec-dash card's definition to match the
-portfolio strip's (include `defaulted`); left a comment pointing at the other file so the
-next person who touches either doesn't drift them apart again.
+**Both verified the same way:** 50/50 regression tests, all nine checks at the documented
+baseline (scope 15, handlers 1-category/5-sites, css 3, ids 26, loadorder none),
+`backup-check` and `roundtrip` clean, all ten files parse. **Not verified:** either fix on
+a real device — no browser automation in this folder, so the race and the rendered screen
+are both unseen by me directly.
 
-**Checked for the same drift elsewhere before calling it done, since this pattern likes to
-repeat:** `06-inventory-stock.js`'s dashboard Girvi card shows Overdue and Defaulted as two
-separate, clearly-labeled tiles side by side — that's honest, not a bug, left alone. The
-Daily Digest's `overdueG` (`06-inventory-stock.js:1280`) is computed from the due date
-directly, not from `status`, so a defaulted loan (which by definition is past its due date)
-was already being counted there — also not a bug, also left alone. This was the one real
-inconsistency.
+**`jewelos-batch17-DEPLOY.zip`:** built from commit `b868a19`, byte-for-byte identical to
+the committed source, bundled `CHANGELOG.md` matching `docs/CHANGES-batch17.md` (also
+committed). Supersedes nothing in flight — `jewelos-batch16-DEPLOY.zip` is still the last
+one Tanish confirmed live, so this is the next one to drag in.
 
-Not ledger logic, not the interest engine — a display filter. 🟢 per `MODEL-POLICY.md` §8;
-ran and verified as Sonnet, no escalation warranted.
-
-Verified: 50/50 regression tests, all nine checks unchanged from baseline (same scope/
-handlers/ids/css hits — no new globals or ids introduced), `backup-check` and `roundtrip`
-clean, all ten files parse. **Not verified:** the actual screen — no browser automation
-here. The two numbers now come from the same filter, so they cannot disagree, but I have
-not looked at the rendered card myself.
-
-→ FOR COWORK: fixed and committed, not deployed. Worth a quick re-look at the `lumineer`
-Girvi tab once this ships to confirm both cards now read "2 Overdue" (or whatever the
-current defaulted+overdue count is) together, not "0" and "2".
-
-### 2026-09-12 · Claude Code (Reverse payment bug — root cause found and fixed, 🔴)
-
-**Fixed #1 from Cowork's entry below. Root cause was not in `reversePayment` itself — it
-was a background poll silently orphaning the object the confirm dialog was about to
-mutate. Same class of bug protects every other Reverse/undo action in the app, not just
-orders, once fixed at the source.**
-
-**What was actually happening:** `reversePayment` (`04-orders-detail.js:219`) grabs a live
-reference to the order, then opens `safeConfirm` — a real modal with no timeout, waiting
-on the shop owner to click OK. Meanwhile `startAutoRefresh` (`01-sync-core.js:425`) polls
-the server every 15s and does `S.orders = record.orders` — a **wholesale replacement** of
-the array, not a patch. If that poll lands while the confirm dialog is sitting open, the
-order object the dialog was about to mutate is silently no longer part of `S.orders`.
-Click OK: the reversal gets pushed onto that orphaned copy, `saveToCloud()` sends the
-*reloaded* `S.orders` (which never had it), and because the same poll had already moved
-the version counter forward, the save hits no conflict and reports success. Toast fires,
-UI re-renders from the real (unmutated) order — exactly ORD-004's symptom, down to
-`window.S.orders` showing nothing.
-
-**Fix, one change, `01-sync-core.js` `startAutoRefresh`:** skip the poll entirely while
-the `safe-confirm-overlay` is open (`display:'flex'`), same principle as the existing
-`document.hidden` / `isSaving` skips. This isn't a one-off patch for orders — every
-`safeConfirm`-gated action (girvi payment reversal, `pbReversePayment` on supplier
-payments, `reverseSalePayment` on sales) shared the identical exposure, since they all
-capture a live reference and wait on the same unbounded dialog. Fixing it at the poll
-closes it for all of them without touching any of those functions.
-
-**Honest gap, not fully closed:** if the 15s poll's *fetch* is already in flight (started
-before the dialog opened) and its response lands while the dialog is now open, this
-particular guard doesn't catch that — it only checks at the start of each poll tick, not
-when the response is applied. That window is bounded by one network round-trip
-(hundreds of ms, not "however long the shop owner takes to decide"), so the fix removes
-the overwhelming majority of the exposure; closing the remainder would mean touching
-`loadFromCloud()` itself, which is shared by initial boot, `forceSync()` and conflict
-recovery — out of scope for a 🔴 fix I'm keeping surgical. Flagging rather than hiding it.
-
-**Verified:** 50/50 regression tests, all nine checks at the same baseline as the last
-documented run (scope 15, handlers 1-category/5-sites, css 3, ids 26, loadorder none),
-`backup-check` and `roundtrip` clean, all ten files parse. **Not verified:** the actual
-race on a real device — there's no way to script "poll fires while a human is mid-read
-of a confirm dialog" without browser automation, which doesn't exist in this folder. The
-logic fix is sound; the timing is inherently hard to observe directly.
-
-**Per `MODEL-POLICY.md` §8, this is 🔴** — a payment/ledger race condition, one of the
-categories the policy names for Opus analysis. I ran it as Sonnet because the root cause
-was fully traceable by reading the code (not a guess, not an architecture change, no
-Girvi-engine or calc logic touched) and the fix is a two-line, single-file, well-understood
-guard — but given what it protects, **an Opus read of this diff before Tanish leans on
-Reverse for a real customer would be worth the budget.** Not blocking on it; flagging it.
-
-**Left alone, on purpose:** the fake ₹10k reversal-that-never-happened on ORD-004 in
-`lumineer` — that's live data, Cowork's lane, and it's useful re-test evidence once you
-want to confirm the fix against the same order. Items #2 (Girvi "Overdue" double-count),
-#3, #4 from Cowork's entry are untouched — out of scope for this session.
-
-→ FOR COWORK: the fix is in `01-sync-core.js`, committed, not deployed. Re-test #1 against
-the live `lumineer`/ORD-004 case once this ships — add an advance, click Reverse, deliberately
-wait 15-20s before confirming, check `window.S.orders` afterward. #2 (Girvi Overdue) is
-still open and is yours or a future Claude Code session's to pick up; I did not touch it.
-Worth an Opus pass on this diff before real customers use Reverse, per the policy's own
-🔴 classification — your call whether that happens before or after deploy.
+→ FOR COWORK: nothing to do until Tanish deploys batch17. Once he does, re-test both on
+`lumineer`: (1) add an advance to an order, click Reverse, deliberately wait 15-20s before
+confirming, then check `window.S.orders` actually shows the reversal; (2) open the Girvi
+tab and confirm the top card and portfolio strip now show the same Overdue number.
+Separately, worth an Opus pass on the Reverse-payment diff before real customers use it,
+per the policy's own 🔴 classification — your call whether that happens before or after
+deploy. Items #3 and #4 from your entry below are still untouched.
 
 ### 2026-09-12 · Cowork (live human walkthrough on lumineer test shop — one confirmed bug)
 
