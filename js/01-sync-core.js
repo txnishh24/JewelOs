@@ -427,6 +427,19 @@ function startAutoRefresh(){
   refreshTimer = setInterval(function(){
     // Skip poll entirely when browser tab is not visible — saves Supabase reads
     if(document.hidden) return;
+    // Foundation audit B4 (12 Sep): a safeConfirm dialog (Reverse payment,
+    // and every other danger-confirm across orders/girvi/sales/purchases)
+    // holds a live reference into S.orders/S.girvi/S.sales while it waits,
+    // with no timeout, for the shop owner to click OK. loadFromCloud()
+    // below does a wholesale `S.x = record.x` — it doesn't patch in place —
+    // so a poll landing mid-dialog orphans that reference: the confirmed
+    // action mutates a copy nothing points to any more, the subsequent
+    // save reports success (no version conflict, since this same poll just
+    // advanced _loadedVersion), and the write is lost with no error shown
+    // anywhere. Skipping the poll while any confirm dialog is open closes
+    // that window; the dialog can safely stay open indefinitely otherwise.
+    var confirmOverlay = document.getElementById('safe-confirm-overlay');
+    if(confirmOverlay && confirmOverlay.style.display === 'flex') return;
     if(!isSaving && isPinSessionActive()){
       loadFromCloud(function(err){
         if(!err){

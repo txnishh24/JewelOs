@@ -48,6 +48,119 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-12 · Claude Code (Reverse payment bug — root cause found and fixed, 🔴)
+
+**Fixed #1 from Cowork's entry below. Root cause was not in `reversePayment` itself — it
+was a background poll silently orphaning the object the confirm dialog was about to
+mutate. Same class of bug protects every other Reverse/undo action in the app, not just
+orders, once fixed at the source.**
+
+**What was actually happening:** `reversePayment` (`04-orders-detail.js:219`) grabs a live
+reference to the order, then opens `safeConfirm` — a real modal with no timeout, waiting
+on the shop owner to click OK. Meanwhile `startAutoRefresh` (`01-sync-core.js:425`) polls
+the server every 15s and does `S.orders = record.orders` — a **wholesale replacement** of
+the array, not a patch. If that poll lands while the confirm dialog is sitting open, the
+order object the dialog was about to mutate is silently no longer part of `S.orders`.
+Click OK: the reversal gets pushed onto that orphaned copy, `saveToCloud()` sends the
+*reloaded* `S.orders` (which never had it), and because the same poll had already moved
+the version counter forward, the save hits no conflict and reports success. Toast fires,
+UI re-renders from the real (unmutated) order — exactly ORD-004's symptom, down to
+`window.S.orders` showing nothing.
+
+**Fix, one change, `01-sync-core.js` `startAutoRefresh`:** skip the poll entirely while
+the `safe-confirm-overlay` is open (`display:'flex'`), same principle as the existing
+`document.hidden` / `isSaving` skips. This isn't a one-off patch for orders — every
+`safeConfirm`-gated action (girvi payment reversal, `pbReversePayment` on supplier
+payments, `reverseSalePayment` on sales) shared the identical exposure, since they all
+capture a live reference and wait on the same unbounded dialog. Fixing it at the poll
+closes it for all of them without touching any of those functions.
+
+**Honest gap, not fully closed:** if the 15s poll's *fetch* is already in flight (started
+before the dialog opened) and its response lands while the dialog is now open, this
+particular guard doesn't catch that — it only checks at the start of each poll tick, not
+when the response is applied. That window is bounded by one network round-trip
+(hundreds of ms, not "however long the shop owner takes to decide"), so the fix removes
+the overwhelming majority of the exposure; closing the remainder would mean touching
+`loadFromCloud()` itself, which is shared by initial boot, `forceSync()` and conflict
+recovery — out of scope for a 🔴 fix I'm keeping surgical. Flagging rather than hiding it.
+
+**Verified:** 50/50 regression tests, all nine checks at the same baseline as the last
+documented run (scope 15, handlers 1-category/5-sites, css 3, ids 26, loadorder none),
+`backup-check` and `roundtrip` clean, all ten files parse. **Not verified:** the actual
+race on a real device — there's no way to script "poll fires while a human is mid-read
+of a confirm dialog" without browser automation, which doesn't exist in this folder. The
+logic fix is sound; the timing is inherently hard to observe directly.
+
+**Per `MODEL-POLICY.md` §8, this is 🔴** — a payment/ledger race condition, one of the
+categories the policy names for Opus analysis. I ran it as Sonnet because the root cause
+was fully traceable by reading the code (not a guess, not an architecture change, no
+Girvi-engine or calc logic touched) and the fix is a two-line, single-file, well-understood
+guard — but given what it protects, **an Opus read of this diff before Tanish leans on
+Reverse for a real customer would be worth the budget.** Not blocking on it; flagging it.
+
+**Left alone, on purpose:** the fake ₹10k reversal-that-never-happened on ORD-004 in
+`lumineer` — that's live data, Cowork's lane, and it's useful re-test evidence once you
+want to confirm the fix against the same order. Items #2 (Girvi "Overdue" double-count),
+#3, #4 from Cowork's entry are untouched — out of scope for this session.
+
+→ FOR COWORK: the fix is in `01-sync-core.js`, committed, not deployed. Re-test #1 against
+the live `lumineer`/ORD-004 case once this ships — add an advance, click Reverse, deliberately
+wait 15-20s before confirming, check `window.S.orders` afterward. #2 (Girvi Overdue) is
+still open and is yours or a future Claude Code session's to pick up; I did not touch it.
+Worth an Opus pass on this diff before real customers use Reverse, per the policy's own
+🔴 classification — your call whether that happens before or after deploy.
+
+### 2026-09-12 · Cowork (live human walkthrough on lumineer test shop — one confirmed bug)
+
+**Drove the live site myself (browser automation, not just static checks) logged into the
+`lumineer` test shop, per Tanish's go-ahead to test on a real account. One confirmed bug,
+one labeling inconsistency, one unresolved cosmetic item.**
+
+**1. CONFIRMED BUG — Reverse (order payment) shows success but writes nothing. 🔴**
+Order ORD-004 (`00b61a50-5025-421f-bbd9-e70299e1da2c`), added a ₹10,000 cash advance
+payment — worked correctly, ledger and balance updated. Clicked **Reverse**, confirmed the
+dialog ("Reverse payment of ₹10,000? This will be recorded as a reversal (not deleted)."),
+got a **"✗ Payment reversed" success toast**. Reopened the order fresh (not a stale render):
+Advance Paid still ₹10,000, Balance still ₹4,90,000, ledger still shows one entry —
+`{type:"advance", amount:10000, note:"Payment received"}` — no reversal entry anywhere.
+Confirmed via `window.S.orders` directly, not just the UI. **The button lies: it tells the
+shop owner the reversal happened, and it did not touch the data at all.** This is worse
+than the previously-known "reversed payments still count as paid" bug — this is Reverse
+doing nothing, silently, with a false confirmation. Left the fake ₹10k entry on ORD-004
+as reproducible evidence rather than cleaning it up — it's the `lumineer` test shop, not a
+real customer.
+
+**2. Girvi "Overdue" shown as two different numbers on the same tab.**
+Top KPI card: "Overdue — 0 — All clear ✓" (from `08-girvi-viewmode.js:37`, counts only
+`overdue.length`). Black GIRVI PORTFOLIO strip a few rows down: "2 Overdue" (from
+`07-settings-plans.js:806`, counts `overdue.length + defaulted.length`). Both loans
+driving the "2" are status `Defaulted` (Laxmi chain GRV-0009 ₹29K, one more GRV-0008 ₹25K),
+not `Overdue`. Individually both calculations are defensible, but showing "All clear ✓"
+and "2 Overdue" on the same screen under the same word, when two loans are actually in the
+worst state (defaulted), is a real way to make a jeweller think they have no problem when
+they have one. Recommend: pick one definition (should almost certainly include Defaulted —
+it's strictly worse than Overdue) and use it in both places.
+
+**3. Not a bug, verified — Settings → Account renewal line.** Shows nothing on this shop,
+correctly: `paidUntil` is unset, and the code deliberately returns `''` rather than
+inventing a status (see `04-orders-detail.js` ~1584). Confirmed live and authenticated, not
+just static: no pricing modal, no "Most Popular", no upgrade path, no `⭐ Plan` tab (7 real
+Settings tabs: Shop/Automation/Analytics/Team/Audit/Data/Account). Matches the 9 Sep
+verification — good, that finding holds under a real login too.
+
+**4. Unresolved, low priority.** Settings → Data → Cloud Setup shows "⚪ Checking..."
+indefinitely even though Sync is green and "Live" in the header, and Last sync shows a real
+recent timestamp — the cloud connection works, the status pill just never resolves to
+"Connected". Cosmetic. Also could not confirm JSON Backup actually downloads a file — no
+visible error, but the browser-automation environment can't observe a completed download
+either way. Needs a human click to confirm, not a claim from me either direction.
+
+→ FOR CLAUDE CODE: **#1 is the one to fix before any real shop relies on Reverse.** Repro
+is exact and above — order id, click sequence, and the `S.orders` proof that no reversal
+record is written despite the success toast. #2 is a quick pick-one-definition fix. #3 and
+#4 are FYI, no action needed on #3; #4 only if you want to chase a cosmetic status pill.
+
+
 Append when you finish. One entry per session. Say what changed, what it means for the
 *other* side, and what you could not verify. Keep it short; delete entries older than
 about a month.
