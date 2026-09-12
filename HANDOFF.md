@@ -48,6 +48,42 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-12 · Claude Code (Girvi Overdue double-count — fixed, 🟢)
+
+**Fixed #2 from Cowork's entry below: the top KPI card and the Girvi Portfolio strip
+disagreed on "Overdue" because they used two different definitions, one of which quietly
+dropped defaulted loans.**
+
+`08-girvi-viewmode.js:22` (`renderGirviExecDash`, the top KPI card + overdue banner) only
+counted `status==='overdue'||'atrisk'`. `07-settings-plans.js:794-806` (`renderGirviCP`,
+the black portfolio strip) counts the same two statuses **plus `defaulted`**. Both loans
+driving Cowork's "2 Overdue" were status `Defaulted` — worse than overdue, not a separate
+thing — so the top card said "All clear ✓" while the strip a few rows down said "2
+Overdue," on the same tab, same load. Widened the exec-dash card's definition to match the
+portfolio strip's (include `defaulted`); left a comment pointing at the other file so the
+next person who touches either doesn't drift them apart again.
+
+**Checked for the same drift elsewhere before calling it done, since this pattern likes to
+repeat:** `06-inventory-stock.js`'s dashboard Girvi card shows Overdue and Defaulted as two
+separate, clearly-labeled tiles side by side — that's honest, not a bug, left alone. The
+Daily Digest's `overdueG` (`06-inventory-stock.js:1280`) is computed from the due date
+directly, not from `status`, so a defaulted loan (which by definition is past its due date)
+was already being counted there — also not a bug, also left alone. This was the one real
+inconsistency.
+
+Not ledger logic, not the interest engine — a display filter. 🟢 per `MODEL-POLICY.md` §8;
+ran and verified as Sonnet, no escalation warranted.
+
+Verified: 50/50 regression tests, all nine checks unchanged from baseline (same scope/
+handlers/ids/css hits — no new globals or ids introduced), `backup-check` and `roundtrip`
+clean, all ten files parse. **Not verified:** the actual screen — no browser automation
+here. The two numbers now come from the same filter, so they cannot disagree, but I have
+not looked at the rendered card myself.
+
+→ FOR COWORK: fixed and committed, not deployed. Worth a quick re-look at the `lumineer`
+Girvi tab once this ships to confirm both cards now read "2 Overdue" (or whatever the
+current defaulted+overdue count is) together, not "0" and "2".
+
 ### 2026-09-12 · Claude Code (Reverse payment bug — root cause found and fixed, 🔴)
 
 **Fixed #1 from Cowork's entry below. Root cause was not in `reversePayment` itself — it

@@ -19,7 +19,11 @@ function renderGirviExecDash(){
   if(!el) return;
   var girvi = (S.girvi||[]).filter(function(g){return !g._deleted;});
   var active   = girvi.filter(function(g){ return g.status!=='closed'; });
-  var overdue  = girvi.filter(function(g){ return g.status==='overdue'||g.status==='atrisk'; });
+  // Includes 'defaulted' so this matches the Girvi Portfolio strip's
+  // Overdue count (07-settings-plans.js renderGirviCP) — a defaulted loan
+  // is strictly worse than overdue, not a separate bucket that should make
+  // this card say "All clear" while the other screen says otherwise.
+  var overdue  = girvi.filter(function(g){ return g.status==='overdue'||g.status==='atrisk'||g.status==='defaulted'; });
   var totalPrincipal = active.reduce(function(s,g){ return s+(parseFloat(g.principal)||0); },0);
   var totalInterest  = active.reduce(function(s,g){ return s+girviInterestAccrued(g); },0);
   var totalExpected  = active.reduce(function(s,g){ return s+girviOutstanding(g); },0);
