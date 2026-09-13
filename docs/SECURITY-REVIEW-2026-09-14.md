@@ -53,6 +53,12 @@ Because request/response shapes don't change, this Edge Function can deploy on i
 
 ## 2. Stored XSS — a staff account can hijack the owner's session · HIGH once a shop has staff
 
+> **Status 14 Sep: partly fixed in batch19, NOT deployed.** Every field in the table below
+> is now escaped, as are activity-log entries, and `auth-gateway` refuses `<`/`>` in names
+> and shop details (server, deploys with the other two fixes). **Still open:** the remaining
+> unescaped values reachable only by writing to the server directly — dropdown values,
+> record ids in `onclick`, photo `dataUrl`s.
+
 **What's wrong.** The app builds screens by joining strings into `innerHTML`. Text that
 people type is supposed to pass through `escHtml()` first. Many places don't. If that text
 contains HTML, the browser runs it.
@@ -113,9 +119,10 @@ literally. `jsAttrEsc()` is correct as written.
 ## 3. Sessions cannot be revoked · MEDIUM
 
 > **Status 14 Sep: server half fixed in this repo, NOT deployed.** `store-proxy` now
-> rejects a removed user (401) and takes the role from the current record. **Still
-> open:** sign-out doesn't clear the token (client, needs a zip), and a password change
-> doesn't end other sessions.
+> rejects a removed user (401) and takes the role from the current record. **Client half
+> fixed in batch19** (`jewelos-batch19-DEPLOY.zip`, not deployed): sign-out clears the
+> token, and a 401 signs out with no Cancel. **Still open:** a password change doesn't end
+> other sessions.
 
 **What's wrong.** A session token is valid for 12 hours no matter what happens after it
 was issued:
@@ -208,6 +215,9 @@ until payments come back; the source stays in the repo.
   raise it later with a rehash-on-login.
 
 ## 9. A full copy of the shop stays on the device after sign-out · MEDIUM
+
+> **Status 14 Sep: fixed in batch19, NOT deployed.** Every sign-out clears `ssj_cache`
+> and the rest of the device session, then reloads; a 401 does so with no confirmation.
 
 **What's wrong.** To make the app open fast, `saveCache()` (`js/04-orders-detail.js:507`)
 keeps the whole shop in the browser's `localStorage` under `ssj_cache`: customers and

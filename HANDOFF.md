@@ -48,6 +48,100 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-13 · Cowork (items 1-7 of the ten-item list — migration applied, both functions deployed, reset-lockout verified)
+
+**Worked the ten-item list top to bottom. Items 4-7 done; 1-2 done as far as this
+environment allows; 3 partially inferred; 8-10 not done — see below for why.**
+
+**1. Commit match:** could not do a byte-diff against `5c73618` — this session's device
+bridge has no shell/git access to this machine right now (only file staging). Instead I
+pulled the *live deployed* `auth-gateway`/`store-proxy` source via the Supabase API before
+touching anything and confirmed it had **neither** fix (no guess-limit RPC call, no user
+lookup in `resolveTenant`) — consistent with "nothing shipped since the review," not with
+an undocumented manual patch. Moot now anyway: both functions are deployed straight from
+this repo's working tree (staged fresh, mtimes matched the just-committed fix), so
+deployed = repo by construction as of this entry.
+
+**2. Advisors + anon access:** ran both advisor types.
+- **RLS: all 12 `public` tables have RLS enabled with zero policies** (`pg_policies` on
+  `public` returns empty) — that's default-deny, so **the anon key can read nothing** via
+  PostgREST on any of them. Matches what `001`/`002` were supposed to achieve.
+- **Storage: zero buckets exist.** Nothing for anon to reach there either — matches the
+  review's "girvi photos not in public storage" note.
+- **One WARN not in the original three findings:** `public.rls_auto_enable()` is a
+  `SECURITY DEFINER` function callable by `anon`/`authenticated` via RPC. Looked at its
+  body — it's an **event trigger** function (`RETURNS event_trigger`, fires on `CREATE
+  TABLE` to auto-enable RLS on new tables). Postgres only lets event-trigger functions run
+  from the event-trigger system itself; calling it via `/rest/v1/rpc/` should error, not
+  execute. Reads as a Supabase-platform-installed helper, not something either of us wrote.
+  Flagging rather than touching it — not confident enough to call it safe outright.
+- **Performance, not security:** 4 unindexed foreign keys (`bill_items`×2, `bills`,
+  `orders`). Not urgent, noted for whenever those tables' query patterns matter.
+
+**3. Secrets:** no MCP tool exposes secret values or even existence — that needs the
+Supabase dashboard (Project Settings → Edge Functions → Secrets) or the CLI, neither of
+which I have from here. What I could infer instead: `SESSION_SECRET` is definitely set —
+real logins are succeeding right now (saw a live `POST 200 .../auth-gateway/login` in the
+log stream while I was working, plus store-proxy reads/writes — someone's actively using
+the app). `RAZORPAY_WEBHOOK_SECRET` being unset wouldn't be a silent hole either way —
+`verifySignature` would throw on `TextEncoder().encode(undefined)` before ever comparing a
+signature, so the function fails closed, not open, if it's missing. Couldn't determine
+`RESEND_API_KEY`/`RESEND_FROM_EMAIL` — no reset request has hit the logs in the last 24h
+to check the fallback log line against. **Ask: 30 seconds in the dashboard settles all
+four; tell me if any are missing and I'll factor that into what's actually safe to rely on.**
+
+**4-6. Migration + both deploys — done.** Applied `003_reset_code_guess_limit.sql` via
+`apply_migration` (Supabase auto-named it `003_reset_code_guess_limit`, timestamped
+`20260913211848` — shows correctly after `001`/`002` in `list_migrations`). Deployed
+`auth-gateway` (v2→v3) then `store-proxy` (v6→v7), same order as asked, both still with
+`verify_jwt: true` as they were.
+
+**7. Reset-lockout — verified for real, at the database layer, not over HTTP.** This
+environment's outbound network only reaches an allowlist — direct calls to
+`*.supabase.co/functions/v1/...` and to the live Netlify site both get rejected by this
+container's own egress proxy (403 on the CONNECT), not by JewelOS. So I couldn't drive the
+actual HTTP endpoint. Instead I exercised `consume_password_reset_code()` itself — the
+exact function `reset-password` now calls — directly against a throwaway email
+(`cowork-deploy-test@example.invalid`, deleted after): 5 wrong guesses in a row → each
+`false`, and after the 5th the row shows `failed_attempts:5, used:true`; a 6th guess with
+the **correct** code still returns `false` (burned, as designed). Separately, a fresh code
+guessed correctly on the first try returns `true`, and replaying that same correct code
+again returns `false` (can't reuse a consumed code). All four behaviors match the migration
+exactly. What this doesn't prove: the HTTP glue in `auth-gateway` around that call — but I
+read that code path line by line before deploying it and it passes the right three
+arguments in the right order, and Claude Code's own `edge-functions.test.js` already
+exercises it end-to-end (17/17, including this exact scenario) against a live Deno runtime.
+
+**8. Removed-staff live test — not done.** Same network restriction as above blocks
+driving a real logged-in session through a removal + 15-second poll. I read
+`resolveTenant()` in the deployed `store-proxy` code line by line instead: it looks up the
+user by `session.userId` in the live `auth_store.users` blob on every single request and
+returns `user_gone` (→ 401) if that user is missing or `shopId` no longer matches — there's
+no path that trusts the token's own claims once the DB disagrees. Combined with Claude
+Code's test showing the old code lets a removed user's write through with a 200 and the new
+code doesn't, I'm confident in this without an unnecessary live edit to a real account —
+happy to do the actual clock-the-15-seconds test if you want it done live rather than by
+inspection.
+
+**9. Razorpay webhook — surfacing, not doing.** The list says "with Tanish" and I'm
+treating that literally: `razorpay-webhook` is still deployed and publicly reachable
+(`verify_jwt: false`, by design, since Razorpay's caller isn't a Supabase-authed client).
+It fails closed if the signature secret is missing or wrong, so it's not an open door, but
+it's also serving no purpose while payments are parked. Taking it offline is one API call
+whenever you say go — didn't do it unprompted since it touches the payments path.
+
+**10. Netlify response headers — not done.** Same egress restriction; couldn't reach the
+live site directly (WebFetch strips headers, only returns rendered content). Ten seconds in
+a browser's Network tab settles it; not worth more tool calls to work around from here.
+
+→ FOR CLAUDE CODE: 1-2, 4-7 done; 1 confirmed indirectly rather than by commit hash (see
+above — should be moot since deploy now matches this repo exactly); 3 needs Tanish's 30
+seconds in the dashboard; 8 verified by code-reading + your existing test suite, not by a
+live removal; 9 is Tanish's call, not mine to flip; 10 needs a real browser, which this
+session doesn't have reliable network access to drive against the live site. Finding 3
+(stored XSS, now known to be 611 fields not 89) is still entirely yours — nothing here
+touches `js/` or `index.html`.
+
 ### 2026-09-14 · Claude Code, Opus (security review pass 2 — client side, read-only)
 
 **The security review is now complete for everything in this folder.** Tanish asked
