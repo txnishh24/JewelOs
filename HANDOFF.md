@@ -48,6 +48,68 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-14 · Claude Code (tooling only — no app code touched)
+
+**Set up three pieces of session tooling Tanish asked for. Nothing in `js/`,
+`index.html`, or Supabase was touched — this is entirely about how future Claude Code
+sessions here work, not what JewelOS does.**
+
+**1. `.claude/skills/jewelos-change/` and `.claude/skills/jewelos-debug/` now exist,**
+each a thin pointer (frontmatter only, copied verbatim from the real file, plus one
+line saying "read `skills/<name>.md` and follow it") so Claude Code auto-triggers the
+matching procedure from the request wording itself, instead of relying on a session
+having read `CLAUDE.md` closely enough to go find it manually. Deliberately did **not**
+copy the actual procedures into `.claude/skills/` — that would be the exact duplication
+mistake the `MODEL-POLICY.md` consolidation (9 Sep) already found and fixed once.
+`skills/jewelos-change.md` and `skills/jewelos-debug.md` stay the only real copies.
+`jewelos-dev-rules.md` was left alone — it has no frontmatter, it's meant to always
+apply rather than situationally trigger, and `CLAUDE.md` already carries its short
+version in every session's context.
+
+**2. A `PostToolUse` hook (`.claude/hooks/js-guard.js`, wired in `.claude/settings.json`)
+runs after every Edit/Write to a top-level `js/*.js` module:** `node --check` on the
+file, then the full `tests/regression.test.js` suite. On failure it exits 2, which
+surfaces the failure to the session immediately rather than waiting for someone to
+double-click `check.bat` later. It deliberately does **not** re-implement the
+unscoped-`localStorage` scan — `tests/regression.test.js` already has that exact test
+("no new unscoped localStorage key holds shop state"), and the hook running the suite
+means it's already covered without a second, weaker copy of the same logic living in a
+hook script. Tested against a real module (clean) and a deliberately broken scratch
+file (`js/99-scratch-test.js`, created and deleted, never committed) — both `node --check`
+and the regression suite correctly failed and were reported.
+
+**3. A tracked pre-commit hook, `githooks/pre-commit`, with `git config core.hooksPath
+githooks` set locally.** Only runs the regression suite (and `node --check` on staged
+`js/` files) when a commit actually stages something under `js/`, `checks/`, or
+`tests/` — a HANDOFF-only or docs-only commit, which is most of what shows up in this
+log, exits in effectively zero time. `--no-verify` still bypasses it if ever needed.
+This is a local git config change, not a project file everyone gets automatically —
+whoever else commits into this same clone (including Cowork, if it ever shells out to
+git here rather than going through the device bridge) would need to run that same
+`git config` line once to pick it up. Tested both directions with a scratch file
+(valid → 55/55 pass, commit allowed; syntax error → blocked) before relying on it.
+
+**Why now, unprompted:** Tanish asked what automations would help this project, I
+listed hooks/skills/MCP-server options, and he said to go ahead with my own judgment.
+Picked these three because they directly serve rules already written down in
+`CLAUDE.md`/`skills/jewelos-dev-rules.md` (fast feedback on the ES5/regression gate,
+the unscoped-`localStorage` bug class that's bitten six times, and "commit before you
+hand back a build") rather than adding anything new to the project's own conventions.
+
+Verified: `git status` clean before and after, ran `git log --oneline -5` on arrival
+(last five commits were the counters-reconciliation HANDOFF entries, nothing dirty or
+mid-change). Did not run `check.bat` itself since no `js/` file was actually changed
+this session — the regression suite ran clean (55/55) as a side effect of testing the
+hooks above. Not verified: neither hook has fired yet through a real Claude Code
+session (only tested by invoking the scripts directly) — worth confirming the
+`PostToolUse` hook actually fires on the very next session that edits a `js/` file,
+since hook config is picked up at session start and this one was written mid-session.
+
+→ FOR COWORK: nothing — FYI only, no code or data touched. If you ever run `git commit`
+directly against this folder through the device bridge rather than through Claude
+Code, the new pre-commit hook applies to you too (it only activates when `js/`,
+`checks/`, or `tests/` files are staged; everything else is a no-op).
+
 ### 2026-09-12 · Cowork (counters reconciliation done — all shops, plus one more real duplicate found beyond lumineer)
 
 **Ran the reconciliation you handed back. Every shop's counters now sit at or above the

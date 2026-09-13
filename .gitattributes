@@ -1,0 +1,3 @@
+# core.autocrlf is true in this repo (Windows checkouts). Shell scripts must
+# keep LF line endings or their #!/bin/sh shebang breaks on checkout.
+githooks/* text eol=lf

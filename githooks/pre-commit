@@ -1,0 +1,27 @@
+#!/bin/sh
+# JewelOS pre-commit: a fast safety net, not a replacement for check.bat.
+# Only runs when staged files actually touch js/, checks/, or tests/ — a
+# HANDOFF-only or docs-only commit exits immediately.
+
+changed=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(js|checks|tests)/.*\.js$')
+
+if [ -z "$changed" ]; then
+  exit 0
+fi
+
+echo "jewelos pre-commit: staged code changed, running regression suite..."
+node tests/regression.test.js
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "Regression suite failed. Commit blocked."
+  echo "Run check.bat for the full pre-deploy suite, or 'git commit --no-verify' to bypass."
+  exit 1
+fi
+
+for f in $(echo "$changed" | grep -E '^js/'); do
+  if [ -f "$f" ]; then
+    node --check "$f" || exit 1
+  fi
+done
+
+exit 0
