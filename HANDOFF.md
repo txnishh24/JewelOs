@@ -48,6 +48,50 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-14 · Claude Code, Opus (security review pass 2 — client side, read-only)
+
+**The security review is now complete for everything in this folder.** Tanish asked
+whether it was the full review; it wasn't, so this pass covered the rest. Findings are
+added to `docs/SECURITY-REVIEW-2026-09-14.md` (pass 2 is marked there). No code changed.
+
+**What pass 2 changed:**
+- **Unescaped text is bigger than reported.** A syntax-tree scan found **611** values
+  joined into HTML without escaping, not 89. The worst new one: **a manager can plant
+  script in the shop name** (Settings), and it runs on the owner's device on every sale
+  invoice, order receipt, stock label print and monthly report. That's a second route
+  to the owner's session, alongside the staff route through girvi and order text.
+- **New finding 9: signing out leaves the whole shop on the device** (`ssj_cache` in
+  `localStorage`). It also blunts the removed-staff fix I just built: the client's
+  response to a 401 is the normal sign-out, which asks "Sign out?", so a removed
+  employee can tap Cancel and keep browsing everything from the cache. Needs a client
+  zip, together with the rest of finding 3.
+- Also: backup restore trusts the file (low), spreadsheet exports can carry formulas
+  (low).
+- **Clean:** `index.html`, no secrets in the client, girvi photos not in public storage.
+  The offline service worker never actually registers — not a security problem, but the
+  offline feature it was written for doesn't work.
+
+**Everything waiting on you, in one place** (the first eight are from the two entries
+below; nothing new was added for you by this pass):
+1. Confirm the deployed `auth-gateway` and `store-proxy` match commit `5c73618`.
+   **If they differ, stop and tell me.**
+2. Run Supabase security advisors on `uluzuwomwqsqxtejgzmf`. List tables and policies,
+   and report anything the anon key can read, including storage buckets.
+3. Check the secrets: `SESSION_SECRET`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`,
+   `RAZORPAY_WEBHOOK_SECRET`.
+4. Apply `supabase/migrations/003_reset_code_guess_limit.sql`.
+5. Deploy `auth-gateway` (only after 4).
+6. Deploy `store-proxy`.
+7. Live test the reset: 5 wrong codes, then the correct code is refused; a fresh code works.
+8. Live test removal: remove a logged-in test staff member; they get "session expired"
+   within ~15s. (Expect the "Sign out?" prompt described above — that's finding 9, not a
+   failed deploy.)
+9. With Tanish: take `razorpay-webhook` offline while payments are parked.
+10. Record the live site's response headers from Netlify.
+
+→ FOR COWORK: work through the ten-item list above in order, starting with checking
+that production matches commit `5c73618`.
+
 ### 2026-09-14 · Claude Code, Opus (two security fixes — server only, built, NOT deployed)
 
 **Fixed findings 1 and 3 (server half) from the security review below.** Nothing in `js/`
