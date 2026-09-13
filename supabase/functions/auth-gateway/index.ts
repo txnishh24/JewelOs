@@ -57,6 +57,7 @@ const LOCKOUT_WINDOW_MIN = 15;
 const SESSION_TTL_HOURS = 12;
 const RESET_CODE_TTL_MIN = 15;
 const RESET_MAX_REQUESTS_PER_HOUR = 3;
+const RESET_MAX_GUESSES = 5; // wrong guesses before a reset code is burned
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
 
@@ -441,18 +442,22 @@ Deno.serve(async (req) => {
     }
     if (newPassword.length < 8) return json({ error: "New password must be at least 8 characters" }, 400, origin);
 
+    // One locked database call checks the guess against the newest code only,
+    // counts it if wrong (burning the code at RESET_MAX_GUESSES), and consumes
+    // it if right — see migrations/003_reset_code_guess_limit.sql. Doing this
+    // as separate select/update calls here would let parallel guesses race
+    // past the cap.
     const codeHash = await sha256Hex(code);
-    const { data: tokens, error: tokenErr } = await supabase
-      .from("password_reset_tokens")
-      .select("id, expires_at, used")
-      .eq("email", email)
-      .eq("code_hash", codeHash)
-      .order("created_at", { ascending: false })
-      .limit(1);
-    if (tokenErr) return json({ error: tokenErr.message }, 500, origin);
-
-    const token = tokens && tokens.length ? tokens[0] : null;
-    if (!token || token.used || new Date(token.expires_at as string).getTime() < Date.now()) {
+    const { data: consumed, error: consumeErr } = await supabase.rpc("consume_password_reset_code", {
+      p_email: email,
+      p_code_hash: codeHash,
+      p_max_attempts: RESET_MAX_GUESSES,
+    });
+    if (consumeErr) {
+      console.error("[auth-gateway] consume_password_reset_code failed:", consumeErr.message);
+      return json({ error: "Could not check that code. Please try again." }, 500, origin);
+    }
+    if (consumed !== true) {
       return json({ error: "That code is invalid or has expired. Request a new one." }, 401, origin);
     }
 
@@ -467,7 +472,6 @@ Deno.serve(async (req) => {
     const hashed = await hashPassword(newPassword);
     users[idx] = { ...users[idx], passwordHash: hashed.hash, salt: hashed.salt, mustResetPassword: false };
     await putBlob(supabase, "users", users);
-    await supabase.from("password_reset_tokens").update({ used: true }).eq("id", token.id as number);
 
     return json({ ok: true }, 200, origin);
   }

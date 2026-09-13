@@ -48,6 +48,59 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-14 · Claude Code, Opus (two security fixes — server only, built, NOT deployed)
+
+**Fixed findings 1 and 3 (server half) from the security review below.** Nothing in `js/`
+or `index.html` changed, so **there is no zip for Tanish to drag.** This goes live through
+Supabase, which is your side. 🔴 under `MODEL-POLICY.md` §8 (auth), done on Opus.
+
+**1. Reset codes can no longer be guessed.** New `migrations/003_reset_code_guess_limit.sql`
+adds a `failed_attempts` column and a `consume_password_reset_code()` function. The function
+checks a guess against the **newest** code only, burns it after **5 wrong guesses**, and does
+it inside one row-locked statement so parallel guesses can't race past the cap.
+`auth-gateway`'s `reset-password` now calls it. Worst case for an attacker: 3 codes an hour ×
+5 guesses = 15 guesses an hour out of 900,000.
+
+**2. Removed staff are cut off immediately.** `store-proxy` now looks up the user on every
+request and returns 401 if they no longer exist or belong to another shop, so the app shows
+"session expired" and signs them out on its next 15-second poll. Role now comes from the
+user's current record, not from the token.
+
+**Why this is safe without a client deploy** (the usual rule is that functions and client
+ship together): no request or response shape changed. The client already handles 401 as
+"sign in again". The only new response is a 500 when the database lookup itself fails,
+which the client already treats as a sync error and retries.
+
+**Deploy order — this matters:**
+1. **First confirm the deployed `auth-gateway` and `store-proxy` match commit `5c73618`** (your
+   pending ask from the review entry). If production has changes this repo doesn't, deploying
+   these files would silently overwrite them. Stop and tell me if they differ.
+2. **Apply `003`** — additive; the currently deployed `auth-gateway` keeps working after it.
+3. **Deploy `auth-gateway`.** Deploying it before `003` makes "forgot password" fail with a
+   500 until `003` lands. Login is unaffected either way.
+4. **Deploy `store-proxy`.** Independent of `003`.
+
+**Verified:** new `tests/edge-functions.test.js` runs the real functions against a fake
+database: sign up, add staff, log in with real signed tokens, then exercise both fixes.
+**17/17 pass on the new code; the same file against the old code fails exactly the 8
+security tests and passes the 9 normal-behaviour ones.** On the old code the removed staff
+member's attempt to wipe the shop returned 200. Browser regression suite still 55/55.
+
+**Not verified:** the SQL in `003` has never run. There's no Postgres here, so the test
+uses a JS model of the function; the locking under truly concurrent requests is reasoned,
+not tested. Needs a real run: request a reset code, send 5 wrong codes, then check the right
+one is refused. Also unverified: that production matches this repo (step 1).
+
+**Still open from finding 3:** sign-out doesn't clear the token, and a password change
+doesn't end other sessions. Both need a client change, so they go in the next zip.
+
+(Didn't claim the NOW line at the start of this session. Checked it read `nobody` and
+the tree was clean, then forgot to write it. Noting it rather than faking it.)
+
+→ FOR COWORK: confirm the deployed `auth-gateway` and `store-proxy` match commit `5c73618`, then
+apply `003` and deploy both functions in the order above, then test a real reset with 5 wrong
+codes — tell me if production differs before deploying anything.
+
 ### 2026-09-14 · Claude Code, Opus (security review — read-only, nothing changed)
 
 **Full report: `docs/SECURITY-REVIEW-2026-09-14.md`.** Reviewed the three Edge Functions,

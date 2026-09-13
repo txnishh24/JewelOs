@@ -21,8 +21,9 @@
 // token auth-gateway already issues at login/signup, verifies signature
 // and expiry server-side, then resolves the shop's rowKey ITSELF from
 // auth_store. The client never names the tenant it wants. Role comes
-// from the same signed token, so per-action authorization can no longer
-// be bypassed by editing frontend JavaScript.
+// from the user's current record in auth_store (not the token, since
+// 14 Sep), so per-action authorization can no longer be bypassed by
+// editing frontend JavaScript, and a removed user is cut off at once.
 //
 // Client-facing request/response SHAPES are unchanged from v4, so the
 // only client edit needed is swapping the header. See DEPLOY.md.
@@ -126,26 +127,44 @@ async function verifySession(token: string | null): Promise<Session | null> {
   };
 }
 
-// ── Tenant resolution ─────────────────────────────────────────────────
+// ── Tenant + user resolution ──────────────────────────────────────────
 // The session carries shopId ("shop_xxxx"), but `store` rows are keyed
 // by the shop's rowKey (a UUID). v4 had the client supply that rowKey;
 // v5 looks it up server-side so the client can't name another tenant.
+//
+// A valid signature only proves the token was issued, not that its user
+// still belongs to this shop. Without re-checking, a removed staff member
+// kept full access until the token expired (up to 12h — security review
+// 14 Sep, finding 3). So the user is looked up on every request too, and
+// the role is taken from their current record rather than from the token.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function resolveRowKey(
+type Tenant =
+  | { ok: true; rowKey: string; role: string }
+  | { ok: false; reason: "user_gone" | "shop_gone" };
+
+async function resolveTenant(
   supabase: ReturnType<typeof createClient>,
-  shopId: string,
-): Promise<string | null> {
+  session: Session,
+): Promise<Tenant | null> {
   const { data, error } = await supabase
-    .from("auth_store").select("data").eq("id", "shops").limit(1);
-  if (error || !data || !data.length) return null;
-  const shops = (data[0].data ?? []) as Record<string, unknown>[];
-  const shop = shops.find((s) => s.id === shopId);
-  if (!shop) return null;
+    .from("auth_store").select("id, data").in("id", ["shops", "users"]);
+  if (error || !data) return null;
+  const blob = (id: string) =>
+    ((data.find((r) => r.id === id)?.data ?? []) as Record<string, unknown>[]);
+
+  const user = blob("users").find((u) => u.id === session.userId);
+  if (!user || user.shopId !== session.shopId) return { ok: false, reason: "user_gone" };
+
+  const shop = blob("shops").find((s) => s.id === session.shopId);
+  if (!shop) return { ok: false, reason: "shop_gone" };
   const rowKey = String(shop.rowKey ?? "");
   // Refuse anything that isn't a proper UUID — in particular the legacy
   // shared 'main' key, which must never be addressable again.
-  return UUID_RE.test(rowKey) ? rowKey : null;
+  if (!UUID_RE.test(rowKey)) return { ok: false, reason: "shop_gone" };
+
+  // Same fallback verifySession applies to a token with no role.
+  return { ok: true, rowKey, role: String(user.role ?? "staff") };
 }
 
 Deno.serve(async (req) => {
@@ -161,14 +180,24 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  const shopKey = await resolveRowKey(supabase, session.shopId);
-  if (!shopKey) {
-    return json({ error: "invalid_tenant", message: "Shop not found for this session." }, 403, origin);
+  const tenant = await resolveTenant(supabase, session);
+  if (!tenant) {
+    return json({ error: "lookup failed" }, 500, origin);
   }
+  if (!tenant.ok) {
+    // 401 on a removed user sends the client down its existing "session
+    // expired — sign in again" path (js/01-sync-core.js), where the login
+    // itself will now fail.
+    return tenant.reason === "user_gone"
+      ? json({ error: "unauthenticated", message: "Please sign in again." }, 401, origin)
+      : json({ error: "invalid_tenant", message: "Shop not found for this session." }, 403, origin);
+  }
+  const shopKey = tenant.rowKey;
+  const role = tenant.role;
 
   // ── READ ────────────────────────────────────────────────────────────
   if (req.method === "GET") {
-    if (!CAN_READ.has(session.role)) return json({ error: "forbidden" }, 403, origin);
+    if (!CAN_READ.has(role)) return json({ error: "forbidden" }, 403, origin);
     const { data: rows, error } = await supabase
       .from("store").select("data, updated_at").eq("id", shopKey).limit(1);
     if (error) {
@@ -181,7 +210,7 @@ Deno.serve(async (req) => {
 
   // ── WRITE (atomic compare-and-swap) ─────────────────────────────────
   if (req.method === "PUT") {
-    if (!CAN_WRITE.has(session.role)) {
+    if (!CAN_WRITE.has(role)) {
       return json({ error: "forbidden", message: "Your account cannot save changes." }, 403, origin);
     }
     let body: { data?: unknown; expectedVersion?: number };
@@ -216,7 +245,7 @@ Deno.serve(async (req) => {
 
   // ── COUNTERS ────────────────────────────────────────────────────────
   if (req.method === "POST") {
-    if (!CAN_WRITE.has(session.role)) return json({ error: "forbidden" }, 403, origin);
+    if (!CAN_WRITE.has(role)) return json({ error: "forbidden" }, 403, origin);
     let body: { action?: string; counter?: string };
     try {
       body = await req.json();

@@ -21,6 +21,10 @@ deployed versions, extra tables), it says so.
 
 ## 1. Password-reset codes can be guessed → any account taken over from just an email · HIGH
 
+> **Status 14 Sep: fixed in this repo, NOT deployed.** `migrations/003_reset_code_guess_limit.sql`
+> + `auth-gateway`. Only the newest code is accepted; 5 wrong guesses burn it. Covered
+> by `tests/edge-functions.test.js`.
+
 **Where:** `supabase/functions/auth-gateway/index.ts`, route `reset-password` (lines 435–473).
 The client uses this flow (`js/05-auth-login.js:171`, `:201`), so the endpoint is live.
 
@@ -79,6 +83,11 @@ non-HTML context (WhatsApp text, `textContent`, a JS string), where `&#39;` woul
 literally. `jsAttrEsc()` is correct as written.
 
 ## 3. Sessions cannot be revoked · MEDIUM
+
+> **Status 14 Sep: server half fixed in this repo, NOT deployed.** `store-proxy` now
+> rejects a removed user (401) and takes the role from the current record. **Still
+> open:** sign-out doesn't clear the token (client, needs a zip), and a password change
+> doesn't end other sessions.
 
 **What's wrong.** A session token is valid for 12 hours no matter what happens after it
 was issued:

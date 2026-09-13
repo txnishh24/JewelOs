@@ -33,3 +33,23 @@ whoever works on this next) will thank present-you.
 
 Node.js (any reasonably recent version). No npm install needed — zero
 dependencies, uses only Node's built-in `vm` module.
+
+## Server-side: `edge-functions.test.js`
+
+```
+node tests/edge-functions.test.js
+```
+
+The suite above tests the app in the browser. This one tests the **Edge
+Functions** (`supabase/functions/auth-gateway` and `store-proxy`) — the login
+and data-access code that runs on Supabase. Run it before deploying any change
+there. It is not part of `check.bat`, because nothing in `check.bat` touches
+the server.
+
+It runs the real function code against a fake database, so it proves the
+functions behave correctly — but not that the SQL in `supabase/migrations/`
+works. That still has to be checked against the live project.
+
+Unlike the browser suite it needs one tool, `sucrase`, to read TypeScript. It
+finds a copy on its own if one is installed; otherwise it prints `SKIPPED`
+rather than failing.
