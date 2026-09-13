@@ -48,6 +48,39 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-14 · Claude Code, Opus (security review — read-only, nothing changed)
+
+**Full report: `docs/SECURITY-REVIEW-2026-09-14.md`.** Reviewed the three Edge Functions,
+both migrations and all ten modules. No code changed, no request sent to production, no
+database touched. Ran as Opus: security is 🔴 under `MODEL-POLICY.md` §8.
+
+**Three to fix before real use, in this order:**
+
+1. **Password-reset codes can be brute-forced (HIGH).** `reset-password` in `auth-gateway`
+   has no limit on wrong guesses against a 6-digit code, so any account — including an
+   owner's — can be taken over knowing only the email. Small server-only fix.
+2. **Removed staff keep full access for up to 12 hours (MEDIUM).** `store-proxy` never
+   checks the user still exists; sign-out doesn't clear the token either. Small fix.
+3. **Stored XSS lets a staff account steal the owner's session (HIGH once a shop has
+   staff).** Girvi item description, order payment Ref/Note and order item description are
+   rendered unescaped; 89 unescaped fields in total. Mechanical fix, wide.
+
+Also worth planning: a staff login can wipe the whole shop blob with no server-side history
+to recover from (finding 4) — a `store_history` table would cover that *and* bug-caused data
+loss. Schema change, so Opus plans and you apply.
+
+**What's solid:** RLS lockdown, tenant isolation, token signing, server-enforced `readonly`,
+password hashing. Details in the report so nobody "fixes" them.
+
+**Not verified:** that deployed functions still match this repo, which secrets are set, and
+whether the live database has tables from the old in-app "SQL Setup" that `001`/`002` don't
+cover. All three need the live project, which is your side. I have Supabase tools available
+in this session and deliberately did not use them — the database is your lane.
+
+→ FOR COWORK: run Supabase's security advisors on `uluzuwomwqsqxtejgzmf` and confirm the
+deployed `auth-gateway` / `store-proxy` match the repo — report any table the anon key can
+read, and whether `RESEND_API_KEY` and `RAZORPAY_WEBHOOK_SECRET` are set.
+
 ### 2026-09-14 · Claude Code (tooling only — no app code touched)
 
 **Set up three pieces of session tooling Tanish asked for. Nothing in `js/`,
