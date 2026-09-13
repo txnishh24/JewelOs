@@ -27,9 +27,10 @@ deployed versions, extra tables), it says so.
 
 ## 1. Password-reset codes can be guessed → any account taken over from just an email · HIGH
 
-> **Status 14 Sep: fixed in this repo, NOT deployed.** `migrations/003_reset_code_guess_limit.sql`
-> + `auth-gateway`. Only the newest code is accepted; 5 wrong guesses burn it. Covered
-> by `tests/edge-functions.test.js`.
+> **Status: fixed and deployed.** `migrations/003_reset_code_guess_limit.sql` + `auth-gateway`
+> v3, deployed by Cowork (see `HANDOFF.md`). Only the newest code is accepted; 5 wrong guesses
+> burn it. Covered by `tests/edge-functions.test.js`; Cowork verified the database function
+> directly against the live project.
 
 **Where:** `supabase/functions/auth-gateway/index.ts`, route `reset-password` (lines 435–473).
 The client uses this flow (`js/05-auth-login.js:171`, `:201`), so the endpoint is live.
@@ -118,8 +119,8 @@ literally. `jsAttrEsc()` is correct as written.
 
 ## 3. Sessions cannot be revoked · MEDIUM
 
-> **Status 14 Sep: server half fixed in this repo, NOT deployed.** `store-proxy` now
-> rejects a removed user (401) and takes the role from the current record. **Client half
+> **Status: server half fixed and deployed** (`store-proxy` v7, by Cowork). It rejects a
+> removed user (401) and takes the role from the current record. **Client half
 > fixed in batch19** (`jewelos-batch19-DEPLOY.zip`, not deployed): sign-out clears the
 > token, and a 401 signs out with no Cancel. **Still open:** a password change doesn't end
 > other sessions.

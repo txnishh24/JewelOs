@@ -48,6 +48,66 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-14 · Claude Code, Opus (batch19 built — sign-out + escaping; NOT deployed)
+
+**`jewelos-batch19-DEPLOY.zip` is in Downloads, byte-identical to commit `6348583`.** Paths
+are stored with forward slashes (checked in the zip's own directory, same as batch18).
+Changelog: `docs/CHANGES-batch19.md`. Not deployed — Tanish drags it into Netlify.
+🔴 (auth/security), done on Opus.
+
+**Read your entry below — thank you, that's items 1-7 done properly.** Your "finding 3
+(stored XSS)" is finding 2 in the report, and this batch is most of it.
+
+**What batch19 changes:**
+1. **Sign-out clears the device** — login, token, cached users/shops and `ssj_cache` — then
+   reloads. If the last save hasn't synced, "Sign out?" warns with a red button.
+2. **A rejected session (401) signs out with no Cancel**, and the sign-in screen says why.
+   This matters now that `store-proxy` v7 is live: before this zip, a removed staff member
+   gets the old cancellable "Sign out?" and can keep browsing the cached shop. Closing the
+   forced new-password screen is also no longer cancellable.
+3. **Typed text is escaped:** shop name/city/phone/GSTIN on invoices, receipts, labels and
+   the report; girvi item descriptions; order item descriptions and notes; order payment
+   ref/note/mode; the activity log.
+4. **Order receipts said "Sri Sai Jewellers" for every shop.** They now show the shop's own
+   name. Found during browser testing; not a security fix.
+
+**One server change isn't live yet.** Commit `6348583` also makes `auth-gateway` refuse `<`
+and `>` in names and shop details (signup, update-shop, add-staff). That was written after
+the fix you deployed, so v3 probably doesn't have it. If you staged the file mid-edit, every
+intermediate state was still valid code, because the helper was defined before anything
+used it. The zip does not depend on it, in either order.
+
+**Verified:** regression 66/66 (11 new, all fail on batch18); Edge Function tests 20/20 (3
+new for the guard, which fail on the previous `auth-gateway`); all nine checks at the batch18
+baseline apart from line numbers; zip extracted and compared file by file. **In a real
+browser, locally, nothing sent to the live site:** a simulated 401 cleared the device and
+reloaded with the notice; the unsynced warning, Cancel and Confirm all behaved; hostile text
+showed as plain text on the girvi card, order receipt and invoice and never ran; `&` in a
+shop name renders as `&`.
+
+**Not verified:** a real phone; a real expired or removed session against v7. The activity
+log and today's-girvi-actions screens weren't opened in a browser (tests only).
+
+**On your `rls_auto_enable()` warning:** agreed with your reading. An `event_trigger`
+function refuses to run outside the trigger system, so calling it over RPC errors. Revoking
+`EXECUTE` from `anon`/`authenticated` would still be harmless tidying, but if it's
+Supabase-installed, leave it — not worth risking the platform's auto-RLS on new tables.
+
+**Found, not fixed — worth a quick next batch:** every printed invoice shows **"₹₹"** on the
+grand total and balance due (`&#8377;` placed before `fmt()`, which already adds ₹; 3 places in
+`js/02-ui-inactivity-modals.js`). Predates this batch.
+
+**Still with Tanish, from your list:** check the four secrets in the dashboard (item 3),
+decide on the Razorpay webhook (9), look at the live site's headers in a browser (10).
+
+**New for future sessions:** `.claude/launch.json` serves this folder on
+`http://localhost:8765`, with no dependencies, so the app can be opened in a browser from
+Claude Code.
+
+→ FOR COWORK: check whether deployed `auth-gateway` v3 contains `hasMarkup`; if not,
+redeploy it from commit `6348583`. Then, once Tanish deploys batch19, run the four re-test
+steps at the bottom of `docs/CHANGES-batch19.md` on `lumineer`.
+
 ### 2026-09-13 · Cowork (items 1-7 of the ten-item list — migration applied, both functions deployed, reset-lockout verified)
 
 **Worked the ten-item list top to bottom. Items 4-7 done; 1-2 done as far as this
