@@ -54,7 +54,7 @@ function showOrderDetail(ordId){
             (item.making?'<div>Making: '+makingDisplay+'</div>':'')+
           '</div>'+
         '</div>'+
-        (item.note?'<div style="font-size:11px;color:var(--text3);margin-top:4px;font-style:italic;">'+item.note+'</div>':'');
+        (item.note?'<div style="font-size:11px;color:var(--text3);margin-top:4px;font-style:italic;">'+escHtml(item.note)+'</div>':'');
       itemsInner.appendChild(row);
     });
     itemsDiv.appendChild(itemsInner);
@@ -90,9 +90,9 @@ function showOrderDetail(ordId){
         '<div>'+
           '<div style="font-size:13px;font-weight:600;color:'+(isRev?'var(--danger)':'var(--ink)')+';">'+
             (isRev?'&#9100; Reversed: ':'&#128179; ')+fmt(txn.amount)+
-            ' <span style="font-size:11px;font-weight:400;color:var(--text3);">'+txn.mode+'</span>'+
+            ' <span style="font-size:11px;font-weight:400;color:var(--text3);">'+escHtml(txn.mode)+'</span>'+
           '</div>'+
-          '<div style="font-size:11px;color:var(--text3);margin-top:1px;">'+fmtDate(txn.date)+' '+fmtTime(txn.date)+(txn.ref?' &bull; Ref: '+txn.ref:'')+(txn.note?' &bull; '+txn.note:'')+'</div>'+
+          '<div style="font-size:11px;color:var(--text3);margin-top:1px;">'+fmtDate(txn.date)+' '+fmtTime(txn.date)+(txn.ref?' &bull; Ref: '+escHtml(txn.ref):'')+(txn.note?' &bull; '+escHtml(txn.note):'')+'</div>'+
         '</div>'+
         '<div style="display:flex;gap:6px;align-items:center;">'+
           '<span class="badge '+(isRev?'bg-red':txn.type==='advance'?'bg-gold':'bg-green')+'">'+txn.type+'</span>'+
@@ -146,7 +146,7 @@ function showOrderDetail(ordId){
       '<div class="ord-tl-content">'+
         '<div class="ord-tl-label" style="color:'+(isDone||isActive?'var(--ink)':'var(--text3)')+';">'+ORD_STATUS[s].icon+' '+ORD_STATUS[s].label+'</div>'+
         (histEntry?'<div class="ord-tl-date">'+fmtDate(histEntry.date)+' at '+fmtTime(histEntry.date)+'</div>':'')+
-        (histEntry&&histEntry.note?'<div class="ord-tl-note">'+histEntry.note+'</div>':'')+
+        (histEntry&&histEntry.note?'<div class="ord-tl-note">'+escHtml(histEntry.note)+'</div>':'')+
       '</div>';
     tlInner.appendChild(row);
   });
@@ -410,17 +410,17 @@ function generateOrderReceipt(ordId){
   var o=S.orders.find(function(x){return x.id===ordId;});if(!o)return;
   var adv=ordAdvance(o); var bal=Math.max(0,(o.quote||0)-adv);
   var rows=(o.items&&o.items.length)?o.items.map(function(it,n){
-    return '<tr><td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;">'+(n+1)+'. '+it.desc+'</td>'+
-      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;text-align:center;">'+it.purity+'</td>'+
+    return '<tr><td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;">'+(n+1)+'. '+escHtml(it.desc)+'</td>'+
+      '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;text-align:center;">'+escHtml(it.purity)+'</td>'+
       '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;text-align:center;">'+(it.orderWt?fmtW(it.orderWt):'—')+'</td>'+
       '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;text-align:center;">'+(it.estWt?fmtW(it.estWt):'—')+'</td>'+
       '<td style="padding:8px 10px;border-bottom:1px solid #f0f0f0;text-align:right;">'+(it.making>0?(it.makingType==='per_gram'?fmt(it.making)+'/g':it.makingType==='percent'?it.making+'%':fmt(it.making)):'—')+'</td>'+
     '</tr>';
-  }).join(''):'<tr><td colspan="5" style="padding:10px;text-align:center;color:#999;">'+( o.desc||'Custom Order')+'</td></tr>';
+  }).join(''):'<tr><td colspan="5" style="padding:10px;text-align:center;color:#999;">'+escHtml(o.desc||'Custom Order')+'</td></tr>';
   var ledgerRows=(o.ledger&&o.ledger.length)?o.ledger.map(function(txn){
     return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:12px;">'+
-      '<span style="color:'+(txn.type==='reversal'?'#c0392b':'#1a1814')+';">'+(txn.type==='reversal'?'&#9100; Reversed: ':'')+fmt(txn.amount)+' ('+txn.mode+')</span>'+
-      '<span style="color:#888;">'+fmtDate(txn.date)+(txn.ref?' · '+txn.ref:'')+'</span>'+
+      '<span style="color:'+(txn.type==='reversal'?'#c0392b':'#1a1814')+';">'+(txn.type==='reversal'?'&#9100; Reversed: ':'')+fmt(txn.amount)+' ('+escHtml(txn.mode)+')</span>'+
+      '<span style="color:#888;">'+fmtDate(txn.date)+(txn.ref?' · '+escHtml(txn.ref):'')+'</span>'+
     '</div>';
   }).join(''):'<div style="color:#888;font-size:12px;padding:5px 0;">No payments recorded</div>';
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Order Receipt '+o.ordNo+'</title><style>'+
@@ -449,7 +449,7 @@ function generateOrderReceipt(ordId){
     '.footer{text-align:center;margin-top:20px;padding-top:14px;border-top:1px solid #e0e0e0;font-size:11px;color:#888;}'+
     '@media print{body{font-size:12px;}.page{padding:16px 20px;}}'+
     '</style></head><body><div class="page">'+
-    '<div class="hdr"><div><div class="sn"><em>Sri Sai</em> Jewellers</div><div class="st">Order Receipt — Not a Tax Invoice</div></div>'+
+    '<div class="hdr"><div><div class="sn">'+escHtml((SAAS&&SAAS.shop&&SAAS.shop.name)||'JewelOS')+'</div><div class="st">Order Receipt — Not a Tax Invoice</div></div>'+
     '<div class="ord-badge"><div class="ord-no">'+o.ordNo+'</div><div class="ord-date">'+fmtDate(o.createdAt)+' · '+ORD_STATUS[o.status||'new'].label+'</div></div></div>'+
     '<div class="info-row">'+
       '<div class="ibox"><div class="ilbl">Customer</div><div class="iname">'+escHtml(o.customer)+'</div>'+(o.phone?'<div class="idet">'+escHtml(o.phone)+'</div>':'')+(o.addr?'<div class="idet">'+escHtml(o.addr)+'</div>':'')+'</div>'+
@@ -465,9 +465,9 @@ function generateOrderReceipt(ordId){
     '</div>'+
     (o.goldDeposit?'<div style="font-size:12px;color:#888;margin-bottom:12px;">Gold Deposited: <strong>'+fmtW(o.goldDeposit)+'</strong></div>':'')+
     '<div class="sig"><div class="sigb"><div class="sigl"></div><div class="sigk">Customer</div></div>'+
-    '<div style="font-size:12px;color:#888;font-style:italic;">'+((SAAS&&SAAS.shop&&SAAS.shop.name)||'JewelOS')+'</div>'+
+    '<div style="font-size:12px;color:#888;font-style:italic;">'+escHtml((SAAS&&SAAS.shop&&SAAS.shop.name)||'JewelOS')+'</div>'+
     '<div class="sigb"><div class="sigl"></div><div class="sigk">Authorised</div></div></div>'+
-    '<div class="footer">'+((SAAS&&SAAS.shop&&SAAS.shop.name)||'JewelOS')+' — Order Receipt — Not a final invoice. BIS Hallmark status subject to hallmarking at delivery.</div>'+
+    '<div class="footer">'+escHtml((SAAS&&SAAS.shop&&SAAS.shop.name)||'JewelOS')+' — Order Receipt — Not a final invoice. BIS Hallmark status subject to hallmarking at delivery.</div>'+
     '</div></body></html>';
   var w=window.open('','_blank','width=750,height=900');
   if(w){w.document.write(html);w.document.close();setTimeout(function(){w.print();},600);}
@@ -1679,6 +1679,7 @@ var SHOP_ROW_KEY = 'main'; // default; overridden after auth
 // ── AUTH HELPERS ─────────────────────────────────────────────────────
 var AUTH_KEY   = 'jewelos_session';
 var SESSION_TOKEN_KEY = 'jewelos_session_token'; // sessionStorage only — bearer credential, not a cache
+var SIGNOUT_NOTICE_KEY = 'jewelos_signout_notice'; // sessionStorage — survives the sign-out reload, read once
 var SHOP_KEY   = 'jewelos_shop';
 var USERS_KEY  = 'jewelos_users';
 var SHOPS_KEY  = 'jewelos_shops';
@@ -1730,6 +1731,14 @@ function showAuthScreen(){
   if(header) header.style.display = 'none';
   if(mainEl)  mainEl.style.display  = 'none';
   if(bnav)    bnav.style.display    = 'none';
+  try{
+    var notice = sessionStorage.getItem(SIGNOUT_NOTICE_KEY);
+    if(notice){
+      sessionStorage.removeItem(SIGNOUT_NOTICE_KEY);
+      var errEl = document.getElementById('auth-login-err');
+      if(errEl) errEl.textContent = notice;
+    }
+  }catch(e){}
 }
 
 function hideAuthScreen(){

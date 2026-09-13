@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "jewelos-static",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-e",
+        "var h=require('http'),f=require('fs'),p=require('path'),r=process.cwd(),T={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.json':'application/json','.png':'image/png','.svg':'image/svg+xml'};h.createServer(function(q,s){var u=decodeURIComponent(q.url.split('?')[0]);if(u==='/')u='/index.html';var fp=p.join(r,p.normalize(u));if(fp.indexOf(r)!==0){s.writeHead(403);return s.end();}f.readFile(fp,function(e,d){if(e){s.writeHead(404);return s.end('not found');}s.writeHead(200,{'Content-Type':T[p.extname(fp)]||'application/octet-stream','Cache-Control':'no-store'});s.end(d);});}).listen(8765,'127.0.0.1',function(){console.log('JewelOS static preview on http://localhost:8765');});"
+      ],
+      "port": 8765
+    }
+  ]
+}

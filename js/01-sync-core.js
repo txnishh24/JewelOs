@@ -55,8 +55,9 @@ function loadFromCloud(callback){
     if(r.status === 401){
       clearTimeout(timer); done = true;
       setSyncStatus('err','Session expired');
-      toast('\u26a0 Your session expired — please sign in again.');
-      if(typeof saasLogout === 'function') saasLogout();
+      // Forced, not the confirm-first saasLogout(): this 401 is also what a
+      // user removed from the shop gets, and they must not be able to cancel.
+      if(typeof saasForceLogout === 'function') saasForceLogout('Your session has ended — please sign in again.');
       throw new Error('unauthenticated');
     }
     if(!r.ok) throw new Error('HTTP ' + r.status);
@@ -210,9 +211,10 @@ function saveToCloud(callback){
       if(res.status === 401){
         isSaving = false; _isSavingSetAt = 0;
         setSyncStatus('err','Session expired');
-        toast('\u26a0 Your session expired — please sign in again. Your unsaved changes are still on screen.');
-        if(typeof saasLogout === 'function') saasLogout();
+        // Callback first so a transactional save can roll back, then sign out
+        // without a confirm (see loadFromCloud's 401 above for why).
         if(callback) callback(new Error('unauthenticated'));
+        if(typeof saasForceLogout === 'function') saasForceLogout('Your session ended before your last change was saved — please sign in again and redo it.');
         return;
       }
       // A 403 means the account is authenticated but not allowed to
@@ -1649,7 +1651,7 @@ function openBarcodeLabels(prodIds) {
     var price= Math.round((p.weight||0)*getRate(p.metal,p.purity));
     var bars = _barcodeSVG(sku);
     return '<div class="lbl">' +
-      '<div class="ls">'+ ((SAAS&&SAAS.shop&&SAAS.shop.name)||'Sri Sai Jewellers') +'</div>'+
+      '<div class="ls">'+ escHtml((SAAS&&SAAS.shop&&SAAS.shop.name)||'Sri Sai Jewellers') +'</div>'+
       '<div class="ln">'+escHtml(p.name||p.category||'Item')+'</div>'+
       '<div class="lm">'+
         '<span class="lpur">'+escHtml(p.purity||'')+'</span>'+

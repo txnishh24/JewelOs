@@ -1479,7 +1479,7 @@ function renderOrders(){
         var bal=Math.max(0,(o.quote||0)-adv);
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:0.5px solid rgba(138,78,12,.15);">'+
           '<div><div style="font-weight:600;font-size:13px;">'+escHtml(o.ordNo)+' — '+escHtml(o.customer)+'</div>'+
-          '<div style="font-size:11px;color:var(--text3);">'+((o.items&&o.items.length)?o.items[0].desc+(o.items.length>1?' +'+( o.items.length-1)+' more':''):(o.desc||''))+'</div></div>'+
+          '<div style="font-size:11px;color:var(--text3);">'+((o.items&&o.items.length)?escHtml(o.items[0].desc)+(o.items.length>1?' +'+( o.items.length-1)+' more':''):escHtml(o.desc||''))+'</div></div>'+
           '<div style="text-align:right;">'+
             '<div style="font-size:12px;font-weight:700;color:'+(dl<0?'var(--danger)':'var(--warning)')+';">'+(dl<0?Math.abs(dl)+'d overdue':dl===0?'Today':'In '+dl+'d')+'</div>'+
             (bal>0?'<div style="font-size:11px;color:var(--danger);">Bal: '+fmt(bal)+'</div>':'')+

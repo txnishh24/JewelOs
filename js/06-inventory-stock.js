@@ -792,8 +792,8 @@ function showSettingsTab(tab){
       var log=(S.activityLog||[]).slice(0,15);
       logEl.innerHTML=log.length
         ?log.map(function(l){
-          return '<div class="log-row"><div><span style="font-size:11px;color:var(--text3);">'+l.type+'</span><br><span style="font-size:12px;">'+l.note+'</span></div>'+
-            '<div style="font-size:10px;color:var(--text3);text-align:right;min-width:70px;">'+fmtDate(l.ts)+'<br>'+l.user+'</div></div>';
+          return '<div class="log-row"><div><span style="font-size:11px;color:var(--text3);">'+escHtml(l.type)+'</span><br><span style="font-size:12px;">'+escHtml(l.note)+'</span></div>'+
+            '<div style="font-size:10px;color:var(--text3);text-align:right;min-width:70px;">'+fmtDate(l.ts)+'<br>'+escHtml(l.user)+'</div></div>';
         }).join('')
         :'<div style="font-size:12px;color:var(--text3);">No activity yet.</div>';
     }

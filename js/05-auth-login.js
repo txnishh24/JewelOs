@@ -126,15 +126,46 @@ function saasGetSession(){
 // migration + auth-gateway deploy, not something the client should ever
 // offer to redo.)
 
+// Everything this device holds for the signed-in shop. ssj_cache is a full copy
+// of the shop's records, so leaving it behind left customers, loans and sales on
+// the phone after sign-out (security review 14 Sep, finding 9). PIN keys stay:
+// they're a per-device lock, not shop data.
+function _clearDeviceSession(){
+  try{ clearPinSession(); }catch(e){} // before SAAS.shop is nulled — its key is shop-scoped
+  var keys = [AUTH_KEY, USERS_KEY, SHOPS_KEY, 'ssj_cache', 'ssj_last_save', 'ssj_last_cloud_load'];
+  for(var i = 0; i < keys.length; i++){ try{ localStorage.removeItem(keys[i]); }catch(e){} }
+  try{ sessionStorage.removeItem(SESSION_TOKEN_KEY); }catch(e){}
+  SAAS.sessionToken = null;
+  SAAS.user = null; SAAS.shop = null;
+}
+
+// A reload also drops the shop data still held in memory (S) and every running
+// timer, which hiding the app behind the sign-in screen did not.
+function _reloadToSignIn(){
+  try{ location.reload(); }catch(e){ showAuthScreen(); }
+}
+
 function saasLogout(){
-  safeConfirm('Sign out?','Sign out of JewelOS on this device?',function(){
-    localStorage.removeItem(AUTH_KEY);
-    clearPinSession();
-    SAAS.user = null; SAAS.shop = null;
-    saasActivityLog('auth', 'User signed out');
-    showAuthScreen();
-  });
-  return;
+  // Saves go to this device first and the cloud second. If the last one hasn't
+  // landed, signing out deletes the only copy of it — say so before, not after.
+  var st = window._lastSyncStatus;
+  var unsynced = isSaving || !!(st && st.status !== 'ok');
+  var msg = unsynced
+    ? 'Your latest changes may not have reached the cloud yet. Signing out removes this device\'s copy of the shop, so anything not yet saved to the cloud will be lost. Sign out anyway?'
+    : 'Sign out of JewelOS on this device?';
+  safeConfirm('Sign out?', msg, function(){
+    _clearDeviceSession();
+    _reloadToSignIn();
+  }, unsynced);
+}
+
+// The server refused the session — it expired, or this user was removed from
+// the shop. No confirmation: a removed employee must not be able to tap Cancel
+// and keep browsing the shop from this device.
+function saasForceLogout(message){
+  _clearDeviceSession();
+  try{ if(message) sessionStorage.setItem(SIGNOUT_NOTICE_KEY, message); }catch(e){}
+  _reloadToSignIn();
 }
 
 // ── FORGOT PASSWORD ──────────────────────────────────────────────────
@@ -266,8 +297,7 @@ function closePwdModal(){
     // Matches the original forced-reset guarantee: closing/cancelling
     // must not leave a temp-password session active in the dashboard.
     document.getElementById('pwd-modal').classList.remove('open');
-    toast('\u26a0 You must set a new password to continue');
-    saasLogout();
+    saasForceLogout('You must set a new password to continue. Sign in again with your temporary password.');
     return;
   }
   document.getElementById('pwd-modal').classList.remove('open');
@@ -835,8 +865,8 @@ function renderSettings(){
     else {
       logEl.innerHTML = log.map(function(l){
         return '<div class="log-row">'+
-          '<div><span style="font-size:11px;color:var(--text3);">'+l.type+'</span><br><span style="font-size:13px;">'+l.note+'</span></div>'+
-          '<div style="font-size:10px;color:var(--text3);text-align:right;min-width:70px;">'+fmtDate(l.ts)+'<br>'+fmtTime(l.ts)+'<br><span style="font-weight:600;">'+l.user+'</span></div>'+
+          '<div><span style="font-size:11px;color:var(--text3);">'+escHtml(l.type)+'</span><br><span style="font-size:13px;">'+escHtml(l.note)+'</span></div>'+
+          '<div style="font-size:10px;color:var(--text3);text-align:right;min-width:70px;">'+fmtDate(l.ts)+'<br>'+fmtTime(l.ts)+'<br><span style="font-weight:600;">'+escHtml(l.user)+'</span></div>'+
         '</div>';
       }).join('');
     }

@@ -10,7 +10,7 @@ function showPdfReport(){
   var mName = ['January','February','March','April','May','June','July','August','September','October','November','December'][month];
   var thisM = calcMonthProfit(year,month);
   var allT  = calcAllTimeProfit();
-  var shopName = SAAS.shop?SAAS.shop.name:'My Shop';
+  var shopName = escHtml(SAAS.shop?SAAS.shop.name:'My Shop'); // HTML-only in this report
   var pending  = S.sales.reduce(function(s,x){return s+calcSaleTotals(x).bal;},0);
   var girviTot = (S.girvi||[]).filter(function(g){return g.status!=='closed';}).reduce(function(s,g){return s+girviOutstanding(g);},0);
 
@@ -81,7 +81,7 @@ function printPdfPreview(){
   var body = document.getElementById('pdf-preview-body');
   if(!body) return;
   var w = window.open('','_blank');
-  w.document.write('<html><head><title>'+((SAAS.shop?SAAS.shop.name:'JewelOS')+' Report')+'</title>'+
+  w.document.write('<html><head><title>'+escHtml((SAAS.shop?SAAS.shop.name:'JewelOS')+' Report')+'</title>'+
     '<style>body{font-family:Arial,sans-serif;margin:20px;}@media print{.no-print{display:none;}}</style>'+
     '</head><body>'+body.innerHTML+'</body></html>');
   w.document.close();
@@ -871,7 +871,7 @@ function renderGirviTodayActions(){
       '<div class="girvi-action-icon">'+(a.urgency==='red'?'\ud83d\udd34':a.urgency==='amber'?'\u26a0\ufe0f':'\ud83d\udfe6')+'</div>'+
       '<div class="girvi-action-body">'+
         '<div class="girvi-action-name">'+escHtml(g.customer)+'</div>'+
-        '<div class="girvi-action-sub">'+g.grvNo+' &bull; '+a.type+' &bull; '+(g.item.desc||g.item.metal||'')+'</div>'+
+        '<div class="girvi-action-sub">'+g.grvNo+' &bull; '+a.type+' &bull; '+escHtml(g.item.desc||g.item.metal||'')+'</div>'+
         '<div class="girvi-action-btns" onclick="event.stopPropagation();">'+
           '<button class="girvi-action-btn gab-call" onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')">📞 Call</button>'+
           '<button class="girvi-action-btn gab-wa"   onclick="girviWhatsApp(\''+g.id+'\')">💬 WA</button>'+
@@ -1009,7 +1009,7 @@ function girviLoanCardHTML(g){
               var _ci=Array.isArray(g.items)&&g.items.length?g.items:(g.item?[g.item]:[]);
               var _cw=_ci.reduce(function(s,it){return s+(parseFloat(it.weight||it.grossWt)||0)*(parseInt(it.qty)||1);},0);
               if(_ci.length===1){var it=_ci[0];
-                return '<div class="girvi-card-item">'+(it.desc||it.type||'Item')+
+                return '<div class="girvi-card-item">'+escHtml(it.desc||it.type||'Item')+
                   ' &bull; '+(it.purity||'')+' '+(it.metal||'')+(_cw?' &bull; '+_cw+'g':'')+' &bull; Mkt: &#8377;'+
                   Math.round(getRate(it.metal||'gold',it.purity||'22K')*_cw).toLocaleString('en-IN')+'</div>';
               }

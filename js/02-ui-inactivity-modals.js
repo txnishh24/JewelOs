@@ -1646,10 +1646,11 @@ function buildInvoiceHTML(sale, billType){
 
   // ── Shop details from SAAS (dynamic — never hardcoded) ──────────────
   var shop     = (SAAS && SAAS.shop) || {};
-  var shopName = shop.name  || 'My Jewellery Shop';
-  var shopCity = shop.city  || '';
-  var shopPhone= shop.phone || '';
-  var shopGSTIN= (shop.gstin||'').trim().toUpperCase();
+  // Escaped once here: every use below is HTML, and a manager can edit these.
+  var shopName = escHtml(shop.name  || 'My Jewellery Shop');
+  var shopCity = escHtml(shop.city  || '');
+  var shopPhone= escHtml(shop.phone || '');
+  var shopGSTIN= escHtml((shop.gstin||'').trim().toUpperCase());
   // Only claim BIS Hallmark if shop has GSTIN AND every item has a valid HUID
   var allItemsHallmarked = isGST && (sale.items||[]).every(function(i){
     return !i.huid || validateHUID(i.huid).ok; // custom items with no huid are OK

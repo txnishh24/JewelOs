@@ -148,6 +148,16 @@ async function putBlob(supabase: ReturnType<typeof createClient>, id: "users" | 
   if (error) throw error;
 }
 
+// Shop details and people's names are printed on invoices, receipts, labels and
+// staff lists. None legitimately contain < or >, and refusing them here protects
+// every screen that shows them — including any the client forgets to escape.
+// (security review 14 Sep, finding 2: a manager could plant script in the shop
+// name that ran when the owner printed an invoice.)
+const NO_MARKUP_ERROR = "Names and shop details can't contain < or >";
+function hasMarkup(...values: unknown[]) {
+  return values.some((v) => typeof v === "string" && /[<>]/.test(v));
+}
+
 function sanitizeUser(u: Record<string, unknown>) {
   const { passwordHash: _ph, salt: _s, ...safe } = u;
   return safe;
@@ -256,6 +266,7 @@ Deno.serve(async (req) => {
       return json({ error: "name, email, password, shopName are required" }, 400, origin);
     }
     if (password.length < 8) return json({ error: "Password must be at least 8 characters" }, 400, origin);
+    if (hasMarkup(name, shopName, city, email)) return json({ error: NO_MARKUP_ERROR }, 400, origin);
 
     const users = (await getBlob(supabase, "users")) as Record<string, unknown>[];
     if (users.find((u) => String(u.email).toLowerCase() === email)) {
@@ -326,6 +337,7 @@ Deno.serve(async (req) => {
     for (const field of ["name", "city", "phone", "gstin", "locale"]) {
       if (typeof body[field] === "string") patch[field] = body[field];
     }
+    if (hasMarkup(...Object.values(patch))) return json({ error: NO_MARKUP_ERROR }, 400, origin);
     shops[idx] = { ...shops[idx], ...patch };
     await putBlob(supabase, "shops", shops);
 
@@ -341,6 +353,7 @@ Deno.serve(async (req) => {
     const email = String(body.email || "").trim().toLowerCase();
     const name = String(body.name || "").trim();
     if (!email || !name) return json({ error: "name and email required" }, 400, origin);
+    if (hasMarkup(name, email)) return json({ error: NO_MARKUP_ERROR }, 400, origin);
 
     // Only these three are assignable via invite — "owner" can never be
     // granted this way (there is exactly one owner, set at signup).

@@ -315,7 +315,7 @@ var _v20_renderGirvi_installed = false;
       var itemHtml;
       if(_allIt.length===1){
         var it0=_allIt[0];
-        itemHtml='<div class="girvi-card-item">'+(it0.desc||it0.type||'Item')+
+        itemHtml='<div class="girvi-card-item">'+escHtml(it0.desc||it0.type||'Item')+
           ' \u2022 '+(it0.purity||'')+' '+(it0.metal||'')+
           (_cw?' \u2022 '+_cw.toFixed(2)+'g':'')+
           ' \u2022 Mkt: \u20b9'+Math.round(getRate(it0.metal||'gold',it0.purity||'22K')*_cw).toLocaleString('en-IN')+'</div>';
@@ -1087,7 +1087,7 @@ function openGirviReceiptModal(gid, receiptType){
         '<div style="background:var(--gold-dark);color:#fff;padding:7px 10px;font-family:Inter,sans-serif;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Pledged Items</div>'+
         _allIt.map(function(it,n){
           return '<div style="padding:8px 10px;border-bottom:0.5px solid var(--border);font-size:13px;">'+
-            '<strong>'+(n+1)+'. '+(it.desc||it.type||'Item')+'</strong><br>'+
+            '<strong>'+(n+1)+'. '+escHtml(it.desc||it.type||'Item')+'</strong><br>'+
             '<span style="font-size:11px;color:var(--text3);">'+it.purity+' '+it.metal+' \u2022 Gross: '+(it.weight||it.grossWt||0)+'g'+(it.qty>1?' \u2022 Qty: '+it.qty:'')+'</span>'+
           '</div>';
         }).join('')+

@@ -254,6 +254,32 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     eq((await call(auth, 'login', { email: 'owner@shop.in', password: 'newpass-123' })).status, 200, 'password unchanged');
   });
 
+  // ---- auth-gateway: no markup in names and shop details (finding 2)
+  await test('update-shop refuses < or > in shop details — including from a manager — and changes nothing', async function () {
+    var add = await call(auth, 'add-staff', { sessionToken: ownerTok, name: 'Kiran', email: 'kiran@shop.in', role: 'manager' });
+    var mgrTok = (await call(auth, 'login', { email: 'kiran@shop.in', password: add.body.tempPassword })).body.sessionToken;
+    var before = JSON.stringify(db.auth_store[1].data.find(function (s) { return s.id === shopId; }));
+    var r = await call(auth, 'update-shop', { sessionToken: mgrTok, name: 'Sri Sai<img src=x onerror=alert(1)>' });
+    eq(r.status, 400, 'status');
+    eq(JSON.stringify(db.auth_store[1].data.find(function (s) { return s.id === shopId; })), before, 'shop record');
+    for (var f of ['city', 'phone', 'gstin']) {
+      var body = { sessionToken: mgrTok }; body[f] = 'x>y';
+      eq((await call(auth, 'update-shop', body)).status, 400, f);
+    }
+  });
+  await test('update-shop still accepts real shop names with & and apostrophes', async function () {
+    var r = await call(auth, 'update-shop', { sessionToken: ownerTok, name: "Sri Sai & Sons' Jewellers", city: 'Vijayawada' });
+    eq(r.status, 200, 'status');
+    eq(r.body.shop.name, "Sri Sai & Sons' Jewellers", 'saved name');
+  });
+  await test('signup and add-staff refuse < or > in names', async function () {
+    eq((await call(auth, 'signup', { name: 'A', email: 'a1@x.in', password: 'longenough1', shopName: '<b>Shop</b>', city: 'X' })).status, 400, 'signup shopName');
+    eq((await call(auth, 'signup', { name: '<i>A</i>', email: 'a2@x.in', password: 'longenough1', shopName: 'Shop', city: 'X' })).status, 400, 'signup name');
+    eq((await call(auth, 'add-staff', { sessionToken: ownerTok, name: 'Ra<vi', email: 'r2@shop.in', role: 'staff' })).status, 400, 'add-staff name');
+    var users = db.auth_store[0].data.map(function (u) { return u.email; });
+    if (users.indexOf('a1@x.in') !== -1 || users.indexOf('a2@x.in') !== -1 || users.indexOf('r2@shop.in') !== -1) throw new Error('a refused account was still created');
+  });
+
   // ---- unchanged routes still work
   await test('login / change-password / update-shop unchanged', async function () {
     var t = (await call(auth, 'login', { email: 'owner@shop.in', password: 'newpass-123' })).body.sessionToken;

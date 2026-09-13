@@ -818,6 +818,178 @@ test('subscription state never consults the plan', function(){
     'the subscription helpers must not reference plans');
 });
 
+console.log('\nbatch19 — sign-out and escaping (security review 14 Sep):');
+
+// Swaps app globals for the length of fn, then puts them back — so a spy on
+// safeConfirm or location.reload can't leak into later tests.
+function withGlobals(overrides, fn){
+  var saved = {};
+  Object.keys(overrides).forEach(function(k){ saved[k] = app[k]; app[k] = overrides[k]; });
+  try{ return fn(); } finally { Object.keys(saved).forEach(function(k){ app[k] = saved[k]; }); }
+}
+
+function seedSignedInDevice(){
+  app.__resetStorage();
+  app.SAAS.shop = { id:'shop_a', name:'Shop A' };
+  app.SAAS.user = { id:'u1', name:'Ravi', role:'staff' };
+  app.SAAS.sessionToken = 'tok-123';
+  app.localStorage.setItem(app.AUTH_KEY, '{"userId":"u1","shopId":"shop_a"}');
+  app.localStorage.setItem(app.USERS_KEY, '[{"id":"u1"}]');
+  app.localStorage.setItem(app.SHOPS_KEY, '[{"id":"shop_a"}]');
+  app.localStorage.setItem('ssj_cache', '{"shopId":"shop_a","customers":[{"name":"Lakshmi","phone":"98xxxxxx01"}]}');
+  app.localStorage.setItem('ssj_last_save', '1');
+  app.localStorage.setItem('ssj_last_cloud_load', '1');
+  app.sessionStorage.setItem(app.SESSION_TOKEN_KEY, 'tok-123');
+}
+
+function assertDeviceCleared(){
+  [app.AUTH_KEY, app.USERS_KEY, app.SHOPS_KEY, 'ssj_cache', 'ssj_last_save', 'ssj_last_cloud_load'].forEach(function(k){
+    assert(app.localStorage.getItem(k) === null, k + ' should be removed from localStorage on sign-out');
+  });
+  assert(app.sessionStorage.getItem(app.SESSION_TOKEN_KEY) === null, 'session token should be removed from sessionStorage');
+  assert(app.SAAS.sessionToken === null, 'SAAS.sessionToken should be cleared');
+  assert(app.SAAS.user === null && app.SAAS.shop === null, 'SAAS.user and SAAS.shop should be cleared');
+}
+
+test('a session the server rejects signs out with no confirm, reloads, and leaves no shop data on the device', function(){
+  seedSignedInDevice();
+  var confirms = 0, reloads = 0;
+  withGlobals({ safeConfirm: function(){ confirms++; }, location: { reload: function(){ reloads++; } } }, function(){
+    app.saasForceLogout('Your session has ended.');
+  });
+  assert(confirms === 0, 'a removed user must not get a Cancel button — saw ' + confirms + ' confirm(s)');
+  assert(reloads === 1, 'expected one reload to drop in-memory shop data, got ' + reloads);
+  assertDeviceCleared();
+  assert(app.sessionStorage.getItem(app.SIGNOUT_NOTICE_KEY) === 'Your session has ended.', 'the reason should survive the reload');
+});
+
+test('both store-proxy 401 handlers (load and save) use the forced sign-out, not the cancellable one', function(){
+  var fs = require('fs'), path = require('path');
+  var src = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf-8');
+  var blocks = src.split('status === 401').slice(1).map(function(b){
+    // Only executable lines — the handlers' comments explain why they avoid saasLogout().
+    return b.slice(0, 600).split('\n').filter(function(l){ return !/^\s*\/\//.test(l); }).join('\n');
+  });
+  assert(blocks.length >= 2, 'expected the load and save 401 handlers');
+  blocks.forEach(function(b, i){
+    assert(/saasForceLogout\(/.test(b), '401 handler #' + (i + 1) + ' should call saasForceLogout');
+    assert(!/saasLogout\(/.test(b), '401 handler #' + (i + 1) + ' must not call the cancellable saasLogout');
+  });
+});
+
+test('signing out yourself still asks first, and clears nothing until confirmed', function(){
+  seedSignedInDevice();
+  app.isSaving = false;
+  app._lastSyncStatus = { status:'ok', label:'Live' };
+  var args = null, reloads = 0;
+  withGlobals({ safeConfirm: function(t, m, ok, danger){ args = { msg:m, ok:ok, danger:danger }; }, location: { reload: function(){ reloads++; } } }, function(){
+    app.saasLogout();
+    assert(args, 'saasLogout should open a confirm');
+    assert(app.localStorage.getItem('ssj_cache') !== null, 'nothing should be cleared before the user confirms');
+    assert(args.msg === 'Sign out of JewelOS on this device?', 'synced device should get the plain question');
+    assert(!args.danger, 'synced device should not get the danger style');
+    args.ok();
+  });
+  assert(reloads === 1, 'confirming should reload');
+  assertDeviceCleared();
+});
+
+test('signing out with an unsynced save warns that this device\'s copy will be lost', function(){
+  seedSignedInDevice();
+  app.isSaving = false;
+  app._lastSyncStatus = { status:'err', label:'Save failed' };
+  var args = null;
+  withGlobals({ safeConfirm: function(t, m, ok, danger){ args = { msg:m, danger:danger }; }, location: { reload: function(){} } }, function(){
+    app.saasLogout();
+  });
+  assert(args && /not have reached the cloud/.test(args.msg), 'expected the unsynced warning, got: ' + (args && args.msg));
+  assert(args.danger === true, 'the unsynced warning should use the danger style');
+  app._lastSyncStatus = { status:'ok', label:'Live' };
+});
+
+test('closing the forced new-password screen signs out without a Cancel option', function(){
+  seedSignedInDevice();
+  app._pwdModalMode = 'forced';
+  var confirms = 0, reloads = 0;
+  withGlobals({ safeConfirm: function(){ confirms++; }, location: { reload: function(){ reloads++; } } }, function(){
+    app.closePwdModal();
+  });
+  app._pwdModalMode = null;
+  assert(confirms === 0, 'a temp-password session must not be able to cancel its way into the dashboard');
+  assert(reloads === 1, 'expected a reload');
+  assertDeviceCleared();
+});
+
+test('the sign-in screen shows why you were signed out, exactly once', function(){
+  app.__resetStorage();
+  app.sessionStorage.setItem(app.SIGNOUT_NOTICE_KEY, 'Your session has ended.');
+  var els = {};
+  var fakeDoc = Object.assign({}, app.document, {
+    getElementById: function(id){ return els[id] || (els[id] = { style:{}, textContent:'', classList:{ add:function(){}, remove:function(){} } }); }
+  });
+  withGlobals({ document: fakeDoc }, function(){ app.showAuthScreen(); });
+  assert(els['auth-login-err'] && els['auth-login-err'].textContent === 'Your session has ended.', 'notice should be shown on the sign-in form');
+  assert(app.sessionStorage.getItem(app.SIGNOUT_NOTICE_KEY) === null, 'notice should be consumed so it does not reappear');
+});
+
+var HOSTILE = '<img src=x onerror=alert(1)>';
+function assertEscaped(html, where){
+  assert(String(html).indexOf(HOSTILE) === -1, where + ': raw HTML from user text reached the page');
+  assert(String(html).indexOf('&lt;img src=x onerror=alert(1)&gt;') !== -1, where + ': expected the text to be escaped, not dropped');
+}
+
+test('shop name, city, phone and GSTIN are escaped on the sale invoice (a manager can edit them)', function(){
+  app.SAAS.shop = { id:'shop_a', name:HOSTILE, city:HOSTILE, phone:HOSTILE, gstin:HOSTILE };
+  app.SAAS.user = { id:'u1', name:'Owner', role:'owner' };
+  var html = app.buildInvoiceHTML({ id:'s1', invNo:'INV-1', date:new Date().toISOString(), customer:'C', phone:'9',
+    items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:3, discount:0 }, 'gst');
+  assertEscaped(html, 'invoice');
+});
+
+test('girvi item description is escaped on the loan card', function(){
+  var html = app.girviLoanCardHTML({ id:'g1', grvNo:'GRV-1', customer:'C', phone:'9', status:'active',
+    items:[{ desc:HOSTILE, type:'Ring', metal:'gold', purity:'22K', weight:2, qty:1 }], amount:1000, rate:2,
+    startDate:new Date().toISOString(), ledger:[] });
+  assertEscaped(html, 'girvi card');
+});
+
+test('order item description, payment ref and mode, and shop name are escaped on the printed order receipt', function(){
+  var written = '';
+  app.SAAS.shop = { id:'shop_a', name:HOSTILE };
+  app.S.orders = [{ id:'o1', ordNo:'ORD-1', customer:'C', phone:'9', status:'new', createdAt:new Date().toISOString(), delivery:new Date().toISOString(),
+    items:[{ desc:HOSTILE, purity:HOSTILE, orderWt:1, estWt:1, qty:1 }],
+    ledger:[{ type:'advance', amount:10, mode:HOSTILE, ref:HOSTILE, date:new Date().toISOString() }] }];
+  withGlobals({ open: function(){ return { document:{ write:function(h){ written = h; }, close:function(){} }, print:function(){} }; } }, function(){
+    app.generateOrderReceipt('o1');
+  });
+  assert(written.length > 0, 'receipt should have been written');
+  assertEscaped(written, 'order receipt');
+  app.S.orders = [];
+});
+
+test('the order receipt header shows this shop\'s name, not a hard-coded "Sri Sai Jewellers"', function(){
+  var written = '';
+  app.SAAS.shop = { id:'shop_b', name:'Lakshmi Gold House' };
+  app.S.orders = [{ id:'o2', ordNo:'ORD-2', customer:'C', phone:'9', status:'new', createdAt:new Date().toISOString(), delivery:new Date().toISOString(),
+    items:[{ desc:'Ring', purity:'22K', orderWt:1, estWt:1, qty:1 }], ledger:[] }];
+  withGlobals({ open: function(){ return { document:{ write:function(h){ written = h; }, close:function(){} }, print:function(){} }; } }, function(){
+    app.generateOrderReceipt('o2');
+  });
+  app.S.orders = [];
+  var start = written.indexOf('class="hdr"');
+  var header = written.slice(start, written.indexOf('Not a Tax Invoice', start));
+  assert(header.indexOf('Lakshmi Gold House') !== -1, 'receipt header should name the shop');
+  assert(written.indexOf('Sri Sai') === -1, 'no other shop\'s name should appear on this shop\'s receipt');
+});
+
+test('activity log notes and user names are escaped wherever the log is rendered', function(){
+  var fs = require('fs'), path = require('path');
+  ['05-auth-login.js', '06-inventory-stock.js'].forEach(function(f){
+    var src = fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf-8');
+    assert(!/'\+l\.(note|user|type)\+'/.test(src), f + ' renders an activity-log field without escHtml');
+  });
+});
+
 console.log('\n' + '='.repeat(50));
 console.log(passed + ' passed, ' + failed + ' failed');
 if(failed > 0){
