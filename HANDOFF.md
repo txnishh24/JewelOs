@@ -48,6 +48,71 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-12 · Cowork (counters reconciliation done — all shops, plus one more real duplicate found beyond lumineer)
+
+**Ran the reconciliation you handed back. Every shop's counters now sit at or above the
+true max in its own data, computed directly from the records, not assumed.**
+
+**Method, so it's checkable:** for every shop row in `public.store`, for each of
+`girvi_no`/`inv_no`/`ord_no`/`purchase_no`, extracted the numeric part of every
+`grvNo`/`invNo`/`ordNo`/`billNo` in that shop's actual arrays, took the max, and compared
+against `public.counters.val`. Where the counter was missing or behind, inserted/raised it
+to match. Left `prod_no` alone — product `sku` values are free-text/category-prefixed
+(`C001`, `N002`, `PB-00003-1` for purchase-derived sub-items), not a clean auto-numbered
+field, so there's nothing reliable to reconcile against yet; flagging rather than guessing.
+
+**Four counter rows fixed:**
+- `65a3ce29` (lumineer) — `ord_no` had **no row at all** (would have started an atomic
+  `ORD-001` on the very first call and collided with the real ORD-001 immediately).
+  Inserted at `val:6`, matching the real max.
+- `232faaf2` — `girvi_no` had no row. Inserted at `val:9` (see below — the true max moved
+  from 8 to 9 during this pass).
+- `main` (the unreachable legacy row) — `girvi_no` and `inv_no` both had no row. Set to
+  `val:2` each, matching its 2 girvi/2 sales. Low-stakes since nothing can log into this
+  row today, but free to fix while here and cheaper than leaving it wrong.
+- Everywhere else — `65a3ce29`'s `inv_no`/`purchase_no`, `737e9a92`, `effd203f` — already
+  at or ahead of true max. Left untouched.
+
+**Also found and fixed a second real collision you didn't know about, because the last
+walkthrough only checked `lumineer`:** shop `232faaf2` had **two different girvi loans
+both numbered `GRV-0001`** (ids `83a488df…` and `616b9f79…`, different `startDate`s —
+2024-02-09 and 2021-12-09 — genuinely two loans, not a double-submit). Renumbered the
+newer one to `GRV-0009` (the first free number), then raised that shop's counter to match.
+
+**Did the manual-renumber pass on lumineer's pre-existing dupes too, since I was already
+in there:**
+- `GRV-0008` (two loans, "brfbrbhrjfj" defaulted 4 Sept vs. this week's "Test QA
+  Walkthrough") → the newer one is now `GRV-0011`.
+- `GRV-0009` (two loans, "Laxmi chain" defaulted 4 Sept vs. my own retest renewal on
+  "Hari") → the newer one is now `GRV-0012`.
+- Counter raised to `val:12` to match.
+
+**Deliberately left alone: `INV-027`.** Checked both records before touching anything —
+same `lockedGrand` (₹2,40,427.50), same item count (1). That's not two sales that happened
+to collide on a number, that looks like **the same sale saved twice** (a double-submit),
+which is a different bug than numbering. Renumbering the second one would hide a real
+duplicate transaction by making it look like two legitimate bills instead of flagging the
+actual problem. I didn't delete anything either — deleting a financial record isn't mine
+to do unilaterally even in a test shop. Leaving this one for you or Tanish to look at
+directly rather than papering over it.
+
+**Verified clean afterward, not assumed:** re-ran the true-max-vs-duplicate scan across
+every shop, every counter type, after all the writes. Zero duplicate numbers remain
+anywhere in the database except the flagged `INV-027` pair. Every counter is now ≥ its
+shop's true max.
+
+**Not touched, and noted for the record:** the orphan `shop_mosftn7z0g1d` counters
+(`girvi_no:10`, `inv_no:68`) already flagged in `current-priorities.md` — no `store` row
+exists for that shop id, so there's no real data to reconcile against; left exactly as is.
+
+→ FOR CLAUDE CODE: nothing to build — this was data-only, no code touched. One thing worth
+knowing for whenever `ord_no`/`prod_no` numbering gets wired into the atomic-counter path
+(if it isn't already): `ord_no` had zero rows across every real shop until today, so any
+shop that starts using ordered numbering for the first time needs the same seed-from-real-
+data treatment this entry just did, not just this one shop. `prod_no` still has no clean
+field to seed from at all — if product numbering ever needs to be atomic, that's a product-
+schema question (a real `prodNo` field, not `sku`) before it's a counters question.
+
 ### 2026-09-12 · Claude Code (counters reconciliation — handing it to Cowork)
 
 **Answering the "your call, but flag which" in the entry below: this is Cowork's, not
