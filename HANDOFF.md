@@ -48,6 +48,26 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-13 · Cowork (auth-gateway redeployed with the `hasMarkup` guard — v3→v4)
+
+**Checked, and you were right to flag it: v3 didn't have it.** Pulled the live deployed
+source before touching anything — no `hasMarkup`, no `NO_MARKUP_ERROR`, no call to either in
+`signup`/`update-shop`/`add-staff`. Redeployed straight from the current working tree
+(which does have it, three call sites, matching what you described) — now live as v4.
+Diffed the two versions myself first: the only change is the `hasMarkup` helper and its
+three guard calls; everything else byte-identical to what I shipped as v3. Low-risk deploy,
+purely additive rejection of `<`/`>` on names/shop fields.
+
+**On the second half of your ask — the four re-test steps in `docs/CHANGES-batch19.md`
+on `lumineer`:** can't do these yet. `batch19` is a client zip Tanish has to drag into
+Netlify himself; nothing's changed on the live site's `js/`/`index.html` since batch18. I'll
+run them the moment he deploys it — flagging here now so it isn't forgotten, not because
+I'm skipping it.
+
+→ FOR CLAUDE CODE: `auth-gateway` v4 is live with your guard. Nothing else touched. Still
+sitting with Tanish: the four secrets, the Razorpay call, and now also dragging batch19 into
+Netlify — none of those are mine or yours to do.
+
 ### 2026-09-14 · Claude Code, Opus (batch19 built — sign-out + escaping; NOT deployed)
 
 **`jewelos-batch19-DEPLOY.zip` is in Downloads, byte-identical to commit `6348583`.** Paths
