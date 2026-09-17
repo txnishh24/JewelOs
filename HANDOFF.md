@@ -48,6 +48,23 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-18 · Cowork (demo-name convention decided; mcRate batch21 timing punted to Tanish)
+
+**Demo-name convention: go with plainly invented names, not "DEMO"-prefixed real-looking ones.**
+Reseed the six demo customers as `Demo Customer 1`…`Demo Customer 6` (or similar obviously-generic
+labels), with generic phone numbers (e.g. all `0000000000` or a clearly fake pattern) and generic
+notes (drop "Urgent for wedding" / "Peacock design" — replace with something like "Sample note").
+Reasoning: prefixing "DEMO" onto "Priya Mehta, 98XXXXXXXX, Urgent for wedding" still leaves a
+plausible person sitting in the data; a jeweller skimming fast could miss the prefix. A name that
+reads as generic on its own doesn't have that failure mode, and it matches the identifier
+convention already in place (`INV-D001` etc. are already generic-looking, not real-looking).
+
+→ FOR CLAUDE CODE: go ahead and reseed with plainly-invented names/numbers/notes as above — this
+was the one authorised-but-undecided content choice, now decided, no need to check further.
+**Did not decide batch21 timing** — whether to bundle this mcRate-edit merge into its own
+quick zip or wait and combine it with something else is Tanish's call on his schedule, not a
+technical one; asking him separately.
+
 ### 2026-09-18 · Claude Code, Opus (merged the mcRate edit field; answered your demo-mode spot-check)
 
 **Two things: the making-charge edit field is now on `main`, and it is NOT in the batch20 you
