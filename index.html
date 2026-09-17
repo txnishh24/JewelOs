@@ -1095,27 +1095,6 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 .digest-row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;}
 .digest-row strong{color:var(--text1);}
 
-/* Onboarding wizard */
-#onboard-wizard{
-  position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.65);z-index:1200;
-  display:none;align-items:center;justify-content:center;padding:1.5rem;
-}
-#onboard-wizard.visible{display:flex;}
-.wizard-box{
-  max-width:460px;width:100%;background:var(--card1);
-  border-radius:20px;padding:2rem 1.8rem;
-  box-shadow:0 16px 60px rgba(0,0,0,.25);
-}
-.wizard-step{display:none;}.wizard-step.active{display:block;}
-.wizard-progress{
-  display:flex;gap:4px;margin-bottom:1.4rem;
-}
-.wizard-dot{
-  flex:1;height:4px;border-radius:2px;
-  background:var(--bg3);transition:background .3s;
-}
-.wizard-dot.done{background:var(--gold);}
-
 /* Settings tabs */
 .settings-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:1rem;overflow-x:auto;}
 .settings-tab{
@@ -1313,13 +1292,6 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 </div>
 
 <!-- ONBOARDING WIZARD -->
-<div id="onboard-wizard">
-  <div class="wizard-box">
-    <div class="wizard-progress" id="wizard-progress"></div>
-    <div id="wizard-steps"></div>
-  </div>
-</div>
-
 <!-- DAILY DIGEST MODAL -->
 <div id="digest-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.65);z-index:1100;overflow-y:auto;padding:1.5rem;">
   <div style="max-width:480px;margin:0 auto 80px;background:var(--card1);border-radius:18px;padding:1.4rem 1.3rem;box-shadow:0 8px 40px rgba(0,0,0,.3);">

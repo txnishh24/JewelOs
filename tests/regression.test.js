@@ -1066,6 +1066,51 @@ test('an already-issued bill is not restated when its product has a making charg
     'an old bill must keep making 0, got ' + t.mc);
 });
 
+// ── Bug: dead onboarding wizard covered the dashboard (17 Sep) ──────────
+// #onboard-wizard was made .visible 1.2s after a new shop's first boot, but
+// its only renderer call went to renderWizardStep() — the GIRVI form's
+// renderer, which writes into gf-* elements. So the overlay appeared empty,
+// with no dismiss control, over the dashboard, on every fresh login. Removed
+// rather than finished: renderOnboarding() already does this job properly.
+console.log('\nOnboarding overlay (17 Sep):');
+
+test('the dead onboarding wizard is gone from both the markup and the styles', function(){
+  var fs = require('fs'), path = require('path');
+  var html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf-8');
+  assert(html.indexOf('onboard-wizard') === -1,
+    'index.html still carries #onboard-wizard — an overlay with no renderer can cover the dashboard again');
+  assert(html.indexOf('wizard-box') === -1, 'index.html still styles .wizard-box');
+});
+
+test('no code path can make an unrenderable overlay visible on boot', function(){
+  var fs = require('fs'), path = require('path');
+  var src = fs.readFileSync(path.join(__dirname, '..', 'js', '07-settings-plans.js'), 'utf-8');
+  ['WIZARD_STEPS', 'showOnboardingWizard', 'dismissWizard', 'wizardNext', 'wizardBack'].forEach(function(n){
+    assert(src.indexOf(n) === -1, '07-settings-plans.js still references ' + n);
+  });
+});
+
+test('renderWizardStep still belongs to the girvi form, and only to it', function(){
+  // The collision is what hid this bug from scope.js: the name resolved, so
+  // nothing flagged that it was the wrong wizard's renderer.
+  assert(typeof app.renderWizardStep === 'function', 'renderWizardStep() should still exist for the girvi form');
+  var fs = require('fs'), path = require('path');
+  var src = fs.readFileSync(path.join(__dirname, '..', 'js', '07-settings-plans.js'), 'utf-8');
+  var body = src.slice(src.indexOf('function renderWizardStep('));
+  body = body.slice(0, body.indexOf('\nfunction '));
+  assert(body.indexOf('wizard-steps') === -1 && body.indexOf('wizard-progress') === -1,
+    'renderWizardStep() must not be wired to the removed onboarding overlay');
+});
+
+test('the working onboarding checklist survived the wizard removal', function(){
+  assert(typeof app.renderOnboarding === 'function',
+    'renderOnboarding() is the real onboarding and must still exist');
+});
+
+test('bootApp is a plain function again, not wrapped by the removed wizard', function(){
+  assert(typeof app.bootApp === 'function', 'bootApp() should still exist');
+});
+
 console.log('\n' + '='.repeat(50));
 console.log(passed + ' passed, ' + failed + ' failed');
 if(failed > 0){

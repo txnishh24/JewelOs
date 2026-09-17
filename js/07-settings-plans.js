@@ -115,70 +115,18 @@ function exportCSV(){
   toast('\u2713 CSV downloaded!');
 }
 
-// ── ONBOARDING WIZARD ─────────────────────────────────────────────────
-var WIZARD_STEPS = [
-  {
-    title:'Welcome to JewelOS! 💎',
-    body:'Your complete jewellery business manager. Let\'s set up your shop in 3 quick steps.',
-    action:'Get Started',next:true
-  },
-  {
-    title:'Add Your Gold Rates 📊',
-    body:'Go to Inventory → set today\'s 22K and 24K rates. This drives all your profit calculations.',
-    action:'Got it',next:true
-  },
-  {
-    title:'Add Your First Product 📦',
-    body:'Tap Inventory → + Add Product. Fill weight, purity, and optionally your purchase rate to track profit.',
-    action:'Next',next:true
-  },
-  {
-    title:'Record Your First Sale 💰',
-    body:'Tap Sale tab → pick a customer → add items → record how much they paid. That\'s it!',
-    action:'Next',next:true
-  },
-  {
-    title:'You\'re All Set! 🚀',
-    body:'Your dashboard will start showing insights, profit trends, and alerts as you add more data. Check Settings → Automation to set up WhatsApp reminders.',
-    action:'Start Using JewelOS',next:false
-  }
-];
-
-var _wizardStep = 0;
-function showOnboardingWizard(){
-  var el = document.getElementById('onboard-wizard');
-  if(!el) return;
-  _wizardStep = 0;
-  renderWizardStep();
-  el.classList.add('visible');
-}
-
-function wizardNext(){
-  _wizardStep++;
-  if(_wizardStep >= WIZARD_STEPS.length){
-    dismissWizard();
-  } else {
-    renderWizardStep();
-  }
-}
-function wizardBack(){ if(_wizardStep>0){ _wizardStep--; renderWizardStep(); }}
-function dismissWizard(){
-  var el=document.getElementById('onboard-wizard');
-  if(el) el.classList.remove('visible');
-  try{ localStorage.setItem(shopScopedKey('jewelos_wizard_done'),'1'); } catch(e){}
-}
-
-// Show wizard on first use
-(function(){
-  var _origBoot = bootApp;
-  bootApp = function(){
-    _origBoot();
-    if(!localStorage.getItem(shopScopedKey('jewelos_wizard_done')) && !S.products.length && !S.sales.length){
-      setTimeout(showOnboardingWizard, 1200);
-    }
-  };
-}());
-
+// ── ONBOARDING WIZARD — REMOVED 17 Sep ────────────────────────────────
+// A modal wizard used to open over the dashboard 1.2s after a new shop's
+// first boot. It rendered empty and could not be closed: its only renderer
+// call was renderWizardStep(), which belongs to the GIRVI form below and
+// writes into gf-* elements, so #wizard-progress and #wizard-steps were
+// never filled and no dismiss control was ever drawn. Because the name
+// resolved to a real function, scope.js could not see it was the wrong one.
+// Removed rather than finished: renderOnboarding() in 06-inventory-stock.js
+// already covers the same ground (rates, first product, first sale) plus a
+// change-your-default-PIN nudge, tracks completion from S rather than from
+// clicking Next, and sits inline on the dashboard instead of covering it —
+// which is what this modal was doing to it.
 // checkUpgradeNudge() removed. It told a shop it was on Free and should
 // upgrade to Basic for unlimited products — none of which is true any more.
 // The upgrade-nudge layer that used to wrap renderDash is gone with the nudges.

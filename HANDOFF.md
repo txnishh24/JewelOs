@@ -48,6 +48,71 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-17 · Claude Code, Opus (your bug 3 fixed — dead onboarding wizard removed)
+
+**Fixed bug 3: the empty `#onboard-wizard` overlay is gone.** Client change, still no zip
+built (see the bug 2 entry — batching these). 🟡, and honestly 🟢 once diagnosed; it ran on
+Opus only because it followed bug 2 in the same session, which `MODEL-POLICY.md` §1 would
+not have chosen. Flagging that rather than dressing it up.
+
+**Your file pointer was `06-inventory-stock.js`; it was actually `07-settings-plans.js`.**
+Worth recording because of *why* the grep mattered: `06-inventory-stock.js` owns
+`renderOnboarding()` — a **different, working** onboarding feature — so a session that
+trusted the pointer would have found real onboarding code in the named file and started
+editing the wrong thing.
+
+**Root cause is a name collision, which is why no check caught it.**
+`showOnboardingWizard()` added `.visible` to the overlay and called `renderWizardStep()` to
+fill it. But the only `renderWizardStep()` in the codebase (`07-settings-plans.js:534`)
+belongs to the **girvi loan form** — it writes into `gf-*` elements exclusively. So
+`#wizard-progress` and `#wizard-steps` were never populated, no dismiss control was ever
+drawn, and a full-screen `z-index:1200` backdrop sat over the dashboard 1.2 seconds after
+first boot. **`scope.js` cannot see this class of bug**: the name resolves to a real
+declared function, so there is nothing undeclared to report. Only the wrong feature's.
+
+**Removed it rather than finishing it, and that is the part worth arguing with if you
+disagree.** `renderOnboarding()` in `06-inventory-stock.js` already does this job and does
+it better: same ground (rates → first product → first sale) plus a change-your-default-PIN
+nudge, completion derived from `S` rather than from clicking Next, working CTAs that
+navigate and focus the right field, dismissible, self-hiding when complete. It renders
+**inline on the dashboard** — which is precisely what the broken modal was covering. Building
+the missing renderer would have produced two competing first-run flows where the blocking one
+hides the better one. Deleted: `WIZARD_STEPS`, `_wizardStep`, `showOnboardingWizard`,
+`wizardNext`, `wizardBack`, `dismissWizard`, the `bootApp` wrapper, the markup and the CSS.
+A comment block at `07-settings-plans.js:118` records why, so nobody re-adds it. Kept, on
+purpose: `renderWizardStep()` (the girvi form needs it) and all of `renderOnboarding()`.
+
+**Side effect worth knowing:** `bootApp` is no longer reassigned. That IIFE wrapped it from a
+later-loading module, which only worked because of script order — one less thing to trip over.
+
+**Verified, and this one I actually saw.** Regression **76/76** (was 71 — 5 new); the two
+that assert the removal fail against commit `58ebfab`, the other three are guards that the
+deletion did not take `renderWizardStep`, `renderOnboarding` or `bootApp` with it. `check.bat`
+clean, and every check count moved by exactly the dead code and nothing else: ids 564→561
+defined / 952→950 lookups, css 528→524 defined / 422→420 used, handlers and loadorder
+unchanged, TIER B still empty. **Then loaded it in a real browser** on `.claude/launch.json`'s
+local server: `#onboard-wizard` is absent from the DOM, all wizard globals are gone,
+`renderWizardStep`/`renderOnboarding`/`bootApp` all still resolve, the only full-screen
+overlay is the sign-in screen (correct — not signed in), zero console errors, and the login
+screen renders undamaged by the CSS deletion.
+
+**Not verified:** the dashboard itself. Reaching it needs a real login against live Supabase,
+and creating another test shop there is your lane, not mine — there is already one of yours
+waiting to be deleted. So "the checklist now shows where the modal used to be" is reasoned,
+not seen. Also unverified: a shop that had already dismissed the old wizard (its
+`jewelos_wizard_done` key is now orphaned and simply ignored — harmless, but untested on a
+real device).
+
+**Incidentally confirmed while there:** the sign-in footer does read "© 2025 JewelOS" — your
+bug 8. Left alone, still on the list.
+
+→ FOR COWORK: nothing to deploy, no server change. When Tanish next takes a client build, the
+re-test is the one you already ran three times: fresh signup, staff login, owner re-login —
+the dashboard should come up clean with the onboarding **checklist** visible inline and no
+overlay to dismiss. Bugs 4-9 remain open. A separate session is adding the missing Making
+Charge field to the Edit Product form (the gap flagged in the bug 2 entry below); it touches
+`index.html` and `03-billing-numbers.js`, so if you see those move, that is what it is.
+
 ### 2026-09-17 · Claude Code, Opus (your bug 2 fixed — client change, NOT zipped yet)
 
 **Fixed bug 2: a product's making charge now reaches the sale, and stops being counted
