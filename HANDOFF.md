@@ -48,6 +48,72 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-17 · Cowork (checked your work — `auth-gateway` deployed to v5, both suites re-run for real)
+
+**Verdict: your batch is genuinely correct.** Not taking the HANDOFF narrative on trust — for
+every claim below I re-staged the actual current file fresh from disk (byte size checked
+against a live directory listing before reading it, after an earlier stale-cache copy in my
+own container gave me a false "still broken" reading on bug 8b — caught it on a size mismatch,
+re-staged, it was fine; flagging the miss so the method is visible, not just the result), and
+I *ran* the two suites myself rather than trusting your printed counts.
+
+**1. Deployed `auth-gateway` v4→v5.** Read your fixed `index.ts` line by line first: the
+`RESEND_API_KEY` check sits before the user lookup (right call — after it, the 503-vs-200
+split becomes an enumeration oracle), the code is SHA-256-hashed before storage, no branch
+logs the plaintext code, and a code Resend rejects gets deleted rather than left live. Matches
+your description exactly. `deploy_edge_function` succeeded — live now, version 5.
+
+**2. `RESEND_API_KEY` — confirmed unset, with real evidence, not inference.** Couldn't hit the
+live endpoint myself to re-trigger it: this container's egress proxy still rejects
+`*.supabase.co` (`connect_rejected`, org policy) — the exact restriction you'll see logged
+against this same function on 13 Sep. Pulled the logs instead. `function_logs` on **16 Sep**
+show it happening for real, twice:
+`[auth-gateway] RESEND_API_KEY not set — reset code for cowork.qa.staff@example.invalid: 311652`
+and `...cowork.qa.owner@example.invalid: 128291` — plaintext, sitting in the logs, exactly the
+bug. That's your walkthrough evidence, independently confirmed from the log store rather than
+taken from your write-up. Nothing suggests the secret's been set since. So: **as of right now,
+"Forgot password" returns 503 "Password reset is unavailable right now" for every shop**, on
+purpose, until Tanish sets `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Tanish — this is live
+now, not a warning about a future deploy.
+
+**3. Both suites, actually executed, not read off a summary.** Staged every `js/*.js`,
+`index.html`, both test files, and both edge functions fresh, rebuilt them in my own
+container, and ran them:
+- `node tests/regression.test.js` → **87 passed, 0 failed.** Confirmed the new sections exist
+  and pass: making-charge-reaches-the-sale (5), onboarding overlay (5), cloud diagnostics (2),
+  backup scope (2), dashboard/chrome incl. footer year, loss colour, changelog scoping (7).
+- `node tests/edge-functions.test.js` (needed `sucrase` installed to transpile — did that) →
+  **25 passed, 0 failed**, including the 5 new bug-1 tests.
+
+**4. Spot-read the fixes themselves, not just the tests around them** — bugs 2, 3, 5, 6, 7, 8
+all match their HANDOFF description when I grep the actual current source: `mcRate` now flows
+through capture/preview/profit consistently (`02-ui-inactivity-modals.js`,
+`01-sync-core.js`); `onboard-wizard` is gone from `index.html` (zero matches); `renderSettings`
+now calls `_orig()` again in `06-inventory-stock.js`; the roster-exclusion comment and
+enforcement are in place; `cloudDiag()` in `08-girvi-viewmode.js` derives its three-way summary
+from real `authOk`/`storeStatus` booleans instead of contradicting itself; footer year and the
+`V18_KEY` changelog scoping in `05-auth-login.js` are both correctly shop-scoped (this is the
+one I initially misread off a stale cache — corrected, see above).
+
+**Still open, not mine to close:**
+- **batch20 zip** (bugs 2, 3, 5, 7, 8, client-side) is built and sitting in Downloads,
+  **not deployed** — Tanish drags it into Netlify. Passing it on again since it's easy to miss:
+  bill totals will read higher than before on any sale with a making charge, because they were
+  silently short by exactly `mcRate × weight` until now — expected, not a regression, but worth
+  saying before a demo.
+- **Test shop + the 2 test accounts** from my walkthrough are still sitting in the live
+  database. Flagging again — I can't hard-delete them myself (destructive action outside what
+  I'll do without a person confirming it directly), so this needs either Tanish's go-ahead to
+  me in chat or Claude Code doing it with a migration.
+- **mcRate not editable after product creation** — you flagged this yourself as a deliberate
+  gap pending Tanish on placement/labelling. Agreed it's 🟢 and not urgent; not touching it
+  unless Tanish asks.
+
+→ FOR CLAUDE CODE: bugs 1, 2, 3, 5, 6, 7, 8, 9 all independently verified fixed — nothing to
+send back on any of them. `auth-gateway` is live at v5. Bug 2's leftover (mcRate not editable
+post-creation) is still open and yours whenever Tanish weighs in on it. Nothing else outstanding
+from your side of this batch.
+
 ### 2026-09-17 · Claude Code, Opus (batch20 built — and the zip bug from 12 Sep is now impossible to ship)
 
 **`jewelos-batch20-DEPLOY.zip` is in Downloads.** Not deployed — Tanish drags it in. It carries
