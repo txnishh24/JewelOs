@@ -33,8 +33,8 @@ Belt and braces: `git status` on arrival. Dirty tree means someone was mid-chang
 
 Neither Claude can decide these. Don't re-litigate them each session; just surface them.
 
-- **Demo mode.** The live site opens with "DEMO MODE — sample data loaded". Decide what a
-  jeweller should see first.
+- ~~Demo mode.~~ **Answered 17 Sep — see the Cowork entry below.** Keep sample data on
+  first open, but make it obviously fake and one tap to clear.
 - ~~The renewal contact number.~~ **Answered 9 Sep — see the Cowork entry below.** Use
   `+91 72086 23428`. Do **not** put the `@fam` UPI handle in the code; reasoning in the entry.
 
@@ -47,6 +47,79 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-09-17 · Cowork (Tanish's call on Razorpay + Demo Mode — both answered, one already done)
+
+**Razorpay webhook.** Tanish: "Leave it as-is for now." No action — do not touch, remove, or
+re-purpose it. Closing this out of WAITING ON TANISH; don't re-raise it.
+
+**Demo Mode.** Tanish: "Sample data, clearly labeled" — keep demo data so the app doesn't
+look empty on first open, but make it obviously fake and one tap to clear.
+
+Checked the live site before assuming this needs building: **Settings → Shop already has
+"Load Demo Data" and "Clear All Data" buttons** (seen during this week's live QA pass), and
+the opening banner already reads "DEMO MODE — sample data loaded." So the one-tap-clear and
+the clear labelling both look like they're already there. What I haven't verified: whether
+"Clear All Data" is genuinely one tap (vs. a confirm dialog — fine either way, just checking
+it's not buried), and whether the demo-data *content itself* reads as obviously fake (dummy
+names/numbers) rather than plausible-real. Didn't poke further since this is a UI-polish
+check, not a live-data risk.
+
+→ FOR CLAUDE CODE: Razorpay webhook — no action, confirmed leave-as-is. Demo Mode — spot-check
+that "Clear All Data" is truly one tap and that the seeded demo data (shop name, customer
+names, girvi entries) is unambiguously fake-looking, not realistic. If both already hold,
+this needs nothing further and you can mark WAITING ON TANISH's demo-mode line fully closed
+in your next pass. If the demo data looks too real, that's the only follow-up: relabel/reseed
+it so nobody mistakes it for a live shop's data.
+
+### 2026-09-17 · Cowork (roadmap-to-9.5 filed — one real feature spec, two items already yours, two handed to Tanish)
+
+**Tanish asked to start on the "what gets JewelOS to 9.5/10" list from the review doc.** Split it by who actually owns each piece. Netlify cleanup and the two Tanish-only decisions are handled outside this file; this entry is what's yours.
+
+**1. Live gold/silver rate auto-fetch (🟡 medium — feeds every bill's pricing, per `MODEL-POLICY.md` §8) — the one real gap the competitor pass found.** Every jewellery competitor surveyed treats a live rate feed as baseline; Stock → Today's Market Rate is still hand-typed every day.
+
+Spec, and the one thing not to get wrong: **this has to stay a suggested default, never a silent override.** A shop's daily rate is its own bazaar quote — local dealer premium on top of spot — not a pure spot conversion, so an auto-fetched number that quietly replaces what the owner would have typed is a pricing bug, not a feature. Build it as an "🔄 Fetch today's rate" button beside the existing manual fields, pre-filling them with a suggested value the owner can still edit before Save & Sync — never an on-load auto-commit.
+
+Mechanically: a new Edge Function (e.g. `rates-proxy`, `verify_jwt: true`) is the right shape — keeps whatever API key it needs server-side, out of the ES5 client. It fetches spot gold (and silver) in USD, converts through a USD→INR rate and troy-oz→gram (÷31.1035) to get a 24K ₹/g figure, and the client derives 22K/18K/14K the same way it already does today from a 24K base. **Needs from Tanish before this can start:** pick a rate-API provider (metals-api.com, goldapi.io, or similar — most require a free-tier signup) and hand over the key as a Supabase secret. Not blocking anything else — just can't be built until that key exists.
+
+**2. `mcRate` not editable after product creation (🟢, still open, still yours whenever Tanish weighs in) — unchanged from the 17 Sep entry.** Repeating it here only because it's now formally on the roadmap doc too, not because anything about it changed.
+
+**3 & 4. Razorpay webhook's fate, and Demo Mode's behaviour — NOT yours, not mine.** Both are exactly the kind of call `WAITING ON TANISH` exists for. Asked Tanish directly in chat rather than letting them sit silently in a roadmap doc — whichever way he answers, it comes back here as its own entry, not folded into this one.
+
+→ FOR CLAUDE CODE: nothing to start on yet except #2 (still just needs Tanish's input on placement, not new information). #1 is real and scoped above, but genuinely blocked on Tanish getting a rate-API key first — don't start the Edge Function until that key shows up as a Supabase secret, since there's nothing to test it against before then.
+
+### 2026-09-17 · Cowork (full live re-test on batch20, real browser, second shop — everything held; only Girvi-tests-Girvi is genuinely open)
+
+**Tanish asked for a full re-test after deploying batch20 to Netlify, plus a competitor check.** Did both. Short version: **nothing broken.** Every one of today's 9 fixes verified live, end to end, with real numbers — not by re-reading code this time, by actually using the app.
+
+**Netlify note, not a bug:** the site's real URL is `https://heartfelt-queijadas-eeb356.netlify.app` (Netlify's auto-generated name). There is a *different* Netlify project on this account named literally `jewelos-app` with an empty, never-deployed `currentDeploy` — I hit that first, got a real "Site not found," and flagged it as an outage before Tanish corrected me to the right URL. Worth renaming that decoy project or deleting it so nobody else makes the same mistake, me included next time.
+
+**What I did:** signed up a second clean test shop (`Cowork QA Jewellers 2 (TEST — delete me)`, same disposable pattern as the first), and drove it through signup → onboarding checklist → add product with a making charge → record a stock sale → Girvi loan → customer records → staff invite → settings (all 6 tabs) → reports/P&L → sign-out/sign-in → forgot-password. Also re-tried the PIN screen for the *first* test shop I had SQL-deleted on the 16th — it correctly landed on "Your session has ended," no stale data, no crash, confirming `store-proxy`'s `resolveTenant()` fail-closed behaviour holds for a browser session too, not just in the DB-layer test I ran that day.
+
+**Bug 2 (making charge), the one that matters most, checked with real arithmetic, not just a passing test:** product at ₹7,200/g purchase rate, ₹500/g making, 10g. Sale screen showed `Gold value ₹78,000 + Making charges ₹5,000 = Grand Total ₹83,000` as an explicit line item. Dashboard profit came back ₹11,000 (₹6,000 gold margin + ₹5,000 making revenue) — exactly right, and exactly what used to come back as a **loss** before your fix. Reports → P&L for the month shows the same ₹83,000 / ₹11,000 / 13.3% margin, so it's consistent all the way through, not just on the bill screen.
+
+**Bug 1 (password reset), checked live instead of by log archaeology this time:** hit "Forgot password" for real through the UI → got the clean `503 Password reset is unavailable right now. Please contact support.` Checked Supabase logs immediately after — **zero log lines mention the test email at all**, not even a stub. Old code logged the plaintext code every time; new code doesn't log anything for this path. `RESEND_API_KEY` is still unset as of tonight.
+
+**Everything else, briefly:** Girvi wizard (5 steps) computed LTV, monthly interest and due date correctly on a fresh loan, and the portfolio card and the outstanding card agreed with each other (that's bug 6's overdue-count-consistency fix holding). Customers page correctly rolled up both a billing customer and a Girvi-only customer with the right balances on each. Settings → Automation shows the Email Digest field and Cloud Setup badge (🟢 Connected) both rendering — that's bug 3's `_orig()` fix. Team invite worked and logged to the Activity Log. Sign-out asks for confirmation first (batch19). Footer year and the WhatsApp-reminders/GST-export/barcode-label features Tanish already has are all intact.
+
+**Competitor pass (refreshed the 3-Sep research, full findings in `/topics/jewelos-market.md`):** SthirApp's pricing hasn't moved — ₹18,000 Combo is still the number to beat. The "nobody else does girvi" claim doesn't hold anymore (SwarnApp, JewelleryAdmin and Jwelly ERP all bundle pawn-loan tracking now) — the real differentiator is doing it as one cloud login with nothing to install, not girvi exclusivity. Reframe on that basis. Checked the "build soon" list against what's actually in the app already: **WhatsApp reminders, GSTR-1 CSV export, and barcode-label printing are all already built** — the research agent didn't know that because it was working from competitor doc pages, not from using JewelOS. The one gap that's real: **live gold/silver rate auto-fetch.** Rates are entered by hand in Stock → Today's Market Rate every time; every jewellery competitor surveyed treats a live rate feed as a baseline feature. That's the one thing worth prioritizing from this pass.
+
+**Only real open item — not a bug, a coverage gap:** nobody has driven two devices racing for the last unit of stock, or a backdated Girvi payment, live. Both are simulated only in the test suite per the 16-Sep testing-strategy review. Not fixing anything, just repeating that gap since it's still true.
+
+**Second batch of test data, same as before — I can't hard-delete it myself:**
+```sql
+update public.auth_store set data = (
+  select jsonb_agg(elem) from jsonb_array_elements(data) elem
+  where elem->>'id' <> 'shop_mu5xrc2xqj8z'
+) where id = 'shops';
+
+update public.auth_store set data = (
+  select jsonb_agg(elem) from jsonb_array_elements(data) elem
+  where elem->>'id' not in ('usr_mu5xrc2xno27', 'usr_mu5xyfairasf')
+) where id = 'users';
+```
+
+→ FOR CLAUDE CODE: nothing to fix — full live re-test of the whole batch20 payload came back clean. The only concrete follow-up worth picking up is a live gold/silver rate API integration (from the competitor pass), and it's a "when you have time" item, not urgent. The two-device stock race and backdated-Girvi-payment gaps from the 16-Sep testing review are still open and still simulated-only.
 
 ### 2026-09-17 · Cowork (checked your work — `auth-gateway` deployed to v5, both suites re-run for real)
 
