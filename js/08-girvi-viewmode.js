@@ -1462,6 +1462,7 @@ function cloudDiag(silent){
   // it derives shop + role from the signed session token instead. This
   // diagnostic was still sending the old header, so it reported "shop key
   // rejected" on every healthy install. Send what the app actually sends.
+  var storeOk = true, authOk = true, storeStatus = 0;
   var storeCheck = fetch(SB_FUNCTIONS + "/store-proxy", {
     method: "GET",
     headers: Object.assign({}, SB_HEADERS, { "x-session-token": (typeof SAAS!=='undefined' && SAAS.sessionToken) || '' })
@@ -1471,6 +1472,7 @@ function cloudDiag(silent){
       .catch(function(){ return { status: r.status, body: null }; });
   })
   .then(function(res){
+    storeStatus = res.status;
     if(res.status === 200){
       var hasRow = res.body && res.body.data;
       log.push("store-proxy    : reachable — HTTP 200 (" + (hasRow ? "shop data found" : "no row yet — will be created on first save") + ")");
@@ -1481,30 +1483,52 @@ function cloudDiag(silent){
     }
   })
   .catch(function(err){
+    storeOk = false;
     log.push("store-proxy    : UNREACHABLE — " + err.message);
   });
 
-  // Authentication health check: browser → auth-gateway. Ping it with a
-  // route that always responds (even to a bad method) just to confirm
-  // the function itself is deployed and reachable — we don't want to
-  // spend a real login/reset attempt just to run a diagnostic.
-  var authCheck = fetch(SB_FUNCTIONS + "/auth-gateway", {
-    method: "OPTIONS",
-    headers: SB_HEADERS
+  // Authentication health check: browser → auth-gateway.
+  // Second time this diagnostic has reported a healthy install as broken by
+  // not sending what the real code path sends (see the x-shop-key note
+  // above). This probe used to send SB_HEADERS, which carries Prefer — a
+  // PostgREST header that auth-gateway's Access-Control-Allow-Headers does
+  // not list, so the browser failed the preflight and fetch rejected with
+  // "Failed to fetch" on a gateway that was serving logins perfectly.
+  // store-proxy does allow prefer, which is why only this check was hit.
+  // Now it sends exactly what authGatewayCall() sends. The route is one that
+  // does not exist on purpose: auth-gateway answers an unknown route with a
+  // 404 and no side effects, which proves it is deployed and reachable
+  // without spending a real login or password-reset attempt.
+  var authCheck = fetch(SB_FUNCTIONS + "/auth-gateway/_diag-ping", {
+    method: "POST",
+    headers: {'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY},
+    body: "{}"
   })
   .then(function(r){
-    log.push("auth-gateway   : reachable — HTTP " + r.status);
+    log.push("auth-gateway   : reachable — HTTP " + r.status + (r.status===404 ? " (expected for the probe route)" : ""));
   })
   .catch(function(err){
+    authOk = false;
     log.push("auth-gateway   : UNREACHABLE — " + err.message);
   });
 
   return Promise.all([storeCheck, authCheck]).then(function(){
     log.push("");
-    var storeFailed = log.some(function(l){ return l.indexOf("store-proxy    : UNREACHABLE") === 0; });
-    if(storeFailed){
-      log.push("Cloud sync unavailable — your local data is safe. Retry when connection is restored.");
-      if(!silent) toast("\u26a0 Cloud sync unavailable — your local data is safe.");
+    // Derive this from the checks that just ran. It used to consult only the
+    // store-proxy result, so it announced "Authentication: Healthy" two lines
+    // under "auth-gateway: UNREACHABLE" — a diagnostic that contradicts itself
+    // is worse than none, because it sends you looking in the wrong place.
+    // Read the flags the checks set, not the log text they printed.
+    if(!storeOk || !authOk){
+      var down = [];
+      if(!storeOk) down.push("data sync");
+      if(!authOk)  down.push("sign-in");
+      log.push("Cloud unavailable — " + down.join(" and ") + " could not be reached.");
+      log.push("Your local data is safe. Retry when the connection is restored.");
+      if(!silent) toast("\u26a0 Cloud unavailable — your local data is safe.");
+    } else if(storeStatus !== 200){
+      log.push("Cloud status: Connected, but data sync answered HTTP " + storeStatus + ".");
+      log.push("Authentication: Healthy. See the store-proxy line above for what to do.");
     } else {
       log.push("Cloud status: Connected. Sync: Healthy. Authentication: Healthy.");
     }

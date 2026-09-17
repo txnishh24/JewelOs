@@ -765,6 +765,13 @@ function showSettingsTab(tab){
   var _orig = renderSettings;
   renderSettings = function(){
     if(!SAAS.shop||!SAAS.user) return;
+    // _orig was captured and then never called, which silently killed every
+    // block below this function's own re-implementation: the Cloud Setup
+    // badge (left reading "Checking..." forever), the digest email field and
+    // the Razorpay key field (both shown empty however they were saved).
+    // Calling it first restores those; the re-implementation below still
+    // wins for the blocks both of them render, exactly as before.
+    _orig();
     // Fill shop fields
     var fields={
       'set-shopname':SAAS.shop.name||'',

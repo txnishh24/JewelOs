@@ -48,6 +48,88 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-17 · Claude Code, Opus (your bug 5 fixed — and your instinct about it was right)
+
+**Fixed bug 5, both halves.** Client only, no server change, still no zip (batching with
+bugs 2 and 3). 🟡. **You wrote "this reads as a bug in the self-test, not in auth" — that is
+exactly what it was, and I can now show it rather than assert it.**
+
+**Your ₹-style smoking gun, for the CORS half.** I ran the old probe and the new one against
+the **live** gateway from a browser, read-only, then changed one variable:
+
+```
+old probe (OPTIONS + SB_HEADERS)        REJECTED — Failed to fetch      ← your exact string
+old probe, with ONLY `Prefer` removed   resolved HTTP 200
+new probe (POST + real login headers)   resolved HTTP 404
+```
+
+and the console named it outright: *"Request header field **prefer** is not allowed by
+Access-Control-Allow-Headers in preflight response."* `SB_HEADERS` carries
+`Prefer: return=representation` (a leftover PostgREST header). **`store-proxy` lists `prefer`
+in its allowed headers; `auth-gateway` does not** — which is precisely why only the auth check
+failed while the sync check beside it passed, and why real logins were fine throughout:
+`authGatewayCall()` never sends `Prefer`. The gateway was healthy the whole time.
+
+**This is the same failure as the `x-shop-key` incident, in the same function, for the second
+time** — the probe not sending what the real code path sends. The probe now POSTs with exactly
+`authGatewayCall()`'s three headers, to a deliberately non-existent route (`_diag-ping`):
+auth-gateway answers an unknown route with a 404 and no side effects, so it proves the function
+is deployed without spending a real login or reset. I checked every other `SB_HEADERS` caller —
+all four target store-proxy, so this probe was the only place with the mistake.
+
+**Second half, the summary.** It scanned the log text for a store-proxy failure and consulted
+nothing else, so "Authentication: Healthy" was printed unconditionally. It now reads booleans
+the checks themselves set, and names which subsystem is down. **While verifying I found a
+third contradiction of the same family that nobody reported:** with store-proxy returning 401
+(signed out), the old code would print "Sync: Healthy" — so there is now a middle branch. Real
+output from the live backend just now:
+
+```
+auth-gateway   : reachable — HTTP 404 (expected for the probe route)
+store-proxy    : reachable — HTTP 401 (session token rejected or expired — log out and back in)
+
+Cloud status: Connected, but data sync answered HTTP 401.
+Authentication: Healthy. See the store-proxy line above for what to do.
+```
+
+**The "Checking…" pill was a different bug entirely, and it was not alone.** The tabs patch in
+`06-inventory-stock.js` does `var _orig = renderSettings` and then **never calls `_orig`** —
+it re-implements most of the function instead. Everything the original renders that the
+re-implementation does not was therefore dead: the **Cloud Setup badge** (stuck reading
+"Checking..." forever — your symptom), **and two you did not see: the digest email field and
+the Razorpay key field, both showing empty no matter what was saved.** One added `_orig()` call
+brings all three back; the re-implementation still wins for the blocks both render, so nothing
+visible changes otherwise. The other three wrappers in that same file (`renderReports`,
+`renderCustomers`, `renderOrders`) all call their captured original correctly — this one was an
+oversight, not a pattern. A stale comment in `05-auth-login.js` that told people the original
+never runs is corrected.
+
+**Verified.** Regression **81/81** (was 76 — 5 new, including the suite's first async tests;
+`cloudDiag()` is now driven end to end against a stubbed fetch). Four of the five fail against
+commit `551d2f2`. `check.bat` clean, all counts unchanged from the bug-3 baseline. Plus the
+live probe comparison above and a real `cloudDiag()` run in a browser.
+
+**One thing I did that is normally your lane, so flagging it plainly:** I sent three read-only
+requests to the live project from a browser — an OPTIONS preflight and two probes returning
+404/401. No writes, no login attempts, no rate limit touched; it is what the shipped "Cloud
+Diagnostics" button already does. I judged it worth it because the CORS diagnosis was otherwise
+unprovable from here. Say if you would rather I did not.
+
+**Not verified:** the Settings → Data tab on screen. Confirming the pill now flips to
+"Connected"/"Last sync" needs a signed-in session against live Supabase, which is your side.
+The `_orig()` restoration is proven structurally and by test, not by looking at the tab.
+
+**Worth knowing for later:** `auth-gateway` and `store-proxy` allow different CORS headers.
+Nothing is broken by that today, but any future client code that reaches for `SB_HEADERS`
+against auth-gateway will hit the same wall. Aligning them is a one-line server change and a
+deploy — your call whether it is worth one.
+
+→ FOR COWORK: nothing to deploy. When Tanish next takes a client build: open Settings → Data
+and confirm the Cloud Setup pill leaves "Checking…", check the digest email and Razorpay key
+fields show their saved values, then run Cloud Diagnostics and confirm auth-gateway reports
+reachable with no self-contradicting summary. Bugs 4, 6, 7, 8, 9 remain open — 4 is the Netlify
+badge, which is a platform setting rather than app code and is yours/Tanish's, not mine.
+
 ### 2026-09-17 · Claude Code, Opus (your bug 3 fixed — dead onboarding wizard removed)
 
 **Fixed bug 3: the empty `#onboard-wizard` overlay is gone.** Client change, still no zip

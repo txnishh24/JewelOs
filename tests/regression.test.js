@@ -36,6 +36,20 @@ function assert(cond, msg){
   if(!cond) throw new Error(msg || 'assertion failed');
 }
 
+// Most of this suite is synchronous. cloudDiag() and anything else that
+// resolves a promise needs this instead — the results are awaited before the
+// totals are printed, so an async failure still fails the run.
+var asyncTests = [];
+function testAsync(name, fn){
+  asyncTests.push(Promise.resolve().then(fn).then(function(){
+    passed++; console.log('  ✓ ' + name);
+  }, function(e){
+    failed++; failures.push(name + ': ' + e.message);
+    console.log('  ✗ ' + name);
+    console.log('      ' + e.message);
+  }));
+}
+
 console.log('\nJewelOS Regression Suite\n' + '='.repeat(50));
 
 // ── Bug: Girvi interest overcharge on partial payments ────────────────────
@@ -1111,11 +1125,92 @@ test('bootApp is a plain function again, not wrapped by the removed wizard', fun
   assert(typeof app.bootApp === 'function', 'bootApp() should still exist');
 });
 
-console.log('\n' + '='.repeat(50));
-console.log(passed + ' passed, ' + failed + ' failed');
-if(failed > 0){
-  console.log('\nFAILURES:');
-  failures.forEach(function(f){ console.log('  - ' + f); });
-  process.exit(1);
+// ── Bug: cloudDiag contradicted itself; Data-tab pill stuck (17 Sep) ────
+// Cowork saw "auth-gateway: UNREACHABLE" and, two lines later, "Authentication:
+// Healthy" — while real logins worked fine. Two separate faults: the probe sent
+// SB_HEADERS (which carries Prefer, a header auth-gateway's CORS does not
+// allow, so the preflight failed on a healthy gateway), and the summary was
+// derived from the store-proxy result alone. Separately the Settings → Data
+// "Checking..." pill never updated, because the renderSettings tabs patch
+// captured the original and never called it.
+console.log('\nCloud diagnostics (17 Sep):');
+
+test('the renderSettings tabs patch calls the function it captured', function(){
+  // The dead capture silently killed the Cloud Setup badge, the digest email
+  // field and the Razorpay key field all at once.
+  var fs = require('fs'), path = require('path');
+  var src = fs.readFileSync(path.join(__dirname, '..', 'js', '06-inventory-stock.js'), 'utf-8');
+  var at = src.indexOf('var _orig = renderSettings');
+  if(at !== -1){
+    // Scope to THIS wrapper: the same file has three other capture-and-wrap
+    // blocks (renderReports, renderCustomers, renderOrders) that do call
+    // theirs, and a whole-file search is satisfied by any one of them.
+    var block = src.slice(at, src.indexOf('}());', at));
+    assert(/_orig\s*\(\s*\)/.test(block),
+      '06-inventory-stock.js captures renderSettings as _orig but never calls it — every block only the original renders is dead');
+  }
+});
+
+test('the auth-gateway probe sends what the real login path sends', function(){
+  var fs = require('fs'), path = require('path');
+  var src = fs.readFileSync(path.join(__dirname, '..', 'js', '08-girvi-viewmode.js'), 'utf-8');
+  var probe = src.slice(src.indexOf('var authCheck = fetch('));
+  probe = probe.slice(0, probe.indexOf('.catch('));
+  assert(probe.indexOf('SB_HEADERS') === -1,
+    'the auth-gateway probe still sends SB_HEADERS — it carries Prefer, which auth-gateway CORS rejects, so a healthy gateway reports UNREACHABLE');
+  assert(probe.indexOf('"POST"') !== -1 || probe.indexOf("'POST'") !== -1,
+    'the probe should POST like authGatewayCall() does, not OPTIONS');
+});
+
+function runDiag(fakeFetch){
+  var a = loadApp();
+  a.SAAS = { user:{email:'o@shop.in'}, shop:{id:'shop1', name:'Test Shop'}, sessionToken:'tok' };
+  a.fetch = fakeFetch;
+  return a.cloudDiag(true);
 }
-process.exit(0);
+function okResponse(){
+  return Promise.resolve({ status:200, json:function(){ return Promise.resolve({ data:{} }); } });
+}
+
+testAsync('a failed auth check is not reported as "Authentication: Healthy"', function(){
+  return runDiag(function(url){
+    if(String(url).indexOf('/auth-gateway') !== -1) return Promise.reject(new Error('Failed to fetch'));
+    return okResponse();
+  }).then(function(log){
+    var text = log.join('\n');
+    assert(text.indexOf('auth-gateway   : UNREACHABLE') !== -1, 'the probe failure should still be reported');
+    assert(text.indexOf('Authentication: Healthy') === -1,
+      'summary claims Authentication: Healthy while the auth check failed:\n' + text);
+    assert(text.indexOf('sign-in') !== -1, 'the summary should name sign-in as the thing that could not be reached');
+  });
+});
+
+testAsync('a failed sync check is still reported when auth is fine', function(){
+  return runDiag(function(url){
+    if(String(url).indexOf('/store-proxy') !== -1) return Promise.reject(new Error('Failed to fetch'));
+    return okResponse();
+  }).then(function(log){
+    var text = log.join('\n');
+    assert(text.indexOf('Cloud unavailable') !== -1, 'summary should report the sync failure');
+    assert(text.indexOf('data sync') !== -1, 'the summary should name data sync as unreachable');
+  });
+});
+
+testAsync('everything healthy still reports healthy', function(){
+  return runDiag(function(){ return okResponse(); }).then(function(log){
+    var text = log.join('\n');
+    assert(text.indexOf('Cloud status: Connected. Sync: Healthy. Authentication: Healthy.') !== -1,
+      'a fully healthy run should say so:\n' + text);
+  });
+});
+
+Promise.all(asyncTests).then(function(){
+  console.log('\n' + '='.repeat(50));
+  console.log(passed + ' passed, ' + failed + ' failed');
+  if(failed > 0){
+    console.log('\nFAILURES:');
+    failures.forEach(function(f){ console.log('  - ' + f); });
+    process.exit(1);
+  }
+  process.exit(0);
+});

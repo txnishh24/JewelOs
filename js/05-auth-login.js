@@ -913,9 +913,10 @@ function renderSettings(){
   }
 
   // Account info
-  // NOTE: this whole function is replaced by the tabs patch in
-  // 06-inventory-stock.js, which does not call the original. The account
-  // card that actually renders is the one there — put changes in that copy.
+  // NOTE: the tabs patch in 06-inventory-stock.js wraps this function and
+  // re-renders several of the same blocks after calling it, so for anything
+  // both of them touch — shop fields, staff, activity log, last backup and
+  // this account card — that copy runs second and wins. Change it there.
   var accEl = document.getElementById('set-account-info');
   if(accEl){
     accEl.innerHTML = '<b>'+escHtml(SAAS.user.name)+'</b> &bull; '+escHtml(SAAS.user.email)+' &bull; <span class="role-badge '+(SAAS.user.role==='owner'?'':'staff')+'">'+escHtml(SAAS.user.role)+'</span>' + subAccountLineHtml();
