@@ -37,13 +37,12 @@
 // verified sending address on your Resend domain):
 //   supabase secrets set RESEND_API_KEY=<from resend.com dashboard>
 //   supabase secrets set RESEND_FROM_EMAIL=noreply@yourdomain.com
-// If RESEND_API_KEY is not set, the function still records the token and
-// responds normally (so you can test the reset flow end-to-end before
-// wiring up email) but logs the code with console.log instead of
-// emailing it — check `supabase functions logs auth-gateway` for it.
-// This fallback is only safe while you're the only one testing; do not
-// ship to real users without RESEND_API_KEY set, or every "forgot
-// password" request silently does nothing for them.
+// If RESEND_API_KEY is not set, request-password-reset refuses with 503
+// and issues no code at all. It used to log the code instead so the flow
+// could be tested before email was wired up; that put a working
+// account-takeover code for any email into the function logs, so it is
+// gone. The code is never logged, in any branch — to test the flow, set
+// RESEND_API_KEY against a real Resend account.
 // ══════════════════════════════════════════════════════════════════════
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -174,13 +173,10 @@ function generateResetCode() {
   crypto.getRandomValues(arr);
   return String(100000 + (arr[0] % 900000));
 }
-async function sendResetEmail(email: string, code: string) {
-  if (!RESEND_API_KEY) {
-    // No email provider configured — log instead of sending, so the
-    // flow is still testable locally. See deploy notes above.
-    console.log(`[auth-gateway] RESEND_API_KEY not set — reset code for ${email}: ${code}`);
-    return;
-  }
+// Returns true only if Resend accepted the message. Never logs `code`:
+// anything written here lands in the project's function logs, and a
+// reset code there is a working takeover of that account.
+async function sendResetEmail(email: string, code: string): Promise<boolean> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
@@ -195,7 +191,9 @@ async function sendResetEmail(email: string, code: string) {
     // Don't throw — a failed send shouldn't leak into a 500 that could
     // hint whether the account exists. Log server-side for debugging.
     console.error(`[auth-gateway] Resend send failed (${res.status}): ${await res.text()}`);
+    return false;
   }
+  return true;
 }
 
 Deno.serve(async (req) => {
@@ -406,6 +404,16 @@ Deno.serve(async (req) => {
     const email = String(body.email || "").trim().toLowerCase();
     if (!email) return json({ error: "email required" }, 400, origin);
 
+    // Fail closed with no email provider: issuing a code we cannot deliver
+    // only creates a credential nobody asked for. This is checked before
+    // the user lookup on purpose — it depends on deployment config, not on
+    // whether the address is registered, so it can't be used to enumerate
+    // accounts the way a 503 after the lookup could.
+    if (!RESEND_API_KEY) {
+      console.error("[auth-gateway] request-password-reset: RESEND_API_KEY is not set — refusing to issue a code that cannot be delivered.");
+      return json({ error: "Password reset is unavailable right now. Please contact support." }, 503, origin);
+    }
+
     const GENERIC_OK = {
       ok: true,
       message: "If an account exists for that email, a reset code has been sent.",
@@ -436,7 +444,15 @@ Deno.serve(async (req) => {
         code_hash: codeHash,
         expires_at: new Date(Date.now() + RESET_CODE_TTL_MIN * 60000).toISOString(),
       });
-      await sendResetEmail(email, code);
+      if (!await sendResetEmail(email, code)) {
+        // Undeliverable, so retire it rather than leaving a live code the
+        // owner never received — it would also burn one of their three
+        // requests an hour. The response below stays GENERIC_OK even now:
+        // a send is only attempted for addresses that exist, so reporting
+        // this failure to the caller would reveal that the account does.
+        await supabase.from("password_reset_tokens")
+          .delete().eq("email", email).eq("code_hash", codeHash);
+      }
     }
     // If no user matched, do nothing — but still return GENERIC_OK below,
     // and note we deliberately skip the insert+send so no code exists to

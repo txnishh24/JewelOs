@@ -15,6 +15,9 @@
 // Limit: the database is faked. consume_password_reset_code is modelled in
 // JS below, so this proves the Edge Function wiring and the algorithm, NOT
 // the SQL in migrations/003 or its locking under concurrent requests.
+//
+// Reset codes are read from the captured outbound Resend request, never from
+// the logs — the log fallback that used to print them was the 17 Sep finding.
 var fs = require('fs'), vm = require('vm'), path = require('path');
 var webcrypto = require('crypto').webcrypto;
 var sucrase = (function () {
@@ -30,6 +33,7 @@ if (!sucrase) {
 
 var SECRET = 'test-secret-0123456789abcdef';
 var logs = [];
+var sentEmails = []; // every outbound Resend call the functions made
 
 // ── fake database ─────────────────────────────────────────────────────
 function makeDb() {
@@ -49,6 +53,7 @@ Q.prototype.limit = function (n) { this.lim = n; return this; };
 Q.prototype.insert = function (p) { this.op = 'insert'; this.p = p; return this; };
 Q.prototype.upsert = function (p) { this.op = 'upsert'; this.p = p; return this; };
 Q.prototype.update = function (p) { this.op = 'update'; this.p = p; return this; };
+Q.prototype.delete = function () { this.op = 'delete'; return this; };
 Q.prototype.then = function (a, b) { return Promise.resolve().then(this.exec.bind(this)).then(a, b); };
 Q.prototype.exec = function () {
   var db = this.db, rows = db[this.t], self = this;
@@ -64,6 +69,7 @@ Q.prototype.exec = function () {
     return { data: null, error: null };
   }
   if (this.op === 'update') { match().forEach(function (r) { Object.assign(r, self.p); }); return { data: null, error: null }; }
+  if (this.op === 'delete') { match().forEach(function (r) { var i = rows.indexOf(r); if (i !== -1) rows.splice(i, 1); }); return { data: null, error: null }; }
   var out = match();
   if (this.opts.head) return { data: null, count: out.length, error: null };
   if (this.ord) { var c = this.ord[0], asc = this.ord[1]; out.sort(function (x, y) { return (x[c] < y[c] ? -1 : 1) * (asc ? 1 : -1); }); }
@@ -105,13 +111,32 @@ function makeClient(db) {
 }
 
 // ── load a real Edge Function into a sandbox ──────────────────────────
-function load(file, db) {
+// `env` overrides the defaults below; pass e.g. { RESEND_API_KEY: undefined }
+// to load a copy of the function as it behaves on a misconfigured project.
+function load(file, db, env) {
   var src = fs.readFileSync(file, 'utf8').replace(/^import \{ createClient \} from "jsr:[^"]+";$/m, 'const { createClient } = __mock;');
   var js = sucrase.transform(src, { transforms: ['typescript'] }).code;
   var handler = null;
+  var envMap = Object.assign({
+    SUPABASE_URL: 'http://fake', SUPABASE_SERVICE_ROLE_KEY: 'svc', SESSION_SECRET: SECRET,
+    RESEND_API_KEY: 're_test_key', RESEND_FROM_EMAIL: 'noreply@jewelos.test',
+  }, env || {});
+  // Stands in for Resend. Records what was sent so tests can read the code
+  // from the email itself; db.fail.resend makes the next send bounce.
+  var fakeFetch = function (url, opts) {
+    var payload = {};
+    try { payload = JSON.parse((opts && opts.body) || '{}'); } catch (e) {}
+    sentEmails.push({ url: String(url), to: payload.to, text: String(payload.text || '') });
+    if (db.fail.resend) {
+      delete db.fail.resend;
+      return Promise.resolve({ ok: false, status: 422, text: function () { return Promise.resolve('injected resend failure'); } });
+    }
+    return Promise.resolve({ ok: true, status: 200, text: function () { return Promise.resolve('{}'); } });
+  };
   var ctx = {
     __mock: { createClient: function () { return makeClient(db); } },
-    Deno: { env: { get: function (k) { return { SUPABASE_URL: 'http://fake', SUPABASE_SERVICE_ROLE_KEY: 'svc', SESSION_SECRET: SECRET }[k]; } }, serve: function (h) { handler = h; } },
+    fetch: fakeFetch,
+    Deno: { env: { get: function (k) { return envMap[k]; } }, serve: function (h) { handler = h; } },
     crypto: webcrypto, TextEncoder: TextEncoder, TextDecoder: TextDecoder, btoa: btoa, atob: atob,
     Response: Response, URL: URL, Uint8Array: Uint8Array, Uint32Array: Uint32Array, Array: Array, String: String, JSON: JSON, Date: Date, Math: Math, Set: Set, Promise: Promise,
     console: { log: function (m) { logs.push(String(m)); }, error: function (m, x) { logs.push('ERR ' + m + (x || '')); } },
@@ -204,16 +229,22 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
   });
 
   // ---- auth-gateway reset: finding 1
+  // Read the code out of the email that was actually sent. The 15-minute TTL
+  // in the same sentence is two digits, so \d{6} can only be the code.
   var codeFor = function (email) {
-    for (var i = logs.length - 1; i >= 0; i--) { var m = logs[i].match(new RegExp('reset code for ' + email.replace('.', '\\.') + ': (\\d{6})')); if (m) return m[1]; }
-    throw new Error('no code logged');
+    for (var i = sentEmails.length - 1; i >= 0; i--) {
+      if (sentEmails[i].to !== email) continue;
+      var m = sentEmails[i].text.match(/\b(\d{6})\b/);
+      if (m) return m[1];
+    }
+    throw new Error('no code emailed to ' + email);
   };
   // Requests a code and fails loudly if the server didn't actually issue one
   // (request-password-reset silently stops issuing after 3 an hour).
   var newCode = async function (email) {
-    var before = logs.length;
+    var before = sentEmails.length;
     await call(auth, 'request-password-reset', { email: email });
-    if (logs.length === before) throw new Error('no new code issued for ' + email + ' (hourly request limit hit?)');
+    if (sentEmails.length === before) throw new Error('no new code issued for ' + email + ' (hourly request limit hit?)');
     return codeFor(email);
   };
   var wrong = function (code) { return String((parseInt(code, 10) - 100000 + 1) % 900000 + 100000); };
@@ -252,6 +283,55 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     db.fail['rpc:consume_password_reset_code'] = true;
     eq((await reset('owner@shop.in', '123456', 'should-not-apply')).status, 500, 'status');
     eq((await call(auth, 'login', { email: 'owner@shop.in', password: 'newpass-123' })).status, 200, 'password unchanged');
+  });
+
+  // ---- auth-gateway reset: the code must never reach the logs (17 Sep)
+  await test('the reset code is never written to the function logs', async function () {
+    var add = await call(auth, 'add-staff', { sessionToken: ownerTok, name: 'Leak', email: 'leak@shop.in', role: 'staff' });
+    eq(add.status, 200, 'add-staff');
+    var code = await newCode('leak@shop.in');
+    var leaked = logs.filter(function (l) { return l.indexOf(code) !== -1; });
+    if (leaked.length) throw new Error('reset code appeared in logs: ' + leaked.join(' | '));
+    // Prove the code was real, so this can't pass by never issuing one.
+    eq((await reset('leak@shop.in', code, 'leak-newpass-1')).status, 200, 'the code still works');
+  });
+  // THE finding: with no provider configured the old code logged the code in
+  // full. Assert on the logs before anything else, so this fails for that
+  // reason and not because some later expectation happened to trip first.
+  await test('with no email provider configured, the code is still never logged', async function () {
+    var db2 = makeDb();
+    var auth2 = load(AG, db2, { RESEND_API_KEY: undefined });
+    eq((await call(auth2, 'signup', { name: 'O2', email: 'o2@shop.in', password: 'ownerpass2', shopName: 'S2', city: 'C' })).status, 200, 'signup');
+    var logsBefore = logs.length;
+    await call(auth2, 'request-password-reset', { email: 'o2@shop.in' });
+    var sixDigit = logs.slice(logsBefore).filter(function (l) { return /\b\d{6}\b/.test(l); });
+    if (sixDigit.length) throw new Error('a six-digit value was logged: ' + sixDigit.join(' | '));
+  });
+  await test('with no email provider configured, no code is issued and the caller gets 503', async function () {
+    var db2 = makeDb();
+    var auth2 = load(AG, db2, { RESEND_API_KEY: undefined });
+    eq((await call(auth2, 'signup', { name: 'O4', email: 'o4@shop.in', password: 'ownerpass4', shopName: 'S4', city: 'C' })).status, 200, 'signup');
+    var mailsBefore = sentEmails.length;
+    eq((await call(auth2, 'request-password-reset', { email: 'o4@shop.in' })).status, 503, 'status');
+    eq(db2.password_reset_tokens.length, 0, 'tokens issued');
+    eq(sentEmails.length, mailsBefore, 'emails sent');
+  });
+  await test('that 503 does not reveal whether the account exists', async function () {
+    var db2 = makeDb();
+    var auth2 = load(AG, db2, { RESEND_API_KEY: undefined });
+    await call(auth2, 'signup', { name: 'O3', email: 'o3@shop.in', password: 'ownerpass3', shopName: 'S3', city: 'C' });
+    var known = await call(auth2, 'request-password-reset', { email: 'o3@shop.in' });
+    var unknown = await call(auth2, 'request-password-reset', { email: 'nobody@shop.in' });
+    eq(known.status, unknown.status, 'status');
+    eq(JSON.stringify(known.body), JSON.stringify(unknown.body), 'body');
+  });
+  await test('a code that could not be emailed is retired, not left live', async function () {
+    var add = await call(auth, 'add-staff', { sessionToken: ownerTok, name: 'Bounce', email: 'bounce@shop.in', role: 'staff' });
+    eq(add.status, 200, 'add-staff');
+    db.fail.resend = true;
+    var r = await call(auth, 'request-password-reset', { email: 'bounce@shop.in' });
+    eq(r.status, 200, 'status is still the generic OK');
+    eq(db.password_reset_tokens.filter(function (t) { return t.email === 'bounce@shop.in'; }).length, 0, 'tokens left behind');
   });
 
   // ---- auth-gateway: no markup in names and shop details (finding 2)

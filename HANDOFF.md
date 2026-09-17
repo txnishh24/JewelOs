@@ -48,6 +48,169 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-17 · Claude Code, Opus (your bug 1 fixed — server only, built, NOT deployed)
+
+**Fixed bug 1 from your walkthrough: `auth-gateway` no longer logs password-reset codes.**
+Server-side only — nothing in `js/` or `index.html` changed, so **there is no zip for Tanish
+to drag.** This goes live through Supabase, which is your side. 🔴 (auth/security) under
+`MODEL-POLICY.md` §8, done on Opus. Bug 2 (making charge missing from the sale) is **not**
+started — see the hand-back.
+
+**What changed, in `supabase/functions/auth-gateway/index.ts`:**
+
+1. **The code is never logged, in any branch.** The `RESEND_API_KEY not set — reset code
+   for X: 311652` line is gone outright.
+2. **`request-password-reset` now fails closed** when `RESEND_API_KEY` is unset: it returns
+   **503** and issues no code at all, instead of recording a token and reporting success for
+   an email it cannot send. The check sits **before** the user lookup on purpose — after it,
+   a 503-for-real-accounts vs 200-for-strangers split would have become an account
+   enumeration oracle, which is the exact thing the generic-message design exists to prevent.
+3. **A code Resend actually rejects is deleted rather than left live.** Same reasoning in
+   reverse: that path still returns the generic OK, because a send is only attempted for
+   addresses that exist, so surfacing the failure would leak that the account exists. There
+   is a comment saying so so nobody "fixes" it later.
+
+**⚠️ Read this before you deploy — it changes live behaviour for Tanish.** Your entry says
+you reproduced the plaintext log line twice, which means **`RESEND_API_KEY` is currently unset
+in production.** So the moment this deploys, "Forgot password" stops working for everyone and
+returns "Password reset is unavailable right now. Please contact support." That is the
+intended, safer behaviour — today the same flow issues a code it never delivers, so it is
+already broken for real users, just silently and while leaking the code. But it is a visible
+change, so **set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` first if you want reset working on
+the same day.** That is item 3 of the old ten-item list, still unanswered since 13 Sep.
+
+**On the codes already in the logs:** they expire 15 minutes after issue, so historical log
+entries are inert and there is nothing to retroactively rotate. The real severity was standing
+log access — anyone with it could request a reset for *any* email and read the code
+immediately. That closes on deploy.
+
+**Verified.** `tests/edge-functions.test.js` is **25/25** (was 20/20 — 5 new). More to the
+point, I ran the new tests against the **pre-fix** function from commit `82ad59e` and three of
+them fail there, with the leak printed in the failure output:
+`a six-digit value was logged: [auth-gateway] RESEND_API_KEY not set — reset code for
+o2@shop.in: 124676`. The enumeration test I also checked by deliberately moving the new guard
+to the wrong side of the user lookup — it fails there too, so it is a real guard and not
+decoration. `check.bat` clean: regression 66/66, all nine checks at the batch19 baseline,
+`backup-check` and `roundtrip` clean.
+
+**The test harness changed shape, which matters if you read it.** The reset tests used to
+recover the code by scraping it out of that log line — the vulnerability was load-bearing for
+its own test suite. They now read it from a captured fake Resend request, so the suite
+exercises the **configured** path (the one real shops use) rather than the fallback, and
+`load()` takes an env override so a misconfigured project can be tested deliberately.
+
+**Not verified:** nothing ran against the live project — no request sent, no secret read, no
+function deployed. Whether `RESEND_API_KEY` is set is still inferred from your log observation,
+not checked. The fake Resend never exercises a real network failure or a real Resend error
+shape, and no reset has been driven end-to-end through a real inbox.
+
+→ FOR COWORK: deploy `auth-gateway` (no migration, no client zip, nothing else touched) — but
+**check `RESEND_API_KEY` in the dashboard first and tell Tanish that reset is refused until it
+is set**, because the fix trades a silent leak for an honest 503. Then confirm a
+`request-password-reset` against the live function no longer puts a six-digit code in the
+function logs. Bug 2 (making charge never reaching the sale) is still open and is the next one
+I pick up unless Tanish redirects; bugs 3-9 untouched.
+
+### 2026-09-17 · Cowork (full live walkthrough, real browser — 9 bugs found and filed below)
+
+**First Cowork entry in this file with actual visual verification.** Every prior Cowork
+entry says some version of "not verified: nothing visual, no browser automation here" —
+this session had it (the built-in browser in Tanish's desktop app), so this is a real
+click-through as a brand-new signup, not a database query. Cleared localStorage first so
+it was a genuine first run. Signed up → set rates → added inventory → sold to a new
+customer → opened a Girvi loan → recorded a purchase bill → invited a staff member →
+signed in **as that staff member** and had them record a sale → back in as owner → checked
+Settings, Analytics, Automation, Audit, backup/export. Full narrative report already went
+to Tanish directly; this entry is the actionable subset for Claude Code.
+
+Test data still live in the real Supabase project, not cleaned up (Cowork has no
+permanent-delete permission this session): shop **"Cowork QA Jewellers (TEST — delete
+me)"**, owner `cowork.qa.owner@example.invalid`, staff `cowork.qa.staff@example.invalid`.
+**Tanish or Cowork should delete both — not a Claude Code task, flagging so it isn't
+forgotten.**
+
+**Bugs, worst first. File pointers are from `CLAUDE.md`'s module table, not from reading
+the source — grep to confirm before editing, same as always.**
+
+1. 🔴 **`auth-gateway` logs password-reset codes in plaintext when `RESEND_API_KEY` is
+   unset.** `supabase/functions/auth-gateway`, the `request-password-reset` handler.
+   Reproduced twice (staff account, then owner account): `RESEND_API_KEY not set — reset
+   code for X@Y: 311652` goes straight into Supabase function logs, in full, in the live
+   project. Anyone with log/dashboard access or a leaked service key can take over any
+   account this way, right now. Fix: strip the code from the log line; make the endpoint
+   fail closed instead of silently "succeeding" when it can't actually deliver the code.
+   Auth/security — Opus, per §8.
+
+2. 🔴 **A product's making charge doesn't reach the sale.** Likely spans
+   `02-ui-inactivity-modals.js` (sale item entry — where the item picker should pre-fill
+   from the product) and `03-billing-numbers.js` (sale totals — where "Extra making ₹" is
+   summed). Set ₹500/g making charge on a product, sold it via the SKU/name picker,
+   "Extra making ₹" stayed 0. Real: the test shop showed a ₹4,250 loss for the day off
+   this one sale. Financial calculation — Opus, per §8.
+
+3. 🟡 **Dead `#onboard-wizard` overlay blocks the dashboard on every fresh login.**
+   Probably `06-inventory-stock.js` (owns the onboarding checklist) — grep `onboard-wizard`
+   to confirm, could be a modal helper elsewhere. Reproduced 3 times independently: new
+   owner signup, staff login, owner re-login. `div#onboard-wizard.visible` renders with two
+   empty children (`.wizard-progress`, `.wizard-steps`), no content, no dismiss handler.
+   Escape doesn't close it. A real user with no devtools is just stuck. Fix: either
+   populate it or stop triggering `.visible`; add a dismiss handler regardless.
+
+4. 🟡 **The floating Netlify badge intercepts bottom-nav taps.** Not app code — check
+   Netlify site settings for the badge toggle first. Reproduced twice tapping "Customers":
+   it reopened Netlify's own promo panel instead of navigating. If it can't be disabled at
+   the platform level, the nav bar needs a z-index/pointer-events fix over it.
+
+5. 🟡 **Cloud Setup status stuck on "Checking…"; `cloudDiag()` contradicts itself.**
+   `08-girvi-viewmode.js` owns `cloudDiag()` per the module table — the "Checking…" pill
+   itself may live in `07-settings-plans.js` (Settings → Data tab). `cloudDiag()` prints
+   `auth-gateway: UNREACHABLE — Failed to fetch` and then, two lines later, `Authentication:
+   Healthy` — the summary ignores its own failed check. Real login/signup worked fine
+   throughout, so this reads as a bug in the self-test, not in auth. Fix both: find why the
+   Data-tab pill's async check never resolves the DOM, and make the summary line actually
+   derive from the reachability check above it.
+
+6. 🟡 **Backup export doesn't include the team roster — confirm this is intentional.**
+   `01-sync-core.js` (cloud load/save) is the likely home of `exportFullBackup()`. Read the
+   function directly: it already has a comment explaining why `SAAS.shop`/session/plan are
+   deliberately excluded, and it covers products/sales/orders/girvi/customers/purchases/
+   suppliers/rates/stockMovements/logs — genuinely comprehensive. It does not touch
+   `jewelos_users` (the team roster), which may be correct given the one-JSON-blob-per-shop
+   architecture (team isn't part of the shop blob) — but right now that's silent, not
+   decided. Either add a matching comment explaining the exclusion, or add team (name/email/
+   role only, never credentials) to backup+restore. Touches restore — treat as 🔴 if you
+   decide to change restore behaviour, 🟡 if it's just the comment.
+
+7. 🟢 **Today's Profit renders green even when negative.** Saw "Today's Profit ₹-4,250" in
+   the same green used for positive numbers, while bug 2 above was live. Conditional class
+   on sign — likely `00-config-state.js` (shared helpers) or wherever the dashboard stat
+   tiles render.
+
+8. 🟢 **Two cosmetic fixes.** Sign-in footer says "© 2025 JewelOS" — make it dynamic. The
+   "What's New in v18.1" changelog shows to brand-new signups who've never used an earlier
+   version — gate it on account `createdAt` vs. the version's release, or seed a new
+   account's "last seen version" at signup.
+
+9. 🟡 **Could not find a Plan/Subscription screen anywhere in Settings — worth a look, not
+   necessarily a bug.** `07-settings-plans.js`'s own name, plus `PLAN_LIMITS` living in
+   `04-orders-detail.js`, both suggest plan logic exists in code. As a first-time signup I
+   never found it surfaced in the Settings tab bar. Could be intentional for this account
+   tier, or a tab that's built but not linked — five minutes to check before assuming
+   either way.
+
+**Also, not urgent:** the CLV analytics on Settings → Analytics project unrealistic
+lifetime-value numbers off a single order (one walk-in ₹3,60,000 sale got projected to
+₹86,40,000 24-month CLV and tagged "VIP"; another single-order customer got tagged "Risky"
+off the identical shape of data — the labeling isn't even internally consistent). Not on
+the numbered list above since it's a judgement-call algorithm, not a broken calculation,
+but worth a minimum-order-count floor before trusting the VIP/Risky labels for anything.
+
+→ FOR CLAUDE CODE: nine bugs above, numbered worst first, each with a file pointer, a risk
+tag, and a fix. Work them in order — 1 and 2 before anything else touches this build,
+they're the two that matter if a real shop's data or a real account is on the line. Write
+regression tests for 1 and 2 at minimum, per `tests/README.md`'s own rule. Bug 9 is a
+five-minute check, not a build — do it whenever, it's not blocking.
+
 ### 2026-09-13 · Cowork (auth-gateway redeployed with the `hasMarkup` guard — v3→v4)
 
 **Checked, and you were right to flag it: v3 didn't have it.** Pulled the live deployed
