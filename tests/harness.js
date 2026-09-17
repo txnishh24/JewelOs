@@ -16,7 +16,8 @@ function makeFakeElement(){
       add(){}, remove(){}, toggle(){}, contains(){ return false; }
     },
     children: [], innerHTML: '', textContent: '', value: '',
-    appendChild(){}, addEventListener(){}, removeEventListener(){},
+    appendChild(){}, addEventListener(){}, removeEventListener(){}, click(){},
+    focus(){}, select(){},
     querySelectorAll(){ return []; }, querySelector(){ return null; },
     getAttribute(){ return null; }, setAttribute(){}, remove(){}
   };

@@ -1204,6 +1204,50 @@ testAsync('everything healthy still reports healthy', function(){
   });
 });
 
+// ── Decision: the team roster stays out of the backup (17 Sep) ─────────
+// Cowork's review flagged its absence as possibly accidental. It is not: the
+// roster is not in S, the server owns it, and restoring one from an untrusted
+// file would re-create staff removed since the backup was taken — undoing the
+// removed-staff fix. These tests exist so the decision is enforced, not just
+// commented, because "add the team to the backup" reads like an improvement.
+console.log('\nBackup scope (17 Sep):');
+
+function buildBackupPayload(){
+  var a = loadApp();
+  a.SAAS = { shop:{id:'shop1', name:'Test Shop'}, user:{name:'O', email:'o@shop.in', role:'owner'} };
+  a.S.products = [{ id:'p1', name:'Ring', mcRate:500 }];
+  var captured = null;
+  a.Blob = function(parts){ captured = parts[0]; };
+  a.URL  = { createObjectURL:function(){ return 'blob:test'; }, revokeObjectURL:function(){} };
+  a.exportFullBackup();
+  return { raw: captured, payload: JSON.parse(captured) };
+}
+
+test('the backup carries no team roster and no credentials', function(){
+  var b = buildBackupPayload();
+  var suspicious = Object.keys(b.payload.data).filter(function(k){
+    return /user|staff|team|member|password|hash|salt|token/i.test(k);
+  });
+  assert(suspicious.length === 0,
+    'backup data should hold shop records only, found: ' + suspicious.join(', '));
+  ['passwordHash','sessionToken','salt'].forEach(function(s){
+    assert(b.raw.indexOf(s) === -1, 'backup file contains "' + s + '" — credentials must never leave the server');
+  });
+});
+
+test('restoring a backup cannot create or change a team member', function(){
+  // The security half: a backup file is untrusted input, so the restore path
+  // must not be able to write the user store at all.
+  var fs = require('fs'), path = require('path');
+  var src = fs.readFileSync(path.join(__dirname, '..', 'js', '05-auth-login.js'), 'utf-8');
+  var fn = src.slice(src.indexOf('function processBackupFile('));
+  fn = fn.slice(0, fn.indexOf('\nfunction '));
+  ['saasSetUsers', 'USERS_KEY', 'add-staff'].forEach(function(n){
+    assert(fn.indexOf(n) === -1,
+      'processBackupFile() references ' + n + ' — a restore must not be able to resurrect removed staff');
+  });
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

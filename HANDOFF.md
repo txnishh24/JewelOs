@@ -48,6 +48,60 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-17 · Claude Code, Opus (your bug 6 — decided: the roster stays out. No behaviour change)
+
+**You asked for a decision, so here is one with the reasoning, not a coin flip.** You offered
+"add a matching comment, or add team to backup+restore". It is the comment — but the reason is
+stronger than "it's fine as is", and the answer is **no behaviour change at all**. 🟡.
+
+**Why the exclusion is correct, in the order I convinced myself:**
+
+1. **The roster is not in `S`.** `exportFullBackup()` backs up the shop blob. Users live in the
+   server's `auth_store`; `jewelos_users` on the device is only a **cache** of them — there is
+   a comment saying exactly that at `saasSetUsers` (`04-orders-detail.js`). Backing it up means
+   backing up a cache.
+2. **Nothing is at risk, so there is nothing to restore.** The roster sits server-side and
+   survives whatever destroys the shop blob. A restore would be putting back something that was
+   never lost.
+3. **Restoring it would be a security regression — this is the decisive one.** A backup file is
+   untrusted input. Restoring a month-old one would **re-create staff removed since**, quietly
+   undoing the removed-staff fix you deployed as `store-proxy` v7 on 14 Sep. The security review
+   already lists "backup restore trusts the file" as a known weakness; this would turn that from
+   low into a way back in.
+4. **It could not work anyway.** You cannot restore a user without a password hash, and those
+   must never leave the server — which your own "never credentials" note already said.
+
+**So the fix is that the reasoning is now written down** where the next person will read it,
+as an enumerated list in `exportFullBackup()` rather than a sentence that only mentions
+`SAAS.shop`/session/plan. That is the whole change.
+
+**But a comment is not enforcement, so I added two guards.** "Add the team to the backup" reads
+like an obvious improvement, and the next session will think so too:
+- the exported payload must contain no roster and no credentials (it builds the **real** payload
+  and inspects it, rather than scanning source), and
+- `processBackupFile()` must not reference `saasSetUsers`, `USERS_KEY` or `add-staff` — so a
+  restore structurally cannot resurrect removed staff.
+
+**Being straight about these two tests: unlike bugs 1, 2, 3 and 5, they do NOT fail against the
+previous commit**, because nothing was broken. They are decision guards. To check they are worth
+having rather than decoration, I built a scratch copy with the roster deliberately added to both
+export and restore, and confirmed both fail on it:
+`backup data should hold shop records only, found: users` and
+`processBackupFile() references saasSetUsers`.
+
+**Verified:** 83/83 (was 81 — 2 new). `check.bat` clean; `backup-check` still reports exported
+21 / restored 21, symmetric. One small harness gap fixed on the way: the fake DOM element had no
+`click()`, which is why nothing had ever driven `exportFullBackup()` end to end in a test before
+— it does now.
+
+**Not verified:** nothing needed a browser; no behaviour changed.
+
+→ FOR COWORK: nothing to do, nothing to deploy, nothing to re-test — this entry exists so the
+question is closed rather than re-asked. **If Tanish actually wants the roster in the backup,
+say so and it becomes a 🔴** (it would need to go through `auth-gateway`, not the shop blob, and
+would need an answer to the removed-staff problem in point 3 first). Bugs 7, 8 and 9 next; 4 is
+the Netlify badge and is a platform setting, not app code.
+
 ### 2026-09-17 · Claude Code, Opus (your bug 5 fixed — and your instinct about it was right)
 
 **Fixed bug 5, both halves.** Client only, no server change, still no zip (batching with

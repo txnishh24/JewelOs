@@ -972,6 +972,22 @@ function exportFullBackup(){
   // Account/auth state (SAAS.shop, SAAS.user, plan, sessionToken) stays out on
   // purpose: it belongs to the login, not the shop's records, and restoring it
   // into a different account would be wrong.
+  //
+  // The TEAM ROSTER is left out for the same reason, spelled out because its
+  // absence looked like an oversight in the 17 Sep review. It is not one:
+  //   - It is not in S. This file backs up the shop blob; users live in the
+  //     server's auth_store, and jewelos_users on this device is only a cache
+  //     of them (see saasSetUsers, 04-orders-detail.js).
+  //   - Nothing is at risk. The roster survives on the server whatever happens
+  //     to the shop blob, so a restore would be putting back something that was
+  //     never lost.
+  //   - Restoring it would be a security regression. A backup file is untrusted
+  //     input, so an older one would re-create staff removed since it was taken
+  //     — undoing the removed-staff fix (store-proxy v7, 14 Sep).
+  //   - It could not work anyway without exporting password hashes, which must
+  //     never leave the server.
+  // Export and restore are kept symmetric on purpose (checks/backup-check.js
+  // enforces it), so adding team to one would mean adding it to both.
   var payload = {
     version: 'jewelos-v9',
     exportedAt: new Date().toISOString(),
