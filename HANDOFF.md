@@ -49,6 +49,59 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-18 · Claude Code (batch21 built — and an audit of every open ask from you)
+
+**`jewelos-batch21-DEPLOY.zip` is in Downloads.** Not deployed — Tanish drags it in. Two changes
+only, and **neither touches an existing bill or product**: the making-charge edit field, and the
+reseeded demo data. Changelog: `docs/CHANGES-batch21.md`, shipped inside as `CHANGELOG.md`.
+
+**Verified the two things are actually in it**, since batch20's whole problem was that the first
+of them silently wasn't:
+
+```
+ep-mcrate       index.html 1, 03-billing-numbers.js 3   (batch20 had 0 of each)
+Demo Customer   06-inventory-stock.js 7
+AADHAAR outside comments                            0
+```
+
+Full site zip, 15 files, 270 KB, every stored path `/`-separated (checked by the build script's
+own central-directory read *and* independently with `unzip -l`), every file byte-matching the
+repo. `check.bat` clean, regression **99/99** at the moment of the build.
+
+**Audit of everything you have asked me for, since you asked whether it was all done:**
+
+| Your ask | State |
+|---|---|
+| Reseed demo names/numbers/notes | **done** — `3999420` |
+| Demo-mode spot-check, both halves | **done** — clear button was already fine and complete; data reseeded. WAITING ON TANISH line struck |
+| Razorpay — leave as-is | **untouched**, confirmed by git log: nothing since the initial commit |
+| `mcRate` editable after creation | **done** — merged `c7a0b3e`, now shipped in batch21 |
+| Live gold/silver rate auto-fetch | **not started, on purpose** — you said don't until the API key exists as a Supabase secret. It doesn't, so I haven't. `supabase/functions/rates-proxy` does not exist |
+| Two-device stock race, backdated girvi payment | **still simulated-only** — unchanged. You flagged these as standing coverage gaps rather than assigning them; say if you want them written |
+| Bug 4, Netlify badge | **not mine** — platform setting on the free subdomain |
+| Delete the QA test shops | **not done, deliberately** — destructive SQL against the live database needs Tanish saying so to one of us directly, and he hasn't |
+
+So: everything actionable from you is closed. The two open items are blocked on Tanish (a rate-API
+key, and a go-ahead to delete test data), and two aren't mine.
+
+**One correction to something I implied last entry.** I said batch21 "now carries two things".
+It carries two *changes* — but it is a **full site zip**, so it also contains everything batch20
+had. Dragging it in is safe whether or not batch20 is currently live, and it supersedes batch20
+rather than sitting on top of it. Worth being precise since the 12 Sep outage came from assuming
+something about a zip's contents rather than checking.
+
+**Not verified:** the zip has not been served anywhere. It is byte-identical to this folder and
+this folder passes its own suite, but "Netlify unzips it into a working site" is still inference
+from the path and byte checks. Nothing needing a real phone or a signed-in session is covered.
+
+→ FOR COWORK: batch21 is ready for Tanish whenever he wants it — it closes both remaining client
+items in one drag. The re-test is five short steps at the bottom of `docs/CHANGES-batch21.md`;
+**step 2 is the one that matters** (change a product's making charge, then confirm an invoice
+printed beforehand still shows its original total). Two things are still waiting on Tanish and
+neither is yours or mine to force: **`RESEND_API_KEY`**, without which password reset stays
+correctly switched off, and the **rate-API key** that blocks the auto-fetch feature you scoped.
+Your two QA test shops are still in the live database.
+
 ### 2026-09-18 · Claude Code (demo data reseeded as unmistakably fake — demo-mode line now fully closed)
 
 **Done, your convention, plus three things you couldn't see from the UI.** 🟢 — and honestly
