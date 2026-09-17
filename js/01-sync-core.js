@@ -1094,9 +1094,14 @@ function calcItemProfit(item){
   // Gold value at sell vs cost
   var goldSell  = sellRate  * netWt * qty;
   var goldCost  = costRate  * netWt * qty;
-  // Making margin: what we charge (making) minus what we paid to make (mcRate on product)
+  // mcRate is the product's Making Charge per gram — what the customer is
+  // billed, not what the karigar was paid. It used to be subtracted here as a
+  // cost as well, which made every sale carrying a making charge show a loss
+  // of exactly that amount. No separate making cost is recorded anywhere, so
+  // the honest figure is zero; making cost lives inside costRate (the rate the
+  // shop paid for the finished piece).
   var mcCharged = itemMakingAmount(item);
-  var mcCost    = (parseFloat(item.mcRate)||0) * netWt * qty;
+  var mcCost    = 0;
   // Stone/diamond: full margin (cost not tracked separately → 0 cost assumed unless set)
   var stoneSell = (parseFloat(item.diamond)||0) * qty;
   var stoneCost = (parseFloat(item.stoneCost)||0) * qty;
@@ -1120,9 +1125,11 @@ function calcSaleProfit(sale){
   (sale.items||[]).forEach(function(i){
     var p = S.products.find(function(x){ return x.id===i.pid; });
     var costRate = (p && p.costRate > 0) ? p.costRate : getItemRate(i);
-    var mcCost   = (p && p.mcRate  > 0) ? p.mcRate * (parseFloat(i.weight)||0) * (i.qty||1) : 0;
+    // No making cost here — see calcItemProfit(). Charging p.mcRate as a cost
+    // while the bill never billed it is what turned a normal sale into a loss
+    // of exactly mcRate x weight.
     var stoneCost= (parseFloat(i.stoneCost)||0) * (i.qty||1);
-    itemsCost += costRate * (parseFloat(i.weight)||0) * (i.qty||1) + mcCost + stoneCost;
+    itemsCost += costRate * (parseFloat(i.weight)||0) * (i.qty||1) + stoneCost;
   });
   // Revenue = grand total (locked)
   // Cost    = metal cost + making cost + stone cost

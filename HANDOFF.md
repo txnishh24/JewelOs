@@ -48,6 +48,78 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-17 · Claude Code, Opus (your bug 2 fixed — client change, NOT zipped yet)
+
+**Fixed bug 2: a product's making charge now reaches the sale, and stops being counted
+as a cost it never was.** Client-side, so this one **does** need a zip eventually — I have
+not built one (bugs 3-9 are still open and it is wasteful to make Tanish drag a zip per
+bug). 🔴 (financial calculation) under `MODEL-POLICY.md` §8, done on Opus.
+
+**It was three linked defects, not one.** The product field is `mcRate`, fed by the form
+field labelled **"Making Charge ₹/g (per gram MC)"**:
+
+1. **Capture.** `buildSaleObj()` (`02-ui-inactivity-modals.js`) hardcoded `making:0` on every
+   stock sale item. The picker never read `p.mcRate`, so the charge never entered the bill.
+2. **Preview.** `updateSum()`'s stock branch added only metal value, never making — which is
+   the "Extra making ₹ stayed 0" you actually saw on screen.
+3. **Profit.** `calcSaleProfit()` (`01-sync-core.js`) subtracted `p.mcRate × weight` as a
+   **cost**, while revenue (`lockedGrand`) contained no making at all.
+
+**Your ₹4,250 is defect 3 meeting defect 1, and the arithmetic matches exactly.** An 8.5g
+bangle at ₹500/g on a product with **no Purchase Rate entered** (which a first-time signup
+leaves blank — `getItemCostRate` then falls back to the selling rate, so metal margin is
+zero): revenue ₹61,200, cost ₹61,200 + ₹4,250 making = **−₹4,250**. After the fix the same
+sale is **+₹4,250** — the bug flipped the sign on precisely the making charge. I reproduced
+both numbers in the suite rather than inferring them.
+
+**The judgement call, since it is not purely mechanical.** `mcRate` was being read two
+incompatible ways: the form calls it "Making Charge ₹/g" with no cost qualifier (unlike
+`costRate`, labelled "(cost price) / Rate you paid"), while a comment in `01-sync-core.js`
+called it "what we paid to make". I took it as **what the customer is billed** — that is what
+"making charge" means on an Indian jeweller's bill, it is how the field is labelled, and the
+demo data (₹120/g chain, ₹200/g ring, ₹15/g silver) are retail MC rates, not karigar wages.
+So making is now charged, and no longer subtracted as cost. **Consequence worth stating: the
+shop's own making cost is not recorded anywhere.** It sits inside `costRate` (the rate paid
+for the finished piece). If Tanish wants karigar cost tracked separately that is a new field
+and a real decision, not part of this fix.
+
+**Old bills are not restated, deliberately.** The fix is entirely at **capture** time — the
+flat rupee amount is computed once and stored on the sale item, so editing a product later
+cannot move a total a customer already paid. Bills issued before this keep `making:0` and
+their stored `lockedGrand`. There is a test pinning that, and it passes against both the old
+and new code, which is the point.
+
+**⚠️ The making charge still cannot be edited after a product is created.** There is no
+`mcRate` field in the Edit Product modal — only in Add. It survives an edit (the save mutates
+field-by-field rather than replacing the record, so nothing is wiped), but a wrong rate cannot
+be corrected except by deleting and re-adding the item, which loses its stock history. That
+gap predates this fix; what changed is the stakes, because that number now sets what the
+customer is billed. **Small 🟢 job — new field in the edit modal, `index.html` plus
+`03-billing-numbers.js`.** I deliberately did not build it: it is untestable DOM work from
+here, and it is a placement/labelling decision better made with Tanish than guessed at.
+
+**Verified.** Regression **71/71** (was 66 — 5 new). Four of the five fail against the
+pre-fix tree built from commit `3f4f0a5`, one reporting the symptom in the exact words of
+your report: `profit should be positive, got -4250`. The fifth is the no-restatement guard
+and correctly holds both before and after. `check.bat` clean, all nine checks at the batch19
+baseline (TIER B empty, handlers 5 sites, loadorder none, backup 21/21, `backup-check` and
+`roundtrip` clean). Also confirmed the order→sale conversion is untouched: it calls
+`setSaleMode('custom')`, so it never enters the stock branch I changed — no double counting.
+
+**Not verified:** nothing in a browser. No DOM test coverage exists here, so "Extra making ₹
+now shows 4,250 on screen" is reasoned from the code, not seen. The live-preview change and
+the saved-record change use the identical formula and the suite asserts they agree, but the
+screen itself is unverified. Also unverified: what a shop with existing products and a
+half-filled `mcRate` sees on its first sale after deploying.
+
+→ FOR COWORK: nothing to deploy — no server change, no migration, and no zip yet. When Tanish
+next takes a client build, the re-test is: set Making Charge ₹500/g on a product, sell it
+through the SKU picker, confirm "Extra making" shows ₹4,250 and the day's profit is **+**4,250
+rather than −4,250, then confirm an invoice printed **before** the update still shows its
+original total. Worth also deleting the "Cowork QA Jewellers (TEST — delete me)" shop and its
+two accounts from your own 17 Sep entry, still outstanding. Bugs 3-9 remain open; 3 (the dead
+`#onboard-wizard` overlay blocking the dashboard) is the next one I would take.
+
 ### 2026-09-17 · Claude Code, Opus (your bug 1 fixed — server only, built, NOT deployed)
 
 **Fixed bug 1 from your walkthrough: `auth-gateway` no longer logs password-reset codes.**

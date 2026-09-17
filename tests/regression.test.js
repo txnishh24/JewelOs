@@ -990,6 +990,82 @@ test('activity log notes and user names are escaped wherever the log is rendered
   });
 });
 
+// ── Bug: a product's making charge never reached the sale (17 Sep) ──────
+// Found in Cowork's live walkthrough: set Making Charge 500/g on a product,
+// sell it through the SKU picker, and "Extra making" stayed 0. The bill
+// undercharged by mcRate x weight, and calcSaleProfit ALSO subtracted that
+// same amount as a cost, so one sale of an 8.5g bangle at 500/g reported a
+// 4,250 loss instead of a 4,250 profit — the sign flipped on exactly the
+// making charge.
+console.log('\nMaking charge reaches the sale (17 Sep):');
+
+function makingScenario(productOverrides){
+  var a = loadApp();
+  a.S.rates = { g24:7500, g22:7200, g18:6000, g14:4500, sil:90 };
+  var p = { id:'p1', name:'Bangle', metal:'gold', purity:'22K', weight:8.5,
+            netWeight:8.5, mcRate:500, qty:1, status:'available', sku:'GLD-100' };
+  Object.keys(productOverrides||{}).forEach(function(k){ p[k] = productOverrides[k]; });
+  a.S.products = [p];
+  a.UI.saleMode = 'stock';
+  a.UI.saleItems = [{ pid:'p1', qty:1 }];
+  return a;
+}
+
+test('a stock sale carries the product\'s making charge (500/g x 8.5g = 4,250)', function(){
+  var a = makingScenario();
+  var sale = a.buildSaleObj();
+  assert(approxEqual(sale.items[0].making, 4250, 1),
+    'sale item should carry making 4250, got ' + sale.items[0].making);
+  assert(approxEqual(sale.lockedGrand, 65450, 1),
+    'locked total should be metal 61200 + making 4250 = 65450, got ' + sale.lockedGrand);
+});
+
+test('the displayed breakdown and the locked total agree on the making charge', function(){
+  var a = makingScenario();
+  var sale = a.buildSaleObj();
+  var t = a.calcSaleTotals(sale);
+  assert(approxEqual(t.mc, 4250, 1), 'breakdown making should be 4250, got ' + t.mc);
+  assert(approxEqual(t.grand, sale.lockedGrand, 1),
+    'breakdown grand (' + t.grand + ') must match the locked total (' + sale.lockedGrand + ')');
+});
+
+test('a sale with a making charge is a profit, not a loss, when no purchase rate was entered', function(){
+  // The reported case: a first-time signup who never filled "Purchase Rate".
+  var a = makingScenario();
+  var sale = a.buildSaleObj();
+  var profit = a.calcSaleProfit(sale).profit;
+  assert(profit > 0, 'profit should be positive, got ' + profit);
+  assert(approxEqual(profit, 4250, 1),
+    'with no purchase rate the making charge IS the profit: expected +4250, got ' + profit);
+});
+
+test('the making charge is not also subtracted as a cost', function(){
+  var a = makingScenario({ costRate: 6000 });
+  var sale = a.buildSaleObj();
+  var r = a.calcSaleProfit(sale);
+  // metal margin (7200-6000) x 8.5 = 10,200, plus the 4,250 making = 14,450.
+  assert(approxEqual(r.cost, 51000, 1),
+    'cost should be metal only (6000 x 8.5 = 51000), got ' + r.cost);
+  assert(approxEqual(r.profit, 14450, 1),
+    'profit should be metal margin 10200 + making 4250 = 14450, got ' + r.profit);
+});
+
+test('an already-issued bill is not restated when its product has a making charge', function(){
+  // Bills printed before this fix stored making:0 and a lockedGrand without
+  // it. Deriving making from the product at display time would silently
+  // change a total the customer already paid, so it must not happen.
+  var a = makingScenario();
+  var old = { id:'s-old', date:new Date().toISOString(), invNo:'INV-001',
+    items:[{ pid:'p1', name:'Bangle', metal:'gold', purity:'22K', weight:8.5,
+             grossWeight:8.5, qty:1, making:0, diamond:0, lockedRate:7200 }],
+    making:0, diamond:0, gst:0, discount:0, lockedGrand:61200 };
+  var t = a.calcSaleTotals(old);
+  assert(approxEqual(t.grand, 61200, 1),
+    'an old bill must keep its original total of 61200, got ' + t.grand);
+  assert(approxEqual(t.mc, 0, 1),
+    'an old bill must keep making 0, got ' + t.mc);
+});
+
 console.log('\n' + '='.repeat(50));
 console.log(passed + ' passed, ' + failed + ' failed');
 if(failed > 0){

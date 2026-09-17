@@ -980,6 +980,9 @@ function updateSum(){
       var ow=parseFloat(item.otherWt)||0;
       var netWt=Math.max(0,p.weight-bb-dw-ow);
       gv+=getRate(p.metal,p.purity)*netWt;
+      // Must match buildSaleRecord()'s stock branch exactly, or this preview
+      // disagrees with the total actually locked onto the bill.
+      mc+=(parseFloat(p.mcRate)||0)*(parseFloat(p.weight)||0);
     });
   }
   mc+=(parseFloat(document.getElementById('s-making').value)||0);
@@ -1122,7 +1125,13 @@ function buildSaleObj(){
         otherWt:ow,
         weight:netWt,  // net gold weight used for billing
         purity:p.purity,metal:p.metal,
-        making:0,diamond:0,
+        // The product's "Making Charge ₹/g" (mcRate), converted here to the
+        // flat rupee amount itemMakingAmount() expects for a stock item, and
+        // charged on gross weight like every other making charge. Stored as a
+        // value, not a rate, so editing the product later cannot restate a
+        // bill that was already printed and paid.
+        making:(parseFloat(p.mcRate)||0)*(parseFloat(p.weight)||0),
+        diamond:0,
         huid:p.huid||'',
         lockedRate:lockedRate
       };
