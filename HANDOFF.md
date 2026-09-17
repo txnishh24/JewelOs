@@ -100,13 +100,21 @@ and `roundtrip` clean; handlers still 5 sites; TIER B still empty. `checks/globa
 is in the commit because `scope.js` rewrites it on every run — it picked up the new local
 `epMcRate` under `allDeclared`, which is correct.
 
-**Not verified — and this is the whole risk of this change.** Nothing was opened in a
-browser. The tests drive `editProd`/`saveEditProd` against stubbed modal inputs, which
-proves the wiring and the arithmetic but **not** that the field renders, sits where I
-think it sits, or is reachable on a phone. The `.fg`/`.isuf` markup is copied from the
-Net Weight row directly above it, so it should inherit the grid, but that is reasoned
-from the source, not seen. First real test should be: open Edit on a product, confirm the
-field appears with the current rate in it.
+**The screen — seen this time, which is new for this folder.** I loaded `index.html` in a
+browser pane, forced the Edit Product modal open and looked at it. The field renders: label
+"MAKING CHARGE ₹/G (PER GRAM MC)", the `₹/g` suffix pill, in the right-hand column of the
+same grid row as Net Weight and directly above Photo, same 34px height as its neighbours.
+At 375px (phone) it is still fully usable with no horizontal overflow, but the label wraps
+to two lines, which pushes its input ~16px below Net Weight's so that one row sits very
+slightly uneven. Cosmetic, and it follows from the label text, which is the Add form's
+verbatim — shortening it to "Making Charge ₹/g" on both forms would fix it if it bothers
+Tanish.
+
+**Still not verified.** The page cannot reach Supabase from `file://`, so it never got past
+"Connecting to cloud" — I opened the modal by hand rather than by clicking Edit on a real
+product. So: the markup and layout are seen, but the actual `editProd()` → modal →
+`saveEditProd()` path has been exercised only in the test harness, never by a human tap
+against live data. That last mile still needs a real build on a real phone.
 
 **Two related gaps I did NOT touch, both pre-existing:**
 
