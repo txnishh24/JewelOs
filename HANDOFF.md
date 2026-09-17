@@ -48,6 +48,71 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-18 · Claude Code, Opus (merged the mcRate edit field; answered your demo-mode spot-check)
+
+**Two things: the making-charge edit field is now on `main`, and it is NOT in the batch20 you
+just re-tested. Also your demo-mode question is answered below — one real finding.**
+
+**1. `mcRate` is now editable — merged, reviewed, not deployed.** That work was built in a
+separate worktree off `58ebfab` (branch `claude/suspicious-swirles-2d30ba`) while I was doing
+bugs 3-8, which is why you have been listing it as still open — it was finished, just not on
+`main`. It is now, at `c7a0b3e`.
+
+**I reviewed it rather than merging on trust, and it holds up.** The validation sits *above*
+the `_snap` snapshot, so a rejected edit cannot leave a half-mutated product — the exact
+failure that function already carries a comment about. It also does two things I did not ask
+for and would have: **refuses a negative rate** (which would print a bill line paying the
+customer) and **records the change in the stock-movement audit trail**, which is right for a
+number that decides billing. Its 8 tests include the two that matter — an already-issued bill
+is not restated, and the corrected rate *does* apply to the next sale.
+
+**⚠️ It is not in `jewelos-batch20-DEPLOY.zip`.** I checked the actual zip rather than assuming:
+`ep-mcrate` appears **0 times** in both `js/03-billing-numbers.js` and `index.html` inside it.
+batch20 was built from a commit that predates this branch. So on the live site right now, a
+wrong making charge still cannot be corrected. **This needs a batch21 whenever Tanish wants it**
+— it is one small field, so it may be worth bundling with the next thing rather than making him
+drag a zip for it alone. Say which and I will build it.
+
+**Merge detail, since two conflicts had to be resolved by hand:** both were parallel appends,
+not disagreements. `tests/regression.test.js` — both sides added a test section and `main` had
+rewritten the file tail to await async tests, so both sections are kept ahead of the single
+async tail. `HANDOFF.md` — both appended entries, both kept, which happens to leave that
+branch's entry directly above the bug 2 entry it refers to as "my last entry". **95/95** and
+`check.bat` clean on the merged tree; ids +1 and lookups +3, which is exactly `ep-mcrate` and
+its three `getElementById` calls. Confirmed in a browser too: the field renders correctly in
+the modal, `editProd` pre-fills it, and a product created before the field existed shows an
+empty box rather than "undefined".
+
+**2. Your demo-mode spot-check — both halves answered, one needs a change.**
+
+- **"Clear All Data" is fine.** Settings → Shop, one button, one red confirm dialog. Not buried,
+  and — the part worth checking, which you could not from the UI — it is **complete**:
+  `loadDemoData()` seeds exactly four arrays (products, sales, girvi, orders) and
+  `clearDemoData()` clears exactly those four. Demo mode creates no customer, purchase or
+  supplier records, so nothing is left behind.
+- **The demo data is NOT obviously fake, and that is a real gap against Tanish's instruction.**
+  The *identifiers* are marked — `INV-D001`, `GRV-D001`, `ORD-D001`, product ids `demo-p1` — but
+  the **people are not**. The seeded names are Priya Mehta, Rahul Sharma, Sunita Joshi, Mohan
+  Patel, Kavita Nair and Anita Desai, with plausible mobile numbers, and the order notes read
+  "Urgent for wedding" / "Peacock design". Nothing on screen tells a jeweller those are invented.
+  Against "sample data, clearly labeled" that is the one thing to fix.
+
+**Not done, deliberately:** I have not relabelled the demo names. It is a 🟢 change and Tanish's
+decision is already recorded, so it is authorised — I stopped because it is a content choice
+(prefix everything "DEMO", or use plainly invented names like "Demo Customer 1") and it is
+quicker for someone to say which than for me to guess and have it redone.
+
+**Nothing else outstanding my side.** The live rate auto-fetch stays untouched until the API key
+exists, per your entry.
+
+→ FOR COWORK: **stop listing the mcRate edit as open — it is merged.** But do **not** re-test it
+on the live site yet: it is not in batch20, so the deployed app still has no such field, and
+testing it there will look like a failure. Tanish needs a batch21 first. Demo-mode findings are
+above: the clear button is fine, the demo *names* are the only thing failing "obviously fake" —
+tell me which convention Tanish wants and I will reseed them. Your second batch of QA test data
+(`shop_mu5xrc2xqj8z` and the two `usr_` ids) is still uncleaned and still yours or Tanish's,
+since I will not run destructive SQL against the live database without him saying so directly.
+
 ### 2026-09-17 · Cowork (Tanish's call on Razorpay + Demo Mode — both answered, one already done)
 
 **Razorpay webhook.** Tanish: "Leave it as-is for now." No action — do not touch, remove, or
