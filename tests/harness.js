@@ -45,8 +45,15 @@ function buildSandbox(){
       setItem: function(k,v){ _session[k] = String(v); },
       removeItem: function(k){ delete _session[k]; }
     },
+    // Elements are remembered per id, so a test can read back what the app
+    // rendered into one. Returning a fresh stub each call made every write
+    // invisible, which is why nothing here could assert on rendered output.
+    _els: {},
     document: {
-      getElementById: function(){ return makeFakeElement(); },
+      getElementById: function(id){
+        if(!sandbox._els[id]) sandbox._els[id] = makeFakeElement();
+        return sandbox._els[id];
+      },
       querySelectorAll: function(){ return []; },
       querySelector: function(){ return null; },
       addEventListener: function(){}, removeEventListener: function(){},

@@ -1826,6 +1826,12 @@ function saasSignup(){
     .then(function(res){
       if(signupBtn) signupBtn.disabled = false;
       saasSetSession(res.user, res.shop, res.sessionToken);
+      // A brand-new account has never seen an earlier version, so there is
+      // nothing "new" to show it. Mark the changelog as read at signup rather
+      // than greeting a first-time jeweller with release notes for a version
+      // they never used. Key must match V18_KEY in bootApp (05-auth-login.js);
+      // saasSetSession above has already run, so the shop scope resolves.
+      try{ localStorage.setItem(shopScopedKey('jewelos_v18_seen'),'1'); } catch(e){}
       hideAuthScreen();
       showOnboardingScreen();
     })

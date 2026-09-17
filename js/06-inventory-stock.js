@@ -266,7 +266,10 @@ function renderDash(){
     todayEl.innerHTML =
       fsnCard("Today's Sales", fmt(todaySalesTotal), todaySales.length+' bill(s)', null, '', 'var(--gold-dark)')+
       fsnCard("Today's Purchase", fmt(todayPurchaseTotal), todayPurchases.length+' bill(s)', null, '', '#f59e0b')+
-      fsnCard("Today's Profit", fmt(todayProfitTotal), '', null, '', '#22c55e');
+      // Colour by sign, like the Net Cash line below — a loss shown in the
+      // same green as a profit is the one number on this strip a jeweller
+      // cannot afford to misread.
+      fsnCard("Today's Profit", fmt(todayProfitTotal), '', null, '', todayProfitTotal>=0?'#22c55e':'#ef4444');
   }
 
   // ── 3. BUSINESS SNAPSHOT (the 4 numbers before any decision) ────

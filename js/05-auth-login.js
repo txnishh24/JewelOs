@@ -404,8 +404,11 @@ function saasOnboardSave(){
 function bootApp(){
   updateHeaderUI();
   applyFeatureGates();
-  // v18 — show changelog once per version
-  var V18_KEY = 'jewelos_v18_seen';
+  // v18 — show changelog once per version, per shop. It was unscoped, which
+  // the regression guard never caught because the key reached localStorage
+  // through a variable rather than a literal: a second shop signing in on the
+  // same device inherited the first one's "already seen" and skipped it.
+  var V18_KEY = shopScopedKey('jewelos_v18_seen');
   if(!localStorage.getItem(V18_KEY)){
     try{ localStorage.setItem(V18_KEY,'1'); } catch(e){}
     setTimeout(function(){
@@ -961,6 +964,19 @@ function removeStaff(userId){
       });
   },true);
   return;
+}
+
+// ── SIGN-IN FOOTER ───────────────────────────────────────────────────
+// The year was hard-coded in the markup and had already gone stale. The span
+// keeps a value so the line never renders as "©  JewelOS" if this never runs.
+function setFooterYear(){
+  var el = document.getElementById('footer-year');
+  if(el) el.textContent = new Date().getFullYear();
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', setFooterYear);
+} else {
+  setFooterYear();
 }
 
 // ── BACKUP & RESTORE ─────────────────────────────────────────────────

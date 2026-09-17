@@ -677,18 +677,32 @@ test('no new unscoped localStorage key holds shop state', function(){
     'jewelos_girvi_view_mode',// cosmetic view preference
     'ssj_cache',              // tagged with the owning shop id inside the value
     'ssj_last_save', 'ssj_last_cloud_load',
-    '_t'                      // storage-availability probe
+    '_t',                     // storage-availability probe
+    // Reached through a variable rather than a literal, and correctly unscoped:
+    'jewelos_signout_notice', // written while signed OUT — there is no shop to scope to
+    'jewelos_users',          // device cache of auth_store; each record carries its own shopId
+    'jewelos_shops'           // same, for shops
   ];
   var root = path.join(__dirname, '..', 'js');
   var offenders = [];
   fs.readdirSync(root).filter(function(f){ return /\.js$/.test(f); }).forEach(function(f){
     var text = fs.readFileSync(path.join(root, f), 'utf-8');
-    text.split('\n').forEach(function(line, i){
+    var lines = text.split('\n');
+    // Keys passed through a variable used to slip past this check entirely —
+    // that is how jewelos_v18_seen stayed unscoped, and a second shop on the
+    // same device inherited the first one's "changelog already seen".
+    var viaVar = {};
+    lines.forEach(function(line){
+      var v = /(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*'((?:jewelos|ssj)_[\w]*)'/.exec(line);
+      if(v) viaVar[v[1]] = v[2];
+    });
+    lines.forEach(function(line, i){
       if(/^\s*(\/\/|\*)/.test(line)) return;
-      var re = /(?:local|session)Storage\.(?:get|set|remove)Item\(\s*'([A-Za-z_][\w]*)'/g, m;
+      var re = /(?:local|session)Storage\.(?:get|set|remove)Item\(\s*(?:'([A-Za-z_][\w]*)'|([A-Za-z_$][\w$]*)\s*[,)])/g, m;
       while((m = re.exec(line))){
-        if(ALLOWED.indexOf(m[1]) === -1){
-          offenders.push(f + ':' + (i+1) + ' -> ' + m[1]);
+        var key = m[1] || viaVar[m[2]];
+        if(key && ALLOWED.indexOf(key) === -1){
+          offenders.push(f + ':' + (i+1) + ' -> ' + key);
         }
       }
     });
@@ -1246,6 +1260,62 @@ test('restoring a backup cannot create or change a team member', function(){
     assert(fn.indexOf(n) === -1,
       'processBackupFile() references ' + n + ' — a restore must not be able to resurrect removed staff');
   });
+});
+
+// ── Bugs 7 and 8: dashboard profit colour, and stale chrome (17 Sep) ────
+console.log('\nDashboard and chrome (17 Sep):');
+
+function dashWithProfit(costRate){
+  var a = loadApp();
+  a.S.rates = { g24:7500, g22:7200, g18:6000, g14:4500, sil:90 };
+  a.SAAS.shop = { id:'shop1', name:'Test Shop' };
+  var today = new Date().toISOString();
+  a.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', weight:1, costRate:costRate }];
+  a.S.sales = [{ id:'s1', invNo:'INV-001', date:today,
+    items:[{ pid:'p1', name:'Ring', metal:'gold', purity:'22K', weight:1, grossWeight:1,
+             qty:1, making:0, diamond:0, lockedRate:7200 }],
+    making:0, diamond:0, gst:0, discount:0, lockedGrand:7200 }];
+  a.renderDash();
+  return a._els['dash-today-strip'].innerHTML;
+}
+
+test("a loss in Today's Profit is shown in red, not the same green as a profit", function(){
+  // costRate above the selling rate => the day really did lose money.
+  var html = dashWithProfit(9000);
+  var idx = html.indexOf("Today's Profit");
+  assert(idx !== -1, "Today's Profit tile should render");
+  var tile = html.slice(idx, idx + 220);
+  assert(tile.indexOf('#ef4444') !== -1,
+    'a negative profit should be red (#ef4444); tile was: ' + tile.slice(0, 160));
+  assert(tile.indexOf('#22c55e') === -1, 'a negative profit must not render green');
+});
+
+test("a real profit is still green", function(){
+  var html = dashWithProfit(5000);
+  var tile = html.slice(html.indexOf("Today's Profit"));
+  tile = tile.slice(0, 220);
+  assert(tile.indexOf('#22c55e') !== -1, 'a positive profit should stay green');
+});
+
+test('the sign-in footer year is not hard-coded', function(){
+  var a = loadApp();
+  a.setFooterYear();
+  assert(String(a._els['footer-year'].textContent) === String(new Date().getFullYear()),
+    'footer should show the current year, got ' + a._els['footer-year'].textContent);
+  var fs = require('fs'), path = require('path');
+  var html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf-8');
+  assert(html.indexOf('2025 JewelOS') === -1, 'index.html still hard-codes "2025 JewelOS"');
+});
+
+test('a brand-new signup is not shown release notes for a version it never used', function(){
+  var fs = require('fs'), path = require('path');
+  var src = fs.readFileSync(path.join(__dirname, '..', 'js', '04-orders-detail.js'), 'utf-8');
+  var fn = src.slice(src.indexOf("authGatewayCall('signup'"));
+  fn = fn.slice(0, fn.indexOf('.catch('));
+  assert(/jewelos_v18_seen/.test(fn),
+    'signup should mark the changelog as seen, or a first-time jeweller gets v18.1 release notes');
+  assert(/shopScopedKey\(\s*'jewelos_v18_seen'\s*\)/.test(fn),
+    'the seeded key must be shop-scoped, like the one bootApp reads');
 });
 
 Promise.all(asyncTests).then(function(){

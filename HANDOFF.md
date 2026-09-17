@@ -48,6 +48,80 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-17 · Claude Code, Opus (bugs 7, 8 fixed; bug 9 answered — your list is now clear except 4)
+
+**Bugs 7 and 8 done, bug 9 is not a bug.** That closes everything on your list except 4, the
+Netlify badge, which is a platform setting and not mine. 🟢. Still no zip — all of 2, 3, 5, 7
+and 8 are client changes waiting on one.
+
+**Bug 7 — a loss was shown in the same green as a profit.** The tile hard-coded `#22c55e`
+regardless of sign, while the Net Cash line **20 lines below it in the same file** already did
+`netCash>=0?green:red`. So it was inconsistent with its own neighbour rather than an unsolved
+problem. Now matches. The test drives `renderDash()` and reads the rendered tile, and against
+the previous commit it fails printing the bug itself:
+`style="color:#22c55e;">₹-1,800`.
+
+**Bug 8a — the footer year.** `© 2025` was literal in the markup. It is now a span filled from
+`new Date().getFullYear()`. Confirmed in a browser: the sign-in footer reads **© 2026 JewelOS**.
+
+**Bug 8b — release notes for a version they never used — turned out to be an unscoped-key bug
+underneath.** The changelog shows once per `jewelos_v18_seen`, and a brand-new signup has no
+such key, so it fires. Seeding it at signup is the fix (a new account has by definition never
+seen an older version; I used that rather than inventing a release-date constant, since no
+file records when v18.1 shipped — **if you know the date, a date comparison would be strictly
+better and I would take it**).
+
+**But the guard caught me, and that is the interesting part.** My first attempt wrote the raw
+key and the `PostToolUse` hook failed the build on the unscoped-localStorage test. Looking into
+why the **existing** line had never been flagged: the check only matches a *literal* inside
+`localStorage.getItem('...')`, and `bootApp` passed a **variable** (`V18_KEY`). So
+`jewelos_v18_seen` had been genuinely unscoped all along, invisibly — **a second shop signing in
+on the same device inherited the first one's "already seen" and skipped the changelog.** That is
+CLAUDE.md's bug family #1 ("skips a screen it should see"), instance seven, sitting in a blind
+spot of the very test written to catch it.
+
+So both the key and the guard are fixed: `V18_KEY` is now `shopScopedKey(...)`, and the check
+resolves variable-held keys too. Closing that hole surfaced three more variable-held keys, all
+**correctly** unscoped, now listed in the check's ALLOWED with reasons rather than passing by
+accident: `jewelos_signout_notice` (written while signed out — there is no shop to scope to),
+`jewelos_users` and `jewelos_shops` (device caches whose records carry their own `shopId`,
+same as `ssj_cache`). Verified the strengthened check fails against the old variable form.
+
+**Bug 9 — not a bug, and the answer was already in this file.** There is no Plan/Subscription
+screen because it was deliberately removed on 9 Sep; the "Closed 9 Sep — billing" note in
+**WAITING ON TANISH above** says so, including "do not re-open this or re-add tier UI". The code
+agrees: seven settings panels exist and none is a plan panel, so there is no built-but-unlinked
+tab; `PLAN_LIMITS` maps free/basic/pro to *the same* `_PRO_LIMITS` object; and
+`04-orders-detail.js` already carries `plan: 'pro', // plans removed — always pro`. **No change
+made.** The misleading part is only the vestigial naming — `07-settings-plans.js` and
+`PLAN_LIMITS` — which is what made it look like a missing screen. Renaming the module would
+break the numbered load order, so it stays.
+
+**Verified.** Regression **87/87** (was 83 — 4 new, plus the strengthened unscoped-key check).
+Four fail against commit `ced9979`, including the strengthened check firing on the old
+`var V18_KEY = 'jewelos_v18_seen'` — so that improvement is load-bearing, not decoration.
+`check.bat` clean; ids moved 561→562 defined and 950→951 lookups, which is exactly the new
+`#footer-year` span and its one lookup, nothing else. Browser: footer confirmed, and the page
+makes **zero** backend calls before sign-in (checked the network log, not just the console —
+the CORS errors still sitting in that pane's console are stale output from my own bug-5
+experiment earlier, not from this build).
+
+**Second harness improvement today:** `document.getElementById` now returns the *same* stub for
+a given id instead of a fresh one each call, so a test can read back what the app rendered. That
+is what makes the bug 7 test a real render assertion rather than a regex. All 83 prior tests
+still passed unchanged after it.
+
+**Not verified:** that a second shop on the same device now gets its own changelog — that needs
+two real accounts on one device. The dashboard tile colour is verified through rendered HTML in
+the test, not by eye on a phone.
+
+→ FOR COWORK: nothing to deploy. **Your list is clear except bug 4** (the Netlify badge — a
+platform setting on the free `*.netlify.app` subdomain, so it is Tanish's or yours, not a code
+fix; it also disappears with a custom domain, which the 12 Sep entry already recommended before
+the first real shop). Everything from bugs 2, 3, 5, 7 and 8 is sitting uncommitted-to-Netlify in
+this repo and needs **one zip** whenever Tanish wants it — say the word and I will build it,
+including the `unzip -l` forward-slash check from the 12 Sep packaging incident.
+
 ### 2026-09-17 · Claude Code, Opus (your bug 6 — decided: the roster stays out. No behaviour change)
 
 **You asked for a decision, so here is one with the reasoning, not a coin flip.** You offered
