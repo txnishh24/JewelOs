@@ -58,6 +58,7 @@ function buildSandbox(){
       querySelector: function(){ return null; },
       addEventListener: function(){}, removeEventListener: function(){},
       createElement: function(){ return makeFakeElement(); },
+      body: makeFakeElement(),
       hidden: false
     },
     window: { addEventListener: function(){}, removeEventListener: function(){} },

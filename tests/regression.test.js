@@ -1438,6 +1438,66 @@ test('the corrected making charge DOES apply to the next sale', function(){
     'a sale made after the edit should carry 900 x 8.5 = 7650, got ' + next.items[0].making);
 });
 
+// ── Decision: demo data must be unmistakably fake (18 Sep) ─────────────
+// Tanish's call was "sample data, clearly labeled". The seeded people used to
+// be plausible Indian names with plausible mobile numbers, Mumbai addresses
+// and AADHAAR/PAN-shaped id proofs — nothing on screen said they were
+// invented. These run the real loadDemoData() and inspect what it seeds.
+console.log('\nDemo data is obviously fake (18 Sep):');
+
+function seededDemo(){
+  var a = loadApp();
+  a.SAAS.shop = { id:'shop1', name:'Test Shop' };
+  a.safeConfirm = function(_t, _m, cb){ cb(); };   // the real one waits on a click
+  a.saveToCloud = function(cb){ if(cb) cb(null); }; // no reachable backend from here
+  a.loadDemoData();
+  return a;
+}
+
+test('every seeded demo person is named so nobody could take them for a real customer', function(){
+  var a = seededDemo();
+  var people = [];
+  (a.S.sales||[]).forEach(function(s){ people.push(s.customer); });
+  (a.S.girvi||[]).forEach(function(g){ people.push(g.customer); });
+  (a.S.orders||[]).forEach(function(o){ people.push(o.customer); });
+  assert(people.length === 6, 'expected 6 seeded people, got ' + people.length);
+  people.forEach(function(n){
+    assert(/^Demo Customer \d+$/.test(n), 'demo person "' + n + '" reads as a real name');
+  });
+});
+
+test('demo phone numbers are obviously fake, but still distinct', function(){
+  var a = seededDemo();
+  var phones = [];
+  (a.S.sales||[]).concat(a.S.girvi||[], a.S.orders||[]).forEach(function(r){ phones.push(r.phone); });
+  phones.forEach(function(p){
+    assert(/^0{7}\d{3}$/.test(p), 'demo phone "' + p + '" looks like a real mobile number');
+  });
+  // Distinct matters: the phone is the key that links a customer's records, so
+  // one shared number would roll all six demo people into a single account.
+  var uniq = phones.filter(function(p, i){ return phones.indexOf(p) === i; });
+  assert(uniq.length === phones.length,
+    'demo phones must stay distinct, got ' + phones.length + ' records across ' + uniq.length + ' numbers');
+});
+
+test('no demo record carries an ID-document-shaped string or a real address', function(){
+  var a = seededDemo();
+  var blob = JSON.stringify({ s:a.S.sales, g:a.S.girvi, o:a.S.orders });
+  ['AADHAAR', 'Aadhaar', 'PAN ', 'Mumbai', 'Andheri', 'Borivali'].forEach(function(s){
+    assert(blob.indexOf(s) === -1, 'demo data still contains "' + s + '"');
+  });
+});
+
+test('clearing demo data leaves nothing behind', function(){
+  // The button says "Clear All Data", so it has to clear everything the demo
+  // seeded — not just most of it.
+  var a = seededDemo();
+  a.clearDemoData();
+  ['products', 'sales', 'orders', 'girvi'].forEach(function(k){
+    assert((a.S[k] || []).length === 0, 'S.' + k + ' still has ' + (a.S[k]||[]).length + ' demo records');
+  });
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

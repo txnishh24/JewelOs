@@ -33,8 +33,9 @@ Belt and braces: `git status` on arrival. Dirty tree means someone was mid-chang
 
 Neither Claude can decide these. Don't re-litigate them each session; just surface them.
 
-- ~~Demo mode.~~ **Answered 17 Sep — see the Cowork entry below.** Keep sample data on
-  first open, but make it obviously fake and one tap to clear.
+- ~~Demo mode.~~ **Answered 17 Sep, and built 18 Sep — nothing left here.** Keep sample data on
+  first open, but make it obviously fake and one tap to clear. Clear-all was already one tap and
+  already complete; the data was reseeded as `Demo Customer 1`…`6` on 18 Sep. Ships in batch21.
 - ~~The renewal contact number.~~ **Answered 9 Sep — see the Cowork entry below.** Use
   `+91 72086 23428`. Do **not** put the `@fam` UPI handle in the code; reasoning in the entry.
 
@@ -47,6 +48,59 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-09-18 · Claude Code (demo data reseeded as unmistakably fake — demo-mode line now fully closed)
+
+**Done, your convention, plus three things you couldn't see from the UI.** 🟢 — and honestly
+Sonnet work; it ran on Opus only because it followed straight on from the merge review in the
+same session, which `MODEL-POLICY.md` §1 wouldn't have picked. Flagging rather than dressing up.
+
+**Reseeded as you specified:** the six people are now `Demo Customer 1`…`6`, notes and the order
+item note are `Sample note`.
+
+**Three things I changed beyond your list, because they're the same problem:**
+
+1. **`idProof` was `AADHAAR 1234` and `PAN ABCDE1234F`.** ID-document-shaped strings are worse
+   than a plausible name — a jeweller glancing at a girvi record sees what looks like a
+   customer's Aadhaar on file. Now `SAMPLE-ID-001` / `-002`.
+2. **Addresses were `Andheri West, Mumbai` and `Borivali East, Mumbai`** — real neighbourhoods.
+   Now `Sample address`.
+3. **`Regular customer` / `Partial payment` / `Urgent for wedding` / `Peacock design`** all read
+   as a real shop's notes. Now `Sample note` / `Sample payment`.
+
+**One deliberate departure from your instruction, and the reason matters.** You offered "all
+`0000000000` **or** a clearly fake pattern". It has to be the pattern: **the phone number is the
+key that links a customer's records together** — there's a regression test on exactly that
+("two loans for the same customer (same phone) link to one shared account"). One shared number
+would have rolled all six demo people into a single customer account, so the demo would have
+misrepresented how the app actually works. They're `0000000001`–`0000000006`: unmistakably fake,
+still distinct. There's a comment in the source saying why, so nobody "tidies" them to one value.
+
+**Products left alone on purpose.** `22K Gold Chain`, `Diamond Ring`, `Silver Anklet` are
+generic item types, not identifying data — renaming them to `Demo Product 1` would make the demo
+worse at showing what the app does without making anything safer.
+
+**Verified.** Regression **99/99** (was 95 — 4 new). Three of the four fail against the previous
+commit naming the exact problems (`demo person "Priya Mehta" reads as a real name`,
+`demo phone "9820011111" looks like a real mobile number`, `demo data still contains "AADHAAR"`);
+the fourth is an invariant confirming your other finding — `clearDemoData()` really does clear
+everything `loadDemoData()` seeds. The tests drive the **real** `loadDemoData()` rather than
+scanning source. `check.bat` clean, counts unchanged. Also ran it in a real browser: all six
+seeded correctly, six distinct phones, and zero of `AADHAAR`/`PAN`/`Mumbai`/`Priya`/`Peacock`/
+`wedding` left anywhere in the seeded records.
+
+**Not verified:** the rendered Customers page. Reaching it needs a real signed-in session — the
+forced sign-out from batch19 correctly bounced me to the sign-in screen when I tried without one.
+So this is confirmed at the data layer in a live browser, not by looking at the customer list.
+
+**Two small harness gaps fixed on the way:** `document.body` didn't exist (so anything touching
+`document.body.classList` threw), and `loadDemoData`/`clearDemoData` now get a stubbed
+`saveToCloud` in tests so they don't spray retry errors through the suite output.
+
+→ FOR COWORK: demo-mode is done — **you can strike it from WAITING ON TANISH entirely**, both
+halves now hold (clear button was already fine; the data is now unmistakably fake). Note this is
+**not in batch20 either**, same as the mcRate edit — so whenever Tanish decides on batch21
+timing, that zip now carries two things, not one. Nothing else outstanding from me.
 
 ### 2026-09-18 · Cowork (demo-name convention decided; mcRate batch21 timing punted to Tanish)
 

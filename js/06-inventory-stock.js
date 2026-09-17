@@ -839,17 +839,24 @@ function loadDemoData(){
     {id:'demo-p5',_seq:9005,name:'Gold Earrings',cat:'Earrings',metal:'gold',purity:'22K',weight:6.8,netWeight:6.2,costRate:6900,mcRate:150,status:'available',sku:'GLD-004',qty:1,alert:1,making:0,diamond:0,stockQty:1,createdAt:lastMonth},
   ];
 
+  // Demo people are deliberately unmistakable: "Demo Customer N", 00000000NN
+  // phones, "Sample" addresses/notes/IDs. Do not make these realistic again —
+  // they used to be plausible Indian names with plausible mobile numbers and
+  // AADHAAR/PAN-shaped id proofs, and nothing on screen said they were
+  // invented, so a jeweller could take a demo shop for a live one. Numbers
+  // stay distinct because the phone is what links a customer's records
+  // together; one shared number would collapse all six into a single account.
   // Demo sales
   var demoSales = [
-    {id:'demo-s1',invNo:'INV-D001',date:today,customer:'Priya Mehta',phone:'9820011111',
+    {id:'demo-s1',invNo:'INV-D001',date:today,customer:'Demo Customer 1',phone:'0000000001',
      items:[{pid:'demo-p4',name:'22K Bangle',metal:'gold',purity:'22K',weight:22,qty:1,making:1980,stoneCharges:0,lockedRate:7200,rate:7200,isCustom:false}],
      payStatus:'partial',advance:120000,gst:3,discount:0,payMode:'cash',
      lockedRates:{g22:7200,g24:7800,g18:5900,sil:95}},
-    {id:'demo-s2',invNo:'INV-D002',date:lastMonth,customer:'Rahul Sharma',phone:'9821022222',
+    {id:'demo-s2',invNo:'INV-D002',date:lastMonth,customer:'Demo Customer 2',phone:'0000000002',
      items:[{pid:'demo-p1',name:'22K Gold Chain',metal:'gold',purity:'22K',weight:12.5,qty:1,making:1500,stoneCharges:0,lockedRate:7100,rate:7100,isCustom:false}],
      payStatus:'full',advance:91250,gst:3,discount:2000,payMode:'upi',
      lockedRates:{g22:7100,g24:7700,g18:5800,sil:92}},
-    {id:'demo-s3',invNo:'INV-D003',date:lastMonth,customer:'Sunita Joshi',phone:'9822033333',
+    {id:'demo-s3',invNo:'INV-D003',date:lastMonth,customer:'Demo Customer 3',phone:'0000000003',
      items:[{pid:'',name:'Custom Necklace',metal:'gold',purity:'22K',weight:35,qty:1,making:4200,stoneCharges:2500,lockedRate:7150,rate:7150,isCustom:true}],
      payStatus:'partial',advance:200000,gst:3,discount:0,payMode:'bank',
      lockedRates:{g22:7150,g24:7750,g18:5850,sil:93}},
@@ -857,16 +864,16 @@ function loadDemoData(){
 
   // Demo girvi
   var demoGirvi = [
-    {id:'demo-g1',_seq:9001,grvNo:'GRV-D001',createdAt:twoMonth,customer:'Mohan Patel',phone:'9823044444',
-     risk:'medium',address:'Andheri West, Mumbai',idProof:'AADHAAR 1234',
+    {id:'demo-g1',_seq:9001,grvNo:'GRV-D001',createdAt:twoMonth,customer:'Demo Customer 4',phone:'0000000004',
+     risk:'medium',address:'Sample address',idProof:'SAMPLE-ID-001',
      item:{metal:'gold',purity:'22K',weight:28,qty:1,desc:'22K Gold Bangles (2 pieces)'},
      principal:150000,interestRate:2,rateType:'monthly',compound:false,startDate:twoMonth,
-     duration:3,notes:'Regular customer',status:'overdue',payments:[
-       {id:'demo-pay1',amount:15000,mode:'cash',date:lastMonth,ref:'Partial payment',ts:lastMonth+'T10:00:00Z'}
+     duration:3,notes:'Sample note',status:'overdue',payments:[
+       {id:'demo-pay1',amount:15000,mode:'cash',date:lastMonth,ref:'Sample payment',ts:lastMonth+'T10:00:00Z'}
      ],
      ledger:[{type:'created',note:'Girvi created \u20b9150000',ts:twoMonth+'T09:00:00Z'}]},
-    {id:'demo-g2',_seq:9002,grvNo:'GRV-D002',createdAt:lastMonth,customer:'Kavita Nair',phone:'9824055555',
-     risk:'low',address:'Borivali East, Mumbai',idProof:'PAN ABCDE1234F',
+    {id:'demo-g2',_seq:9002,grvNo:'GRV-D002',createdAt:lastMonth,customer:'Demo Customer 5',phone:'0000000005',
+     risk:'low',address:'Sample address',idProof:'SAMPLE-ID-002',
      item:{metal:'gold',purity:'22K',weight:15,qty:1,desc:'22K Gold Chain'},
      principal:80000,interestRate:2,rateType:'monthly',compound:false,startDate:lastMonth,
      duration:6,notes:'',status:'active',payments:[],
@@ -875,10 +882,10 @@ function loadDemoData(){
 
   // Demo orders
   var demoOrders = [
-    {id:'demo-o1',ordNo:'ORD-D001',createdAt:lastMonth,customer:'Anita Desai',phone:'9825066666',
+    {id:'demo-o1',ordNo:'ORD-D001',createdAt:lastMonth,customer:'Demo Customer 6',phone:'0000000006',
      status:'making',priority:'normal',delivery:new Date(Date.now()+5*86400000).toISOString().slice(0,10),
-     items:[{desc:'Custom 22K Necklace',cat:'Necklaces',metal:'gold',purity:'22K',estWt:18,qty:1,making:250,makingType:'per_gram',note:'Peacock design'}],
-     quote:145000,advance:50000,notes:'Urgent for wedding',
+     items:[{desc:'Custom 22K Necklace',cat:'Necklaces',metal:'gold',purity:'22K',estWt:18,qty:1,making:250,makingType:'per_gram',note:'Sample note'}],
+     quote:145000,advance:50000,notes:'Sample note',
      ledger:[{type:'advance',amount:50000,mode:'cash',ref:'',note:'Initial advance',date:lastMonth}]},
   ];
 
