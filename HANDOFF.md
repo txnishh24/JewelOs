@@ -48,6 +48,68 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-17 · Claude Code, Opus (batch20 built — and the zip bug from 12 Sep is now impossible to ship)
+
+**`jewelos-batch20-DEPLOY.zip` is in Downloads.** Not deployed — Tanish drags it in. It carries
+the client half of today's work: bugs 2, 3, 5, 7 and 8 from your walkthrough. Changelog:
+`docs/CHANGES-batch20.md`, and a copy ships inside the zip as `CHANGELOG.md`.
+
+**⚠️ Tell Tanish this before he demos: bill totals go up.** Bug 2 means a product with a making
+charge is now actually charged for it. That is the correct amount, but if he has been quoting
+from the old (wrong) totals, his quotes will be short. Today's Profit will jump for those items
+too — that is the loss being corrected, not new money. Invoices already issued do not move.
+Section 1 of the changelog says all this in his words.
+
+**Your 12 Sep hand-back is done properly, not just for this one zip.** You asked that whatever
+produces these zips stop using a tool that writes backslash separators. There was **no build
+script at all** — that is how `Compress-Archive` kept creeping back in. There is one now,
+`build-deploy-zip.js`, committed. It builds with 7-Zip and then **refuses to hand over a zip**
+unless three things hold:
+
+1. every path stored in the archive's central directory uses `/` (read from the raw bytes, not
+   from a listing tool that might normalise the display and hide the exact bug),
+2. every extracted file byte-matches this folder, and
+3. nothing unexpected rode along.
+
+If 7-Zip is missing it **fails loudly rather than falling back** to `Compress-Archive`.
+
+**I reproduced your diagnosis on this machine rather than trusting it.** Built the same two
+files both ways and read the stored names:
+
+```
+Compress-Archive   "js\\00-config-state.js"   <-- backslash, would 404
+build-deploy-zip   "js/00-config-state.js"
+```
+
+So the 12 Sep root cause is confirmed, and the guard that catches it is proven against a real
+bad archive rather than a hypothetical one.
+
+**One thing earlier zips may have been missing.** A Netlify drag **replaces the whole site**, so
+the zip has to carry everything the site serves, not just the code. This one has `index.html`,
+all ten `js/*.js`, **`manifest.json`, `icon-192.png` and `icon-512.png`** — 15 files, 270 KB.
+If an earlier batch shipped without the manifest and icons, the PWA install and the home-screen
+icon would have quietly broken on deploy. Worth a glance at the live site after this one.
+
+**Verified:** `unzip -l` independently confirms `js/00-config-state.js` with forward slashes;
+the script's own byte-comparison passes for all 15 files; regression 87/87 and `check.bat` clean
+at the moment of the build.
+
+**Not verified:** the zip has not been deployed or served anywhere. It is byte-identical to this
+folder, and this folder loads clean in a browser with no console errors, but "Netlify unzips it
+into a working site" is inference from the path and byte checks, not something I watched happen.
+
+**Noticed while building, not fixed:** `manifest.json` has
+`"name": "JewelOS — Sri Sai Jewellers"` **hard-coded**. Every shop that installs the PWA gets
+another jeweller's name on their home screen — the same class as the order-receipt bug fixed in
+batch19, but a static manifest cannot be per-shop without generating it server-side. Flagging
+rather than guessing at the fix; it may be fine to just drop the shop name.
+
+→ FOR COWORK: **tell Tanish the zip is ready, and warn him about the bill totals** before he
+demos. Once he deploys, the six re-test steps are at the bottom of `docs/CHANGES-batch20.md`.
+Also still outstanding from your own 17 Sep entry: deleting the "Cowork QA Jewellers
+(TEST — delete me)" shop and its two accounts. And the `auth-gateway` deploy from the bug 1
+entry further down is still yours whenever you want it — check `RESEND_API_KEY` first.
+
 ### 2026-09-17 · Claude Code, Opus (bugs 7, 8 fixed; bug 9 answered — your list is now clear except 4)
 
 **Bugs 7 and 8 done, bug 9 is not a bug.** That closes everything on your list except 4, the
