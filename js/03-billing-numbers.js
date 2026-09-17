@@ -761,6 +761,7 @@ function editProd(id){
   document.getElementById('ep-sku').value=p.sku||'';
   document.getElementById('ep-wt').value=p.weight||'';
   document.getElementById('ep-netwt').value=p.netWeight||'';
+  document.getElementById('ep-mcrate').value=p.mcRate||'';
   document.getElementById('ep-photo').value=p.photo||'';
   document.getElementById('ep-notes').value=p.notes||'';
   var purList=p.metal==='gold'?['24K','22K','18K','14K','Gold Plated']:['999 Pure','925 Sterling','800','Silver Plated'];
@@ -798,6 +799,12 @@ function saveEditProd(){
   var photoVal = (rawPhoto && (rawPhoto.startsWith('http://') || rawPhoto.startsWith('https://'))) ? rawPhoto : '';
   if(rawPhoto && !photoVal) toast('\u26a0 Photo URL must start with http:// or https:// \u2014 not saved');
 
+  // Making Charge ₹/g is billed to the customer on every stock sale, so a
+  // negative rate would print a bill line that pays the customer. Checked
+  // up here with the rest, before anything on p is touched.
+  var epMcRate = parseFloat(document.getElementById('ep-mcrate').value)||0;
+  if(epMcRate < 0){ toast('\u26a0 Making charge cannot be negative'); document.getElementById('ep-mcrate').focus(); return; }
+
   var _snap = JSON.parse(JSON.stringify(p));
   p.name=name;
   p.cat=document.getElementById('ep-cat').value;
@@ -806,6 +813,7 @@ function saveEditProd(){
   p.sku=epSku;
   p.weight=wt;
   p.netWeight=parseFloat(document.getElementById('ep-netwt').value)||0;
+  p.mcRate=epMcRate;
   p.photo=photoVal;
   p.notes=document.getElementById('ep-notes').value.trim();
 
@@ -818,6 +826,7 @@ function saveEditProd(){
   if(_snap.purity!==p.purity) changedFields.push('purity '+_snap.purity+'\u2192'+p.purity);
   if(_snap.sku!==p.sku) changedFields.push('SKU '+_snap.sku+'\u2192'+p.sku);
   if(_snap.huid!==p.huid) changedFields.push('HUID '+(_snap.huid||'—')+'\u2192'+(p.huid||'—'));
+  if((parseFloat(_snap.mcRate)||0)!==p.mcRate) changedFields.push('making charge \u20b9'+(parseFloat(_snap.mcRate)||0)+'/g\u2192\u20b9'+p.mcRate+'/g');
   var moveId=null;
   if(changedFields.length){
     S.stockMovements=S.stockMovements||[];

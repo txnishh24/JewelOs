@@ -523,6 +523,102 @@ the dashboard should come up clean with the onboarding **checklist** visible inl
 overlay to dismiss. Bugs 4-9 remain open. A separate session is adding the missing Making
 Charge field to the Edit Product form (the gap flagged in the bug 2 entry below); it touches
 `index.html` and `03-billing-numbers.js`, so if you see those move, that is what it is.
+### 2026-09-17 · Claude Code, Opus (the making-charge edit gap from my last entry — client change, NOT zipped)
+
+**Closed the gap I flagged last entry: Making Charge ₹/g can now be corrected on an
+existing product.** Until now it existed only on the Add form, so a wrong rate could be
+fixed only by deleting the product and re-adding it — which throws away its
+stock-movement history. Since the previous entry that rate is what the customer is
+billed, so a typo in it was writing wrong invoices with no way back.
+
+**What changed — three places, all client-side:**
+
+1. `index.html` — an `ep-mcrate` input in the Edit Product modal, same label and hint as
+   the Add form ("Making Charge ₹/g (per gram MC)"), placed between Net Weight and Photo
+   so the two forms read in the same order.
+2. `editProd()` — fills it from `p.mcRate`.
+3. `saveEditProd()` — parses and range-checks it **before** `_snap` and before any
+   mutation of `p`, matching the structure that function already uses because of the old
+   half-edit bug, then assigns it with the other fields so rollback covers it.
+
+**Two judgement calls, both worth a look rather than a nod:**
+
+- **A negative rate is rejected** (toast + focus, same pattern as the HUID check). The Add
+  form does not do this, so the two forms now differ. I chose the stricter side because a
+  negative making charge prints a bill line that pays the customer. If you would rather
+  they match, the cheap fix is to add the same check to `addProduct()`, not to remove
+  this one.
+- **The change is logged to stock movements**, alongside the weight/purity/SKU/HUID
+  entries already there: `Edited: making charge ₹500/g→₹900/g`. A silent change to what
+  customers get billed seemed exactly the thing that audit trail is for. Legacy products
+  have no `mcRate` key at all, so both sides are normalised through `parseFloat()||0` —
+  otherwise the first edit of every old product would log a phantom ₹0→₹0 change. There
+  is a test for that specific trap.
+
+**The thing you actually asked to decide: editing the rate does NOT restate an issued
+bill, and that is now pinned by a test rather than by reasoning.** It holds because
+`buildSaleObj()` stores making as a flat rupee amount captured at sale time, not as a
+rate — the same property the previous entry relied on. The new test issues a bill at
+₹500/g, edits the product to ₹900/g through the real `saveEditProd()`, and asserts the
+issued bill still totals ₹65,450 with making ₹4,250. Its twin asserts the *next* sale
+does pick up ₹7,650, because an edit that changes nothing going forward would be useless.
+
+**Verified.** Regression **79/79** (was 71 — 8 new; nothing existing moved). Six of the
+eight fail against a tree built from `58ebfab`; the two that pass there are guards that
+must hold both before and after (the "don't wipe mcRate on an unrelated edit" round-trip
+and the phantom-change guard). Worth knowing: the no-restatement test fails on the old
+tree only at its *setup* line — the invariant cannot even be exercised before this change,
+since the rate was not editable. All ten files pass `node --check`. Nine checks diffed
+against the same baseline tree and identical except my line-number shifts and the
+expected `ep-mcrate` counts (+1 id defined, +3 lookups, no orphans). `backup-check` 21/21
+and `roundtrip` clean; handlers still 5 sites; TIER B still empty. `checks/globals.json`
+is in the commit because `scope.js` rewrites it on every run — it picked up the new local
+`epMcRate` under `allDeclared`, which is correct.
+
+**The screen — seen this time, which is new for this folder.** I loaded `index.html` in a
+browser pane, forced the Edit Product modal open and looked at it. The field renders: label
+"MAKING CHARGE ₹/G (PER GRAM MC)", the `₹/g` suffix pill, in the right-hand column of the
+same grid row as Net Weight and directly above Photo, same 34px height as its neighbours.
+At 375px (phone) it is still fully usable with no horizontal overflow, but the label wraps
+to two lines, which pushes its input ~16px below Net Weight's so that one row sits very
+slightly uneven. Cosmetic, and it follows from the label text, which is the Add form's
+verbatim — shortening it to "Making Charge ₹/g" on both forms would fix it if it bothers
+Tanish.
+
+**Still not verified.** The page cannot reach Supabase from `file://`, so it never got past
+"Connecting to cloud" — I opened the modal by hand rather than by clicking Edit on a real
+product. So: the markup and layout are seen, but the actual `editProd()` → modal →
+`saveEditProd()` path has been exercised only in the test harness, never by a human tap
+against live data. That last mile still needs a real build on a real phone.
+
+**Two related gaps I did NOT touch, both pre-existing:**
+
+- **The edit modal still has no Purchase Rate (`costRate`) field**, though Add does. Same
+  shape of problem, and it drives profit rather than the bill. I left it because you
+  asked for `mcRate` and because it deserves its own decision.
+- `saveEditProd()` updates `p.weight` but never `p.unitWeight`, while the house rule is
+  that weight is derived from `unitWeight * qty`. Editing the gross weight of a product
+  therefore leaves `unitWeight` stale. Untouched — it predates this and is not 🟢.
+
+**Housekeeping for whoever is next in this folder:** the checks need `acorn`, which lives
+in the gitignored `checks/node_modules/` and does not exist in a fresh `git worktree`. And
+`making-basis.js` matches on `\n}`, so it throws in a worktree, where autocrlf checks files
+out as CRLF while the main folder's copy is LF. It passes on an LF copy of this exact tree
+(all 12 assertions) — so it is a worktree artifact, not a regression. `check.bat` in the
+main folder is unaffected.
+
+**Model note.** 🟢 by §8 (a form field plus form validation). Policy says Sonnet; this
+session was started on Opus, which was not my choice to make — flagging it rather than
+quietly letting it pass.
+
+→ FOR COWORK: nothing to deploy — no server change, no migration, no schema change, and
+still no zip (this stacks on the unzipped making-charge fix from my previous entry, so one
+zip covers both). When Tanish next takes a build, add one step to the re-test you already
+have: open Edit Product on a product, change Making Charge to ₹900/g, save, and confirm
+(a) the field was pre-filled with the old rate when the modal opened, (b) an invoice
+printed before the edit still shows its original total, and (c) the next sale of that item
+charges the new rate. Your "Cowork QA Jewellers (TEST — delete me)" shop and its two
+accounts are still outstanding from your 17 Sep entry.
 
 ### 2026-09-17 · Claude Code, Opus (your bug 2 fixed — client change, NOT zipped yet)
 
