@@ -1066,6 +1066,126 @@ test('an already-issued bill is not restated when its product has a making charg
     'an old bill must keep making 0, got ' + t.mc);
 });
 
+// ── Gap: the making charge could not be corrected after creation (17 Sep) ─
+// mcRate reaches the customer's bill as of the fix above, but the Edit Product
+// modal had no field for it — a wrong rate could only be fixed by deleting the
+// product and re-adding it, which throws away its stock-movement history.
+// These drive the real editProd/saveEditProd against stubbed modal inputs.
+console.log('\nMaking charge is editable after creation (17 Sep):');
+
+function editModalScenario(fieldOverrides){
+  var a = makingScenario();
+  a.S.products[0].cat = 'Bangles';
+  a.S.products[0].huid = '';
+  // saveEditProd's cloud round-trip is not what these tests are about; stub it
+  // so they assert on the in-memory record the save would have persisted.
+  a.saveAttempts = 0;
+  a.saveToCloud = function(cb){ a.saveAttempts++; if(cb) cb(null); };
+  a.renderInv = function(){};
+  var values = { 'ep-id':'p1', 'ep-name':'Bangle', 'ep-huid':'', 'ep-sku':'GLD-100',
+                 'ep-wt':'8.5', 'ep-netwt':'8.5', 'ep-mcrate':'500', 'ep-photo':'',
+                 'ep-notes':'', 'ep-purity':'22K' };
+  Object.keys(fieldOverrides||{}).forEach(function(k){ values[k] = fieldOverrides[k]; });
+  var els = {};
+  Object.keys(values).forEach(function(id){
+    els[id] = { value: values[id], innerHTML: '', focus: function(){},
+                style: {}, classList: { add: function(){}, remove: function(){} } };
+  });
+  els['ep-cat'] = { value: 'Bangles', options: [{ text: 'Bangles' }], selectedIndex: 0,
+                    focus: function(){}, style: {}, classList: { add: function(){}, remove: function(){} } };
+  var fallback = a.document.getElementById;
+  a.document.getElementById = function(id){ return els[id] || fallback(id); };
+  a.els = els;
+  return a;
+}
+
+test('the Edit Product modal shows the product\'s current making charge', function(){
+  var a = editModalScenario({ 'ep-mcrate': 'not-loaded-yet' });
+  a.editProd('p1');
+  assert(String(a.els['ep-mcrate'].value) === '500',
+    'editProd should load mcRate 500 into the modal, got ' + a.els['ep-mcrate'].value);
+});
+
+test('saving the Edit Product modal stores the corrected making charge', function(){
+  var a = editModalScenario({ 'ep-mcrate': '900' });
+  a.saveEditProd();
+  assert(a.saveAttempts === 1, 'the edit should have been saved, attempts=' + a.saveAttempts);
+  assert(a.S.products[0].mcRate === 900,
+    'mcRate should now be 900, got ' + a.S.products[0].mcRate);
+});
+
+test('editing an unrelated field does not wipe the making charge', function(){
+  // The way a half-done version of this change breaks things: an input in the
+  // modal that editProd never fills reads back as '' and silently zeroes the
+  // rate on the next save. Round-trip through both functions to catch it.
+  var a = editModalScenario({ 'ep-mcrate': '' });
+  a.editProd('p1');
+  a.els['ep-notes'].value = 'polished';
+  a.saveEditProd();
+  assert(a.S.products[0].mcRate === 500,
+    'an edit to notes must leave mcRate at 500, got ' + a.S.products[0].mcRate);
+  assert(a.S.products[0].notes === 'polished', 'the notes edit itself should have saved');
+});
+
+test('a negative making charge is rejected and nothing on the product changes', function(){
+  var a = editModalScenario({ 'ep-mcrate': '-100', 'ep-name': 'Renamed Bangle' });
+  a.saveEditProd();
+  assert(a.saveAttempts === 0, 'a rejected edit must not reach saveToCloud');
+  assert(a.S.products[0].mcRate === 500, 'mcRate should be untouched, got ' + a.S.products[0].mcRate);
+  assert(a.S.products[0].name === 'Bangle',
+    'validation runs before any mutation, so the name must not be half-applied, got ' + a.S.products[0].name);
+});
+
+test('changing the making charge is recorded in the stock history', function(){
+  var a = editModalScenario({ 'ep-mcrate': '900' });
+  a.saveEditProd();
+  var moves = a.S.stockMovements || [];
+  assert(moves.length === 1, 'expected one adjustment movement, got ' + moves.length);
+  assert(/making charge/.test(moves[0].reason),
+    'the movement should name the making charge, got: ' + moves[0].reason);
+});
+
+test('a product created before the field existed does not log a phantom change', function(){
+  // Legacy products have no mcRate key at all. undefined !== 0 would push a
+  // bogus "making charge 0/g -> 0/g" movement on every unrelated edit.
+  var a = editModalScenario({ 'ep-mcrate': '' });
+  delete a.S.products[0].mcRate;
+  a.saveEditProd();
+  assert((a.S.stockMovements || []).length === 0,
+    'no field changed, so no movement should be logged, got ' + JSON.stringify(a.S.stockMovements));
+});
+
+test('correcting a making charge does NOT restate a bill already issued', function(){
+  // The decision this change forces: the rate is now editable, and an edit must
+  // never move a total a customer already paid. It holds because buildSaleObj
+  // stores making as a flat rupee amount captured at sale time, not as a rate.
+  var a = editModalScenario({ 'ep-mcrate': '900' });
+  var issued = a.buildSaleObj();
+  var issuedGrand = issued.lockedGrand;
+  assert(approxEqual(issuedGrand, 65450, 1), 'setup: expected 65450, got ' + issuedGrand);
+
+  a.saveEditProd();                       // 500/g -> 900/g, after the bill was issued
+  assert(a.S.products[0].mcRate === 900, 'setup: the edit should have applied');
+
+  assert(approxEqual(issued.items[0].making, 4250, 1),
+    'the issued bill must keep making 4250, got ' + issued.items[0].making);
+  var t = a.calcSaleTotals(issued);
+  assert(approxEqual(t.mc, 4250, 1), 'recomputed making must still be 4250, got ' + t.mc);
+  assert(approxEqual(t.grand, issuedGrand, 1),
+    'the issued bill must still total ' + issuedGrand + ', got ' + t.grand);
+});
+
+test('the corrected making charge DOES apply to the next sale', function(){
+  // The other half: an edit that changes nothing going forward is useless.
+  var a = editModalScenario({ 'ep-mcrate': '900' });
+  a.saveEditProd();
+  a.S.products[0].status = 'available';
+  a.UI.saleItems = [{ pid:'p1', qty:1 }];
+  var next = a.buildSaleObj();
+  assert(approxEqual(next.items[0].making, 7650, 1),
+    'a sale made after the edit should carry 900 x 8.5 = 7650, got ' + next.items[0].making);
+});
+
 console.log('\n' + '='.repeat(50));
 console.log(passed + ' passed, ' + failed + ' failed');
 if(failed > 0){
