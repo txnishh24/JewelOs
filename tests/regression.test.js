@@ -1498,6 +1498,110 @@ test('clearing demo data leaves nothing behind', function(){
   });
 });
 
+// ── Coverage gaps 4.2 and 4.3 from the 16 Sep testing review (18 Sep) ──
+// Both were listed as "known but untested". Neither fixes anything — they
+// pin what the code actually does today, including where it stays limited,
+// so the failure modes are checked rather than just remembered.
+console.log('\nKnown limitations, now pinned (18 Sep):');
+
+test('two devices selling the last unit: one wins, the other fails cleanly and never oversells', function(){
+  // One shared store enforcing the same compare-and-swap rule store-proxy
+  // does. Both devices loaded at version 0, so neither has seen the other.
+  var store = { version: 0, savedSales: 0 };
+  function deviceAtVersion(seen){
+    var a = _freshSaleHarness();
+    a.S.products[0].qty = 1;               // the last unit
+    a.saveToCloud = function(cb){
+      if(seen !== store.version) return cb(new Error('version-conflict'));
+      store.version++; store.savedSales++;
+      cb(null);
+    };
+    return a;
+  }
+  var deviceA = deviceAtVersion(0), deviceB = deviceAtVersion(0);
+
+  deviceA._commitSaleTransaction(_sale('A'));
+  deviceB._commitSaleTransaction(_sale('B'));
+
+  assert(store.savedSales === 1, 'exactly one sale may reach the cloud, got ' + store.savedSales);
+  assert(deviceA.S.sales.length === 1, 'the winning device keeps its sale');
+  assert(deviceA.S.products[0].qty === 0, 'winner sold the last unit, expected qty 0, got ' + deviceA.S.products[0].qty);
+  assert(deviceB.S.sales.length === 0, 'the losing device must not keep a sale it could not save');
+  assert(deviceB.S.products[0].qty === 1, 'loser must restore stock, got ' + deviceB.S.products[0].qty);
+  [deviceA, deviceB].forEach(function(d, i){
+    assert(d.S.products[0].qty >= 0, 'no oversell: device ' + (i ? 'B' : 'A') + ' went negative');
+  });
+});
+
+test('the losing device is still stale afterwards — the known gap, now asserted', function(){
+  // `current-priorities.md` lists "no server-side stock reservation" as an
+  // open limitation. The CAS write stops the DATA being corrupted, but it
+  // does not stop the second jeweller believing the piece is still on the
+  // shelf until the next poll. That is the actual residual risk, so it is
+  // pinned here rather than left as folklore. If this ever starts failing,
+  // reservation has been implemented and this test should be replaced.
+  var store = { version: 0 };
+  function device(seen){
+    var a = _freshSaleHarness();
+    a.S.products[0].qty = 1;
+    a.saveToCloud = function(cb){
+      if(seen !== store.version) return cb(new Error('version-conflict'));
+      store.version++; cb(null);
+    };
+    return a;
+  }
+  var winner = device(0), loser = device(0);
+  winner._commitSaleTransaction(_sale('A'));
+  loser._commitSaleTransaction(_sale('B'));
+  assert(loser.S.products[0].qty === 1 && loser.S.products[0].status === 'available',
+    'documented limitation: the loser still shows the item as available until it re-syncs');
+});
+
+test('a girvi payment backdated inside the loan is honoured, not silently moved to today', function(){
+  // The 16 Sep review recorded this as "backdated payments silently clamp to
+  // today". They do not — girviLedgerState sorts on pay.date and accrues to
+  // it, so paying two months ago really does stop interest from two months
+  // ago. Recorded here because the review's own note says otherwise.
+  var start = new Date(Date.now() - 180*86400000).toISOString().slice(0,10);
+  var old   = new Date(Date.now() - 150*86400000).toISOString().slice(0,10);
+  var today = new Date().toISOString().slice(0,10);
+  function loanPaidOn(d){
+    return app.girviLedgerState({
+      principal: 100000, interestRate: 2, rateType: 'monthly', compound: false,
+      startDate: start, payments: [{ amount: 30000, type: 'partial', date: d }]
+    });
+  }
+  var backdated = loanPaidOn(old).outstanding;
+  var paidToday = loanPaidOn(today).outstanding;
+  assert(backdated < paidToday,
+    'a payment made 150 days ago should leave less owing than the same payment today: ' +
+    backdated + ' vs ' + paidToday);
+});
+
+test('a girvi payment backdated before the loan even started cannot invent interest relief', function(){
+  // Defended in depth, which is worth knowing before "simplifying" either
+  // half: girviLedgerState clamps a payment earlier than the ledger cursor up
+  // to the cursor, AND accrueTo() refuses a negative span and will not rewind
+  // the cursor. Remove either one alone and this still passes; remove both and
+  // a payment backdated before the loan start wipes out interest that really
+  // did accrue (measured: 64,000 outstanding instead of 78,400 — 14,400 of
+  // the shop's money invented from nothing). So this asserts the outcome, not
+  // one line of it.
+  var start = new Date(Date.now() - 180*86400000).toISOString().slice(0,10);
+  var wayBefore = new Date(Date.now() - 900*86400000).toISOString().slice(0,10);
+  function loanPaidOn(d){
+    return app.girviLedgerState({
+      principal: 100000, interestRate: 2, rateType: 'monthly', compound: false,
+      startDate: start, payments: [{ amount: 30000, type: 'partial', date: d }]
+    });
+  }
+  var impossible = loanPaidOn(wayBefore).outstanding;
+  var onDayOne   = loanPaidOn(start).outstanding;
+  assert(approxEqual(impossible, onDayOne, 1),
+    'a pre-start payment must be treated as day one, got ' + impossible + ' vs ' + onDayOne);
+  assert(impossible > 0, 'outstanding should still be a real figure, got ' + impossible);
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

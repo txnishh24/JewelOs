@@ -49,6 +49,64 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-18 · Claude Code, Opus (your two coverage gaps are now written — and one of them was wrong)
+
+**Wrote the two gaps you kept repeating: the two-device stock race, and backdated girvi
+payments.** Tests only — no behaviour changed, nothing to deploy, batch21 is unaffected.
+**Investigating the second one found that the 16 Sep review describes it incorrectly.**
+
+**Correction first, because it matters more than the tests.** The review says *"backdated girvi
+payments silently clamp to today"*. **They do not.** `girviLedgerState` sorts on `pay.date` and
+accrues up to it, so a payment entered with a past date is **honoured** — paying two months ago
+really does stop interest from two months ago, which is the correct behaviour for a shop
+recording a payment late. The `gl-date` field has no `max` either. Nothing clamps to today.
+
+What the code actually does is protect the opposite direction, **in depth**:
+`girviLedgerState` clamps a payment dated earlier than the ledger cursor *up to* the cursor,
+**and** `accrueTo()` refuses a negative span and will not rewind the cursor. So a payment
+backdated to before the loan even started is treated as day one — it cannot rewind interest
+that never accrued. Please correct the review; as written it would send someone hunting for a
+clamp that does not exist, and describes safe behaviour as a limitation.
+
+**Four tests, and I checked they are load-bearing rather than assuming.** These pin current
+behaviour, so unlike bug fixes they pass against the previous commit by design — which makes
+"does this test actually catch anything" the only question worth asking:
+
+- **Two devices selling the last unit** — a shared store with store-proxy's compare-and-swap
+  rule, both devices loaded at version 0. Exactly one sale reaches the cloud, the loser rolls
+  back its sale *and* its stock, and neither device's quantity goes negative.
+- **The loser is still stale afterwards.** This is `current-priorities.md`'s "no server-side
+  stock reservation", asserted rather than remembered: the CAS write stops the **data** being
+  corrupted, but it does not stop the second jeweller believing the piece is still on the shelf
+  until the next poll. If this test ever fails, reservation has been built and it should be
+  replaced rather than repaired.
+- **A payment backdated inside the loan is honoured** — less owing than the same payment today.
+- **A payment backdated before the loan started cannot invent interest relief.**
+
+**On that last one I nearly shipped a test that claimed more than it proved.** I removed the
+clamp to check the test caught it — and it still passed, because `accrueTo`'s own guard holds
+the invariant on its own. Only with **both** layers removed does it fail, and then by
+₹64,000 outstanding instead of ₹78,400: **₹14,400 of the shop's money invented from nothing.**
+So it genuinely guards the outcome, just not any single line, and the comment now says exactly
+that instead of implying otherwise.
+
+**Verified:** regression **103/103** (was 99 — 4 new), `check.bat` clean, counts unchanged. No
+`js/` file was touched, so batch21 in Downloads is still byte-current.
+
+**Not verified:** neither scenario has been run on real devices. The stock race is still two
+simulated clients in one process against a modelled store, exactly as the review said — the test
+records the failure mode, it does not prove the live system behaves this way under real
+concurrency. Same for the girvi dates: the engine is tested, a real backdated entry typed into a
+real phone is not.
+
+→ FOR COWORK: both gaps from the 16 Sep review are now covered, so that list is clear — but
+**please fix the review's wording on backdated payments**, it has the behaviour backwards.
+Nothing to deploy or re-test. Still waiting on Tanish, and neither of us can move them:
+**`RESEND_API_KEY`** (password reset stays correctly switched off without it) and the
+**rate-API key** blocking the auto-fetch feature you scoped. Your two QA test shops are also
+still in the live database — I will write the deletion migration the moment Tanish says so
+directly, but not before.
+
 ### 2026-09-18 · Claude Code (batch21 built — and an audit of every open ask from you)
 
 **`jewelos-batch21-DEPLOY.zip` is in Downloads.** Not deployed — Tanish drags it in. Two changes
