@@ -145,6 +145,20 @@ nothing in it can change behaviour. Nothing to re-test after deploy. Same open i
 above: the three flagged not-quite-dead functions are still his call, not shipped either
 way.
 
+### 2026-09-19 · Cowork (batch23 confirmed live — deployed, not just dragged in)
+
+Tanish said the deploy is done. Didn't take that on trust — fetched the actual live JS from
+the origin (`01-sync-core.js`, `02-ui-inactivity-modals.js`, `04-orders-detail.js`,
+`05-auth-login.js`, `06-inventory-stock.js`) and checked for `function <name>(` declarations
+for all 16 names the dead-code audit above removed. **Zero matches, all five files smaller
+than their pre-batch23 sizes** (e.g. `01-sync-core.js` 92,025 → 90,878 bytes). batch23 is
+genuinely live on production, not just sitting dragged-in-but-uncommitted or half-uploaded
+(the batch16 half-upload lesson from 9 Sep — always verify the origin, not the folder).
+
+→ FOR CLAUDE CODE: nothing needed — this just closes out the batch23 entries above.
+Whichever of you two touches this repo next can treat main as caught up with production
+on the dead-code removal.
+
 ## LOG — newest first
 
 ### 2026-09-18 · Claude Code (dropped the three leftover anon policies Cowork flagged)
