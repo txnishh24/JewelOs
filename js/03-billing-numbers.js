@@ -759,7 +759,19 @@ function editProd(id){
   document.getElementById('ep-name').value=p.name||'';
   document.getElementById('ep-huid').value=p.huid||'';
   document.getElementById('ep-sku').value=p.sku||'';
-  document.getElementById('ep-wt').value=p.weight||'';
+  // Show the weight of ONE piece — unitWeight is the source everything else
+  // derives from (weight = unitWeight x qty). Showing the derived total left
+  // this box empty for a sold-out item (qty 0), and "Gross weight required"
+  // then blocked every edit to it. Products that predate unitWeight fall
+  // back to their stored weight.
+  document.getElementById('ep-wt').value=(p.unitWeight||p.weight)||'';
+  var wtHint=document.getElementById('ep-wt-hint');
+  if(wtHint){
+    var _q=(typeof p.qty==='number')?p.qty:1;
+    wtHint.textContent = _q>1 ? (_q+' pieces in stock · '+(Math.round(p.weight*1000)/1000)+' g total')
+                       : _q===0 ? 'Sold out — this is kept for when you restock'
+                       : '';
+  }
   document.getElementById('ep-netwt').value=p.netWeight||'';
   document.getElementById('ep-mcrate').value=p.mcRate||'';
   document.getElementById('ep-photo').value=p.photo||'';
@@ -780,7 +792,7 @@ function saveEditProd(){
   var name=document.getElementById('ep-name').value.trim();
   var wt=parseFloat(document.getElementById('ep-wt').value)||0;
   if(!name){toast('Product name required');return;}
-  if(!wt){toast('Gross weight required');return;}
+  if(!wt){toast('⚠ Enter the weight of one piece'); document.getElementById('ep-wt').focus(); return;}
   // Validate everything BEFORE mutating p — this used to mutate
   // name/cat/purity first and only then validate HUID, so a failed HUID
   // check left the in-memory product half-edited with nothing saved.
@@ -811,7 +823,15 @@ function saveEditProd(){
   p.purity=document.getElementById('ep-purity').value;
   p.huid=epHuidRaw;
   p.sku=epSku;
-  p.weight=wt;
+  // wt is one piece. Writing it straight into p.weight (the derived total)
+  // meant the next qty change re-derived from the old unitWeight and silently
+  // threw the correction away: a batch corrected to 18g showed 10g, not 12g,
+  // after one sale. Store the source, then derive exactly as every qty change
+  // does. A sold-out item keeps its piece weight for restocking; its total
+  // is correctly 0.
+  var qtyNow = (typeof p.qty==='number' && isFinite(p.qty)) ? p.qty : 1;
+  p.unitWeight = wt;
+  p.weight = Math.round(wt*qtyNow*1000)/1000;
   p.netWeight=parseFloat(document.getElementById('ep-netwt').value)||0;
   p.mcRate=epMcRate;
   p.photo=photoVal;
@@ -822,10 +842,16 @@ function saveEditProd(){
   // actually edited — not on every save regardless of whether anything
   // meaningful changed.
   var changedFields=[];
-  if(_snap.weight!==p.weight) changedFields.push('weight '+_snap.weight+'g\u2192'+p.weight+'g');
+  // Compare the per-piece weight the user actually saw and edited. Comparing
+  // the derived total would log a phantom change on an item that predates
+  // unitWeight, whose stored total is re-derived by the save above.
+  var _prevPieceWt = _snap.unitWeight||_snap.weight;
+  if(_prevPieceWt!==p.unitWeight) changedFields.push('weight '+_prevPieceWt+'g\u2192'+p.unitWeight+'g');
   if(_snap.purity!==p.purity) changedFields.push('purity '+_snap.purity+'\u2192'+p.purity);
   if(_snap.sku!==p.sku) changedFields.push('SKU '+_snap.sku+'\u2192'+p.sku);
-  if(_snap.huid!==p.huid) changedFields.push('HUID '+(_snap.huid||'—')+'\u2192'+(p.huid||'—'));
+  // A product with no huid field at all is not a different HUID from '' —
+  // comparing them raw logged a phantom "HUID changed" on every edit of an older item.
+  if((_snap.huid||'')!==(p.huid||'')) changedFields.push('HUID '+(_snap.huid||'—')+'\u2192'+(p.huid||'—'));
   if((parseFloat(_snap.mcRate)||0)!==p.mcRate) changedFields.push('making charge \u20b9'+(parseFloat(_snap.mcRate)||0)+'/g\u2192\u20b9'+p.mcRate+'/g');
   var moveId=null;
   if(changedFields.length){

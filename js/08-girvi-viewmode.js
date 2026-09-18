@@ -749,12 +749,36 @@ function glRenderSummary(g){
     '<div class="gl-sum-card"><div class="gl-sum-val" style="color:var(--warning);">\u20b9'+Math.round(interest).toLocaleString('en-IN')+'</div><div class="gl-sum-lbl">Accrued Interest</div></div>';
 }
 
+// When a girvi event actually happened, for display and ordering.
+// A payment carries two times: `date` (the day the customer paid, which may be
+// entered late) and `ts` (the moment someone typed it in). Every girvi view
+// used to show `ts` first, so a payment backdated to 8 Aug and entered on
+// 18 Sep read "18 Sep" — on exactly the entries where backdating was the
+// point. The interest engine was always right; only these views were wrong.
+//
+// Recording a payment also writes an activity row into g.ledger, which only
+// gained a `date` on 18 Sep. For older rows the payment it belongs to is
+// found by time: both are written in the same save, under a per-loan lock
+// (_girviLock) so two payments on one loan cannot interleave. Only an
+// unambiguous single match is used — this never guesses a date.
+function girviEventDate(g, e){
+  if(e.date) return e.date;
+  if(e.type !== 'payment' || !e.ts) return e.ts;
+  var at = new Date(e.ts).getTime();
+  var near = (g.payments||[]).filter(function(p){
+    return p.date && p.ts && Math.abs(new Date(p.ts).getTime() - at) < 5000;
+  });
+  return near.length === 1 ? near[0].date : e.ts;
+}
+// A bare YYYY-MM-DD has no time of day. Printing one would invent a time.
+function girviIsDateOnly(v){ return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v); }
+
 function glRenderEntries(g){
   var el=document.getElementById('gl-entries');
   if(!el) return;
   var entries=[];
-  (g.ledger||[]).forEach(function(l){entries.push({ts:l.ts,type:l.type,note:l.note,amount:l.amount||null,mode:null,user:l.user||''});});
-  (g.payments||[]).forEach(function(p){if(p.type==='penalty'||p.type==='refund'||p.type==='waiver')return;entries.push({ts:p.ts||p.date,type:'payment_entry',note:'Payment',amount:parseFloat(p.amount)||0,mode:p.mode,ref:p.ref||''});});
+  (g.ledger||[]).forEach(function(l){entries.push({ts:girviEventDate(g,l),type:l.type,note:l.note,amount:l.amount||null,mode:null,user:l.user||''});});
+  (g.payments||[]).forEach(function(p){if(p.type==='penalty'||p.type==='refund'||p.type==='waiver')return;entries.push({ts:p.date||p.ts,type:'payment_entry',note:'Payment',amount:parseFloat(p.amount)||0,mode:p.mode,ref:p.ref||''});});
   entries.sort(function(a,b){return new Date(b.ts)-new Date(a.ts);});
 
   var ICONS={payment:'\ud83d\udcb8',payment_entry:'\ud83d\udcb8',interest:'\ud83d\udcc8',waiver:'\ud83c\udff7',penalty:'\u26a0',refund:'\u21a9',created:'\ud83d\udfe2',closed:'\ud83d\udd12',renewal:'\ud83d\udd04',edit:'\u270f\ufe0f',defaulted:'\ud83d\udd34',whatsapp:'\ud83d\udcac'};
@@ -772,7 +796,7 @@ function glRenderEntries(g){
       '</div>'+
       '<div class="gl-entry-right">'+
         '<div class="gl-entry-date">'+fmtDate(e.ts)+'</div>'+
-        '<div class="gl-entry-time">'+fmtTime(e.ts)+'</div>'+
+        '<div class="gl-entry-time">'+(girviIsDateOnly(e.ts)?'':fmtTime(e.ts))+'</div>'+
       '</div>'+
     '</div>';
   }).join(''):'<div style="text-align:center;color:var(--text3);padding:20px;font-size:13px;">No ledger entries yet.</div>';
@@ -806,7 +830,7 @@ function submitLedgerEntry(){
     if(!g.payments)g.payments=[];
     g.payments.push({id:pid,amount:amt,mode:mode,date:date,ref:ref,ts:ts,type:type});
     if(!g.ledger)g.ledger=[];
-    g.ledger.push({type:'payment',note:noteText,ts:ts,user:currentUser});
+    g.ledger.push({type:'payment',note:noteText,ts:ts,date:date,user:currentUser});
     var newOut=girviOutstanding(g);
     if(newOut<=0.5){
       g.status='closed'; g.closedAt=ts;
@@ -870,8 +894,8 @@ function openGirviTimeline(gid){
   if(!g){toast('Not found');return;}
   document.getElementById('gt-modal-title').innerHTML='\ud83d\udccb Timeline \u2014 '+escHtml(g.customer);
   var events=[];
-  (g.ledger||[]).forEach(function(l){events.push({ts:l.ts,type:l.type||'edit',title:l.note||l.type,sub:l.user||''});});
-  (g.payments||[]).forEach(function(p){events.push({ts:p.ts||p.date,type:'payment',title:'Payment: \u20b9'+Math.round(parseFloat(p.amount)||0).toLocaleString('en-IN')+' via '+p.mode,sub:p.ref||''});});
+  (g.ledger||[]).forEach(function(l){events.push({ts:girviEventDate(g,l),type:l.type||'edit',title:l.note||l.type,sub:l.user||''});});
+  (g.payments||[]).forEach(function(p){events.push({ts:p.date||p.ts,type:'payment',title:'Payment: \u20b9'+Math.round(parseFloat(p.amount)||0).toLocaleString('en-IN')+' via '+p.mode,sub:p.ref||''});});
   events.sort(function(a,b){return new Date(b.ts)-new Date(a.ts);});
   var ICONS={created:'\ud83d\udfe2',payment:'\ud83d\udcb8',edit:'\u270f\ufe0f',closed:'\ud83d\udd12',renewal:'\ud83d\udd04',defaulted:'\ud83d\udd34',whatsapp:'\ud83d\udcac',waiver:'\ud83c\udff7',penalty:'\u26a0'};
   var body=document.getElementById('gt-body');
@@ -881,7 +905,7 @@ function openGirviTimeline(gid){
       '<div class="gt-dot '+(e.type||'edit')+'">'+(ICONS[e.type]||'\ud83d\udccb')+'</div>'+
       '<div class="gt-content">'+
         '<div class="gt-title">'+escHtml(e.title||e.type)+'</div>'+
-        '<div class="gt-sub">'+fmtDate(e.ts)+' '+fmtTime(e.ts)+(e.sub?' \u2022 '+escHtml(e.sub):'')+'</div>'+
+        '<div class="gt-sub">'+fmtDate(e.ts)+(girviIsDateOnly(e.ts)?'':' '+fmtTime(e.ts))+(e.sub?' \u2022 '+escHtml(e.sub):'')+'</div>'+
       '</div>'+
     '</div>';
   }).join(''):'<div style="text-align:center;color:var(--text3);padding:24px;font-size:13px;">No activity yet.</div>';

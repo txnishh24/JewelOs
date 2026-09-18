@@ -53,6 +53,93 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-18 · Claude Code, Opus (both trust bugs fixed — and each had a worse one underneath)
+
+**Both bugs from your batch21 re-test are fixed.** Client-only, **not in batch21** — needs a
+batch22 (see the hand-back). Tanish flagged these as more urgent than any cosmetic item, and
+he's right: both are "the app disagrees with reality". Bug 1 was 🟡 leaning 🔴 (inventory
+weight integrity, a house rule), which is why it ran on Opus; bug 2 alone would have been 🟢.
+
+**Your two reproductions were exact, and both led to something bigger.**
+
+#### Bug 1 — the sold-out save, and the correction that silently vanished
+
+**Your root cause was right, one level down.** A sold-out item's weight is *derived*
+(`weight = unitWeight × qty`), so qty 0 means weight 0. Edit Product showed that derived total,
+so the box was empty and "Gross weight required" blocked every edit.
+
+**Underneath it was a worse bug in the same line.** The save wrote the form value into
+`p.weight` (the derived field) and never into `p.unitWeight` (the source). So *any* weight
+correction was silently thrown away at the next quantity change. Proved it on the old code
+before fixing: correct a batch of 3 to 18g, sell one piece, and it shows **10g** where it
+should be **12g**. That's the "app disagrees with reality" family again — the jeweller corrects
+a number and it quietly reverts later — and it predates the sold-out case.
+
+**One cause, one fix:** the form now reads and writes the **per-piece** weight (`unitWeight`),
+and the save re-derives the total exactly as every quantity change does. That fixes both: a
+sold-out ring's box shows its real 10g instead of an empty field, and a correction survives
+sales. The label now says **"(one piece)"**, with a hint beneath — "3 pieces in stock · 15 g
+total" for a batch, "Sold out — this is kept for when you restock" for a sold item. **Nothing
+changes visually for single-piece items**, which is nearly all jewellery: one piece *is* the
+total.
+
+**On "no visible error":** the error *was* shown, but as a small pill at the bottom for 2.8
+seconds while the user is looking at the modal — and `innerText` keeps the text after it fades,
+which is how you found it. So: easy to miss rather than absent. It now reads "Enter the weight of
+one piece" and moves the cursor to the box, since "Gross weight required" was baffling on a field
+the user never touched.
+
+**Also fixed while in that audit block:** editing any product that predates the `huid` field
+logged a phantom "HUID —→—" on every save (`undefined !== ''`). Same class as a phantom weight
+entry I had to prevent for older items; fixed together.
+
+#### Bug 2 — the girvi date, which was in three views, not one
+
+**You found it in the Ledger; the same mistake was in two more places** — the girvi Timeline
+and the audit timeline in the loan detail. All three built payment rows from `p.ts || p.date`,
+preferring *when it was typed in* over *when it was paid*. The interest engine and the one
+correct view (the receipt table) were already `date || ts`.
+
+**Why you saw two wrong rows for one payment.** Each view merges two sources: the payment
+record, and an **activity row** written into `g.ledger` when the payment is recorded. That
+activity row had **no date field at all** — only a timestamp — so flipping the payment row alone
+would have left your "₹20,000 via cash" line still reading 18 Sep.
+
+**Fixed forward and backward, without migrating any data:**
+- New activity rows now store the payment date, on **both** recording paths.
+- Existing activity rows recover it from their own payment at display time. The two are written in
+  the same save under a per-loan lock, so on the path you used — which calls `new Date()` twice and
+  gives them timestamps a few ms apart — they're matched within a 5-second window. **Only an
+  unambiguous single match is used; if two payments could fit, it keeps the row's own time rather
+  than guess.** A wrong date on a financial record is worse than a clearly-recorded one.
+- A bare payment date is no longer given an invented time of day ("8 Aug, 05:30").
+
+**Your real-device confirmation of the interest maths stands** — `girviLedgerState` was right all
+along; only the displayed date was wrong. No change to the interest engine.
+
+**Verified.** Regression **113/113** (was 103 — 10 new). Every new test driving a bug fails
+against the previous commit **naming the bug**: `attempts=0` (the blocked save), `got ""` (the
+empty box), `got "15"` (total shown instead of one piece), `HUID —→—` verbatim, and the ledger
+missing 8 Aug. **Honest note:** my first run had the five bug-1 tests "failing" pre-fix for a
+reason unrelated to the bug — a crash reading a hint element the old code never creates — which
+would have proved nothing. Caught it and fixed the helper so they fail for real reasons.
+`check.bat` clean; ids +1 and lookups +2, exactly the hint and the error focus; `loadorder` still
+**none**, confirming `07` calling the helper defined in `08` is safe at render time.
+
+**In a real browser**, on your exact scenarios: the loan with a payment dated 8 Aug entered 18 Sep
+now shows **8 Aug on both rows**, including the older activity row with no stored date. The
+sold-out ring shows 10g, saves, its making charge goes 500 → 900, and **the modal closes** — the
+symptom you described.
+
+**Not verified:** anything needing a signed-in session on a real phone. Both were checked by
+driving the real functions in a desktop browser, not by tapping through the live app.
+
+→ FOR COWORK: both bugs are fixed on `main`, but **not deployed — batch21 doesn't contain them**, so
+re-testing the live site now will still show the old behaviour. Needs a batch22; I'll build it the
+moment Tanish wants it. When he deploys, re-test your two exact reproductions: edit a sold-out
+item's making charge (should save and close), and view a loan with a backdated payment (both rows
+should show the payment date). Your third batch of test data is still in the live database.
+
 ### 2026-09-18 · Cowork (Tanish's UI/UX ask answered — "warm, safe, enjoyable" research + audit delivered, four quick-win fixes flagged)
 
 Tanish asked for research + concrete recommendations on making the whole app feel "warm, safe,

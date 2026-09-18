@@ -1602,6 +1602,150 @@ test('a girvi payment backdated before the loan even started cannot invent inter
   assert(impossible > 0, 'outstanding should still be a real figure, got ' + impossible);
 });
 
+// ── Bug: a sold-out product could not be edited (Cowork, 18 Sep) ──────
+// Edit Product showed the DERIVED total weight (unitWeight x qty), which is 0
+// once an item sells out, so its box was empty and "Gross weight required"
+// blocked every edit — including correcting a making charge, the commonest
+// reason to reopen a sold item. Underneath it: the save wrote that total
+// straight into p.weight and never touched unitWeight, so any weight
+// correction was silently thrown away at the next quantity change.
+console.log('\nEditing a sold-out or batched product (18 Sep):');
+
+// Drives the real flow: editProd() fills the modal, the user changes some
+// fields, saveEditProd() saves. Calling saveEditProd alone would test inputs
+// no user can ever produce.
+function editFlow(product, changes){
+  var a = loadApp();
+  a.S.products = [product];
+  var els = {};
+  function el(id){
+    return els[id] || (els[id] = { value:'', textContent:'', style:{}, focus:function(){}, innerHTML:'',
+      classList:{add:function(){},remove:function(){}}, options:[{text:product.cat||'Rings'}], selectedIndex:0 });
+  }
+  a.document.getElementById = el;
+  a.editProd(product.id);
+  els['ep-purity'].value = product.purity;   // a real <select> reports its selected option
+  // el(), not els[]: an older editProd never touches the hint, and reading a
+  // never-created element would crash — making every test here "fail" before
+  // the fix for a reason that has nothing to do with the bug it checks.
+  var shown = { wt: el('ep-wt').value, hint: el('ep-wt-hint').textContent };
+  Object.keys(changes||{}).forEach(function(k){ el(k).value = changes[k]; });
+  a.saveAttempts = 0;
+  a.saveToCloud = function(cb){ a.saveAttempts++; cb(null); };
+  a.renderInv = function(){};
+  a.saveEditProd();
+  return { a:a, p:a.S.products[0], shown:shown };
+}
+function soldOutRing(){
+  return { id:'s1', name:'Ring', sku:'GLD-1', metal:'gold', purity:'22K', cat:'Rings',
+           unitWeight:10, qty:0, weight:0, netWeight:0, mcRate:500, status:'sold' };
+}
+
+test('a sold-out product can be edited — changing its making charge actually saves', function(){
+  var r = editFlow(soldOutRing(), { 'ep-mcrate':'900' });
+  assert(r.a.saveAttempts === 1, 'the edit must reach saveToCloud, attempts=' + r.a.saveAttempts);
+  assert(r.p.mcRate === 900, 'making charge should be 900, got ' + r.p.mcRate);
+});
+
+test('a sold-out product shows its real piece weight, not an empty box', function(){
+  var r = editFlow(soldOutRing(), {});
+  assert(String(r.shown.wt) === '10', 'box should show the 10g piece, got "' + r.shown.wt + '"');
+  assert(/sold out/i.test(r.shown.hint), 'hint should explain why a sold item still has a weight, got "' + r.shown.hint + '"');
+  assert(r.p.weight === 0, 'a sold-out item\'s total must stay 0, got ' + r.p.weight);
+  assert(r.p.unitWeight === 10, 'the piece weight must be kept for restocking, got ' + r.p.unitWeight);
+});
+
+test('a weight correction survives the next sale instead of silently reverting', function(){
+  // The underlying bug: 18g entered, 10g shown after one piece sold.
+  var r = editFlow({ id:'b1', name:'Studs', sku:'GLD-2', metal:'gold', purity:'22K', cat:'Rings',
+                     unitWeight:5, qty:3, weight:15, netWeight:15, status:'available' }, { 'ep-wt':'6' });
+  assert(String(r.shown.wt) === '5', 'a batch should show ONE piece (5g), got "' + r.shown.wt + '"');
+  assert(/3 pieces/.test(r.shown.hint) && /15 g total/.test(r.shown.hint),
+    'a batch should say how many pieces and the total, got "' + r.shown.hint + '"');
+  assert(r.p.weight === 18, 'after correcting to 6g/piece the total should be 18, got ' + r.p.weight);
+  r.p.qty = 2;   // one piece sells: the app re-derives exactly like this
+  if(r.p.unitWeight) r.p.weight = Math.round(r.p.unitWeight * r.p.qty * 1000) / 1000;
+  assert(r.p.weight === 12, 'the correction must survive a sale: expected 6 x 2 = 12, got ' + r.p.weight);
+});
+
+test('you still cannot save a real piece with no weight', function(){
+  var r = editFlow({ id:'r1', name:'Chain', sku:'GLD-4', metal:'gold', purity:'22K', cat:'Rings',
+                     unitWeight:8, qty:1, weight:8, netWeight:8, status:'available' }, { 'ep-wt':'' });
+  assert(r.a.saveAttempts === 0, 'blanking the weight must be refused, attempts=' + r.a.saveAttempts);
+  assert(r.p.weight === 8 && r.p.unitWeight === 8, 'nothing should change on a refused save');
+});
+
+test('editing an older product logs only what the user actually changed', function(){
+  // No unitWeight and no huid field: once "weight 22g→0g" and "HUID —→—".
+  var r = editFlow({ id:'l1', name:'Bangle', sku:'GLD-3', metal:'gold', purity:'22K', cat:'Rings',
+                     qty:0, weight:22, netWeight:21, mcRate:0, status:'sold' }, { 'ep-mcrate':'300' });
+  var reasons = (r.a.S.stockMovements || []).map(function(m){ return m.reason; }).join(' | ');
+  assert(r.a.saveAttempts === 1, 'the edit should save');
+  assert(/making charge/.test(reasons), 'the real change should be logged, got: ' + reasons);
+  assert(!/weight/.test(reasons), 'no phantom weight change should be logged, got: ' + reasons);
+  assert(!/HUID/.test(reasons), 'no phantom HUID change should be logged, got: ' + reasons);
+});
+
+// ── Bug: the girvi ledger showed the wrong date for a backdated payment ──
+// Cowork recorded a payment dated 8 Aug on 18 Sep; the ledger showed 18 Sep on
+// both of its rows. The interest maths was right (checked by hand); only the
+// displayed date was wrong. Same mistake in all three girvi views.
+console.log('\nGirvi payment dates (18 Sep):');
+
+function backdatedLoan(withDateOnActivity){
+  var entered = '2026-09-18T12:30:00.000Z';
+  var activity = { type:'payment', note:'₹20,000 via cash', ts:'2026-09-18T12:30:00.004Z', user:'Owner' };
+  if(withDateOnActivity) activity.date = '2026-08-08';
+  return {
+    id:'g1', customer:'Demo Customer 1', principal:50400, interestRate:2, rateType:'monthly',
+    startDate:'2026-07-18',
+    payments:[{ id:'p1', amount:20000, mode:'cash', type:'partial', date:'2026-08-08', ts:entered }],
+    ledger:[ { type:'created', note:'Girvi created', ts:'2026-07-18T09:00:00.000Z' }, activity ]
+  };
+}
+
+test('the ledger shows when a backdated payment was paid, not when it was typed in', function(){
+  var a = loadApp();
+  a.glRenderEntries(backdatedLoan(false));
+  var html = a._els['gl-entries'].innerHTML;
+  var aug = a.fmtDate('2026-08-08'), sep = a.fmtDate('2026-09-18');
+  assert(html.indexOf(aug) !== -1, 'the ledger should show the payment date ' + aug);
+  assert(html.indexOf(sep) === -1,
+    'no row should show the entry date ' + sep + ' — both rows belong to the 8 Aug payment');
+});
+
+test('an older activity row with no date recovers it from its own payment', function(){
+  var a = loadApp(), g = backdatedLoan(false);
+  assert(a.girviEventDate(g, g.ledger[1]) === '2026-08-08',
+    'expected the matched payment date, got ' + a.girviEventDate(g, g.ledger[1]));
+});
+
+test('a new payment records its real date on the activity row too', function(){
+  var a = loadApp(), g = backdatedLoan(true);
+  assert(a.girviEventDate(g, g.ledger[1]) === '2026-08-08', 'a stored date should be used as-is');
+});
+
+test('when the matching payment is ambiguous, no date is guessed', function(){
+  // Two payments within the window: the old row keeps its own timestamp
+  // rather than risk showing the wrong one of two real dates.
+  var a = loadApp(), g = backdatedLoan(false);
+  g.payments.push({ id:'p2', amount:5000, mode:'cash', type:'partial', date:'2026-08-20', ts:'2026-09-18T12:30:01.000Z' });
+  assert(a.girviEventDate(g, g.ledger[1]) === g.ledger[1].ts,
+    'an ambiguous match must fall back to the row\'s own time, got ' + a.girviEventDate(g, g.ledger[1]));
+});
+
+test('a payment date with no time of day is not given an invented one', function(){
+  var a = loadApp();
+  a.glRenderEntries(backdatedLoan(true));
+  var html = a._els['gl-entries'].innerHTML;
+  var fake = a.fmtTime('2026-08-08');   // what printing a bare date as a time would produce
+  var rows = html.split('gl-entry-date').slice(1).filter(function(r){ return r.indexOf(a.fmtDate('2026-08-08')) !== -1; });
+  assert(rows.length > 0, 'expected rows dated 8 Aug');
+  rows.forEach(function(r){
+    assert(r.indexOf('gl-entry-time">' + fake) === -1, 'an 8 Aug payment should not claim to have happened at ' + fake);
+  });
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

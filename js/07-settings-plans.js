@@ -1162,8 +1162,10 @@ function openGirviDetail(gid){
 
   // ── Feature 11: Full audit timeline ───────────────────────────────────
   var allEvents = [];
-  (g.ledger||[]).forEach(function(l){ allEvents.push({ts:l.ts,type:l.type,note:l.note,user:l.user||''}); });
-  (g.payments||[]).forEach(function(p){ allEvents.push({ts:p.ts||p.date,type:'payment',note:'₹'+Math.round(p.amount).toLocaleString('en-IN')+' received via '+(p.mode||'Cash'),user:''}); });
+  // girviEventDate (08-girvi-viewmode.js) gives a payment its real date, not
+  // the moment it was typed in; runs at render time, after 08 has loaded.
+  (g.ledger||[]).forEach(function(l){ allEvents.push({ts:girviEventDate(g,l),type:l.type,note:l.note,user:l.user||''}); });
+  (g.payments||[]).forEach(function(p){ allEvents.push({ts:p.date||p.ts,type:'payment',note:'₹'+Math.round(p.amount).toLocaleString('en-IN')+' received via '+(p.mode||'Cash'),user:''}); });
   (g.notesList||[]).forEach(function(n){ allEvents.push({ts:n.ts,type:'note',note:'Note: '+n.text,user:n.user||''}); });
   (g.amountAdjLog||[]).forEach(function(a){ allEvents.push({ts:a.ts,type:'adjustment',note:'Amount adjusted to ₹'+Math.round(a.newAmount).toLocaleString('en-IN')+' ('+a.reason+')',user:a.user||''}); });
   allEvents.sort(function(a,b){ return new Date(b.ts)-new Date(a.ts); });
@@ -1172,7 +1174,7 @@ function openGirviDetail(gid){
     return '<div class="gd-tl-item">'+
       '<div class="gd-tl-dot" style="background:'+(l.type==='payment'?'#22c55e':l.type==='closed'?'#64748b':l.type==='defaulted'?'#ef4444':l.type==='note'?'#60a5fa':l.type==='adjustment'?'#f59e0b':'var(--gold)')+'"></div>'+
       '<div class="gd-tl-text">'+(icons[l.type]||'📋')+' '+escHtml(l.note||'')+(l.user?' <span style="color:var(--text3);font-size:10px;">· '+escHtml(l.user)+'</span>':'')+'</div>'+
-      '<div class="gd-tl-date">'+fmtDate(l.ts)+' '+fmtTime(l.ts)+'</div>'+
+      '<div class="gd-tl-date">'+fmtDate(l.ts)+(girviIsDateOnly(l.ts)?'':' '+fmtTime(l.ts))+'</div>'+
     '</div>';
   }).join('');
 
@@ -1562,7 +1564,7 @@ function submitGirviPayment(gid){
     if(!g.payments)g.payments=[];
     g.payments.push({id:pid,amount:amount,mode:mode,date:date,ref:ref,type:payType,ts:new Date().toISOString(),user:currentUser});
     if(!g.ledger)g.ledger=[];
-    g.ledger.push({type:'payment',note:payNote,ts:new Date().toISOString(),user:currentUser});
+    g.ledger.push({type:'payment',note:payNote,ts:new Date().toISOString(),date:date,user:currentUser});
     var newOut = girviOutstanding(g);
     var _successMsg;
     if(payType==='interest'){

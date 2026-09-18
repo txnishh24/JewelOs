@@ -2859,8 +2859,9 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
         <div class="fg"><label>Purity</label><select id="ep-purity"></select></div>
         <div class="fg"><label>HUID Number</label><input id="ep-huid" placeholder="e.g. ABC123456" style="text-transform:uppercase"/></div>
         <div class="fg"><label>SKU / Item Code</label><input id="ep-sku"/></div>
-        <div class="fg"><label>Gross Weight (g)</label>
+        <div class="fg"><label>Gross Weight (g) <span style="font-size:10px;color:var(--text3)">(one piece)</span></label>
           <div class="isuf"><input id="ep-wt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div>
+          <div id="ep-wt-hint" style="font-size:11px;color:var(--text3);margin-top:3px;"></div>
         </div>
         <div class="fg"><label>Net Weight (g)</label>
           <div class="isuf"><input id="ep-netwt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div>
