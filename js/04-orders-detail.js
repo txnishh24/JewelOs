@@ -1441,6 +1441,10 @@ function deleteGirviEntry(gid){
   var g=(S.girvi||[]).find(function(x){return x.id===gid;});if(!g)return;
   if(g.status==='closed'){toast('Closed entries cannot be deleted');return;}
   var currentUser=(typeof SAAS!=='undefined'&&SAAS.user)?(SAAS.user.name||SAAS.user.email||'User'):'User';
+  // Not passed as "danger" (the 4th safeConfirm arg) on purpose — this is a
+  // reversible soft-delete with a working Recover button, not a destructive
+  // action, so the confirm button matches the amber Archive trigger instead
+  // of the red used for actually-destructive confirms.
   safeConfirm('Archive '+g.grvNo+'?','This will archive (soft-delete) the record. It can be recovered from the Archived tab.',function(){
     g._deleted=true;
     g._deletedAt=new Date().toISOString();
@@ -1450,7 +1454,7 @@ function deleteGirviEntry(gid){
     if(typeof auditLog==='function') auditLog('delete','girvi',g.id,'Archived by '+currentUser);
     closeGirviDetail();
     saveToCloud(function(err){if(!err){renderGirvi();renderDash();toast('📦 Girvi '+g.grvNo+' archived');}});
-  },true);
+  });
 }
 
 function recoverGirviEntry(gid){
