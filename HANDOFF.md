@@ -127,6 +127,24 @@ wants a call on the three flagged items — especially `deleteGirviEntry`, since
 having a working Recover button but no way to actually archive something reads like a real
 half-shipped feature, not cleanup debt.
 
+### 2026-09-19 · Claude Code (batch23 built — the dead-code removal above, zipped)
+
+**`jewelos-batch23-DEPLOY.zip` is in Downloads.** Not deployed — Tanish drags it in. Full
+site zip (15 files, 269.7 KB), supersedes batch22. Carries only the dead-code removal from
+the entry above — **nothing user-visible changes**. Changelog `docs/CHANGES-batch23.md`,
+shipped inside as `CHANGELOG.md`, says plainly there's nothing to test beyond "does
+anything look different" (it shouldn't).
+
+Built with `build-deploy-zip.js`, which refuses to hand over a bad zip: confirmed all
+stored paths use `/`, every extracted file byte-matches this repo, nothing extra rode
+along. Regression 113/113 at build time (unchanged from the prior commit — this batch
+touches no logic any test exercises).
+
+→ FOR COWORK: batch23 is ready for Tanish whenever — genuinely no-risk to drag in, since
+nothing in it can change behaviour. Nothing to re-test after deploy. Same open item as
+above: the three flagged not-quite-dead functions are still his call, not shipped either
+way.
+
 ## LOG — newest first
 
 ### 2026-09-18 · Claude Code (dropped the three leftover anon policies Cowork flagged)
