@@ -333,6 +333,7 @@ var _v20_renderGirvi_installed = false;
           '<button class="gca pay-btn" onclick="openGirviPayment(\''+g.id+'\')"><span class="gca-icon">\u20b9</span>Pay</button>'+
           '<button class="gca edit-btn" onclick="openGirviEditModal(\''+g.id+'\')"><span class="gca-icon">\u270f\ufe0f</span>Edit</button>'+
           '<button class="gca ledger-btn" onclick="openGirviLedger(\''+g.id+'\')"><span class="gca-icon">\ud83d\udcd2</span>Ledger</button>'+
+          '<button class="gca archive-btn" onclick="deleteGirviEntry(\''+g.id+'\')"><span class="gca-icon">\ud83d\udce6</span>Archive</button>'+
         '</div>';
       }
 

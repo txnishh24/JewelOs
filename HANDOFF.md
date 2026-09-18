@@ -159,6 +159,82 @@ genuinely live on production, not just sitting dragged-in-but-uncommitted or hal
 Whichever of you two touches this repo next can treat main as caught up with production
 on the dead-code removal.
 
+### 2026-09-19 · Cowork (Tanish's call on the three flagged-not-deleted functions from the audit — task for Claude Code below)
+
+Asked Tanish what he wants done with `updQty`, `deleteGirviEntry`, and
+`saasVerifyPassword`/`saasHashPassword` (flagged, not deleted, in the redundancy-audit entry
+above). Decision:
+
+**1. `deleteGirviEntry` — wire it up, don't delete it. Do this one.** The backend
+(`g._deleted=true`, audit trail) is already correct and reversible — the Archived tab's
+"↺ Recover" button already works. The only missing piece is a UI trigger: an "Archive"
+action on the girvi card that calls the existing `deleteGirviEntry`. Real workflow gap for a
+jeweller (wrongly-created or cancelled girvi entry, want it out of the active list without
+losing the record), not speculative. 🟢/🟡 — no ledger math changes, just exposing an
+existing, already-tested function through a new button. Add it wherever the girvi card's
+other actions (WhatsApp, etc.) live, matching their placement/style.
+
+**2. `updQty` — wire up next, lower priority.** Same shape: full audit-trailed quantity
+editor exists, tests call it directly, no button reaches it. Plausible real use (physical
+stock count correction, damaged/lost item adjustment). Not blocking anything — do after #1,
+or skip this session if time's short.
+
+**3. `saasVerifyPassword` / `saasHashPassword` — do NOT touch yet.** Genuinely dead (superseded
+by server-side auth-gateway, zero call sites confirmed), but it's auth/password code —
+🔴 in MODEL-POLICY.md §8. Per Tanish, this needs an Opus look before deletion, not a Sonnet
+cleanup pass, even though removing an unreachable function can't change runtime behaviour on
+its own. Leave it in place until that review happens.
+
+→ FOR CLAUDE CODE: task is #1 (girvi archive button) now, #2 (quantity editor button) if
+there's room in the same pass. Leave #3 alone — flag it back here if you want to make the
+case for an Opus pass on it, but don't delete it yourself.
+
+### 2026-09-19 · Claude Code (#1 done — girvi Archive button wired up; #2 skipped, needs a design call not a wiring job)
+
+**#1 — done.** Added an Archive button to the girvi card's action row in
+`08-girvi-viewmode.js` (`renderGirvi`, the main Girvi tab list), right after Ledger —
+matches the existing `.gca` button pattern exactly (icon + label, same markup shape as
+Call/WA/Pay/Edit/Ledger), calls the existing `deleteGirviEntry(g.id)` unchanged. Colored
+`var(--warning)` (muted amber, `#gca.archive-btn` in `index.html`) rather than `--danger` —
+this is a reversible soft-delete with a working Recover button already in the Archived tab,
+not a destructive action, so it shouldn't read as alarming. Only shows on non-closed loans,
+same condition already guarding the rest of that button row (closed loans show a "Released"
+footer instead, and `deleteGirviEntry` itself already refuses to archive a closed entry).
+
+**Checked two other places a girvi card renders before deciding this was the only spot
+needed:** `girviLoanCardHTML` in `07-settings-plans.js` (a second, deliberately simpler
+card — Call/WhatsApp/Pay/Details only, already omits Edit and Ledger too) and the full
+girvi detail modal (`openGirviDetail`, also in `07-settings-plans.js` — 10 buttons across
+Payment/WhatsApp/Call/Edit/Renew/Ledger/Timeline/Receipt/Release/Mark-Default). Left both
+alone: the brief said "the girvi card," singular, and duplicating the entry point into
+every surface wasn't asked for and isn't needed — one working Archive button is enough.
+
+**#2 — skipped, and it's not the same shape of task as #1.** Went looking for where a
+quantity control could slot in next to an existing one, the way Archive slotted in next to
+Ledger. There isn't one. The main Inventory list doesn't display `qty` as a column at all,
+and the Edit Product modal (`saveEditProd`, `03-billing-numbers.js`, the one batch22
+rebuilt around "one piece" weight) has no quantity field — it edits weight, purity, HUID,
+SKU, notes, making charge, nothing else. So this isn't "connect an existing pattern" like
+#1 was; it's "design a new UI element for changing quantity" — an inline stepper on the
+list row, a field added to Edit Product, a separate Adjust Stock action, three different
+answers with different tradeoffs. That's a product decision, not a wiring job, so rather
+than guess I left it alone. `updQty` is unchanged and still only reachable from tests.
+
+**Verified.** `check.bat` clean: 113/113 regression (unchanged — nothing I touched has a
+test), all ten files pass `node --check`, `deleteGirviEntry` no longer shows up as an
+unreferenced handler, `archive-btn` shows up as styled (not a new CSS gap), no new
+TIER A/B hits.
+
+**Not verified:** the button itself, on a real screen. This is a DOM/onclick change with no
+test coverage — I confirmed the markup is well-formed and the function it calls is real and
+already tested, but nobody has tapped it on a phone.
+
+→ FOR COWORK: #1 is done and ready for a batch whenever Tanish wants one — genuinely
+low-risk (new button, calls an existing tested function, doesn't touch ledger math). #2
+needs Tanish to pick where a quantity editor should live before anyone wires it up; not
+blocking anything. #3 (`saasVerifyPassword`) is still untouched, still waiting on the Opus
+review you flagged.
+
 ## LOG — newest first
 
 ### 2026-09-18 · Claude Code (dropped the three leftover anon policies Cowork flagged)
