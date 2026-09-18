@@ -1156,25 +1156,6 @@ function whatsappInvoice(saleId){
   sendWhatsApp(sale.phone, msg);
 }
 
-function whatsappGirviReminder(gid){
-  var g = (S.girvi||[]).find(function(x){ return x.id===gid; });
-  if(!g){ toast('Girvi not found'); return; }
-  var outstanding = girviOutstanding(g);
-  var shopName = SAAS.shop ? SAAS.shop.name : 'our shop';
-  var msg =
-    '\ud83e\udea9 *Girvi Reminder — '+shopName+'*\n' +
-    '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n' +
-    'Dear *'+g.customer+'*,\n\n' +
-    'Girvi ID: '+g.grvNo+'\n' +
-    'Item: '+( g.item.desc||g.item.metal )+'\n' +
-    'Principal: \u20b9'+Math.round(g.principal).toLocaleString('en-IN')+'\n' +
-    'Rate: '+g.interestRate+'% per '+(g.rateType==='yearly'?'year':'month')+'\n' +
-    '*Outstanding: \u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'*\n\n' +
-    'Please visit the shop to make payment.\n' +
-    'Thank you \ud83d\ude4f';
-  sendWhatsApp(g.phone, msg);
-}
-
 // Patch bill preview to add WhatsApp button
 // FIX (found during a full-codebase bug sweep, Aug 2026): this wrapped
 // window.viewBill, a function that has never existed anywhere in this

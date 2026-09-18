@@ -51,6 +51,82 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-19 · Claude Code (removed dead code found by a repo-wide redundancy audit — 152 lines, nothing live touched)
+
+**Tanish asked to clean up redundant code.** Not a batch, no UI behaviour change intended.
+Wrote a script that pairs every `function name(...)` declaration in `js/*.js` against a
+full-text search of `js/*.js` + `index.html`, flagging any name that appears nowhere except
+its own declaration. 26 candidates came back; checked each one by hand before touching
+anything, because a "0 refs" hit can mean three different things here and only one of them
+is safe to delete:
+
+**Deleted — confirmed superseded by a newer implementation, zero live callers, zero test
+dependents:**
+- `getNextOrdNo` (`01-sync-core.js`) — order numbers are assigned by a direct
+  `S.nextOrdId++` in `03-billing-numbers.js`; this cloud-counter version was never wired in.
+- `GST_HSN` + `calcGSTSplit` (`01-sync-core.js`) — the comment on `calcSaleGSTBreakdown`
+  literally says "the old version recomputed these independently" and lists the exact bug
+  that caused; this was that old version, with its own private `split()` replacing it in place.
+- `totalSales`, `unitsSold`, `stockGW`, `stockSW`, `lowItems` (`02-ui-inactivity-modals.js`) —
+  orphaned siblings of `stockGV`/`stockSV`, which **are** used. The live "low stock" logic
+  in `06-inventory-stock.js` groups by category (`lowStockCats`), not `lowItems()`'s per-item
+  check.
+- `girviLog` (`04-orders-detail.js`) — every real ledger-append call site
+  (`deleteGirviEntry`, `recoverGirviEntry`, the defaulted-marker path) pushes to `g.ledger`
+  inline; this wrapper was written but never adopted anywhere.
+- `whatsappGirviReminder` (`05-auth-login.js`) — dead duplicate of `girviWhatsApp`
+  (`07-settings-plans.js`), which is the one the girvi view's WA button actually calls and
+  is strictly better (penalty-aware outstanding, bilingual, overdue urgency tone).
+- `saasSaveAuthToCloud` (`04-orders-detail.js`) — already a documented no-op stub "kept so
+  old call sites don't throw"; grepped for those old call sites and none exist in this
+  codebase anymore, so even the deprecation rationale was stale. Left its sibling
+  `saasLoadAuthFromCloud` alone — that one still has 3 real callers.
+- `daysInStock`, `getFastMovers`, `getProductVelocity`, `getSparklineData`,
+  `renderSparkline` (`06-inventory-stock.js`) — an analytics/chart helper set superseded by
+  `calcCategoryPerf` and a bespoke inline week-over-week bar chart a few hundred lines down
+  in the same file. Also removed the now-orphaned `.sparkline`/`.spark-bar` CSS those two
+  functions were the only producers of.
+
+**Found but deliberately NOT deleted — these look like dead code by the same test, but
+each one reads as a missing UI wire-up rather than a superseded leftover, and removing them
+would delete a feature rather than redundancy:**
+- **`updQty`** (`02-ui-inactivity-modals.js`) — full audit-trailed quantity editor
+  (`docs/CHANGES-batch14.md` describes the bug it fixed), touches the derived-weight house
+  rule, but no button anywhere calls it — only `tests/regression.test.js` does, directly.
+  Either a manual-quantity-edit control used to exist and got dropped, or it never got wired
+  after being built.
+- **`deleteGirviEntry`** (`04-orders-detail.js`) — the *only* code in the whole app that
+  sets `g._deleted=true`. The Archived-tab UI already has a working "↺ Recover" button
+  (`recoverGirviEntry`, wired), but nothing puts an entry into that tab in the first place —
+  no Archive/Delete button exists on a girvi card. Recover-without-archive is half a feature.
+- **`saasVerifyPassword`** + its only caller `saasHashPassword` (`04-orders-detail.js`) —
+  zero call sites, consistent with password checks having moved server-side into
+  `auth-gateway`. Left alone on purpose: auth/password code is 🔴 in `MODEL-POLICY.md` §8,
+  and deleting it is a judgment call worth a second pair of eyes rather than a Sonnet
+  cleanup pass, even though removing an unreachable function can't itself change runtime
+  behaviour.
+
+**Also checked, not touched:** three same-named functions in different files
+(`doSubmit`, `fmtTime`, `fld`) — each is nested inside its own enclosing function/closure,
+not a global, so they don't collide despite sharing a name. Cosmetic at most; renaming for
+clarity wasn't worth the diff against a working file.
+
+**Verified.** `check.bat` clean before and after — same `node --check` on all ten files,
+same **113/113** regression pass, same TIER A/B/false-positive list character-for-character,
+`backup-check` and `roundtrip` both still PASS. None of the deleted names appear in
+`tests/*.js` or `checks/*.js`, so nothing in the test/check harness depended on them.
+Net: **152 lines removed across 6 files**, zero lines of live logic changed.
+
+**Not verified:** nothing needing a browser — this was pure deletion of code nothing calls,
+so there's no screen to check. The three flagged-not-deleted items above are unverified in
+the other direction: I don't know whether they're meant to be reachable, only that they
+currently aren't.
+
+→ FOR COWORK: nothing to re-test, no behaviour changed. Worth surfacing to Tanish if he
+wants a call on the three flagged items — especially `deleteGirviEntry`, since "Archive"
+having a working Recover button but no way to actually archive something reads like a real
+half-shipped feature, not cleanup debt.
+
 ## LOG — newest first
 
 ### 2026-09-18 · Claude Code (dropped the three leftover anon policies Cowork flagged)

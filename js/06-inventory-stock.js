@@ -7,36 +7,6 @@ function getDeadStock(days){
   });
 }
 
-// Days in stock
-function daysInStock(p){
-  var added = new Date(p.createdAt || p.addedAt || Date.now());
-  return Math.floor((Date.now()-added.getTime())/86400000);
-}
-
-// Fast movers = items sold most recently / frequently
-function getFastMovers(){
-  var catCount = {};
-  S.sales.forEach(function(s){
-    (s.items||[]).forEach(function(i){
-      var cat = i.cat || 'Other';
-      catCount[cat] = (catCount[cat]||0) + (i.qty||1);
-    });
-  });
-  return Object.entries(catCount).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
-}
-
-// Product velocity — which specific products sell fastest
-function getProductVelocity(){
-  var vel = {};
-  S.sales.forEach(function(s){
-    (s.items||[]).forEach(function(i){
-      if(!i.pid) return;
-      vel[i.pid] = (vel[i.pid]||0) + (i.qty||1);
-    });
-  });
-  return vel;
-}
-
 // ── CUSTOMER INTELLIGENCE TAGS ────────────────────────────────────────
 function getCustomerTags(custName, phone, salesArr){
   var tags = [];
@@ -107,22 +77,6 @@ function calcWeekProfit(weeksAgo){
   var start = new Date(end.getTime() - 7*86400000);
   var sales = S.sales.filter(function(s){var d=new Date(s.date);return d>=start&&d<=end;});
   return sales.reduce(function(s,x){return s+calcSaleProfit(x).profit;},0);
-}
-
-// 6-week sparkline data
-function getSparklineData(fn, weeks){
-  var data = [];
-  for(var i=weeks-1;i>=0;i--) data.push(fn(i));
-  return data;
-}
-
-function renderSparkline(data, color){
-  var max = Math.max.apply(null,data)||1;
-  return '<div class="sparkline">'+
-    data.map(function(v){
-      return '<div class="spark-bar" style="height:'+Math.max(4,Math.round(v/max*28))+'px;background:'+color+';opacity:'+(v>0?'0.8':'0.3')+';"></div>';
-    }).join('')+
-  '</div>';
 }
 
 // Category performance — revenue, units, trend

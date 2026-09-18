@@ -560,16 +560,6 @@ function getNextGrvNo(callback){
   });
 }
 
-function getNextOrdNo(callback){
-  getNextCounter('ord_no', function(err, val){
-    if(val !== null){
-      if(val >= S.nextOrdId) S.nextOrdId = val + 1;
-      callback('ORD-' + String(val).padStart(3,'0'));
-    } else {
-      callback('ORD-' + String(S.nextOrdId).padStart(3,'0'));
-    }
-  });
-}
 function repairAndReload(){
   normaliseData(); saveCache();
   renderDash();
@@ -1217,26 +1207,6 @@ function girviLTVLabel(ltv){
 
 // Penalty = additional % on top of regular interest after overdue
 var GIRVI_PENALTY_RATE = 2; // extra 2% per month after due date
-
-// ===================================================================
-// --- GST ENGINE v1 -------------------------------------------------
-// ===================================================================
-var GST_HSN = {
-  gold:   { hsn:'7113', desc:'Gold jewellery', gst:3 },
-  silver: { hsn:'7113', desc:'Silver jewellery', gst:3 },
-  gold_plated: { hsn:'7114', desc:'Gold-plated articles', gst:3 },
-  making_charges: { hsn:'9983', desc:'Making charges', gst:5 },
-  stones: { hsn:'7103', desc:'Precious stones', gst:0.25 },
-  def:    { hsn:'7113', desc:'Jewellery', gst:3 }
-};
-
-function calcGSTSplit(amount, gstPct, isInterState) {
-  var gstAmt = (amount||0) * (gstPct||0) / 100;
-  if (isInterState) {
-    return { igst: gstAmt, cgst: 0, sgst: 0, total: gstAmt };
-  }
-  return { igst: 0, cgst: gstAmt/2, sgst: gstAmt/2, total: gstAmt };
-}
 
 function calcSaleGSTBreakdown(sale) {
   var shopGstin = (typeof SAAS !== 'undefined' && SAAS.shop && SAAS.shop.gstin) ? SAAS.shop.gstin : '';

@@ -1186,13 +1186,6 @@ function girviDaysSince(dateStr, endDateStr){
   var endMs = endDateStr ? new Date(endDateStr).getTime() : Date.now();
   return Math.max(0, Math.floor((endMs-new Date(dateStr).getTime())/86400000));
 }
-// Safe ledger append — never crashes on legacy data missing the array
-function girviLog(g, type, note, extra){
-  if(!g) return;
-  if(!g.ledger) g.ledger = [];
-  var entry = Object.assign({type:type||'edit', note:note||'', ts:new Date().toISOString()}, extra||{});
-  g.ledger.push(entry);
-}
 // ── DAY-BASED interest calculation ──────────────────────────────────
 // Fixes the month-rounding bug: a loan from Jan 31 → Feb 14 = 14 days
 // of interest, not 0 months. Daily rate = annual_rate / 365.
@@ -1702,7 +1695,7 @@ function saasSetShops(s){
   try{ localStorage.setItem(SHOPS_KEY, JSON.stringify(s)); } catch(e){ console.warn('[JewelOS] localStorage quota exceeded saving shops'); }
 }
 
-// ── DEPRECATED — kept as no-op stubs so old call sites don't throw ─────
+// ── DEPRECATED — kept as a no-op stub so old call sites don't throw ────
 // auth_store is locked down (001_lockdown_rls.sql); there is no more
 // "fetch everyone's users+shops" or "push our copy of everyone's users+
 // shops" operation, by design — a shop's browser should never have had
@@ -1711,7 +1704,6 @@ function saasSetShops(s){
 // directly from the response of login/signup/add-staff/remove-staff via
 // authGatewayCall(), which only ever returns this shop's own data.
 function saasLoadAuthFromCloud(callback){ if(callback) callback(null); }
-function saasSaveAuthToCloud(){ /* no-op — see comment above */ }
 
 // ── AUTH SCREEN ──────────────────────────────────────────────────────
 function _hideLoadingScreen(){

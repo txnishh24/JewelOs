@@ -88,13 +88,8 @@ function calcSaleTotals(sale){
   return{gv:gv,mc:mc,dc:dc,sub:sub,taxable:taxable,gstAmt:gstAmt,disc:disc,grand:grand,adv:totalColl,bal:Math.max(0,grand-totalColl),ogv:ogv,pav:pav,nav:nav,creationColl:creationColl,extraPaid:extraPaid};
 }
 
-function totalSales(){return S.sales.reduce(function(s,x){return s+calcSaleTotals(x).grand;},0);}
-function unitsSold(){return S.sales.reduce(function(s,x){return s+x.items.reduce(function(a,i){return a+i.qty;},0);},0);}
-function stockGW(){return S.products.filter(function(p){return p.metal==='gold'&&p.status!=='sold';}).reduce(function(s,p){return s+p.weight;},0);}
-function stockSW(){return S.products.filter(function(p){return p.metal==='silver'&&p.status!=='sold';}).reduce(function(s,p){return s+p.weight;},0);}
 function stockGV(){return S.products.filter(function(p){return p.metal==='gold'&&p.status!=='sold';}).reduce(function(s,p){return s+mktVal(p);},0);}
 function stockSV(){return S.products.filter(function(p){return p.metal==='silver'&&p.status!=='sold';}).reduce(function(s,p){return s+mktVal(p);},0);}
-function lowItems(){return S.products.filter(function(p){return p.qty<=p.alert&&p.status!=='sold';});}
 
 // ─── TABS ─────────────────────────────────────────────────────────────────
 function renderTab(tab){
