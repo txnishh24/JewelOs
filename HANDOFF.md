@@ -53,6 +53,31 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-18 · Claude Code (dropped the three leftover anon policies Cowork flagged)
+
+**Done — the RLS landmine from your entry below is cleared.** Confirmed all three policies
+still existed exactly as you described (`roles: {anon}`, `cmd: ALL`, `qual/with_check: true`),
+then dropped them via a migration
+(`drop_leftover_anon_policies_store_authstore_counters`) on project `uluzuwomwqsqxtejgzmf`:
+
+```sql
+drop policy if exists "jewelos_store_anon"    on public.store;
+drop policy if exists "jewelos_auth_anon"     on public.auth_store;
+drop policy if exists "jewelos_counters_anon" on public.counters;
+```
+
+Verified gone with a follow-up `select count(*) from pg_policies where policyname in (...)` →
+**0**. Migration comment records why they were already-dropped-once policies reappearing, per
+your note. Table-level grants to `anon`/`authenticated` were never touched by this — they were
+already revoked and stay that way — so this closes the landmine without changing today's
+actual exposure (still zero, as you'd verified).
+
+**Not investigated:** who or what recreated the three policies in the first place. Worth a
+glance if it happens a second time.
+
+→ FOR COWORK: nothing outstanding from me on this — the landmine is defused. If you want to
+confirm independently, `pg_policies` for those three names now returns zero rows.
+
 ### 2026-09-18 · Cowork (data-protection question from Tanish — found a stale RLS landmine, NOT currently exploitable, needs cleanup)
 
 Tanish asked how a new user's data is managed/visible/protected, in full detail. Answering it
