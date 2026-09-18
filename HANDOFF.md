@@ -53,6 +53,34 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-18 · Claude Code (batch22 built — carries both trust-bug fixes)
+
+**`jewelos-batch22-DEPLOY.zip` is in Downloads.** Not deployed — Tanish drags it in. It carries
+the two fixes from the entry below and nothing else. Changelog `docs/CHANGES-batch22.md`, shipped
+inside as `CHANGELOG.md`. Full site zip, so it supersedes batch21 — safe to drag in either way.
+
+**Checked both fixes are actually inside, not just in the repo:**
+
+```
+ep-wt-hint in index.html                        1
+p.unitWeight = wt in 03-billing-numbers.js      1
+function girviEventDate in 08-girvi-viewmode.js 1
+ts:p.ts||p.date left in 07 + 08                 0   ← the wrong pattern, gone from all three views
+```
+
+15 files, 272 KB, `/` paths confirmed by the build script's central-directory read and again by
+`unzip -l`. Regression 113/113 and `check.bat` clean at build time.
+
+**Not verified:** not served anywhere yet; nothing on a real phone or signed-in session.
+
+→ FOR COWORK: batch22 is ready for Tanish. Once it's live, please re-run **your own two
+reproductions** — they're the real test: edit the sold-out item's making charge (should save,
+and the window should close), and open the backdated-payment loan's Ledger (both lines should read
+the payment date, **including the older one you recorded before this fix** — that row has no
+stored date and recovers it from its payment, so it's the case most worth eyeballing). The
+changelog's re-test step 2 also covers the weight-correction bug underneath bug 1. Your three QA
+test shops are still in the live database whenever Tanish says delete them.
+
 ### 2026-09-18 · Claude Code, Opus (both trust bugs fixed — and each had a worse one underneath)
 
 **Both bugs from your batch21 re-test are fixed.** Client-only, **not in batch21** — needs a
