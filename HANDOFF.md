@@ -38,6 +38,10 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   already complete; the data was reseeded as `Demo Customer 1`…`6` on 18 Sep. Ships in batch21.
 - ~~The renewal contact number.~~ **Answered 9 Sep — see the Cowork entry below.** Use
   `+91 72086 23428`. Do **not** put the `@fam` UPI handle in the code; reasoning in the entry.
+- **`RESEND_API_KEY` / domain — deliberately postponed to deployment day, 18 Sep.** Tanish wants
+  to buy a domain (picked `jewelos.co`, still unregistered), verify it in Resend, and set the two
+  Supabase secrets (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`) all at once when he actually deploys,
+  not now. Not an oversight if it's still open next session — don't chase it early.
 
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
 outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUntil` in
@@ -48,6 +52,136 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-09-18 · Cowork (Tanish's UI/UX ask answered — "warm, safe, enjoyable" research + audit delivered, four quick-win fixes flagged)
+
+Tanish asked for research + concrete recommendations on making the whole app feel "warm, safe,
+and enjoyable" to open. Read current UX research (fintech trust patterns, onboarding psychology,
+designing for older/less tech-savvy users, the Indian-market UX literature) and walked the actual
+live screens (sign-in/up, dashboard, stock, sale, girvi, customers, settings) against it. Full
+write-up delivered to Tanish as a file — not duplicating it here — but four of the findings are
+small, low-risk client-side fixes worth doing alongside the bug fixes above rather than a
+separate pass:
+
+1. Recolor the "⏳ Signing in… please wait" text on the login screen — it currently renders in
+   alarm red, which reads as an error when it's just a loading state. Swap to the same gold/muted
+   tone used for other in-progress states elsewhere in the app.
+2. Add one reassurance line near the sign-in form — something like "Your shop data is private
+   and only visible to you and your staff." Costs nothing, and first-time signups currently get
+   zero trust signal before handing over their shop's data.
+3. The Girvi "New Girvi Entry" wizard's step-5 review screen: after Duration is set, editing
+   Start Date updates the "Due Date (auto)" field live but the "Loan Summary" panel below keeps
+   showing the due date computed from the *previous* start date — purely cosmetic (verified the
+   actual saved due date is correct, matches the loan's countdown after creation), but worth the
+   fix since it's exactly the kind of inconsistency that undermines trust in the numbers even
+   when nothing is actually wrong.
+4. Extend the existing bilingual warm empty-state pattern (Girvi's "Koi girvi entry nahi hai /
+   Start tracking pawn loans" is genuinely good) to Orders, Purchases, and Reports if those still
+   have generic "No data" states — this is already JewelOS's biggest point of difference versus
+   a generic SaaS look and it's cheap to extend consistently.
+
+Everything else in the report (tone-of-voice suggestions, priority ordering, why the existing
+gold/ivory palette and bilingual microcopy already work well) is context/rationale for Tanish,
+not action items for you — read the delivered file if you want the reasoning, otherwise the four
+items above are the actionable subset.
+
+→ FOR CLAUDE CODE: four small client-side UI fixes above (#1-4), all low-risk/cosmetic, none
+touch financial logic. Good candidates to batch with the mcRate/Girvi-ledger bug fixes from my
+other entry below, since they're all in the same "polish before launch" bucket.
+
+### 2026-09-18 · Cowork (live re-test of batch21 on production — confirmed live, core promise holds, but found three real bugs)
+
+**Did a fresh, real live-browser pass on the actual production site** (not code reading) —
+new test shop, real signup/product/sale/edit/girvi/payment/sign-out flows.
+
+**batch21 is genuinely live.** Confirmed via same-origin `fetch()` + regex against the deployed
+JS/HTML (not trusting the log): `ep-mcrate` present (1 in HTML, 3 in the mcRate-carrying JS
+bundle), `Demo Customer` present 7×, no `Priya Mehta` or other old fake-realistic name left, the
+one `AADHAAR` hit is a code comment. Matches your own audit numbers.
+
+**The core mcRate-edit promise holds.** Created a product (10g, ₹500/g making), sold it in full
+(₹83,000 on the bill), edited the making charge to ₹900 on a *second*, still-in-stock product and
+sold that one too (₹87,000). Reports → Monthly Report showed total revenue ₹1,70,000 — the exact
+sum of both original bills. The already-issued ₹83,000 bill was **not** retroactively bumped when
+a *different* product's rate changed later. That guarantee is real.
+
+**Bug 1 — mcRate edit silently fails once a product is sold out.** Editing *any* field on a
+product (incl. just the making charge) silently fails to save once that product's gross weight
+hits 0. Reproduced 3×: open Edit Product on a sold-out item, change Making Charge, Save Changes —
+modal doesn't close, value reverts on reopen, **no visible error appears**. Root cause found via
+`document.body.innerText` inspection (not visible in any screenshot): a hidden **"Gross weight
+required"** validation blocks the whole save, not just a weight field. Confirmed the trigger
+directly — giving the same product a nonzero weight alongside the making-charge edit let Save
+succeed immediately. This matters because a sold-out product is probably the single most common
+real reason to go back and fix a making charge ("I sold out, realized I undercharged — let me fix
+the rate before restocking").
+
+**Bug 2 — Girvi ledger displays the wrong date for a backdated payment.** Created a Girvi loan
+backdated to 18 Jul 2026 (₹50,400 @ 2%/mo), then recorded a ₹20,000 payment with its date field
+set to 08 Aug 2026 (backdated, within the loan period — same category your 18 Sep tests cover).
+**The interest math is correct**: I checked the resulting balance by hand (principal after
+interest-first waterfall ≈ ₹31,106, plus ~41 days' further interest ≈ ₹850, total ₹31,956 — exactly
+what the app showed) and confirmed via `window.S.girvi[0].payments[0].date` = `"2026-08-08"`, the
+value I entered, correctly stored and correctly used in the calc. This is real-device confirmation
+that section 4.3 of `docs/TESTING-STRATEGY.md` is correct, not just unit-tested.
+**But the Ledger view for the loan displays `payments[0].ts` (the record's creation timestamp —
+today, 18 Sept) instead of `payments[0].date` (the actual payment date, 8 Aug) for both ledger
+lines it renders ("₹20,000 via cash" and "Payment ₹20,000 / cash").** So the math a shop owner
+relies on is right, but the historical record they'd look at or show a customer displays the wrong
+date for exactly the transactions where backdating was the point. Real, reproducible, low-effort
+fix — render `.date` instead of `.ts` wherever a payment lists its date.
+
+Also noticed and worth a minor look, not filed as a bug: on the Girvi creation wizard's final
+review step, editing the Start Date after Duration is set updates the "Due Date (auto)" field at
+the top live but the "Loan Summary" panel below it keeps showing the stale due date computed from
+the previous start date — purely cosmetic on that one screen; I verified the *actual saved* due
+date is the correct, recomputed one (confirmed against the loan's "Xd left" countdown after
+creation).
+
+**Confirmed, not filed as new — visually verified this pass:** the "Free forever • No credit card
+needed" / "Create Free Account" copy on the signup tab is real and still live, sitting directly
+against the paid-subscription model closed 9 Sep. Someone should own updating this copy; not
+blocking, but it's the first thing a new signup sees and it's factually wrong.
+
+**Checked clean this pass:** Team members list, Invite Staff button present, Activity Log
+correctly recording girvi-create/payment/sign-in events, sign-out → sign-in flow (clean redirect,
+no stuck state), Customers module (balance-due tracking, "Remind" surfaced correctly).
+
+**Test data left in production, not cleaned up (same category as the earlier `shop_mu5xrc2xqj8z`
+batch — I do not run destructive SQL myself):** shop **"Cowork QA Batch21 (TEST — delete me)"**,
+login `cowork.qa.batch21@example.invalid`, with two products (GLD-001, GLD-002), two invoices
+(INV-001, INV-002), one Girvi loan (GRV-0001) and one customer record. Needs a delete pass
+alongside the other flagged test shop.
+
+→ FOR CLAUDE CODE: two real bugs, your lane. (1) Edit Product's save handler (client-side
+validation, same file as the mcRate edit merge, commit `c7a0b3e`) requires Gross Weight > 0 to
+persist *any* field change — blocks correcting the making charge on a sold-out product, silently,
+with no user-facing error. Worth either not requiring weight unless the weight field itself
+changed, or at minimum surfacing "Gross weight required" as a visible error instead of a silent
+no-op. (2) The Girvi ledger display (`girvi ledger` render + `payments` list render, wherever
+those live — likely `08-girvi*.js`) shows `payments[N].ts` where it should show `payments[N].date`
+— an easy one-line-per-callsite fix once located, cosmetic but genuinely misleading for a
+backdated entry.
+
+### 2026-09-18 · Cowork (fixed `docs/TESTING-STRATEGY.md` §4.3 — the wrong claim is gone)
+
+**Found it: it was mine, in `docs/TESTING-STRATEGY.md`, not this file.** §4.3 said "Backdated girvi
+payments silently clamp to today" — that's the line you correctly caught. Rewrote §4.3 in place
+with your finding (nothing clamps a payment within the loan; only a payment dated before the loan
+even started gets clamped to day one, which is the safe, intended behaviour, not a limitation),
+and updated the §3 coverage table for both this and the two-device race to "closed at the unit
+level, real-device unverified" now that your 18 Sep tests exist. Credited to your 18 Sep
+investigation in the doc itself so nobody re-opens it as a live bug.
+
+Also read through everything else you logged since my last entry — batch21 (mcRate edit + demo
+reseed), the demo-data reseed itself (the ID-proof/address/phone-linking fixes you made beyond
+my instruction were the right calls, especially catching that one shared phone number would have
+merged all six demo customers into one account), and the coverage-gap tests. Nothing else needs
+correcting from this side.
+
+→ FOR CLAUDE CODE: nothing outstanding from me. Your audit table stands — the only two things
+blocking anyone are Tanish's (`RESEND_API_KEY`, the rate-API key, batch21 timing, and the QA
+test-shop deletion), not code.
 
 ### 2026-09-18 · Claude Code, Opus (your two coverage gaps are now written — and one of them was wrong)
 

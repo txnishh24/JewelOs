@@ -43,8 +43,8 @@ None of this is a criticism of the existing suites — they're doing what they s
 | Structural integrity (dead code, missing CSS/ids) | Static (`checks/*.js`) | Strong | Maintain — run `check.bat` before every deploy, not just before some |
 | Migrations (SQL itself) | None | **Gap** | At minimum: re-run the relevant `regression`/`edge-functions` suites immediately after every `apply_migration`, against real project data, not just fake-DB |
 | `razorpay-webhook` | None | **Gap** | Add before payments go live — see 4.1 |
-| Concurrent writes to the same stock item, two devices | Simulated only (single-process) | **Partial gap** | See 4.2 |
-| Backdated girvi payments | None found in either suite | **Gap** | See 4.3 |
+| Concurrent writes to the same stock item, two devices | Simulated only (single-process), 4 tests added 18 Sep | **Closed at the unit level — real-device race still unverified** | See 4.2 |
+| Backdated girvi payments | Simulated only (single-process), tests added 18 Sep | **Closed at the unit level — real-device entry still unverified. Correction: this was never a bug (see 4.3)** | See 4.3 |
 | `readonly` role write-blocking | Not explicitly named in the 20 edge-fn tests | **Possible gap** | See 4.4 |
 | Live RLS / anon-access posture | Ad hoc (`get_advisors`, `pg_policies`) | **Gap — not repeatable** | See 4.5 |
 | UI / visual / real phone | Manual only | Known, accepted gap | Keep manual; don't pretend otherwise |
@@ -59,11 +59,17 @@ This function is currently "parked, not deleted" per your own notes, and the ope
 - `RAZORPAY_WEBHOOK_SECRET` unset → fails closed (throws), not silently accepted — you reasoned this by code inspection earlier; a test would prove it instead of relying on reading the code correctly.
 - Replay of the same webhook payload → doesn't double-record the payment.
 
-### 4.2 Two devices selling the last unit of the same item
-`current-priorities.md` lists this as a known, unresolved limitation ("No server-side stock reservation — two devices can both sell the last item"). The regression suite's CAS-write test proves a *stale version* gets rejected in principle, but there's no test that simulates two concurrent `recordSale()` calls against the same batch racing for the last unit and confirms exactly one wins and the loser gets a clean, handled failure (not a silent oversell). Worth writing even if the fix itself is deferred — so the failure mode is *known and tested*, not just known.
+### 4.2 Two devices selling the last unit of the same item — CLOSED at the unit level, 18 Sep
+`current-priorities.md` lists this as a known, unresolved limitation ("No server-side stock reservation — two devices can both sell the last item"). **Claude Code wrote the test on 18 Sep**: two simulated devices at store-proxy's shared version, both selling the last unit. Exactly one sale reaches the cloud; the loser's CAS write is rejected and it rolls back its own sale and stock, so quantity never goes negative. A second test pins the actual gap this doesn't close: the *loser* is still showing stale data afterward — the CAS write protects the stored number, it does not stop the second device believing the item is still on the shelf until its next poll. That second test is the real state of "no server-side stock reservation": if it ever starts failing, reservation has been built.
 
-### 4.3 Backdated girvi payments silently clamp to today
-Listed as a known limitation but no test asserts the actual clamping behavior (e.g., a payment dated to a past date gets recorded as today, and — the real question — does that change interest already accrued for the intervening days?). A test here turns a vague "known issue" into a documented, checked behavior.
+Regression suite is at 103/103 including these. **Still not verified: two real devices, live**, racing for a real last unit — this is two simulated clients in one process against a modelled store, which proves the failure mode but not that production behaves this way under real concurrency.
+
+### 4.3 Backdated girvi payments — this was never a bug; correcting this document
+This section originally read "Backdated girvi payments silently clamp to today" and listed it as a limitation needing a test. **That was wrong, and Claude Code's 18 Sep investigation caught it**: nothing clamps a backdated payment to today. `girviLedgerState` sorts on `pay.date` and accrues up to it, so a payment entered with a genuinely past date is honoured — paying two months ago really does stop interest from two months ago, which is correct behaviour for a shop recording a late payment. The `gl-date` input has no `max` either.
+
+What the code actually protects, in depth, is the *other* direction: a payment dated **before the loan itself started** is clamped up to the ledger's start cursor, and `accrueTo()` independently refuses a negative span so the cursor can never rewind. So a payment backdated to before day one is treated as day one — it cannot manufacture interest relief that never accrued. That's a safety property, not a limitation.
+
+Four tests were added 18 Sep pinning both halves: a payment backdated *within* the loan period is honoured (owes less than the same payment entered today), and a payment backdated *before* the loan cannot invent relief (removing both the clamp and `accrueTo`'s guard together makes the difference concrete: ₹14,400 of invented relief on a ₹78,400 balance). Regression suite 103/103. **Still not verified: a real backdated entry typed into a real phone** — the engine is tested, the UI path to it is not.
 
 ### 4.4 `readonly` role and writes
 `store-proxy` defines `CAN_WRITE = {owner, manager, staff}` excluding `readonly`, and one test confirms role comes from the live record rather than the token — but skimming the 20 test names, none is explicitly "a readonly-role user's PUT/POST is rejected with 403." Worth confirming this is actually covered before treating it as settled; if it isn't, it's a five-minute test to add given the fixture setup already exists.
