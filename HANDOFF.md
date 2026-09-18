@@ -53,6 +53,81 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-09-18 · Cowork (data-protection question from Tanish — found a stale RLS landmine, NOT currently exploitable, needs cleanup)
+
+Tanish asked how a new user's data is managed/visible/protected, in full detail. Answering it
+properly meant reconciling a real contradiction: memory said "zero anon grants remain anywhere,"
+but `pg_policies` on the live DB right now shows three policies — `jewelos_store_anon`,
+`jewelos_auth_anon`, `jewelos_counters_anon` — granting `anon` role unconditional `ALL`/`true`/`true`
+on `store`, `auth_store`, `counters`. Those are the **exact names** the
+`20260815153606_emergency_close_anon_access_store_authstore_counters` migration explicitly dropped.
+They are back, live, right now. I don't know who/what recreated them or when — not investigated,
+not urgent to investigate.
+
+**Verified NOT currently exploitable, two ways:**
+1. `information_schema.role_table_grants` on all three tables shows zero privileges for `anon` or
+   `authenticated` — only `postgres` and `service_role`. The `REVOKE ALL` from that same migration
+   is still fully in effect and never got undone.
+2. Real unauthenticated HTTP test, live, from the actual app origin, using the real public anon
+   key (`sb_publishable_srz3BiWIhIhcCeyOA547Sw_rsMYFxvy`): `GET /rest/v1/store`, `/auth_store`,
+   `/counters` all returned `401 { "code": "42501", "message": "permission denied for table X" }`.
+   Postgres rejects on the missing table-level grant before RLS is ever evaluated, so the
+   permissive policy content is currently irrelevant.
+
+**Why it still matters:** those three policies are a landmine, not a hole. If anyone ever adds a
+`GRANT` back to `anon`/`authenticated` on these three tables for any reason (a future migration, a
+dashboard click, a "just for testing" moment), the leftover `ALL`/`true` policies would immediately
+and silently reopen full unauthenticated read/write on every shop's data and every user's password
+hash — no error, no warning, nothing in the app to notice it by.
+
+**Fix is small and safe — no data touched, just three `DROP POLICY`s:**
+```sql
+drop policy if exists "jewelos_store_anon"    on public.store;
+drop policy if exists "jewelos_auth_anon"     on public.auth_store;
+drop policy if exists "jewelos_counters_anon" on public.counters;
+```
+Per standing rule I don't apply DB changes like this myself even when non-destructive — leaving it
+here rather than doing it live.
+
+→ FOR CLAUDE CODE: when you're next in the Supabase side (or ask me to run it live — either way is
+fine, it's the same three lines), drop those three named policies. Not urgent — confirmed not
+exploitable today — but don't let it sit past the next few sessions, and worth a quick note in
+whatever migration does it explaining why they were already-dropped-once policies reappearing.
+
+### 2026-09-18 · Cowork (batch22 confirmed live — both trust bugs re-verified fixed on the exact reproductions)
+
+**batch22 is on production** — confirmed via same-origin `fetch()` + regex against the deployed
+JS/HTML: `ep-wt-hint` 1, `p.unitWeight = wt` 1, `function girviEventDate` 1, the old
+`ts:p.ts||p.date` pattern 0/0 across all three views. Someone (Tanish) dragged it in; not me.
+
+**Re-ran my own two exact reproductions on the same test shop, as asked:**
+
+1. **GLD-002** (still sitting at 0.00g / sold out from the original repro): opened Edit Product —
+   the field is now labeled "GROSS WEIGHT (G) (ONE PIECE)", correctly showing **10** (its real
+   per-piece weight, not an empty derived-zero box), with the hint "Sold out — this is kept for
+   when you restock" underneath, exactly as described. Changed making charge 900 → 950, Save
+   Changes — **modal closed immediately**, header showed "Saved ✓", toast confirmed the update.
+   Fixed.
+2. **GRV-0001**'s Ledger (the loan with the 8-Aug backdated payment from my original repro):
+   both lines — "₹20,000 via cash" (the old activity-row entry, which had no stored date) and
+   "Payment / ₹20,000 / cash" — now correctly read **8 Aug 2026** instead of today. The loan's own
+   "Girvi created ₹50400" row still correctly shows its real creation timestamp (18 Sept, when I
+   made it), which is right and untouched. Outstanding balance unchanged at ₹31,956 — confirms the
+   date-display fix didn't touch the interest math. Fixed.
+
+**Not yet in any batch:** the four cosmetic UI/UX items from my other entry below (#1-4 — loading
+text color, privacy line, wizard due-date staleness, empty-state warmth). Confirmed still absent:
+the "⏳ Signing in… please wait" text is still rendering in red on production. Not urgent, no
+action needed until you're ready to batch them with something else.
+
+Test shop **"Cowork QA Batch21 (TEST — delete me)"** still live in production, still needs the
+delete pass — reused it for this re-test rather than creating a fourth one.
+
+→ FOR CLAUDE CODE: nothing outstanding from me on either bug — both confirmed working exactly as
+your fix described, on the real live site, not just the regression suite. Nice catches on the
+underlying causes (the weight-correction bug, the three-view date bug) — those were worse than
+what I'd found and you were right to go one level down instead of patching the symptom.
+
 ### 2026-09-18 · Claude Code (batch22 built — carries both trust-bug fixes)
 
 **`jewelos-batch22-DEPLOY.zip` is in Downloads.** Not deployed — Tanish drags it in. It carries
