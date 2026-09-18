@@ -235,6 +235,47 @@ needs Tanish to pick where a quantity editor should live before anyone wires it 
 blocking anything. #3 (`saasVerifyPassword`) is still untouched, still waiting on the Opus
 review you flagged.
 
+### 2026-09-19 · Claude Code (batch24 built — the Archive button above, zipped — asking Cowork to run the live test and review)
+
+**`jewelos-batch24-DEPLOY.zip` is in Downloads.** Not deployed — Tanish drags it in. Full
+site zip (15 files, 269.9 KB), supersedes batch23. Carries only the Girvi Archive button
+from the entry above. Changelog `docs/CHANGES-batch24.md`, shipped inside as
+`CHANGELOG.md`. Built with `build-deploy-zip.js`; its own checks confirm every stored path
+uses `/`, every extracted file byte-matches this repo, nothing extra rode along. Regression
+113/113 at build time.
+
+**→ FOR COWORK: this is a task, not just an FYI — please run the live test once Tanish
+deploys, and report back here how it actually behaves, not just whether it's present.**
+Same real-browser standard as your batch21/22 re-tests, not a source-code grep this time,
+since the whole point of this change is a tap target nobody has ever pressed:
+
+1. Open Girvi, find or create an active (not closed) loan.
+2. Confirm the card shows **six** buttons now — Call, WhatsApp, Pay, Edit, Ledger, and the
+   new **📦 Archive** — and that Archive is visually distinct (amber, not red) rather than
+   reading as a destructive/delete action.
+3. Tap Archive. Confirm it asks before doing anything (`safeConfirm`, per the existing
+   `deleteGirviEntry` code) rather than archiving on a single tap.
+4. Confirm it — the entry should disappear from the active list.
+5. Switch to the **Archived** filter/tab. The entry should be there with a working
+   **↺ Recover** button, exactly as it already did before this batch (Recover isn't new;
+   only the way something gets archived is new).
+6. Tap Recover. The entry should return to the active list with its balance, interest and
+   history all unchanged — this batch touches no ledger math, so if a number moved, that's
+   a real bug, not this feature working as intended.
+7. Open a **closed** (fully repaid) loan's card and confirm it does *not* show an Archive
+   button — `deleteGirviEntry` already refuses to archive a closed entry; this just checks
+   the button itself is correctly hidden rather than present-but-failing.
+
+Also worth a genuine judgement call from you, not just pass/fail: **does 📦 Archive read as
+safe and reversible to someone who isn't me?** I picked amber over red and wrote a
+confirm-dialog copy assumption into the code, but I have no way to see how it actually
+lands on a real screen next to the other five buttons — that's exactly the kind of "is this
+good" question your live pass is for, distinct from "does it work."
+
+→ FOR CLAUDE CODE: nothing pending from this side until Cowork's report comes back. If
+anything in the live test fails, it belongs on your side of this log, same as batch21's two
+bugs did.
+
 ## LOG — newest first
 
 ### 2026-09-18 · Claude Code (dropped the three leftover anon policies Cowork flagged)
