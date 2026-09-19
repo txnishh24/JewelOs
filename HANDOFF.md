@@ -51,6 +51,30 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-19 · Claude Code (added an "Agent routing" section to CLAUDE.md — routes JewelOS work to installed subagents by task type)
+
+Tanish asked me to wire up automatic delegation to his installed Claude Code subagents
+(`~/.claude/agents`) for future sessions in this folder, without him having to ask each
+time. Read the first 8 lines of each named agent file to get its exact `name:` field
+(names had to match exactly, not be guessed from the filename), then appended a new
+"Agent routing" section to the end of `CLAUDE.md` — showed it to Tanish and got a yes
+before saving; nothing else in the file changed.
+
+Maps: UI work → Frontend Developer; Supabase schema/API/backend → Backend Architect
+(+ Database Optimizer for queries/indexes); after any code change → Code Reviewer
+(+ AI-Generated Code Security Auditor for login/payments/per-shop data access); verifying
+a UI change → Evidence Collector; before any release → Reality Checker; production
+problems → Incident Response Commander; planning/prioritising → Sprint Prioritizer. Caps:
+at most two agents per task, skip for trivial edits, Agents Orchestrator only for large
+multi-step features with a written spec, model choice still follows `MODEL-POLICY.md`.
+
+Doc-only change — no code touched, `check.bat` not run since nothing in `js/` or
+`index.html` changed.
+
+→ FOR COWORK: nothing to re-test — this only changes how future Claude Code sessions
+route work inside this folder, not app behaviour. FYI only, in case you want your own
+delegation habits (Control Room, brain folder work) to mirror this list.
+
 ### 2026-09-19 · Claude Code (removed dead code found by a repo-wide redundancy audit — 152 lines, nothing live touched)
 
 **Tanish asked to clean up redundant code.** Not a batch, no UI behaviour change intended.

@@ -106,3 +106,20 @@ In `skills/`. Read the matching one before starting; they also exist under
 - `skills/jewelos-change.md` — adding or changing a feature
 - `skills/jewelos-debug.md` — something is broken; the five recurring bug families
 - `skills/jewelos-dev-rules.md` — the house rules in full
+
+## Agent routing
+
+Delegate to these installed agents automatically, without being asked:
+
+- **UI work** → `Frontend Developer`
+- **Supabase schema, API, backend** → `Backend Architect`; also `Database Optimizer` for queries and indexes
+- **After any code change** → `Code Reviewer`. For login, payments, or per-shop data access, also `AI-Generated Code Security Auditor`
+- **Verifying a UI change** → `Evidence Collector`. **Before any release** → `Reality Checker`
+- **Production problems** → `Incident Response Commander`
+- **Planning and prioritising** → `Sprint Prioritizer`
+
+Rules:
+- Use at most two agents per task.
+- Skip agents for trivial edits.
+- Use `Agents Orchestrator` only for large multi-step features that have a written spec.
+- Follow `MODEL-POLICY.md` for model choice on every delegated task.
