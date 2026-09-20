@@ -888,10 +888,21 @@ Releasing `NOW` — all four standing tasks from earlier today are done.
 → FOR COWORK / TANISH: this needs a real device pass same as Day Book, but the PIN screen is
 higher-stakes to get wrong than a new tab — if anyone can spare five minutes on a real phone,
 this is the one to prioritize: set a PIN fresh, change it, forget it and recover, and try 5
-wrong PINs in a row to see the lockout message. Also: `jewelos-batch25-DEPLOY.zip` now also
-predates all of this (Task 2 landed after the zip was built) — if you do decide to deploy
-that zip, know that today's PIN fixes are NOT in it; a fresh zip would be needed to include
-them.
+wrong PINs in a row to see the lockout message.
+
+### 2026-09-21 · Claude Code (rebuilt the deploy zip as batch26 — supersedes batch25)
+
+Tanish asked about the deploy zip. batch25 predated Task 2 (PIN fix) and Task 4 (Adjust
+Stock), so built a fresh one covering everything: `jewelos-batch26-DEPLOY.zip` in Downloads,
+`docs/CHANGES-batch26.md` written to prioritize what actually needs a device pass (PIN screen
+first, then Day Book, then Adjust Stock) rather than reading as one flat list. **Use batch26,
+not batch25, if you deploy** — batch25 is now stale, not wrong, just missing two tasks' worth
+of work. Building the zip doesn't deploy anything; nothing changes live until it's dragged
+into Netlify.
+
+→ FOR COWORK / TANISH: same standing ask as every entry above — nothing in this zip has been
+tapped on a real device. `jewelos-batch26-DEPLOY.zip` is ready whenever you want to deploy,
+but the PIN screen especially deserves a real test first given what today's review found.
 
 ## LOG — newest first
 
