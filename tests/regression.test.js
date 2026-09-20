@@ -1815,6 +1815,217 @@ test('loadCache() ignores a cache tagged with a different shop id (two shops, on
   assert(a.S.dayBook === null, 'the other shop\'s leaked day-book entries must not have been adopted: ' + JSON.stringify(a.S.dayBook));
 });
 
+// ── Day Book — Batch B: auto-line derivation and balances ─────────────
+// Posting-rule tests are grouped by source (sale/purchase/girvi/order);
+// balance tests build S.dayBook.closes/opening fixtures directly rather
+// than going through dbCloseDay (Batch C), since these are pure reads.
+
+test('closing = opening + in - out, exact, on a day with mixed auto and manual lines', function(){
+  var a = loadApp(); a.dbInit();
+  a.S.dayBook.opening = { date:'2026-09-01', amount:1000, ts:'2026-09-01T00:00:00.000Z' };
+  a.S.sales = [{ id:'s1', date:'2026-09-01', invNo:'INV-1', splitPayments:[{amount:500, mode:'Cash'}] }];
+  a.S.dayBook.entries = [{ id:'e1', date:'2026-09-01', dir:'out', amount:200, cat:'rent', kind:'manual', voided:false }];
+  var v = a.dbDayView('2026-09-01');
+  assert(v.opening === 1000, 'opening: ' + v.opening);
+  assert(v.totalIn === 500 && v.totalOut === 200, 'totals: in=' + v.totalIn + ' out=' + v.totalOut);
+  assert(v.closing === 1300, 'closing: ' + v.closing);
+});
+
+test('closing of day N equals opening of day N+1 when N is closed', function(){
+  var a = loadApp(); a.dbInit();
+  a.S.dayBook.closes = [{ date:'2026-09-01', opening:1000, autoIn:500, autoOut:0, manualIn:0, manualOut:200, closing:1300, counted:1300, diff:0, restatements:[], countCorrections:[] }];
+  assert(a.dbOpening('2026-09-02') === 1300, 'got ' + a.dbOpening('2026-09-02'));
+});
+
+test('a day with no entries still shows the carried-forward balance from the last close', function(){
+  var a = loadApp(); a.dbInit();
+  a.S.dayBook.closes = [{ date:'2026-09-01', opening:1000, autoIn:500, autoOut:0, manualIn:0, manualOut:200, closing:1300, counted:1300, diff:0, restatements:[], countCorrections:[] }];
+  var v = a.dbDayView('2026-09-05');
+  assert(v.opening === 1300 && v.closing === 1300, 'opening=' + v.opening + ' closing=' + v.closing);
+});
+
+test('opening for an unclosed day after the last close includes the intervening unclosed day\'s movement', function(){
+  var a = loadApp(); a.dbInit();
+  a.S.dayBook.closes = [{ date:'2026-09-01', opening:1000, autoIn:500, autoOut:0, manualIn:0, manualOut:200, closing:1300, counted:1300, diff:0, restatements:[], countCorrections:[] }];
+  a.S.sales = [{ id:'s1', date:'2026-09-02', invNo:'INV-2', splitPayments:[{amount:300, mode:'Cash'}] }];
+  assert(a.dbOpening('2026-09-03') === 1600, 'got ' + a.dbOpening('2026-09-03'));
+});
+
+console.log('\nDay Book posting rules — Sales:');
+
+test('a UPI-only sale contributes nothing to cash in', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', advance:5000, payment:'UPI' }];
+  assert(a.dbAutoTotals('2026-09-05').in === 0, 'expected no cash in');
+});
+
+test('a split sale (Cash 20,000 + UPI 30,000) posts exactly 20,000 in on the sale date', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', splitPayments:[{amount:20000,mode:'Cash'},{amount:30000,mode:'UPI'}] }];
+  assert(a.dbAutoTotals('2026-09-05').in === 20000, 'got ' + a.dbAutoTotals('2026-09-05').in);
+});
+
+test('splitPayments present means nowPaying is not also counted', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', splitPayments:[{amount:1000,mode:'Cash'}], nowPaying:{amount:9999,mode:'Cash'} }];
+  assert(a.dbAutoTotals('2026-09-05').in === 1000, 'got ' + a.dbAutoTotals('2026-09-05').in);
+});
+
+test('no splitPayments falls back to nowPaying; neither falls back to advance+payment', function(){
+  var a = loadApp();
+  a.S.sales = [
+    { id:'s1', date:'2026-09-05', invNo:'INV-1', nowPaying:{amount:700,mode:'Cash'}, advance:9999, payment:'Cash' },
+    { id:'s2', date:'2026-09-05', invNo:'INV-2', advance:300, payment:'Cash' }
+  ];
+  assert(a.dbAutoTotals('2026-09-05').in === 1000, 'got ' + a.dbAutoTotals('2026-09-05').in);
+});
+
+test('sale.prevAdvance never produces a line, even at 50,000', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', prevAdvance:{amount:50000,mode:'Cash'}, advance:0, payment:'Cash' }];
+  assert(a.dbAutoTotals('2026-09-05').in === 0, 'got ' + a.dbAutoTotals('2026-09-05').in);
+});
+
+test('sale.paymentHistory never produces a line; extraPayments still counts once', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', advance:0, payment:'Cash',
+    paymentHistory:[{amount:1200,mode:'Cash',date:'2026-09-06'}],
+    extraPayments:[{id:'p1',amount:1200,mode:'Cash',date:'2026-09-06'}] }];
+  assert(a.dbAutoTotals('2026-09-06').in === 1200, 'expected exactly one count of 1200, got ' + a.dbAutoTotals('2026-09-06').in);
+});
+
+test('extraPayments cash entry posts in on its OWN date, not the sale date', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', advance:0, payment:'Cash', extraPayments:[{id:'p1',amount:800,mode:'Cash',date:'2026-09-09'}] }];
+  assert(a.dbAutoTotals('2026-09-05').in === 0, 'sale date should show nothing');
+  assert(a.dbAutoTotals('2026-09-09').in === 800, 'got ' + a.dbAutoTotals('2026-09-09').in);
+});
+
+test('extraPayments type:reversal posts cash out', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', advance:0, payment:'Cash', extraPayments:[{id:'p1',type:'reversal',amount:400,mode:'Cash',date:'2026-09-09'}] }];
+  assert(a.dbAutoTotals('2026-09-09').out === 400, 'got ' + a.dbAutoTotals('2026-09-09').out);
+});
+
+test('extraPayments mode:Manual posts nothing but is flagged unknown', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', advance:0, payment:'Cash', extraPayments:[{id:'p1',amount:600,mode:'Manual',date:'2026-09-09'}] }];
+  var t = a.dbAutoTotals('2026-09-09');
+  assert(t.in === 0 && t.out === 0, 'a Manual-mode payment must never be counted as cash');
+  assert(t.unknownCount === 1, 'got unknownCount=' + t.unknownCount);
+});
+
+test('sale.refunds[] cash entry posts out on the refund date', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', advance:0, payment:'Cash', refunds:[{id:'r1',amount:900,mode:'Cash',date:'2026-09-10'}] }];
+  assert(a.dbAutoTotals('2026-09-10').out === 900, 'got ' + a.dbAutoTotals('2026-09-10').out);
+});
+
+console.log('\nDay Book posting rules — Purchases:');
+
+test('purchase bill paymentMethod:Credit posts nothing', function(){
+  var a = loadApp();
+  a.S.purchases = [{ id:'p1', date:'2026-09-05', billNo:'PB-1', amountPaid:15000, paymentMethod:'Credit' }];
+  assert(a.dbAutoTotals('2026-09-05').out === 0, 'a Credit bill must not post a cash-out');
+});
+
+test('purchase bill paymentMethod:Cash posts amountPaid out on bill.date', function(){
+  var a = loadApp();
+  a.S.purchases = [{ id:'p1', date:'2026-09-05', billNo:'PB-1', amountPaid:15000, paymentMethod:'Cash' }];
+  assert(a.dbAutoTotals('2026-09-05').out === 15000, 'got ' + a.dbAutoTotals('2026-09-05').out);
+});
+
+test('bill.supplierPayments[] cash entry posts out on its own date; a reversal posts in', function(){
+  var a = loadApp();
+  a.S.purchases = [{ id:'p1', date:'2026-09-01', billNo:'PB-1', amountPaid:0, paymentMethod:'Credit',
+    supplierPayments:[
+      { id:'sp1', amount:5000, mode:'Cash', date:'2026-09-07' },
+      { id:'sp2', type:'reversal', amount:2000, mode:'Cash', date:'2026-09-08' }
+    ] }];
+  assert(a.dbAutoTotals('2026-09-07').out === 5000, 'payment out: ' + a.dbAutoTotals('2026-09-07').out);
+  assert(a.dbAutoTotals('2026-09-08').in === 2000, 'reversal in: ' + a.dbAutoTotals('2026-09-08').in);
+});
+
+console.log('\nDay Book posting rules — Girvi:');
+
+test('girvi type:payment cash posts in on p.date, not p.ts, when they differ', function(){
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,
+    payments:[{ id:'pay1', amount:3000, mode:'Cash', type:'payment', date:'2026-09-05', ts:'2026-09-06T18:00:00.000Z' }] }];
+  assert(a.dbAutoTotals('2026-09-05').in === 3000, 'expected 2026-09-05 to show it, got ' + a.dbAutoTotals('2026-09-05').in);
+  assert(a.dbAutoTotals('2026-09-06').in === 0, 'p.ts must not be used when p.date is present');
+});
+
+test('girvi type:interest posts in; type:refund posts out', function(){
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,
+    payments:[
+      { id:'pay1', amount:400, mode:'Cash', type:'interest', date:'2026-09-05' },
+      { id:'pay2', amount:1500, mode:'Cash', type:'refund',   date:'2026-09-05' }
+    ] }];
+  var t = a.dbAutoTotals('2026-09-05');
+  assert(t.in === 400, 'interest in: ' + t.in);
+  assert(t.out === 1500, 'refund out: ' + t.out);
+});
+
+test('girvi type:penalty with mode:Cash posts no line — it is a charge, not cash received', function(){
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,
+    payments:[{ id:'pay1', amount:250, mode:'Cash', type:'penalty', date:'2026-09-05' }] }];
+  var t = a.dbAutoTotals('2026-09-05');
+  assert(t.in === 0 && t.out === 0, 'a penalty must never be posted as cash');
+});
+
+test('girvi type:waiver posts no line', function(){
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,
+    payments:[{ id:'pay1', amount:250, mode:'Waiver', type:'waiver', date:'2026-09-05' }] }];
+  var t = a.dbAutoTotals('2026-09-05');
+  assert(t.in === 0 && t.out === 0, 'a waiver must never be posted as cash');
+});
+
+test('a girvi loan with no disburseMode posts no cash-out and is flagged unknown; with disburseMode:Cash it posts', function(){
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-09-05', principal:150000, payments:[] }];
+  var t1 = a.dbAutoTotals('2026-09-05');
+  assert(t1.out === 0, 'must never default a missing disburseMode to Cash');
+  assert(t1.unknownCount === 1, 'got unknownCount=' + t1.unknownCount);
+
+  var b = loadApp();
+  b.S.girvi = [{ id:'g2', grvNo:'GRV-2', startDate:'2026-09-05', principal:150000, disburseMode:'Cash', payments:[] }];
+  assert(b.dbAutoTotals('2026-09-05').out === 150000, 'got ' + b.dbAutoTotals('2026-09-05').out);
+});
+
+console.log('\nDay Book posting rules — Orders:');
+
+test('order ledger advance cash posts in on the txn date; a reversal posts out', function(){
+  var a = loadApp();
+  a.S.orders = [{ id:'o1', ordNo:'ORD-1', createdAt:'2026-09-01T10:00:00.000Z', advance:0,
+    ledger:[
+      { txnId:'t1', type:'advance', amount:2000, mode:'Cash', date:'2026-09-01T10:00:00.000Z' },
+      { txnId:'t2', type:'reversal', amount:2000, mode:'Cash', date:'2026-09-02T09:00:00.000Z' }
+    ] }];
+  assert(a.dbAutoTotals('2026-09-01').in === 2000, 'advance in: ' + a.dbAutoTotals('2026-09-01').in);
+  assert(a.dbAutoTotals('2026-09-02').out === 2000, 'reversal out: ' + a.dbAutoTotals('2026-09-02').out);
+});
+
+test('an order with no ledger but advance > 0 posts the legacy fallback exactly once', function(){
+  var a = loadApp();
+  a.S.orders = [{ id:'o1', ordNo:'ORD-1', createdAt:'2026-09-01T10:00:00.000Z', advance:1200, payment:'Cash' }];
+  assert(a.dbAutoTotals('2026-09-01').in === 1200, 'got ' + a.dbAutoTotals('2026-09-01').in);
+  assert(a.dbAutoLines('2026-09-01').length === 1, 'expected exactly one line, got ' + a.dbAutoLines('2026-09-01').length);
+});
+
+test('an order advance converted to a sale is counted once, not twice', function(){
+  var a = loadApp();
+  a.S.orders = [{ id:'o1', ordNo:'ORD-1', createdAt:'2026-09-01T10:00:00.000Z', advance:2000,
+    ledger:[{ txnId:'t1', type:'advance', amount:2000, mode:'Cash', date:'2026-09-01T10:00:00.000Z' }] }];
+  a.S.sales = [{ id:'s1', date:'2026-09-10', invNo:'INV-1', prevAdvance:{amount:2000,mode:'Cash'},
+    splitPayments:[{amount:3000, mode:'Cash'}] }]; // 3000 = the balance actually collected on delivery
+  assert(a.dbAutoTotals('2026-09-01').in === 2000, 'order date should show the advance once: ' + a.dbAutoTotals('2026-09-01').in);
+  assert(a.dbAutoTotals('2026-09-10').in === 3000, 'sale date should show only the new cash, not the advance again: ' + a.dbAutoTotals('2026-09-10').in);
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');
