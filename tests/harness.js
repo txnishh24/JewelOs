@@ -9,6 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const nodeCrypto = require('crypto');
 
 function makeFakeElement(){
   var el = {
@@ -59,13 +60,26 @@ function buildSandbox(){
       addEventListener: function(){}, removeEventListener: function(){},
       createElement: function(){ return makeFakeElement(); },
       body: makeFakeElement(),
+      documentElement: { clientWidth: 375, clientHeight: 667 }, // arbitrary phone-ish size
       hidden: false
     },
+    innerWidth: 375, innerHeight: 667, // window.innerWidth/innerHeight (window === sandbox below)
     window: { addEventListener: function(){}, removeEventListener: function(){} },
     addEventListener: function(){}, removeEventListener: function(){},
     navigator: { onLine: true }, // no serviceWorker key — 'in' check should be false, matching Node
     location: { href: 'http://localhost/', reload: function(){}, hostname: 'localhost' },
-    crypto: { randomUUID: function(){ return 'test-' + Math.random().toString(36).slice(2); } },
+    // Real WebCrypto (getRandomValues/subtle/randomUUID), not a stub — the
+    // PIN module (js/04-orders-detail.js) hashes for real, so tests exercise
+    // the real hash path rather than a mock that could hide a real bug.
+    // Uint8Array/TextEncoder are the HOST realm's, injected explicitly:
+    // vm.createContext gives the sandbox its own realm with its own
+    // Uint8Array, and Node's webcrypto rejects a foreign-realm TypedArray
+    // passed to getRandomValues. Overriding the sandbox's own constructors
+    // with the host's is what makes `new Uint8Array(...)` inside app code
+    // produce an object webcrypto actually accepts.
+    crypto: nodeCrypto.webcrypto,
+    TextEncoder: TextEncoder,
+    Uint8Array: Uint8Array,
     fetch: function(){ return Promise.resolve({ ok:true, json: function(){ return Promise.resolve([]); } }); },
     toast: function(){}, // UI no-op in tests
     __resetStorage: function(){ _local = {}; _session = {}; }

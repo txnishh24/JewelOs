@@ -188,6 +188,105 @@ test('PIN session expires after real inactivity', function(){
   assert(app.isPinSessionActive() === false, 'should require PIN again after 10 real minutes of inactivity');
 });
 
+// ── PIN security review (20-21 Sep 2026) ────────────────────────────────
+// Fresh app instances throughout, not the shared `app` above — PIN storage
+// and the lockout counters are shop-scoped state, and these tests need to
+// control it precisely rather than inherit whatever earlier tests left.
+console.log('\nPIN security (20-21 Sep 2026 review):');
+
+function _pinHarness(){
+  var a = require('./harness.js').loadApp();
+  a.SAAS = a.SAAS || {};
+  a.SAAS.shop = { id: 'shop_pin_test' };
+  return a;
+}
+
+testAsync('_verifyPin resolves false when no PIN is stored (the closed silent-1234 hole)', function(){
+  var a = _pinHarness();
+  return a._verifyPin('1234').then(function(ok){
+    assert(ok === false, 'expected false with nothing stored, got ' + ok);
+  });
+});
+
+test('DEFAULT_PIN no longer exists anywhere', function(){
+  var a = _pinHarness();
+  assert(typeof a.DEFAULT_PIN === 'undefined', 'DEFAULT_PIN should be gone entirely, not just unused');
+});
+
+testAsync('a PIN set with _doSetPin verifies correctly and rejects a wrong PIN', function(){
+  var a = _pinHarness();
+  return a._doSetPin('4821').then(function(){
+    return a._verifyPin('4821');
+  }).then(function(ok){
+    assert(ok === true, 'expected the correct PIN to verify, got ' + ok);
+    return a._verifyPin('9999');
+  }).then(function(ok2){
+    assert(ok2 === false, 'expected a wrong PIN to fail, got ' + ok2);
+  });
+});
+
+test('lockApp() with no PIN stored routes straight into set-PIN mode, not a verify screen', function(){
+  var a = _pinHarness();
+  a.lockApp();
+  assert(a._pinChanging === true, 'expected set-PIN mode (_pinChanging true)');
+  assert(a._pinStep === 1, 'expected step 1 (nothing to verify first), got ' + a._pinStep);
+  assert(a._els['pin-label'].textContent === 'Set Your 4-Digit PIN', 'expected the set-PIN label, got ' + a._els['pin-label'].textContent);
+});
+
+testAsync('lockApp() with a PIN already stored shows the normal verify screen', function(){
+  var a = _pinHarness();
+  return a._doSetPin('1111').then(function(){
+    a.lockApp();
+    assert(a._pinChanging === false && a._pinStep === 0, 'expected verify mode');
+    assert(a._els['pin-label'].textContent === 'Enter PIN', 'expected Enter PIN, got ' + a._els['pin-label'].textContent);
+  });
+});
+
+testAsync('lockApp() closes an abandoned Change-PIN flow instead of leaving it armed (the High-severity bypass)', function(){
+  // Before the fix, lockApp() reset the wrong variable names (undeclared
+  // globals it created by accident), so an abandoned "enter new PIN" flow
+  // survived every re-lock -- anyone who next picked up the device could
+  // finish it with any 4 digits and unlock with zero knowledge of the real
+  // PIN. This test fails against the pre-fix code.
+  var a = _pinHarness();
+  return a._doSetPin('2222').then(function(){
+    a._pinChanging = true; a._pinStep = 1; a._pinTempNew = '9999'; // abandoned mid-change
+    a.lockApp();
+    assert(a._pinChanging === false, 'lockApp() must close an abandoned change-PIN flow');
+    assert(a._pinStep === 0, 'expected step reset to 0, got ' + a._pinStep);
+    assert(a._pinTempNew === '', 'expected the abandoned candidate PIN cleared');
+  });
+});
+
+testAsync('Forgot PIN clears the stored PIN and goes straight into set-PIN mode, not a 1234 prompt', function(){
+  var a = _pinHarness();
+  return a._doSetPin('3333').then(function(){
+    a._pinDoForget();
+    assert(a.isPinSet() === false, 'expected the PIN to be cleared');
+    assert(a._pinChanging === true && a._pinStep === 1, 'expected set-PIN mode after Forgot PIN');
+    return a._verifyPin('1234');
+  }).then(function(ok){
+    assert(ok === false, '1234 must never verify after Forgot PIN, got ' + ok);
+  });
+});
+
+test('repeated wrong PINs trigger a lockout window, which clears on demand', function(){
+  var a = _pinHarness();
+  assert(a._pinLockoutRemainingMs() === 0, 'no lockout initially');
+  for(var i=0;i<5;i++) a._pinRecordFailure();
+  assert(a._pinLockoutRemainingMs() > 0, 'expected a lockout after 5 straight failures');
+  a._pinClearFailures();
+  assert(a._pinLockoutRemainingMs() === 0, 'expected the lockout cleared');
+});
+
+test('the PIN lockout is scoped per shop, same as PIN storage itself', function(){
+  var a = _pinHarness();
+  for(var i=0;i<5;i++) a._pinRecordFailure();
+  assert(a._pinLockoutRemainingMs() > 0, 'expected shop A locked out');
+  a.SAAS.shop = { id: 'shop_pin_test_2' };
+  assert(a._pinLockoutRemainingMs() === 0, 'a different shop must not inherit another shop\'s lockout');
+});
+
 // ── Girvi customer accounts (multiple loans, one account) ──────────────
 console.log('\nGirvi customer accounts:');
 test('two loans for the same customer (same phone) link to one shared account', function(){

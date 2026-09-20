@@ -456,10 +456,10 @@ function bootApp(){
     if(header3) header3.style.visibility='hidden';
     if(mainEl3)  mainEl3.style.visibility='hidden';
     if(bnav3)    bnav3.style.visibility='hidden';
-    if(!isPinSet()){
-      var pe=document.getElementById('pin-error');
-      if(pe) pe.textContent='Default PIN: 1234 — change after first login';
-    }
+    // Security review, 20-21 Sep 2026: this branch only runs when isPinSet()
+    // is true (the sibling !isPinSet() branch above already returned) -- the
+    // "Default PIN: 1234" hint that used to sit here could never actually
+    // show. Deleted rather than reworded.
   }
   saasActivityLog('auth', 'Signed in as '+(SAAS.user?SAAS.user.name:'')+'');
 }
@@ -1305,10 +1305,11 @@ window.onload = function(){
         if(header) header.style.visibility='hidden';
         if(mainEl) mainEl.style.visibility='hidden';
         if(bnav)   bnav.style.visibility='hidden';
-        if(!isPinSet()){
-          var pe = document.getElementById('pin-error');
-          if(pe) pe.textContent='Default PIN: 1234 — change after login';
-        }
+        // Security review, 20-21 Sep 2026: no PIN set used to just show a
+        // "Default PIN: 1234" hint and leave the screen in verify mode,
+        // where typing 1234 silently unlocked. Route to set-mode instead --
+        // same fix as lockApp().
+        if(!isPinSet() && typeof _pinEnterSetMode==='function') _pinEnterSetMode();
       }catch(e){}
     }
   }

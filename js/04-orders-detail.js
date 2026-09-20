@@ -736,7 +736,6 @@ function _PIN_KEY()            { return 'ssj_pin::' + _pinShopSuffix(); }
 function _PIN_SALT_KEY()       { return 'ssj_pin_salt::' + _pinShopSuffix(); }
 function _PIN_SESSION_KEY()    { return 'ssj_unlocked::' + _pinShopSuffix(); }
 function _PIN_LAST_ACTIVE_KEY(){ return 'ssj_last_active::' + _pinShopSuffix(); }
-var DEFAULT_PIN        = '1234';
 
 // sessionStorage alone gets wiped every time a mobile OS kills the
 // backgrounded PWA process — which happens far more often than the user
@@ -770,6 +769,68 @@ var _pinChanging = false; // true while in change-PIN flow
 var _pinStep     = 0;     // 0=verify current, 1=enter new, 2=confirm new
 var _pinTempNew  = '';
 
+// Security review, 20-21 Sep 2026: lockApp() and pinResetToDefault() were
+// resetting six undeclared globals (pinBuffer, pinChanging, pinChangeStep,
+// pinNewBuffer, pinTempNew, pinLocked) instead of the real state above --
+// silently created by sloppy-mode assignment, so nothing ever threw. Real
+// consequence: an abandoned "Change PIN" flow (someone verifies correctly,
+// reaches "Enter New PIN", then walks away) was NEVER cleared by locking
+// the screen again, on re-lock or otherwise -- anyone who next picks up the
+// device can type any 4 digits twice and set themselves a brand-new PIN,
+// unlocking the app with zero knowledge of the real one. Every place that
+// used to hand-reset PIN state now calls this instead.
+function _pinResetState(){
+  _pinBuf = ''; _pinLocked = false; _pinChanging = false; _pinStep = 0; _pinTempNew = '';
+  updatePinDots(0);
+}
+
+// ─── PIN RATE LIMITING ────────────────────────────────────────────────
+// The one control that actually matters for a 4-digit secret: it attacks
+// the thing an attacker can't parallelize (typing on the physical pad),
+// where a stronger hash algorithm would only add cost to the LEGITIMATE
+// unlock, hit many times a day on the low-end Android WebViews this app
+// targets. See HANDOFF.md for the full reasoning. First 4 wrong PINs are
+// free (real jewellers mistype on a phone keypad); the 5th starts a 30s
+// wait, doubling up to a 300s cap. No permanent lockout -- a shop owner
+// locked out of their own till mid-sale is worse than the attack this
+// defends against.
+// ponytail: counters live in localStorage, clearable by anyone with
+// storage access -- but that's the same actor who can forge
+// ssj_last_active and skip the PIN screen entirely (see the sweep note
+// on isPinSessionActive above), so it's not the binding constraint.
+// Upgrade path is server-side attempt tracking, not worth it for a
+// device PIN.
+var PIN_FREE_ATTEMPTS = 4;
+var PIN_BACKOFF_MS    = [30000, 60000, 120000, 240000, 300000];
+
+function _pinLockoutRemainingMs(){
+  try{
+    var until = parseInt(localStorage.getItem(shopScopedKey('ssj_pin_lock_until')), 10);
+    if(!until || isNaN(until)) return 0;
+    return Math.max(0, until - Date.now());
+  }catch(e){ return 0; }
+}
+
+function _pinRecordFailure(){
+  try{
+    var failsKey = shopScopedKey('ssj_pin_fails');
+    var fails = (parseInt(localStorage.getItem(failsKey), 10) || 0) + 1;
+    localStorage.setItem(failsKey, String(fails));
+    if(fails > PIN_FREE_ATTEMPTS){
+      var idx = Math.min(fails - PIN_FREE_ATTEMPTS - 1, PIN_BACKOFF_MS.length - 1);
+      localStorage.setItem(shopScopedKey('ssj_pin_lock_until'), String(Date.now() + PIN_BACKOFF_MS[idx]));
+    }
+    return fails;
+  }catch(e){ return 0; }
+}
+
+function _pinClearFailures(){
+  try{
+    localStorage.removeItem(shopScopedKey('ssj_pin_fails'));
+    localStorage.removeItem(shopScopedKey('ssj_pin_lock_until'));
+  }catch(e){}
+}
+
 // ─── PIN HASHING — SHA-256 + salt, fast on mobile (<2ms) ─────────────────────
 function _getPinSalt(){
   var s = localStorage.getItem(_PIN_SALT_KEY());
@@ -794,22 +855,31 @@ function isPinSet(){ return !!localStorage.getItem(_PIN_KEY()); }
 function _doSetPin(p){
   var salt = _getPinSalt();
   return _sha256(salt + p).then(function(h){
-    try{ localStorage.setItem(_PIN_KEY(), 's1:' + h); } catch(e){ console.warn('[JewelOS] Could not save PIN'); }
+    try{
+      localStorage.setItem(_PIN_KEY(), 's1:' + h);
+    } catch(e){
+      console.warn('[JewelOS] Could not save PIN');
+      throw e; // let the caller know the PIN was NOT actually saved
+    }
   });
 }
 
-// Supports three stored formats: 's1:' (SHA-256), 'ssj2:' (old PBKDF2), plain text
+// Supports three stored formats: 's1:' (SHA-256), 'ssj2:' (old PBKDF2), plain text.
+// Security review, 20-21 Sep 2026: no PIN stored is no longer treated as a
+// verifiable state at all -- it fails closed here, and the caller routes to
+// a "set your PIN" flow instead of ever reaching this function with nothing
+// stored. See HANDOFF.md for the full review.
 function _verifyPin(entered){
   var stored = localStorage.getItem(_PIN_KEY()) || '';
 
-  // No PIN stored — compare against default '1234'
-  if(!stored){
-    if(entered === DEFAULT_PIN) return Promise.resolve(true);
-    return Promise.resolve(false);
-  }
+  if(!stored) return Promise.resolve(false);
 
   // New fast format: s1: + sha256(salt+pin)
   if(stored.startsWith('s1:')){
+    // A PIN with no matching salt can never verify (_getPinSalt() would mint
+    // a fresh one that won't match what was hashed) -- fail closed instead
+    // of a permanent lockout that looks like a wrong PIN forever.
+    if(!localStorage.getItem(_PIN_SALT_KEY())) return Promise.resolve(false);
     var salt = _getPinSalt();
     return _sha256(salt + entered).then(function(h){
       return ('s1:' + h) === stored;
@@ -871,7 +941,6 @@ function _pinClearError(){ _pinSetError(''); }
 function _pinAddDigit(digit){
   if(_pinLocked) return;
 
-  var buf = _pinChanging ? _pinBuf : _pinBuf; // same buffer, mode tells us context
   if(_pinBuf.length >= 4) return;
 
   _pinBuf += digit;
@@ -896,13 +965,25 @@ function _pinHandleVerify(){
   _pinBuf = '';
   updatePinDots(0);
 
+  var waitMs = _pinLockoutRemainingMs();
+  if(waitMs > 0){
+    _pinLocked = false;
+    _pinSetError('Too many wrong attempts. Try again in ' + Math.ceil(waitMs/1000) + 's.');
+    pinShake();
+    return;
+  }
+
   _verifyPin(entered).then(function(ok){
     _pinLocked = false;
     if(ok){
+      _pinClearFailures();
       _pinClearError();
       _pinUnlockApp();
     } else {
-      _pinSetError('Incorrect PIN. Try again.');
+      _pinRecordFailure();
+      var nowWaitMs = _pinLockoutRemainingMs();
+      if(nowWaitMs > 0) _pinSetError('Too many wrong attempts. Try again in ' + Math.ceil(nowWaitMs/1000) + 's.');
+      else _pinSetError('Incorrect PIN. Try again.');
       pinShake();
     }
   }).catch(function(){
@@ -918,17 +999,32 @@ function _pinHandleChange(){
   updatePinDots(0);
 
   if(_pinStep === 0){
-    // Verify current PIN
+    // Verify current PIN \u2014 a real guess, same lockout as the lock screen.
+    var waitMs = _pinLockoutRemainingMs();
+    if(waitMs > 0){
+      _pinLocked = false;
+      _pinSetError('Too many wrong attempts. Try again in ' + Math.ceil(waitMs/1000) + 's.');
+      pinShake();
+      return;
+    }
     _verifyPin(entered).then(function(ok){
       _pinLocked = false;
       if(ok){
+        _pinClearFailures();
         _pinStep = 1;
         _pinSetLabel('Enter New 4-Digit PIN');
         _pinClearError();
       } else {
-        _pinSetError('Wrong PIN. Try again.');
+        _pinRecordFailure();
+        var nowWaitMs = _pinLockoutRemainingMs();
+        if(nowWaitMs > 0) _pinSetError('Too many wrong attempts. Try again in ' + Math.ceil(nowWaitMs/1000) + 's.');
+        else _pinSetError('Wrong PIN. Try again.');
         pinShake();
       }
+    }).catch(function(){
+      _pinLocked = false;
+      _pinSetError('Error verifying PIN. Try again.');
+      pinShake();
     });
   } else if(_pinStep === 1){
     // Store new PIN candidate
@@ -941,18 +1037,14 @@ function _pinHandleChange(){
     // Confirm match
     if(entered === _pinTempNew){
       _doSetPin(_pinTempNew).then(function(){
-        _pinLocked  = false;
-        _pinChanging = false;
-        _pinStep    = 0;
-        _pinTempNew = '';
-        _pinSetLabel('Enter PIN');
-        _pinClearError();
-        markPinSessionActive();
-        var ps=document.getElementById('pin-screen');
-        if(ps) ps.classList.add('hidden');
         toast('\u2713 PIN changed successfully!');
         try{ localStorage.setItem('jewelos_pin_changed::'+_pinShopSuffix(),'1'); }catch(e){} // onboarding flag, shop-scoped (see fix note in 06-inventory-stock.js)
-        if(!_appStarted){ _appStarted=true; startApp(); }
+        _pinResetState();
+        _pinUnlockApp(); // also restores header/main/.bnav visibility -- the inline unlock this replaced never did
+      }).catch(function(){
+        _pinLocked = false;
+        _pinSetError('Could not save PIN \u2014 check device storage and try again.');
+        pinShake();
       });
     } else {
       _pinLocked = false;
@@ -986,10 +1078,18 @@ function pinKey(digit){ _pinAddDigit(digit); }   // kept for any remaining calle
 function pinDel()     { _pinDeleteDigit(); }
 
 function pinShowChange(){
-  _pinChanging=true; _pinStep=0; _pinBuf=''; _pinTempNew=''; _pinLocked=false;
+  // Security review, 20-21 Sep 2026: this used to only set state, never
+  // actually show #pin-screen -- the onboarding "Change PIN" CTA looked
+  // like it did nothing, while silently arming _pinChanging in the
+  // background. Now shows the screen for real, and if no PIN exists yet
+  // there's nothing to verify first -- go straight to set-mode.
+  if(!isPinSet()){ _pinEnterSetMode(); _pinShowScreen(); return; }
+  _pinResetState();
+  _pinChanging = true;
+  _pinStep = 0;
   _pinSetLabel('Enter Current PIN');
   _pinClearError();
-  updatePinDots(0);
+  _pinShowScreen();
 }// Show actual shop name on PIN screen// ─── BUILD PIN PAD WITH JS — single event listener, no inline handlers ────────
 // Uses pointer events (works on both mouse and touch, no double-fire)
 function _buildPinPad(){
@@ -1025,12 +1125,9 @@ function _buildPinPad(){
     pad.appendChild(btn);
   });
 
-  // Wire Change PIN and Forgot PIN buttons by ID (not inline handlers)
-  var changeBtn = document.getElementById('pin-change-btn');
+  // Wire Forgot PIN by ID (not inline handlers). Change PIN no longer lives
+  // on this screen -- see the markup comment in index.html.
   var forgotBtn = document.getElementById('pin-forgot-btn');
-  if(changeBtn) changeBtn.addEventListener('pointerdown', function(e){
-    e.preventDefault(); pinShowChange();
-  });
   if(forgotBtn) forgotBtn.addEventListener('pointerdown', function(e){
     e.preventDefault(); pinResetToDefault();
   });
@@ -1043,18 +1140,12 @@ if(document.readyState==='loading'){
   _buildPinPad();
 }
 
-function lockApp(){
-  clearPinSession();
-  pinBuffer=''; pinChanging=false; pinChangeStep=0; pinNewBuffer=''; pinTempNew=''; pinLocked=false;
-  updatePinDots(0);
-  var ov=document.getElementById('inactivity-overlay');
-  if(ov) ov.classList.remove('show');
-  _inactOverlayShown=false;
-  clearTimeout(_inactTimer);
-  updatePinShopName();
-  var l=document.getElementById('pin-label'); var e=document.getElementById('pin-error');
+// Unhides the PIN screen and hides the app chrome behind it. Extracted out
+// of lockApp() so pinShowChange() (Settings/onboarding) can show the same
+// screen without duplicating the visibility/full-screen-enforcement dance.
+function _pinShowScreen(){
   var ps=document.getElementById('pin-screen');
-  if(l) l.textContent='Enter PIN'; if(e) e.textContent=''; if(ps) ps.classList.remove('hidden');
+  if(ps) ps.classList.remove('hidden');
   var header=document.querySelector('header.topbar');
   var mainEl=document.querySelector('main.main');
   var bnav=document.querySelector('.bnav');
@@ -1062,6 +1153,35 @@ function lockApp(){
   if(mainEl)  mainEl.style.visibility='hidden';
   if(bnav)    bnav.style.visibility='hidden';
   _enforceFullScreenLock();
+}
+
+// Routes the PIN screen into "create a PIN" mode -- reuses the change-PIN
+// state machine starting at step 1 (nothing to verify first). This is what
+// "no PIN stored" means now, everywhere: first-ever use AND right after
+// Forgot PIN both land here, never on a magic default value.
+function _pinEnterSetMode(){
+  _pinResetState();
+  _pinChanging = true;
+  _pinStep = 1;
+  _pinSetLabel('Set Your 4-Digit PIN');
+  _pinClearError();
+}
+
+function lockApp(){
+  clearPinSession();
+  var ov=document.getElementById('inactivity-overlay');
+  if(ov) ov.classList.remove('show');
+  _inactOverlayShown=false;
+  clearTimeout(_inactTimer);
+  updatePinShopName();
+  if(isPinSet()){
+    _pinResetState();
+    _pinSetLabel('Enter PIN');
+    _pinClearError();
+  } else {
+    _pinEnterSetMode(); // closes the silent-1234 hole: no PIN means set one, not "guess the default"
+  }
+  _pinShowScreen();
 }
 
 // ── DEFENSIVE FULL-SCREEN ENFORCEMENT ────────────────────────────────
@@ -1098,22 +1218,29 @@ function updatePinShopName(){
   el.textContent = name;
 }
 
-// Forgot PIN — verifies identity via email then resets to 1234
+// Forgot PIN — clears the local device PIN so a new one can be set.
+// Security review, 20-21 Sep 2026: this is deliberately NOT an identity
+// check (the previous comment here claimed it "verifies identity via
+// email" -- it never did, no email or password was ever involved). This
+// PIN protects against casual snooping on a shared/unattended device; the
+// real security boundary is the Supabase account this device is already
+// signed into. Anyone with the device unlocked to this screen can already
+// tap this, same as before -- what changed is what happens next: no more
+// magic 1234, straight into setting a real new PIN.
 function pinResetToDefault(){
   safeConfirm(
     'Forgot PIN?',
-    'This will reset your PIN to 1234. You can change it after logging in. Continue?',
-    function(){
-      localStorage.removeItem(_PIN_KEY());
-      localStorage.removeItem(_PIN_SALT_KEY());
-      pinBuffer=''; pinLocked=false; pinChanging=false; pinChangeStep=0;
-      updatePinDots(0);
-      var e = document.getElementById('pin-error');
-      if(e) e.textContent = 'PIN reset to 1234. Enter it now.';
-      var l = document.getElementById('pin-label');
-      if(l) l.textContent = 'Enter PIN';
-    }
+    'This will clear your PIN. You\'ll set a new one right now. Continue?',
+    _pinDoForget
   );
+}
+
+function _pinDoForget(){
+  try{ localStorage.removeItem(_PIN_KEY()); }catch(e){}
+  try{ localStorage.removeItem(_PIN_SALT_KEY()); }catch(e){}
+  _pinClearFailures();
+  _pinShowScreen();
+  _pinEnterSetMode();
 }
 
 

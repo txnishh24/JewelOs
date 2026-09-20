@@ -15,7 +15,7 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> Claude Code — clearing the four standing tasks (dead auth code, PIN fallback, batch25 zip, Adjust Stock) — since 20 Sep
+> nobody
 
 **Claim it before you start.** Replace the line above with e.g.
 `Claude Code — batch16 girvi photo fixes — since 8 Sep 21:40`.
@@ -793,6 +793,105 @@ standing limitation as Day Book.
 → FOR COWORK / TANISH: **do not drag `jewelos-batch25-DEPLOY.zip` into Netlify** until
 someone has tapped through Day Book — it's in that zip now, whether or not that was the
 intent when Task 3 was written. Moving to Task 2 (PIN fallback) next.
+
+### 2026-09-20/21 · Claude Code (Task 2 — the PIN fallback fix turned into a real security
+review, and it found a live authentication bypass. Fixed, tested, and this closes all four
+standing tasks)
+
+**What this was supposed to be:** two small fixes to the device-unlock PIN screen — don't
+silently accept `1234` when no PIN is set, and maybe revert the hash from SHA-256 back to
+PBKDF2. Auth/security work is 🔴 in `MODEL-POLICY.md`, so before touching anything I ran an
+Opus review of the actual code and my proposed fix, rather than just implementing the
+original two-line ask.
+
+**What it actually found — worse than either flagged issue:** `lockApp()` and
+`pinResetToDefault()` were resetting six variable names (`pinBuffer`, `pinChanging`,
+`pinChangeStep`, `pinNewBuffer`, `pinTempNew`, `pinLocked`) that don't exist — the real state
+is `_pinBuf`/`_pinChanging`/`_pinStep`/`_pinTempNew`/`_pinLocked`. Sloppy-mode JS silently
+creates the wrong ones as new globals instead of throwing, so nothing ever caught it, and
+`checks/scope.js` had already flagged three of the six as implicit globals in
+`checks/globals.json` — sitting there, unactioned. **Real consequence: if someone taps
+"Change PIN," enters the correct current PIN, then walks away before finishing, locking the
+screen again never closes that flow — not on that lock, not on any later one.** The next
+person to pick up the device can type any 4 digits twice and set themselves a brand-new PIN,
+unlocking the app with **zero knowledge of the real PIN.** That's a live bypass, not a
+hypothetical, and it existed before today regardless of the audit that started this.
+
+**The hash-format question resolved the opposite way from the original suggestion:** keep
+the fast SHA-256 format, do NOT revert to PBKDF2. A 4-digit PIN is 10,000 values — brute-
+forcing all of them takes milliseconds either way; PBKDF2 buys ~3 orders of magnitude against
+an attack whose total cost is already sub-second, while measurably slowing down the
+legitimate unlock (hit dozens of times a day) on the low-end Android WebViews this app
+targets. Worse: `isPinSessionActive()` trusts a plain unauthenticated `localStorage`
+timestamp (`ssj_last_active::<shop>`) — anyone who could attack the PIN hash can instead just
+write that key and skip the PIN screen entirely, hash untouched. Hardening the hash while
+that's true is theater. Written down, not fixed — there's no server-side secret to bind an
+unlock token to without a much bigger change than a PIN screen deserves.
+
+**Fixed, in three phases:**
+- **State correctness** — new `_pinResetState()` used everywhere PIN state used to be
+  hand-reset (closes the bypass above); `_pinHandleChange`'s successful-change path now
+  calls `_pinUnlockApp()` instead of a duplicated inline unlock that never restored the
+  app's visibility (changing your PIN used to unlock into a blank screen); added `.catch`
+  handlers so a `crypto.subtle` failure can't leave the keypad dead forever; `_doSetPin` now
+  rejects instead of silently reporting success on a failed write.
+- **Closed the silent-1234 hole** — `_verifyPin` fails closed when no PIN is stored (used to
+  accept `'1234'`); `DEFAULT_PIN` is deleted entirely; `lockApp()`, `pinShowChange()`, and the
+  live session-restore path in `05-auth-login.js` all route "no PIN set" into a real
+  **set-your-PIN flow** (reusing the existing change-PIN state machine at step 1) instead of
+  ever presenting a verify screen with a guessable default. Also fixed a lost-salt edge case
+  that would otherwise be a silent permanent lockout, and a genuinely dead code block in
+  `bootApp` that could never have run.
+- **Rate limiting** — the control that actually matters for a 4-digit secret, because it's
+  the one thing that can't be parallelized (typing on a physical keypad). First 4 wrong PINs
+  free, then 30s→300s doubling backoff, no permanent lockout. Shop-scoped, same as PIN
+  storage itself.
+
+**Decisions I made rather than asking, since Tanish said use my judgement — flagging them
+here so they're visible, not just decided silently:**
+1. First-run: a brand-new shop still isn't forced to set a PIN at signup — only at the first
+   time the screen actually locks (inactivity or manual lock). No added signup friction,
+   closes the hole just as completely, matches what the onboarding checklist already nudges.
+2. **Removed "Change PIN" from the lock screen entirely** — it was the only entry point to
+   the bypass class above. Changing your PIN now only happens from Settings/onboarding
+   (`pinShowChange()`, already wired there), post-auth. "Forgot PIN" stays on the lock screen
+   — it's the genuine no-PIN-known recovery path.
+3. **"Forgot PIN" stays an unauthenticated local action** — one tap clears the PIN, no
+   account password required. Its old comment claimed it "verifies identity via email"; it
+   never did. Fixed the comment to say what it actually is: this PIN defends against casual
+   snooping on a shared device, not a determined attacker — the real security boundary is
+   the Supabase account login. If that changes (the PIN ever gets used to encrypt anything,
+   or synced anywhere), revisit.
+4. Lockout schedule (4 free attempts, 30s→300s, no permanent lockout) is the Opus-suggested
+   default. Real number, not a placeholder, but a product call if you want it different.
+
+**Also fixed the test harness** — it had no working `crypto.subtle`/`TextEncoder`, so nothing
+touching PIN hashing could ever have been tested before now (that's *why* there was no PIN
+hashing test coverage, not an oversight in test-writing). It now uses Node's real WebCrypto,
+with host-realm `Uint8Array`/`TextEncoder` injected explicitly — a sandboxed VM context has
+its own realm, and Node's WebCrypto rejects a foreign-realm typed array.
+
+**Verified:** `node --check` on all 11 files; full regression suite, 181/181 (9 new PIN
+tests, including one that reproduces the exact abandoned-change-flow bypass above and fails
+against the pre-fix code); `loadorder`/`backup-check`/`roundtrip` clean;
+`scope`/`handlers`/`ids`/`unquoted-args` show nothing new, and the three implicit-global
+findings (`pinBuffer` etc.) are gone from `globals.json` — an improvement, not a new hit,
+worth saying so the next session doesn't misread the diff.
+
+**Not verified:** the PIN screen itself, on any real device — same standing limitation as
+Day Book. Nobody has tapped through set-PIN, Change PIN from Settings, Forgot PIN, or a real
+lockout countdown. This is real, tested-at-the-logic-level code that has never been touched
+by a finger.
+
+Releasing `NOW` — all four standing tasks from earlier today are done.
+
+→ FOR COWORK / TANISH: this needs a real device pass same as Day Book, but the PIN screen is
+higher-stakes to get wrong than a new tab — if anyone can spare five minutes on a real phone,
+this is the one to prioritize: set a PIN fresh, change it, forget it and recover, and try 5
+wrong PINs in a row to see the lockout message. Also: `jewelos-batch25-DEPLOY.zip` now also
+predates all of this (Task 2 landed after the zip was built) — if you do decide to deploy
+that zip, know that today's PIN fixes are NOT in it; a fresh zip would be needed to include
+them.
 
 ## LOG — newest first
 

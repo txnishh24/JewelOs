@@ -1457,7 +1457,12 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   <div class="pin-pad" id="pin-pad"></div>
   <div class="pin-error" id="pin-error"></div>
   <div style="display:flex;gap:12px;margin-top:28px;flex-wrap:wrap;justify-content:center;">
-    <button class="pin-change-btn" id="pin-change-btn">&#128273; Change PIN</button>
+    <!-- Security review, 20-21 Sep 2026: "Change PIN" removed from the LOCK
+         screen -- it was the only entry point to a real bypass (abandon the
+         flow after verifying, walk away, anyone can then finish it with any
+         4 digits). Changing your PIN now lives in Settings, post-auth, where
+         pinShowChange() still works (js/06-inventory-stock.js). Forgot PIN
+         stays here -- it's the genuine "I don't know my PIN at all" path. -->
     <button class="pin-change-btn" id="pin-forgot-btn" style="color:#c47a7a;border-color:rgba(180,60,60,.3);">&#8635; Forgot PIN</button>
   </div>
 </div>

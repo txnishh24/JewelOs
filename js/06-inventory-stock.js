@@ -137,7 +137,7 @@ function renderOnboarding(){
     },
     {
       id:'pin',
-      label:'Change your default PIN (currently 1234)',
+      label:'Set your 4-digit PIN', // security review, 20-21 Sep 2026: there is no more default 1234 to change away from
       // FIX (bug sweep, Aug 2026): 'jewelos_pin_changed' was a raw,
       // unscoped localStorage key -- same cross-account-leak class fixed
       // repeatedly elsewhere this session (ssj_cache, PIN keys, audit
