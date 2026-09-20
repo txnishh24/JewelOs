@@ -379,10 +379,6 @@ function _dbUserName(){
   return (typeof SAAS !== 'undefined' && SAAS.user) ? (SAAS.user.name || SAAS.user.email || 'staff') : 'staff';
 }
 
-function _dbMoney(n){
-  return '₹' + Math.round(n).toLocaleString('en-IN');
-}
-
 // ── WRITES ─────────────────────────────────────────────────────────────
 // Same snapshot/commit/rollback shape as _purchaseCommit/_orderCommit:
 // deep-clone S.dayBook before mutating, restore the WHOLE thing on any
@@ -418,7 +414,7 @@ function dbSetOpening(dateKey, amount, cb){
   if(!(amount >= 0)){ if(cb) cb(new Error('invalid-amount')); return; }
   var snap = _dbSnapshot();
   S.dayBook.opening = { date:dateKey, amount:dbRound(amount), ts:new Date().toISOString() };
-  saasActivityLog('daybook', 'Opening balance set: '+_dbMoney(amount)+' on '+dateKey);
+  saasActivityLog('daybook', 'Opening balance set: '+fmt(amount)+' on '+dateKey);
   auditLog('opening', 'daybook', dateKey, 'Opening balance '+dbRound(amount));
   _dbCommit(snap, cb);
 }
@@ -438,7 +434,7 @@ function dbAddEntry(dateKey, dir, amount, cat, note, cb){
     voided: false, voidReason: ''
   };
   S.dayBook.entries.push(entry);
-  saasActivityLog('daybook', (dir==='in'?'Cash in ':'Expense ')+_dbMoney(entry.amount)+' '+DB_CATS[cat].label+' on '+dateKey);
+  saasActivityLog('daybook', (dir==='in'?'Cash in ':'Expense ')+fmt(entry.amount)+' '+DB_CATS[cat].label+' on '+dateKey);
   auditLog('create', 'daybook', entry.id, DB_CATS[cat].label+' '+entry.amount+' on '+dateKey);
   _dbCommit(snap, function(err){ if(cb) cb(err, err ? null : entry); });
 }
@@ -457,7 +453,7 @@ function dbVoidEntry(entryId, reason, cb){
   entry.voidReason = reason.trim();
   entry.voidTs = new Date().toISOString();
   entry.voidBy = _dbUserName();
-  saasActivityLog('daybook', 'Voided '+_dbMoney(entry.amount)+' '+(DB_CATS[entry.cat]?DB_CATS[entry.cat].label:entry.cat)+' on '+entry.date+': '+entry.voidReason);
+  saasActivityLog('daybook', 'Voided '+fmt(entry.amount)+' '+(DB_CATS[entry.cat]?DB_CATS[entry.cat].label:entry.cat)+' on '+entry.date+': '+entry.voidReason);
   auditLog('void', 'daybook', entry.id, 'Voided: '+entry.voidReason);
   _dbCommit(snap, cb);
 }
@@ -498,8 +494,8 @@ function dbCloseDay(dateKey, counted, cb){
   S.dayBook.closes.push(close);
   S.dayBook.closes.sort(function(a,b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
 
-  var diffNote = diff === 0 ? '' : (diff < 0 ? ', short '+_dbMoney(-diff) : ', excess '+_dbMoney(diff));
-  saasActivityLog('daybook', 'Day closed '+dateKey+': book '+_dbMoney(view.closing)+', counted '+_dbMoney(counted)+diffNote);
+  var diffNote = diff === 0 ? '' : (diff < 0 ? ', short '+fmt(-diff) : ', excess '+fmt(diff));
+  saasActivityLog('daybook', 'Day closed '+dateKey+': book '+fmt(view.closing)+', counted '+fmt(counted)+diffNote);
   auditLog('close', 'daybook', dateKey, 'Closed: book '+view.closing+' counted '+close.counted+' diff '+diff);
   _dbCommit(snap, function(err){ if(cb) cb(err, err ? null : {closing:view.closing, counted:close.counted, diff:diff}); });
 }
@@ -524,7 +520,7 @@ function dbCorrectCount(dateKey, newCounted, reason, cb){
   latest.diff = dbRound(latest.counted - latest.closing);
   if(!latest.countCorrections) latest.countCorrections = [];
   latest.countCorrections.push({ts:new Date().toISOString(), by:_dbUserName(), prev:prev, next:latest.counted, reason:reason.trim()});
-  saasActivityLog('daybook', 'Count corrected for '+dateKey+': '+_dbMoney(prev)+' → '+_dbMoney(latest.counted));
+  saasActivityLog('daybook', 'Count corrected for '+dateKey+': '+fmt(prev)+' → '+fmt(latest.counted));
   auditLog('correct', 'daybook', dateKey, 'Count corrected '+prev+' -> '+latest.counted+': '+reason.trim());
   _dbCommit(snap, cb);
 }
@@ -587,4 +583,258 @@ function dbSweepRestatements(cb){
   saasActivityLog('daybook', dirty.length+' day(s) restated after a record dated inside a closed day changed');
   auditLog('restate', 'daybook', dirty.map(function(d){ return d.close.date; }).join(','), dirty.length+' day(s) restated');
   _dbCommit(snap, function(err){ if(cb) cb(err, err ? 0 : dirty.length); });
+}
+
+// ── UI (Batch E) ──────────────────────────────────────────────────────
+// Everything below reads/writes the DOM. None of it is covered by the
+// regression suite — there is no browser automation in this repo. The
+// pure derivation and write functions above are fully tested; this
+// rendering layer is not, and should not be assumed to be until someone
+// has actually tapped through it on a phone.
+var _dbDate = null;         // 'YYYY-MM-DD' the screen is currently showing
+var _dbVoidTargetId = null; // entry id the void modal is open for
+var _dbEntryCat = null;     // category chip selected in the Add Entry modal
+
+function dbUiDate(){ if(!_dbDate) _dbDate = dbToday(); return _dbDate; }
+
+// 'YYYY-MM-DD' - 1 calendar day, built from local parts (mirrors
+// _dbNextDay above — never through UTC midnight parsing).
+function _dbPrevDay(dateKey){
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if(!m) return dateKey;
+  var d = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+  d.setDate(d.getDate()-1);
+  return dbDayKey(d);
+}
+
+function dbGoPrev(){ _dbDate = _dbPrevDay(dbUiDate()); renderDayBook(); }
+function dbGoNext(){ if(dbUiDate() >= dbToday()) return; _dbDate = _dbNextDay(dbUiDate()); renderDayBook(); }
+function dbGoDate(k){ if(!k) return; _dbDate = (k > dbToday()) ? dbToday() : k; renderDayBook(); }
+function dbGoToday(){ _dbDate = dbToday(); renderDayBook(); }
+
+// Entry point from switchTab/renderTab. Always sweeps first (spec §6:
+// the sweep runs when the screen is opened, never from boot or a timer)
+// so the screen is never painted from a stale restatement baseline.
+function renderDayBook(){
+  var body = document.getElementById('db-body');
+  if(!body) return;
+  dbSweepRestatements(function(err){
+    if(err && err.message !== 'version-conflict'){
+      // version-conflict already shows its own reload prompt inside saveToCloud
+      toast('⚠ Could not check for corrections on past days — showing what\'s saved.');
+    }
+    _dbPaint();
+  });
+}
+
+function _dbPaint(){
+  var body = document.getElementById('db-body');
+  if(!body) return;
+  var dateKey = dbUiDate();
+
+  // First-time setup: nothing entered yet at all.
+  if(!S.dayBook.opening && !(S.dayBook.closes||[]).length){
+    body.innerHTML =
+      '<div class="card">'+
+        '<div class="card-title">📖 Set up your Day Book</div>'+
+        '<div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Enter the cash you have in hand right now. Every day after this is tracked automatically from your sales, purchases, girvi and orders.</div>'+
+        '<div class="ge-fg" style="margin-bottom:10px;"><label>Opening cash (₹)</label><input id="db-opening-amt" type="number" placeholder="0" inputmode="numeric"/></div>'+
+        '<button class="btn btn-gold" style="width:100%;" onclick="dbSubmitOpening()">Start Day Book</button>'+
+      '</div>';
+    return;
+  }
+
+  var v = dbDayView(dateKey);
+  var isToday = dateKey === dbToday();
+  var html = '';
+
+  html += '<div class="card" style="padding:0.85rem 1.1rem;">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'+
+      '<button class="btn btn-sm" onclick="dbGoPrev()">‹</button>'+
+      '<input type="date" id="db-date-input" value="'+dateKey+'" max="'+dbToday()+'" onchange="dbGoDate(this.value)" style="font-size:13px;font-weight:600;text-align:center;border:none;background:transparent;color:var(--ink);"/>'+
+      '<button class="btn btn-sm" onclick="dbGoNext()"'+(isToday?' disabled':'')+'>›</button>'+
+      (isToday?'':'<button class="btn btn-sm btn-gold" onclick="dbGoToday()">Today</button>')+
+    '</div>'+
+  '</div>';
+
+  html += '<div class="metrics">'+
+    '<div class="metric"><div class="metric-label">Opening</div><div class="metric-value">'+fmt(v.opening)+'</div></div>'+
+    '<div class="metric"><div class="metric-label">Cash In</div><div class="metric-value" style="color:var(--success)">'+fmt(v.totalIn)+'</div></div>'+
+    '<div class="metric"><div class="metric-label">Cash Out</div><div class="metric-value" style="color:var(--danger)">'+fmt(v.totalOut)+'</div></div>'+
+    '<div class="metric"><div class="metric-label">Closing</div><div class="metric-value">'+fmt(v.closing)+'</div></div>'+
+  '</div>';
+
+  if(v.closed){
+    var diffTxt = v.diff===0 ? 'matched exactly' : (v.diff<0 ? 'short by '+fmt(-v.diff) : 'excess of '+fmt(v.diff));
+    html += '<div class="card" style="border:1px solid rgba(201,163,76,0.3);">'+
+      '<div class="card-title">🔒 Day closed</div>'+
+      '<div style="font-size:12px;color:var(--text2);">Counted '+fmt(v.counted)+' — '+diffTxt+'.</div>'+
+      (dbDayKey(v.close.ts)===dbToday() ? '<button class="btn btn-sm" style="margin-top:8px;" onclick="dbOpenCorrectModal()">Correct today\'s count</button>' : '')+
+    '</div>';
+  }
+
+  if(v.unknownCount > 0){
+    // ponytail: a flat count-only banner, not a per-line [Add manual entry]
+    // prefill action — add the one-tap version if a real shop hits this often.
+    html += '<div class="card" style="border:1px solid var(--danger);">'+
+      '<div style="font-size:12px;color:var(--danger);font-weight:600;">⚠ '+v.unknownCount+' cash movement(s) today have no recorded payment mode and are NOT counted above. Check the lines below and Girvi/Sales for the source.</div>'+
+    '</div>';
+  }
+
+  html += '<div class="card"><div class="card-title">Lines</div>';
+  var sortedLines = v.lines.slice().sort(function(a,b){
+    var ta = a.ts || (a.date+'T00:00:00.000Z'), tb = b.ts || (b.date+'T00:00:00.000Z');
+    return ta < tb ? -1 : (ta > tb ? 1 : 0);
+  });
+  if(!sortedLines.length){
+    html += '<div style="text-align:center;color:var(--text3);padding:16px;font-size:13px;">No lines yet for this day.</div>';
+  } else {
+    var running = v.opening;
+    sortedLines.forEach(function(line){
+      if(line.unknown){
+        html += '<div class="gl-entry" style="opacity:.7;">'+
+          '<div class="gl-entry-left"><div class="gl-entry-amt">'+fmt(line.amount)+' — not counted</div>'+
+          '<div class="gl-entry-meta">'+escHtml(line.label||'')+'</div></div>'+
+        '</div>';
+        return;
+      }
+      running = dbRound(running + (line.dir==='in' ? line.amount : -line.amount));
+      var canVoid = (line.kind==='manual') && !line.voided && !v.closed;
+      var catLabel = (line.cat && DB_CATS[line.cat]) ? DB_CATS[line.cat].label : (line.cat||'');
+      html += '<div class="gl-entry"'+(line.voided?' style="opacity:.5;"':'')+'>'+
+        '<div class="gl-entry-left">'+
+          '<div class="gl-entry-amt '+(line.dir==='in'?'credit':'debit')+'">'+(line.dir==='in'?'+':'−')+fmt(line.amount)+(line.voided?' (voided)':'')+'</div>'+
+          '<div class="gl-entry-meta">'+escHtml(line.label||catLabel)+(line.note?' • '+escHtml(line.note):'')+(line.kind==='adjust'?' • system adjustment':'')+(line.voided?' • '+escHtml(line.voidReason||''):'')+'</div>'+
+        '</div>'+
+        '<div class="gl-entry-right">'+
+          '<div style="font-size:12px;font-weight:600;color:var(--ink3);">'+fmt(running)+'</div>'+
+          (canVoid ? '<button class="btn btn-sm" style="margin-top:4px;" onclick="dbOpenVoidModal(\''+jsAttrEsc(line.id)+'\')">Void</button>' : '')+
+        '</div>'+
+      '</div>';
+    });
+  }
+  html += '</div>';
+
+  if(!v.closed){
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">'+
+      '<button class="btn btn-gold" onclick="dbOpenEntryModal()">+ Add Entry</button>'+
+      '<button class="btn" onclick="dbOpenCloseModal()">🔒 Close Day</button>'+
+    '</div>';
+  }
+
+  body.innerHTML = html;
+}
+
+function dbSubmitOpening(){
+  var amt = parseFloat((document.getElementById('db-opening-amt')||{}).value);
+  if(!(amt >= 0)){ toast('⚠ Enter a valid amount'); return; }
+  dbSetOpening(dbUiDate(), amt, function(err){
+    if(err){ toast('⚠ Could not save: '+err.message); return; }
+    toast('✓ Day Book started');
+    renderDayBook();
+  });
+}
+
+var DB_ENTRY_CHIP_CATS = ['rent','salary','electricity','tea','transport','repair','misc','drawings','capital','bankDeposit','bankWithdrawal'];
+
+function dbOpenEntryModal(){
+  _dbEntryCat = null;
+  var row = document.getElementById('db-entry-cat-row');
+  if(row){
+    row.innerHTML = DB_ENTRY_CHIP_CATS.map(function(k){
+      return '<button type="button" class="gl-type-btn db-cat-chip" onclick="dbSetEntryCat(\''+k+'\',this)">'+escHtml(DB_CATS[k].label)+'</button>';
+    }).join('');
+  }
+  var amtEl = document.getElementById('db-entry-amt'); if(amtEl) amtEl.value = '';
+  var noteEl = document.getElementById('db-entry-note'); if(noteEl) noteEl.value = '';
+  document.getElementById('db-entry-modal').style.display = 'block';
+}
+
+function dbSetEntryCat(cat, el){
+  _dbEntryCat = cat;
+  document.querySelectorAll('.db-cat-chip').forEach(function(b){ b.classList.toggle('active', b === el); });
+}
+
+function dbSubmitEntry(){
+  if(!_dbEntryCat){ toast('⚠ Choose a category'); return; }
+  var amt = parseFloat((document.getElementById('db-entry-amt')||{}).value);
+  var note = (document.getElementById('db-entry-note')||{}).value || '';
+  dbAddEntry(dbUiDate(), DB_CATS[_dbEntryCat].dir, amt, _dbEntryCat, note, function(err){
+    if(err){ toast('⚠ Could not save: '+err.message); return; }
+    document.getElementById('db-entry-modal').style.display = 'none';
+    toast('✓ Entry saved');
+    renderDayBook();
+  });
+}
+
+function dbOpenVoidModal(entryId){
+  _dbVoidTargetId = entryId;
+  var el = document.getElementById('db-void-reason'); if(el) el.value = '';
+  document.getElementById('db-void-modal').style.display = 'block';
+}
+
+function dbSubmitVoid(){
+  var reason = (document.getElementById('db-void-reason')||{}).value || '';
+  if(!reason.trim()){ toast('⚠ Enter a reason'); return; }
+  dbVoidEntry(_dbVoidTargetId, reason, function(err){
+    if(err){ toast('⚠ Could not void: '+err.message); return; }
+    document.getElementById('db-void-modal').style.display = 'none';
+    toast('✓ Entry voided');
+    renderDayBook();
+  });
+}
+
+function dbOpenCloseModal(){
+  var dateKey = dbUiDate();
+  var v = dbDayView(dateKey);
+  var sum = document.getElementById('db-close-summary');
+  if(sum) sum.innerHTML = 'Book shows a closing balance of <b>'+fmt(v.closing)+'</b> for '+fmtDate(dateKey)+'. Count the physical cash in hand and enter it below.';
+  var el = document.getElementById('db-close-counted'); if(el) el.value = '';
+  document.getElementById('db-close-modal').style.display = 'block';
+}
+
+function dbSubmitClose(){
+  var counted = parseFloat((document.getElementById('db-close-counted')||{}).value);
+  if(!(counted >= 0)){ toast('⚠ Enter the amount actually counted'); return; }
+  var dateKey = dbUiDate();
+  safeConfirm('Close '+fmtDate(dateKey)+'?', 'Once closed, this day\'s figures are locked. A later correction to a bill dated today shows up as an adjustment on a future day, not a rewrite of this one.', function(){
+    dbCloseDay(dateKey, counted, function(err, res){
+      if(err){ toast('⚠ Could not close: '+err.message); return; }
+      document.getElementById('db-close-modal').style.display = 'none';
+      toast('✓ Day closed');
+      renderDayBook();
+      if(res.diff !== 0){
+        var landDate = dbFirstOpenDay();
+        safeConfirm(
+          res.diff < 0 ? 'Record the shortfall?' : 'Record the excess?',
+          'Counted cash was '+fmt(Math.abs(res.diff))+' '+(res.diff<0?'short':'more')+' than the book. Add this as an entry on '+fmtDate(landDate)+'?',
+          function(){
+            dbAddEntry(landDate, res.diff<0?'out':'in', Math.abs(res.diff), res.diff<0?'cashShort':'cashExcess', 'From closing '+dateKey, function(err2){
+              if(err2){ toast('⚠ Could not record: '+err2.message); return; }
+              toast('✓ Recorded');
+              renderDayBook();
+            });
+          }
+        );
+      }
+    });
+  });
+}
+
+function dbOpenCorrectModal(){
+  var el = document.getElementById('db-correct-counted'); if(el) el.value = '';
+  var r = document.getElementById('db-correct-reason'); if(r) r.value = '';
+  document.getElementById('db-correct-modal').style.display = 'block';
+}
+
+function dbSubmitCorrect(){
+  var counted = parseFloat((document.getElementById('db-correct-counted')||{}).value);
+  var reason = (document.getElementById('db-correct-reason')||{}).value || '';
+  if(!(counted >= 0)){ toast('⚠ Enter a valid amount'); return; }
+  dbCorrectCount(dbUiDate(), counted, reason, function(err){
+    if(err){ toast('⚠ Could not correct: '+err.message); return; }
+    document.getElementById('db-correct-modal').style.display = 'none';
+    toast('✓ Count corrected');
+    renderDayBook();
+  });
 }

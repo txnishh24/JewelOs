@@ -108,6 +108,7 @@ function renderTab(tab){
   else if(tab==='girvi')renderGirvi();
   else if(tab==='customers')renderCustomers();
   else if(tab==='reports')renderReports();
+  else if(tab==='daybook')renderDayBook();
   else if(tab==='settings')renderSettings();
 }
 // Scroll position memory — keyed by tab name
@@ -126,17 +127,17 @@ function switchTab(tab){
   // Plan-based tab gating removed. Every shop gets every module; whether it
   // can write is decided by paidUntil (subGuard), not by tier.
   // Save scroll position of current active panel before switching
-  ['dashboard','inventory','sales','orders','girvi','customers','reports','settings'].forEach(function(t){
+  ['dashboard','inventory','sales','orders','girvi','customers','reports','daybook','settings'].forEach(function(t){
     var cp = document.getElementById('panel-'+t);
     if(cp && cp.classList.contains('active')) _tabScrollPos[t] = window.scrollY;
   });
-  ['dashboard','inventory','sales','orders','girvi','customers','reports','settings'].forEach(function(t){
+  ['dashboard','inventory','sales','orders','girvi','customers','reports','daybook','settings'].forEach(function(t){
     var p=document.getElementById('panel-'+t),b=document.getElementById('bn-'+t);
     if(p)p.classList.toggle('active',t===tab);
     if(b)b.classList.toggle('active',t===tab);
   });
   document.querySelectorAll('.dtab').forEach(function(el,i){
-    el.classList.toggle('active',['dashboard','inventory','sales','orders','girvi','customers','reports','settings'][i]===tab);
+    el.classList.toggle('active',['dashboard','inventory','sales','orders','girvi','customers','reports','daybook','settings'][i]===tab);
   });
   renderTab(tab);
   // Restore scroll position after render
