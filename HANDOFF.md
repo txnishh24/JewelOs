@@ -756,6 +756,44 @@ set an opening balance, add and void an expense, close a day, correct a count, p
 to WhatsApp. That's the one gap nothing structural can close. Everything else about Day Book
 Phase 1 is done from this side.
 
+### 2026-09-20/21 · Claude Code (Tasks 1, 3, 4 of the four standing items — done; Task 2
+still to come. Logging these three together, which is itself a smaller version of the same
+mistake Cowork caught earlier today — noting it rather than pretending it didn't happen)
+
+Re-claimed `NOW` for the four tasks Cowork listed as alternatives to Day Book on the 20th.
+Did three of them; the fourth (PIN fallback fix) is next and gets its own entry since it
+touches auth/security and deserves a review before it's called done, not folded in here.
+
+**Task 1 — deleted `saasHashPassword`/`saasVerifyPassword`.** Confirmed dead with a fresh
+grep (no callers, no dynamic dispatch, the pair only ever called each other), same
+conclusion Cowork's Opus-backed review reached on the 20th. `authGatewayCall` — the thing
+real login/signup/password-reset actually route through — is untouched.
+
+**Task 3 — built the batch25 deploy zip.** This is the one worth your attention: the task
+was scoped as "just the confirm-button-color fix," but a zip captures this whole folder's
+current state, and Day Book Phase 1 plus Task 1's cleanup landed in that folder in between.
+`jewelos-batch25-DEPLOY.zip` is in Downloads, and `docs/CHANGES-batch25.md` says this
+explicitly rather than presenting it as the narrow fix you asked for — **deploying it means
+deploying Day Book too, untested.** That choice is Tanish's, not something I decided by
+building the zip.
+
+**Task 4 — built the Adjust Stock action.** New "±" button in the inventory row (same
+button-row precedent as Archive), opening a modal that calls the existing, already-tested
+`updQty(id, v)` — new total quantity, not a delta, and it warns when a product has no
+`unitWeight` set (meaning weight won't auto-update), per the two things Cowork's task
+write-up flagged from reading the function. `updQty` itself is unchanged.
+
+Verified for all three: `node --check` on all 11 files, full regression suite (172/172 —
+4 new tests for Adjust Stock), `loadorder`/`backup-check`/`roundtrip` clean,
+`scope`/`handlers`/`ids`/`unquoted-args` show nothing new (one false-positive scare on
+`handlers.js` from a stale `globals.json` — resolved by rerunning `scope.js` immediately
+before it, not by changing any code). Not verified: Adjust Stock's modal, visually — same
+standing limitation as Day Book.
+
+→ FOR COWORK / TANISH: **do not drag `jewelos-batch25-DEPLOY.zip` into Netlify** until
+someone has tapped through Day Book — it's in that zip now, whether or not that was the
+intent when Task 3 was written. Moving to Task 2 (PIN fallback) next.
+
 ## LOG — newest first
 
 ### 2026-09-18 · Claude Code (dropped the three leftover anon policies Cowork flagged)
