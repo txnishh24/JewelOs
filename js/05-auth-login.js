@@ -1020,6 +1020,7 @@ function exportFullBackup(){
       rates:      S.rates,
       purchaseCfg:S.purchaseCfg||null,
       waRules:    S.waRules||null,
+      dayBook:    S.dayBook||null,
       stockMovements:   S.stockMovements||[],
       activityLog:      (S.activityLog||[]).slice(0,100),
       auditLog:         (S.auditLog||[]).slice(0,100),
@@ -1076,6 +1077,7 @@ function processBackupFile(input){
         if(d.rates)      S.rates       = d.rates;
         if(d.purchaseCfg)S.purchaseCfg = d.purchaseCfg;
         if(d.waRules)    S.waRules     = d.waRules;
+        if(d.dayBook)    S.dayBook     = d.dayBook;
         if(d.stockMovements)   S.stockMovements   = d.stockMovements;
         if(d.activityLog)      S.activityLog      = d.activityLog;
         if(d.auditLog)         S.auditLog         = d.auditLog;

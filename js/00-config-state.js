@@ -49,7 +49,8 @@ var S = {
   purchases:[], suppliers:[], purchaseAuditLog:[],
   rates:{g24:7800,g22:7200,g18:5900,g14:4600,sil:95},
   nextId:1, nextSaleId:1, nextInvNo:1, nextOrdId:1, nextGirviId:1, nextPurchaseId:1, nextPurchaseBillNo:1,
-  purchaseCfg:{gst:true, goldRate:false, stone:false, hallmark:false, credit:false, timeline:false}
+  purchaseCfg:{gst:true, goldRate:false, stone:false, hallmark:false, credit:false, timeline:false},
+  dayBook:null
 };
 
 // UI state (not saved to cloud)

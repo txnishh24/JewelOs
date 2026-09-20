@@ -508,7 +508,7 @@ function saveCache(){
       shopId:ownerShopId,
       products:S.products,sales:S.sales,orders:S.orders||[],girvi:S.girvi||[],customers:S.customers||[],
       purchases:S.purchases||[],suppliers:S.suppliers||[],purchaseAuditLog:S.purchaseAuditLog||[],purchaseCfg:S.purchaseCfg||{},rates:S.rates,
-      auditLog:S.auditLog||[],activityLog:S.activityLog||[],waRules:S.waRules||[],
+      auditLog:S.auditLog||[],activityLog:S.activityLog||[],waRules:S.waRules||[],dayBook:S.dayBook||null,
       nextId:S.nextId||1,nextSaleId:S.nextSaleId||1,nextInvNo:S.nextInvNo||1,nextOrdId:S.nextOrdId||1,nextGirviId:S.nextGirviId||1,
       nextPurchaseId:S.nextPurchaseId||1,nextPurchaseBillNo:S.nextPurchaseBillNo||1
     }));
@@ -667,6 +667,8 @@ function normaliseData(){
   // so the same customer never gets a duplicate "account" just
   // because they pawned another item.
   migrateGirviCustomerLinks();
+  // ── DAY BOOK ────────────────────────────────────────────────
+  if(typeof dbInit === 'function') dbInit();
   // ── ID COUNTERS ───────────────────────────────────────────
   if(!S.nextId)     S.nextId     = (S.products||[]).length + 1;
   if(!S.nextSaleId) S.nextSaleId = (S.sales   ||[]).length + 1;
@@ -705,6 +707,7 @@ function loadCache(){
     if(Array.isArray(r.activityLog)) S.activityLog=r.activityLog;
     if(Array.isArray(r.waRules)) S.waRules=r.waRules;
     if(r.purchaseCfg && typeof r.purchaseCfg==='object') S.purchaseCfg=Object.assign({}, S.purchaseCfg, r.purchaseCfg);
+    if(r.dayBook && typeof r.dayBook==='object') S.dayBook=r.dayBook;
     if(r.nextPurchaseId&&r.nextPurchaseId>1) S.nextPurchaseId=r.nextPurchaseId;
     if(r.nextPurchaseBillNo&&r.nextPurchaseBillNo>1) S.nextPurchaseBillNo=r.nextPurchaseBillNo;
     normaliseData();

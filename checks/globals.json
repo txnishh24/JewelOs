@@ -617,7 +617,13 @@
   "pbGoPage",
   "pbPrintBill",
   "pbPrintList",
-  "pbExportCsv"
+  "pbExportCsv",
+  "DB_CATS",
+  "dbDayKey",
+  "dbToday",
+  "dbIsCash",
+  "dbRound",
+  "dbInit"
  ],
  "allDeclared": [
   "SB_URL",
@@ -1238,6 +1244,12 @@
   "pbPrintBill",
   "pbPrintList",
   "pbExportCsv",
+  "DB_CATS",
+  "dbDayKey",
+  "dbToday",
+  "dbIsCash",
+  "dbRound",
+  "dbInit",
   "shop",
   "dot",
   "lbl",
@@ -2594,7 +2606,8 @@
   "totalAmt",
   "statusColor",
   "headers",
-  "csvEsc"
+  "csvEsc",
+  "day"
  ],
  "implicit": [
   "opts",

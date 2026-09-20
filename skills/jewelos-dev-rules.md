@@ -18,8 +18,9 @@ short version that should apply to every session touching the code.
 
 ## Structure
 
-- Ten numbered modules, loaded in order. Identify the correct existing module before
-  creating anything new — never add a module file.
+- Eleven numbered modules, loaded in order. Identify the correct existing module before
+  creating anything new — adding a module file needs Tanish's explicit sign-off (one
+  exception made for `10-daybook.js` on 20 Sep 2026; not a standing permission).
 - Grep before assuming placement. `SAAS`, `PLAN_LIMITS` and the PIN helpers all live in
   the *orders* file.
 

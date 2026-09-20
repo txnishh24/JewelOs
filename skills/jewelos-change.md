@@ -20,7 +20,10 @@ description: Use when adding, changing or removing a feature in the JewelOS clie
 
 ## Finding the right module
 
-Ten files, loaded in numeric order. Never create a new module file.
+Eleven files, loaded in numeric order. Creating a new module file needs Tanish's
+explicit sign-off — one exception made for `10-daybook.js` on 20 Sep 2026 (a feature
+domain too large for any existing file without making it the largest in the repo);
+not a standing permission.
 
 | File | Owns |
 |---|---|
@@ -34,6 +37,7 @@ Ten files, loaded in numeric order. Never create a new module file.
 | `07-settings-plans.js` | Settings tabs, audit views, girvi list rendering |
 | `08-girvi-viewmode.js` | Girvi detail, receipts, `cloudDiag()` |
 | `09-purchases.js` | Purchase bills, supplier records, purchase→stock sync |
+| `10-daybook.js` | Day Book (rojmel): cash-in/out derivation, Close Day, locked-day adjustments |
 
 Grep before assuming. Functions live in surprising places — `SAAS`, `PLAN_LIMITS`
 and the PIN key helpers are all in the orders file.

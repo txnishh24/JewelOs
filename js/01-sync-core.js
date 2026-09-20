@@ -80,6 +80,7 @@ function loadFromCloud(callback){
     if(Array.isArray(record.suppliers))  S.suppliers   = record.suppliers;
     if(Array.isArray(record.purchaseAuditLog)) S.purchaseAuditLog = record.purchaseAuditLog;
     if(record.purchaseCfg && typeof record.purchaseCfg === 'object') S.purchaseCfg = Object.assign({}, S.purchaseCfg, record.purchaseCfg);
+    if(record.dayBook && typeof record.dayBook === 'object') S.dayBook = record.dayBook;
     if(record.rates && typeof record.rates === 'object') S.rates = record.rates;
     if(record.nextId     > 0) S.nextId     = record.nextId;
     if(record.nextSaleId > 0) S.nextSaleId = record.nextSaleId;
@@ -159,6 +160,7 @@ function saveToCloud(callback){
     activityLog: S.activityLog || [],
     waRules:     S.waRules     || [],
     purchaseCfg: S.purchaseCfg || {},
+    dayBook:     S.dayBook     || null,
     rates:       S.rates,
     nextId:      S.nextId      || 1,
     nextSaleId:  S.nextSaleId  || 1,

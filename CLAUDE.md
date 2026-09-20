@@ -53,7 +53,7 @@ before building it.
 
 ## The codebase
 
-PWA: `index.html` plus ten numbered `js/` modules, loaded in order. ~17,800 lines.
+PWA: `index.html` plus eleven numbered `js/` modules, loaded in order. ~18,000 lines.
 
 | File | Owns |
 |---|---|
@@ -67,9 +67,13 @@ PWA: `index.html` plus ten numbered `js/` modules, loaded in order. ~17,800 line
 | `07-settings-plans.js` | Settings tabs, audit views, girvi list rendering |
 | `08-girvi-viewmode.js` | Girvi detail, receipts, `cloudDiag()` |
 | `09-purchases.js` | Purchase bills, suppliers, purchase→stock sync |
+| `10-daybook.js` | Day Book (rojmel): cash-in/out derivation, Close Day, locked-day adjustments |
 
-Never create a new module file. Grep before assuming placement — `SAAS`, `PLAN_LIMITS`
-and the PIN helpers all live in the *orders* file.
+Grep before assuming placement — `SAAS`, `PLAN_LIMITS` and the PIN helpers all live in
+the *orders* file. **Do not create another new module file without the same justification
+`10-daybook.js` needed** (a new feature domain too large to fit any existing file without
+making it the largest in the repo) **and Tanish's explicit sign-off** — this was an
+exception made once, on 20 Sep 2026, not a standing permission.
 
 Backend: Supabase project `uluzuwomwqsqxtejgzmf`, all access through Edge Functions
 (`store-proxy` v6 session-token auth, `auth-gateway`, `razorpay-webhook`). No direct
@@ -89,7 +93,7 @@ See `skills/jewelos-dev-rules.md`. The short version:
 
 ## Before handing back a build
 
-Run `check.bat` — it does `node --check` on all ten files, the regression suite, and every
+Run `check.bat` — it does `node --check` on all eleven files, the regression suite, and every
 script in `checks/`. Or run them individually from `checks/`.
 Compare against the previous build's output rather than reading hits as failures — most
 are documented false positives. `backup-check` and `roundtrip` must pass cleanly.

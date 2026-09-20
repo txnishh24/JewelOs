@@ -17,6 +17,18 @@ const before = {
   rates: { g24: 7800, g22: 7200 },
   purchaseCfg: { showWastage: false },
   waRules: { reminder: true },
+  dayBook: {
+    opening: { date: '2026-09-01', amount: 5000, ts: '2026-09-01T04:00:00.000Z' },
+    entries: [
+      { id: 'e1', date: '2026-09-05', dir: 'out', amount: 500, cat: 'rent', note: '', kind: 'manual', ts: '2026-09-05T06:00:00.000Z', by: 'Tanish', voided: false, voidReason: '' },
+      { id: 'e2', date: '2026-09-06', dir: 'in', amount: 2000, cat: 'adjust', note: 'Correction to 2026-09-01', kind: 'adjust', srcDate: '2026-09-01', ts: '2026-09-06T06:00:00.000Z', by: 'system', voided: false, voidReason: '' }
+    ],
+    closes: [
+      { date: '2026-09-01', opening: 5000, autoIn: 12000, autoOut: 3000, manualIn: 0, manualOut: 0, closing: 14000, counted: 13800, diff: -200, ts: '2026-09-01T14:00:00.000Z', by: 'Tanish',
+        restatements: [ { ts: '2026-09-06T06:00:00.000Z', by: 'system', prevIn: 12000, prevOut: 3000, newIn: 14000, newOut: 3000, entryId: 'e2' } ],
+        countCorrections: [] }
+    ]
+  },
   stockMovements: [{ productId: 1, type: 'purchase' }],
   activityLog: [{ t: 'login' }],
   auditLog: [{ t: 'update' }],

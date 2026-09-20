@@ -1746,6 +1746,75 @@ test('a payment date with no time of day is not given an invented one', function
   });
 });
 
+// ── Day Book (rojmel) — Batch A: state plumbing only ──────────────────────
+// Auto-line derivation, balances, Close Day and the locked-day sweep are
+// covered by later batches. This section only proves the helpers, the
+// load-order guard and the two-shop cache isolation for the new S.dayBook key.
+console.log('\nDay Book:');
+
+test('dbDayKey returns the LOCAL calendar day, not the UTC one', function(){
+  // 11:30pm IST on 5 Sep is already 6:00pm UTC on 5 Sep, so this timestamp
+  // doesn't itself prove much — the real risk is the reverse case, checked
+  // right below, where local and UTC actually disagree.
+  assert(app.dbDayKey('2026-09-05T23:30:00+05:30') === '2026-09-05',
+    'expected 2026-09-05, got ' + app.dbDayKey('2026-09-05T23:30:00+05:30'));
+  // 12:30am IST on 6 Sep is 7:00pm UTC on 5 Sep — a naive .toISOString()
+  // .slice(0,10) on the UTC instant would say 5 Sep. Local must say 6 Sep.
+  assert(app.dbDayKey('2026-09-06T00:30:00+05:30') === '2026-09-06',
+    'expected 2026-09-06, got ' + app.dbDayKey('2026-09-06T00:30:00+05:30'));
+  assert(app.dbDayKey('2026-09-05') === '2026-09-05', 'an already-keyed string passes through');
+});
+
+test('dbIsCash is true only for an exact "cash", case/whitespace-insensitive', function(){
+  assert(app.dbIsCash('Cash') === true, 'Cash');
+  assert(app.dbIsCash('cash') === true, 'cash');
+  assert(app.dbIsCash(' Cash ') === true, 'padded Cash');
+  assert(app.dbIsCash('Manual') === false, 'Manual');
+  assert(app.dbIsCash('Waiver') === false, 'Waiver');
+  assert(app.dbIsCash('Credit') === false, 'Credit');
+  assert(app.dbIsCash('Other') === false, 'Other');
+  assert(app.dbIsCash('') === false, 'empty string');
+  assert(app.dbIsCash(undefined) === false, 'undefined');
+});
+
+test('dbInit gives a fresh shop a well-shaped, empty S.dayBook', function(){
+  var a = loadApp();
+  a.S.dayBook = undefined;
+  a.dbInit();
+  assert(a.S.dayBook.opening === null, 'opening starts null');
+  assert(Array.isArray(a.S.dayBook.entries) && a.S.dayBook.entries.length === 0, 'entries starts empty');
+  assert(Array.isArray(a.S.dayBook.closes) && a.S.dayBook.closes.length === 0, 'closes starts empty');
+});
+
+test('dbInit repairs a malformed S.dayBook without discarding good arrays', function(){
+  var a = loadApp();
+  a.S.dayBook = { entries: [{id:'e1'}], closes: 'not-an-array', opening: 'not-an-object' };
+  a.dbInit();
+  assert(a.S.dayBook.entries.length === 1, 'existing entries survive');
+  assert(Array.isArray(a.S.dayBook.closes) && a.S.dayBook.closes.length === 0, 'bad closes replaced with []');
+  assert(a.S.dayBook.opening === null, 'bad opening replaced with null');
+});
+
+test('normaliseData() calls dbInit(), so S.dayBook is always safe to read', function(){
+  var a = loadApp();
+  a.S.dayBook = undefined;
+  a.normaliseData();
+  assert(a.S.dayBook && typeof a.S.dayBook === 'object', 'normaliseData should have run dbInit()');
+});
+
+test('loadCache() ignores a cache tagged with a different shop id (two shops, one device)', function(){
+  var a = loadApp();
+  a.SAAS.shop = { id: 'shop_b' };
+  a.localStorage.setItem('ssj_cache', JSON.stringify({
+    shopId: 'shop_a',
+    products: [], sales: [],
+    dayBook: { opening:null, entries:[{id:'leaked'}], closes:[] }
+  }));
+  var ok = a.loadCache();
+  assert(ok === false, 'loadCache should refuse a cache belonging to another shop');
+  assert(a.S.dayBook === null, 'the other shop\'s leaked day-book entries must not have been adopted: ' + JSON.stringify(a.S.dayBook));
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

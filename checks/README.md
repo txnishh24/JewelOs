@@ -41,7 +41,7 @@ node checks/unquoted-args.js .
 ```
 
 Or just run `check.bat`, which does all of the above plus `node --check` on the
-ten modules and the regression suite in `tests/`.
+eleven modules and the regression suite in `tests/`.
 
 `node_modules` (acorn) is bundled, so it works offline.
 
