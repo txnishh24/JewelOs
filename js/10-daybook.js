@@ -364,3 +364,167 @@ function dbDayView(dateKey){
     unknownCount: autoT.unknownCount
   };
 }
+
+// 'YYYY-MM-DD' + 1 calendar day, built from local parts (never through
+// UTC midnight parsing — same reasoning as subPaidUntil in 04-orders-detail.js).
+function _dbNextDay(dateKey){
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if(!m) return dateKey;
+  var d = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+  d.setDate(d.getDate()+1);
+  return dbDayKey(d);
+}
+
+function _dbUserName(){
+  return (typeof SAAS !== 'undefined' && SAAS.user) ? (SAAS.user.name || SAAS.user.email || 'staff') : 'staff';
+}
+
+function _dbMoney(n){
+  return '₹' + Math.round(n).toLocaleString('en-IN');
+}
+
+// ── WRITES ─────────────────────────────────────────────────────────────
+// Same snapshot/commit/rollback shape as _purchaseCommit/_orderCommit:
+// deep-clone S.dayBook before mutating, restore the WHOLE thing on any
+// save failure (including a version conflict from another device saving
+// first) so a rejected write can never leave the book half-changed. Like
+// the rest of the app, activityLog/auditLog entries are not included in
+// the snapshot — a rolled-back write can still leave a log line behind,
+// same accepted tradeoff as girvi/order/purchase commits already make.
+function _dbSnapshot(){
+  return JSON.parse(JSON.stringify(S.dayBook));
+}
+function _dbRestore(snap){
+  S.dayBook = snap;
+}
+function _dbCommit(snapshot, cb){
+  saveToCloud(function(err){
+    if(err){
+      _dbRestore(snapshot);
+      saveCache();
+      if(err.message !== 'version-conflict'){
+        toast('⚠ Could not save — change rolled back. Check your connection and try again.');
+      }
+    }
+    if(cb) cb(err);
+  });
+}
+
+// Refuses once any close exists — the opening anchor is meant to be set
+// once, before the book has any history. A later correction is a manual
+// entry or, if wrong at the root, a job for whoever administers the shop.
+function dbSetOpening(dateKey, amount, cb){
+  if(S.dayBook.closes && S.dayBook.closes.length){ if(cb) cb(new Error('opening-locked')); return; }
+  if(!(amount >= 0)){ if(cb) cb(new Error('invalid-amount')); return; }
+  var snap = _dbSnapshot();
+  S.dayBook.opening = { date:dateKey, amount:dbRound(amount), ts:new Date().toISOString() };
+  saasActivityLog('daybook', 'Opening balance set: '+_dbMoney(amount)+' on '+dateKey);
+  auditLog('opening', 'daybook', dateKey, 'Opening balance '+dbRound(amount));
+  _dbCommit(snap, cb);
+}
+
+function dbAddEntry(dateKey, dir, amount, cat, note, cb){
+  if(dir !== 'in' && dir !== 'out'){ if(cb) cb(new Error('invalid-dir')); return; }
+  if(!(amount > 0)){ if(cb) cb(new Error('invalid-amount')); return; }
+  if(!DB_CATS[cat] || cat === 'adjust'){ if(cb) cb(new Error('invalid-cat')); return; } // adjust is system-only
+  if(dateKey > dbToday()){ if(cb) cb(new Error('future-date')); return; }
+  if(dbCloseFor(dateKey)){ if(cb) cb(new Error('day-closed')); return; }
+
+  var snap = _dbSnapshot();
+  var entry = {
+    id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'DB-'+Date.now(),
+    date: dateKey, dir: dir, amount: dbRound(amount), cat: cat, note: note || '',
+    kind: 'manual', ts: new Date().toISOString(), by: _dbUserName(),
+    voided: false, voidReason: ''
+  };
+  S.dayBook.entries.push(entry);
+  saasActivityLog('daybook', (dir==='in'?'Cash in ':'Expense ')+_dbMoney(entry.amount)+' '+DB_CATS[cat].label+' on '+dateKey);
+  auditLog('create', 'daybook', entry.id, DB_CATS[cat].label+' '+entry.amount+' on '+dateKey);
+  _dbCommit(snap, function(err){ if(cb) cb(err, err ? null : entry); });
+}
+
+function dbVoidEntry(entryId, reason, cb){
+  var entry = null;
+  (S.dayBook.entries||[]).forEach(function(e){ if(e.id === entryId) entry = e; });
+  if(!entry){ if(cb) cb(new Error('not-found')); return; }
+  if(entry.voided){ if(cb) cb(new Error('already-voided')); return; }
+  if(entry.kind === 'adjust'){ if(cb) cb(new Error('cannot-void-adjustment')); return; } // would desync the close it re-anchored
+  if(dbCloseFor(entry.date)){ if(cb) cb(new Error('day-closed')); return; }
+  if(!reason || !reason.trim()){ if(cb) cb(new Error('reason-required')); return; }
+
+  var snap = _dbSnapshot();
+  entry.voided = true;
+  entry.voidReason = reason.trim();
+  entry.voidTs = new Date().toISOString();
+  entry.voidBy = _dbUserName();
+  saasActivityLog('daybook', 'Voided '+_dbMoney(entry.amount)+' '+(DB_CATS[entry.cat]?DB_CATS[entry.cat].label:entry.cat)+' on '+entry.date+': '+entry.voidReason);
+  auditLog('void', 'daybook', entry.id, 'Voided: '+entry.voidReason);
+  _dbCommit(snap, cb);
+}
+
+// Today, unless today is already closed, in which case tomorrow — always
+// open because a close can never be made for a future date (R5 below).
+function dbFirstOpenDay(){
+  var today = dbToday();
+  return dbCloseFor(today) ? _dbNextDay(today) : today;
+}
+
+// R5: closes move forward only. Refuses a future date, a date already
+// closed, or a date earlier than the latest existing close — days
+// skipped in between stay live and their movement rolls into the next
+// close's opening via dbOpening's walk.
+function dbCloseDay(dateKey, counted, cb){
+  if(dateKey > dbToday()){ if(cb) cb(new Error('future-date')); return; }
+  if(dbCloseFor(dateKey)){ if(cb) cb(new Error('already-closed')); return; }
+  var latest = null;
+  (S.dayBook.closes||[]).forEach(function(c){ if(!latest || c.date > latest.date) latest = c; });
+  if(latest && dateKey < latest.date){ if(cb) cb(new Error('before-latest-close')); return; }
+  if(!(counted >= 0)){ if(cb) cb(new Error('invalid-counted')); return; }
+
+  var view = dbDayView(dateKey); // still live at this point — not yet closed
+  var autoT = dbAutoTotals(dateKey);
+  var manualT = dbManualTotals(dateKey);
+  var diff = dbRound(counted - view.closing);
+
+  var snap = _dbSnapshot();
+  var close = {
+    date: dateKey, opening: view.opening,
+    autoIn: autoT.in, autoOut: autoT.out,
+    manualIn: manualT.in, manualOut: manualT.out,
+    closing: view.closing, counted: dbRound(counted), diff: diff,
+    ts: new Date().toISOString(), by: _dbUserName(),
+    restatements: [], countCorrections: []
+  };
+  S.dayBook.closes.push(close);
+  S.dayBook.closes.sort(function(a,b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+
+  var diffNote = diff === 0 ? '' : (diff < 0 ? ', short '+_dbMoney(-diff) : ', excess '+_dbMoney(diff));
+  saasActivityLog('daybook', 'Day closed '+dateKey+': book '+_dbMoney(view.closing)+', counted '+_dbMoney(counted)+diffNote);
+  auditLog('close', 'daybook', dateKey, 'Closed: book '+view.closing+' counted '+close.counted+' diff '+diff);
+  _dbCommit(snap, function(err){ if(cb) cb(err, err ? null : {closing:view.closing, counted:close.counted, diff:diff}); });
+}
+
+// The one narrow un-close exception (spec §6 edge case (d)): correcting
+// a fat-fingered physical count, ONLY on the latest close, ONLY within
+// the same local calendar day it was made, and ONLY if no later day has
+// been closed since. `closing` (the book figure) is never touched — an
+// observation may be corrected within the moment it was made; the book
+// itself is derived from records and is never rewritten this way.
+function dbCorrectCount(dateKey, newCounted, reason, cb){
+  var latest = null;
+  (S.dayBook.closes||[]).forEach(function(c){ if(!latest || c.date > latest.date) latest = c; });
+  if(!latest || latest.date !== dateKey){ if(cb) cb(new Error('not-latest-close')); return; }
+  if(dbDayKey(latest.ts) !== dbToday()){ if(cb) cb(new Error('correction-window-passed')); return; }
+  if(!(newCounted >= 0)){ if(cb) cb(new Error('invalid-counted')); return; }
+  if(!reason || !reason.trim()){ if(cb) cb(new Error('reason-required')); return; }
+
+  var snap = _dbSnapshot();
+  var prev = latest.counted;
+  latest.counted = dbRound(newCounted);
+  latest.diff = dbRound(latest.counted - latest.closing);
+  if(!latest.countCorrections) latest.countCorrections = [];
+  latest.countCorrections.push({ts:new Date().toISOString(), by:_dbUserName(), prev:prev, next:latest.counted, reason:reason.trim()});
+  saasActivityLog('daybook', 'Count corrected for '+dateKey+': '+_dbMoney(prev)+' → '+_dbMoney(latest.counted));
+  auditLog('correct', 'daybook', dateKey, 'Count corrected '+prev+' -> '+latest.counted+': '+reason.trim());
+  _dbCommit(snap, cb);
+}

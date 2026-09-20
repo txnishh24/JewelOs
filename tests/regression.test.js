@@ -2026,6 +2026,158 @@ test('an order advance converted to a sale is counted once, not twice', function
   assert(a.dbAutoTotals('2026-09-10').in === 3000, 'sale date should show only the new cash, not the advance again: ' + a.dbAutoTotals('2026-09-10').in);
 });
 
+// ── Day Book — Batch C: writes (manual entries, Close Day, corrections) ──
+// saveToCloud is stubbed to call back synchronously with success, same
+// pattern _freshSaleHarness() above uses for _commitSaleTransaction —
+// this keeps these tests synchronous rather than needing testAsync.
+function _dbHarness(){
+  var a = loadApp();
+  a.dbInit();
+  a.saveToCloud = function(cb){ cb(null); };
+  return a;
+}
+function _dbCloseFixture(date, overrides){
+  var c = {date:date, opening:0, autoIn:0, autoOut:0, manualIn:0, manualOut:0, closing:0, counted:0, diff:0, ts:new Date().toISOString(), restatements:[], countCorrections:[]};
+  for(var k in (overrides||{})) c[k] = overrides[k];
+  return c;
+}
+console.log('\nDay Book writes:');
+
+test('voiding a manual line removes it from totals and leaves a visible void with a reason', function(){
+  var a = _dbHarness();
+  a.dbAddEntry('2026-09-05','out',500,'rent','',function(err, entry){
+    assert(!err, 'add should succeed: ' + (err && err.message));
+    assert(a.dbManualTotals('2026-09-05').out === 500, 'expected 500 before voiding');
+    a.dbVoidEntry(entry.id, 'Entered twice by mistake', function(err2){
+      assert(!err2, 'void should succeed: ' + (err2 && err2.message));
+      assert(a.dbManualTotals('2026-09-05').out === 0, 'voided line must drop out of totals');
+      var stored = a.S.dayBook.entries[0];
+      assert(stored.voided === true && stored.voidReason === 'Entered twice by mistake', 'void must be visible on the record');
+    });
+  });
+});
+
+test('a voided line cannot be voided twice', function(){
+  var a = _dbHarness();
+  a.dbAddEntry('2026-09-05','out',500,'rent','',function(err, entry){
+    a.dbVoidEntry(entry.id, 'first void', function(){
+      a.dbVoidEntry(entry.id, 'second void', function(err3){
+        assert(err3 && err3.message === 'already-voided', 'expected already-voided, got ' + (err3 && err3.message));
+      });
+    });
+  });
+});
+
+test('a manual entry cannot be added to a closed day', function(){
+  var a = _dbHarness();
+  a.S.dayBook.closes = [_dbCloseFixture('2026-09-05')];
+  a.dbAddEntry('2026-09-05','out',500,'rent','',function(err){
+    assert(err && err.message === 'day-closed', 'expected day-closed, got ' + (err && err.message));
+  });
+});
+
+test('dbSetOpening refuses once any close exists', function(){
+  var a = _dbHarness();
+  a.S.dayBook.closes = [_dbCloseFixture('2026-09-01')];
+  a.dbSetOpening('2026-08-01', 1000, function(err){
+    assert(err && err.message === 'opening-locked', 'got ' + (err && err.message));
+  });
+});
+
+test('dbCloseDay refuses a future date', function(){
+  var a = _dbHarness();
+  var future = String(new Date().getFullYear() + 5) + '-01-01';
+  a.dbCloseDay(future, 0, function(err){
+    assert(err && err.message === 'future-date', 'got ' + (err && err.message));
+  });
+});
+
+test('dbCloseDay refuses a date earlier than the latest existing close', function(){
+  var a = _dbHarness();
+  a.S.dayBook.closes = [_dbCloseFixture('2026-09-10')];
+  a.dbCloseDay('2026-09-05', 0, function(err){
+    assert(err && err.message === 'before-latest-close', 'got ' + (err && err.message));
+  });
+});
+
+test('dbCloseDay refuses a date already closed', function(){
+  var a = _dbHarness();
+  a.S.dayBook.closes = [_dbCloseFixture('2026-09-05')];
+  a.dbCloseDay('2026-09-05', 0, function(err){
+    assert(err && err.message === 'already-closed', 'got ' + (err && err.message));
+  });
+});
+
+test('diff = counted - closing is negative (short) when counted is less', function(){
+  var a = _dbHarness();
+  a.S.dayBook.opening = {date:'2026-09-05', amount:1000, ts:new Date().toISOString()};
+  a.dbCloseDay('2026-09-05', 900, function(err, res){
+    assert(!err, err && err.message);
+    assert(res.diff === -100, 'expected short -100, got ' + res.diff);
+  });
+});
+
+test('diff = counted - closing is positive (excess) when counted is more', function(){
+  var a = _dbHarness();
+  a.S.dayBook.opening = {date:'2026-09-05', amount:1000, ts:new Date().toISOString()};
+  a.dbCloseDay('2026-09-05', 1100, function(err, res){
+    assert(!err, err && err.message);
+    assert(res.diff === 100, 'expected excess 100, got ' + res.diff);
+  });
+});
+
+test('short/excess never changes the stored closing, and day N+1 still opens at that closing', function(){
+  var a = _dbHarness();
+  a.S.dayBook.opening = {date:'2026-09-05', amount:1000, ts:new Date().toISOString()};
+  a.dbCloseDay('2026-09-05', 700, function(err, res){
+    assert(!err, err && err.message);
+    assert(res.closing === 1000, 'closing must stay the book figure regardless of what was counted, got ' + res.closing);
+    assert(a.dbOpening('2026-09-06') === 1000, 'day N+1 must open at the CLOSING, not the counted amount, got ' + a.dbOpening('2026-09-06'));
+  });
+});
+
+test('dbCorrectCount succeeds on the latest close made today, leaves closing untouched, and logs the correction', function(){
+  var a = _dbHarness();
+  a.S.dayBook.opening = {date:'2026-09-05', amount:1000, ts:new Date().toISOString()};
+  a.dbCloseDay('2026-09-05', 900, function(){
+    a.dbCorrectCount('2026-09-05', 950, 'Miscounted, recounted immediately', function(err){
+      assert(!err, err && err.message);
+      var close = a.S.dayBook.closes[0];
+      assert(close.counted === 950, 'counted should update, got ' + close.counted);
+      assert(close.diff === -50, 'diff should recompute, got ' + close.diff);
+      assert(close.closing === 1000, 'closing must never be touched by a count correction');
+      assert(close.countCorrections.length === 1 && close.countCorrections[0].reason === 'Miscounted, recounted immediately', 'expected one logged correction');
+    });
+  });
+});
+
+test('dbCorrectCount refuses once a later day has been closed', function(){
+  var a = _dbHarness();
+  a.S.dayBook.opening = {date:'2026-09-05', amount:1000, ts:new Date().toISOString()};
+  a.dbCloseDay('2026-09-05', 900, function(){
+    a.dbCloseDay('2026-09-06', 900, function(){
+      a.dbCorrectCount('2026-09-05', 950, 'too late', function(err){
+        assert(err && err.message === 'not-latest-close', 'got ' + (err && err.message));
+      });
+    });
+  });
+});
+
+test('dbCorrectCount refuses once the same-day correction window has passed', function(){
+  var a = _dbHarness();
+  a.S.dayBook.closes = [_dbCloseFixture('2026-09-05', {opening:1000, closing:1000, counted:900, diff:-100, ts:'2020-01-01T00:00:00.000Z'})];
+  a.dbCorrectCount('2026-09-05', 950, 'too late', function(err){
+    assert(err && err.message === 'correction-window-passed', 'got ' + (err && err.message));
+  });
+});
+
+test('dbFirstOpenDay is today, or tomorrow if today is already closed', function(){
+  var a = _dbHarness();
+  assert(a.dbFirstOpenDay() === a.dbToday(), 'with nothing closed, first open day is today');
+  a.S.dayBook.closes = [_dbCloseFixture(a.dbToday())];
+  assert(a.dbFirstOpenDay() !== a.dbToday(), 'once today is closed, first open day must move to tomorrow');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');
