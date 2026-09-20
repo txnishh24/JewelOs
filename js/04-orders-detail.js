@@ -1759,23 +1759,6 @@ function showAuthTab(tab){
   document.getElementById('auth-tab-signup').classList.toggle('active', tab==='signup');
 }
 
-// ── ASYNC HASH (PBKDF2) ──────────────────────────────────────────────
-async function saasHashPassword(pw, saltHex){
-  if(!saltHex){
-    var arr = new Uint8Array(16);
-    crypto.getRandomValues(arr);
-    saltHex = Array.from(arr).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
-  }
-  var enc = new TextEncoder();
-  var key = await crypto.subtle.importKey('raw', enc.encode(pw), {name:'PBKDF2'}, false, ['deriveBits']);
-  var bits = await crypto.subtle.deriveBits(
-    {name:'PBKDF2', salt:enc.encode(saltHex), iterations:100000, hash:'SHA-256'},
-    key, 256
-  );
-  var hash = Array.from(new Uint8Array(bits)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
-  return {hash: 'pbkdf2:'+hash, salt: saltHex};
-}
-
 // ── AUTH GATEWAY — replaces direct client reads/writes of auth_store ───
 // All login/signup/staff-management now goes through this Edge Function,
 // which holds the service_role key server-side. The browser never again
@@ -1791,11 +1774,6 @@ function authGatewayCall(route, body){
       return data;
     });
   });
-}
-
-async function saasVerifyPassword(pw, storedHash, salt){
-  var result = await saasHashPassword(pw, salt);
-  return result.hash === storedHash;
 }
 
 // ── SIGN UP ──────────────────────────────────────────────────────────

@@ -348,9 +348,7 @@
   "showAuthScreen",
   "hideAuthScreen",
   "showAuthTab",
-  "saasHashPassword",
   "authGatewayCall",
-  "saasVerifyPassword",
   "saasSignup",
   "_loginAttempts",
   "_loginLockedUntil",
@@ -669,7 +667,10 @@
   "dbOpenCloseModal",
   "dbSubmitClose",
   "dbOpenCorrectModal",
-  "dbSubmitCorrect"
+  "dbSubmitCorrect",
+  "dbBuildDaySummary",
+  "dbWhatsAppDay",
+  "dbPrintDay"
  ],
  "allDeclared": [
   "SB_URL",
@@ -1020,9 +1021,7 @@
   "showAuthScreen",
   "hideAuthScreen",
   "showAuthTab",
-  "saasHashPassword",
   "authGatewayCall",
-  "saasVerifyPassword",
   "saasSignup",
   "_loginAttempts",
   "_loginLockedUntil",
@@ -1342,6 +1341,9 @@
   "dbSubmitClose",
   "dbOpenCorrectModal",
   "dbSubmitCorrect",
+  "dbBuildDaySummary",
+  "dbWhatsAppDay",
+  "dbPrintDay",
   "shop",
   "dot",
   "lbl",
@@ -2109,8 +2111,6 @@
   "state",
   "notice",
   "errEl",
-  "bits",
-  "hash",
   "email",
   "password",
   "city",
@@ -2422,6 +2422,8 @@
   "title",
   "rt",
   "frt",
+  "dm",
+  "dmRow",
   "hasWt",
   "_gfStart",
   "_gfDur",
@@ -2734,7 +2736,11 @@
   "noteEl",
   "sum",
   "counted",
-  "landDate"
+  "landDate",
+  "ins",
+  "outs",
+  "diffLine",
+  "diffHtml"
  ],
  "implicit": [
   "opts",
@@ -2746,7 +2752,6 @@
   "pinNewBuffer",
   "pinTempNew",
   "pinLocked",
-  "saltHex",
   "receiptType",
   "grossWt"
  ]
