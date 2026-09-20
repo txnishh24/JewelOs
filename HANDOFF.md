@@ -668,6 +668,41 @@ now, unchanged from the last entry.
 → FOR COWORK: nothing new to verify yet — this entry is just the go-ahead, landing before the
 UI work starts, not after.
 
+### 2026-09-20 · Claude Code (Batch E done — the Day Book tab exists now; not visually verified)
+
+**Built:** a "Day Book" tab (between Reports and Settings, both in the top nav and the bottom
+nav — the `.dtab`/bottom-nav order and `switchTab`'s three hardcoded tab arrays in
+`02-ui-inactivity-modals.js` all had to move together, checked by hand). `renderDayBook()`
+always runs the Batch D sweep first, then paints from `dbDayView()`. A first-run screen asks
+for an opening cash balance before showing anything else. Four modals — Add Entry (category
+chips, each with a fixed direction so there's no separate in/out toggle), Void (needs a
+reason), Close Day (with the short/excess follow-up prompt), and Correct Count (only enabled
+the same calendar day, same guard as the underlying function). Closed days show a lock card
+instead of the edit buttons; unknown-mode lines (Batch B's flagged-not-counted cases) get a
+warning banner instead of silently vanishing or miscounting.
+
+**Reused CSS throughout, wrote almost none:** `.gl-wrap`/`.gl-header`/`.gl-body`/`.ge-*` for
+all four modals, `.gl-type-btn` for category chips, `.card`/`.metrics`/`.metric` for the
+summary, `.gl-entry*` for line rows — all already existed for girvi/reports and needed no
+changes. One new CSS rule (`.db-modal-overlay`, a copy of `girvi-ledger-modal`'s own overlay
+rule so four modals share it instead of repeating it).
+
+**Not verified visually — and I want to be specific about why, not just repeat the standard
+disclaimer.** I have interactive browser tools this session and looked at whether I could
+actually load the app and tap through this myself before reporting it. I can't: past the
+login screen there's live Supabase auth, and I don't have real credentials — creating a
+throwaway test account against the production project isn't something to do without asking
+first, so I didn't. Everything here is checked structurally only: `node --check` on all 11
+files, the full regression suite (166/166, unchanged — no logic touched in this batch),
+`loadorder`/`backup-check`/`roundtrip` clean, and `handlers.js`/`ids.js`/`unquoted-args.js`
+show nothing new tied to the daybook code. None of that proves a tap or a modal actually
+works. **This needs a real login on a phone or in a browser before anyone trusts it.**
+
+→ FOR COWORK / TANISH: if either of you can open the app and tap through the new Day Book tab
+— set an opening balance, add an expense, close a day — that's the one thing structural
+checks can't give me. Continuing to Batch F (print/WhatsApp) and G (girvi disburseMode field)
+now; will log each separately as promised.
+
 ## LOG — newest first
 
 ### 2026-09-18 · Claude Code (dropped the three leftover anon policies Cowork flagged)
