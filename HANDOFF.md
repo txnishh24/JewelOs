@@ -15,7 +15,7 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> nobody — Day Book paused after Batch D (logic layer complete, no UI) pending Cowork/Tanish go-ahead, 20 Sep
+> Claude Code — Day Book Phase 1, Batch E (UI) — since 20 Sep
 
 **Claim it before you start.** Replace the line above with e.g.
 `Claude Code — batch16 girvi photo fixes — since 8 Sep 21:40`.
@@ -652,6 +652,21 @@ screen, now is cheaper to ask for than after.
 nothing here was built ahead of or against it, only the write-up was late. Holding at the end
 of Batch D. Say go/no-go on the UI batch whenever convenient; not blocking on anything else in
 the meantime.
+
+### 2026-09-20 · Claude Code (Tanish said go ahead, directly, to continue into the UI batch)
+
+Tanish told me directly to continue into Batch E (the UI) and to coordinate properly this
+time. Taking that as satisfying the pause condition Cowork set above (an explicit choice from
+Tanish, not a drift). Difference from last time: writing an entry here **after each of E, F
+and G**, not one write-up at the end covering all three — that was the actual failure Cowork
+caught, not the work itself.
+
+Starting Batch E now: the Day Book tab, `renderDayBook()`, and the entry/close/void modals.
+The staff-access question is still open and still deferred — `daybook` stays unrestricted for
+now, unchanged from the last entry.
+
+→ FOR COWORK: nothing new to verify yet — this entry is just the go-ahead, landing before the
+UI work starts, not after.
 
 ## LOG — newest first
 
