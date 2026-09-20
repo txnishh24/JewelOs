@@ -357,6 +357,216 @@ alongside no logic change, but flagging so your next pass can eyeball it rather 
 word for it. Also: the fourth throwaway QA shop you listed is noted — still nobody's run
 that cleanup, same standing item.
 
+### 2026-09-20 · Cowork (Tanish said "build everything" — Opus review done on #3, one new live
+finding, three tasks below)
+
+Followed up on the three open items from the 19th. Ran an actual Opus-model review on
+`saasVerifyPassword`/`saasHashPassword` myself rather than just re-flagging it — pasted both
+functions plus the surrounding context, and independently re-verified the zero-call-site claim
+before trusting it: staged all 10 files in `js/` plus `index.html` from this device and grepped
+fresh, not reusing your 19th-Sep audit's word for it.
+
+**Task 1 — delete `saasVerifyPassword` + `saasHashPassword`, cleared for Claude Code.**
+Opus verdict, independently corroborated: safe to delete. Checked the paths a plain grep
+would miss too — no `eval`/`new Function`/`window[...]` dynamic dispatch anywhere, no
+string-built call sites, the five `onclick=` handlers only ever reference
+`saasLogin/saasSignup/saasOnboardSave/saasLogout`. Real login/signup/reset/change-password all
+already route through `authGatewayCall()` (`js/05-auth-login.js`). `saasHashPassword` and
+`saasVerifyPassword` only ever call each other — closed dead pair, no other reader. The one
+code-quality note (PBKDF2 iteration count, 100k vs current OWASP guidance of ~600k) is moot
+since the code is being deleted, not kept.
+
+**Task 2 — new finding, unrelated to the above, and this one is live, not dead code:**
+`_verifyPin` (`js/04-orders-detail.js:799`) and `DEFAULT_PIN = '1234'` (`:736`). This is the
+device-unlock PIN screen (localStorage, re-entry after inactivity), not account login — so
+blast radius is "someone with the phone in hand," not remote account takeover. Two real
+weaknesses in it though:
+- **No PIN ever set → app accepts the literal default `1234`.** `_verifyPin` falls back to
+  comparing straight against `DEFAULT_PIN` when nothing's stored.
+- **Current format (`s1:`) is a single unsalted-strength round of SHA-256** (`stored ===
+  's1:' + sha256(salt+pin)`), for a 4-digit space — trivially brute-forceable if the stored
+  hash is ever read out of localStorage by anything with page access. The code even carries a
+  comment admitting it downgraded from PBKDF2 (`ssj2:` format) to this faster SHA-256 one.
+
+Low severity (needs the physical device or something already running JS in that page), but
+real and easy to fix. → FOR CLAUDE CODE: (a) don't auto-accept `DEFAULT_PIN` silently — force a
+"set your PIN" step on first use instead, or at minimum warn/log it; (b) bring `_verifyPin`
+back to the PBKDF2 path (`ssj2:` already exists as a supported format) instead of the faster
+`s1:` one, same iteration-count reasoning as Task 1. Not urgent-urgent, but don't let it sit
+indefinitely either — it's a real gap, not a hypothetical one.
+
+**Task 3 — package the confirm-button-color fix into a new deploy zip.** The fix itself
+(dropping the `danger` flag on the Archive confirm dialog) is already in this folder's code,
+just never got zipped. → FOR CLAUDE CODE: run `build-deploy-zip.js` for a batch25 covering only
+that one-line change, same as batch23 was "just the dead-code removal, zipped." No new testing
+needed beyond the usual `check.bat` — this was already verified working.
+
+**Girvi/gold-loan module (from the trend scan) — not writing this up as a build task.** Asked
+Tanish directly since JewelOS already has a fairly complete Girvi system (loans, ledger,
+archive/recover, WhatsApp reminders, interest calc) — the trend finding was competitor apps
+that do *only* this, not a gap in JewelOS. He had no specific gap in mind, so leaving this as
+a non-task rather than inventing scope. Worth revisiting as a positioning/marketing angle
+later ("does what the dedicated Girvi apps do, plus billing and inventory"), not as code.
+
+**`updQty` — still not written up.** Tanish asked what it even is before deciding where it
+should live; answering that in chat, not here. Will come back and write the actual task once
+he picks a placement (inline stepper / Edit Product field / separate Adjust Stock action /
+skip).
+
+→ FOR CLAUDE CODE: Tasks 1–3 above are cleared and independent of each other — take them in
+any order. Nothing pending from Cowork beyond those three until `updQty` gets a decision.
+
+### 2026-09-20 · Cowork (updQty — Tanish left the placement call to me; task written, decided:
+separate "Adjust Stock" action)
+
+Explained what `updQty` actually is to Tanish (working, tested, audit-trailed quantity editor
+with no button anywhere), then he handed the placement decision back to me rather than picking
+himself. Read the actual function before deciding, not just the audit's description
+(`js/02-ui-inactivity-modals.js:311`):
+
+```js
+function updQty(id,v){
+  var p=S.products.find(function(x){return x.id===id;});
+  if(!p) return;
+  var prevQty=p.qty, prevWeight=p.weight;
+  p.qty=Math.max(0,parseInt(v)||0);
+  if(p.unitWeight){ p.weight=Math.round(p.unitWeight*p.qty*1000)/1000; }
+  var qtyChange=p.qty-prevQty;
+  ...
+  if(qtyChange!==0){
+    S.stockMovements.push({..., type:'adjustment', qtyChange:qtyChange,
+      reason:'Manual quantity edit', user:..., ts:new Date().toISOString()});
+  }
+  saveToCloud(...);
+}
+```
+
+**Task 4 — build a separate "Adjust Stock" action, not an inline stepper or an Edit Product
+field.** Reasoning, for the record: `updQty` already logs a `stockMovements` entry with type
+`'adjustment'` — it's modeled as an *event*, not a silent field edit, same shape as a sale or
+purchase changing stock. An inline +/- on the list row invites accidental taps on a page that's
+already busy (worse on a phone, which is most of how this gets used), and Edit Product is for
+static attributes (weight, purity, HUID, SKU) — quantity correction is a different kind of
+action with different stakes for a gold inventory, not more metadata. A distinct action also
+leaves room to eventually make `reason` a real field instead of the current hardcoded `'Manual
+quantity edit'` string, if that's ever wanted — inline editing wouldn't.
+
+Two things worth Claude Code's attention while building it, found reading the function, not
+guessed:
+- **`p.weight` only recomputes if `p.unitWeight` is set.** For a product with no `unitWeight`
+  (older records, or items never given one), changing qty leaves weight untouched — decide
+  whether the new UI should warn/block in that case, or silently accept the mismatch like the
+  function already does.
+- **`v` is the new total quantity, not a +/- delta.** The UI should show current qty and take a
+  new absolute value (or compute the delta itself before calling), not pass a relative change
+  straight through.
+
+→ FOR CLAUDE CODE: build the Adjust Stock entry point (inventory list row action, or product
+detail — your call on exact placement, same as Archive's button-row precedent), calling the
+existing `updQty(id, v)` unchanged. No ledger/backend changes needed, same "expose an existing
+tested function" shape as the Archive button was.
+
+## [20 Sep 2026] Cowork — Day Book (rojmel) spec, no code
+
+Risk: 🔴 (financial records). Nothing built or deployed. This is a design spec for Claude Code / Opus to review before any implementation.
+
+**What:** Tanish wants a day book (rojmel) — the daily cash book almost every Indian jeweller keeps by hand — because JewelOS currently has no day book and no expense tracking, so P&L is gross metal margin only. Researched how Prime Software Solution's rojmel product works (workflow only, not code/UI, from public listings) and wrote a phased spec: `docs/DAYBOOK-SPEC.md`.
+
+**Phase 1 (build first):** cash-only day book. Auto lines derived at read time from existing sales/purchase/girvi/order records (no new storage for these); manual lines for expenses/drawings/capital/bank transfer; Close Day with a physical-cash-count vs short/excess check; print/WhatsApp summary; expenses flow into Reports so P&L becomes net profit.
+
+**Before any implementation, four things need verifying against the actual code** (I don't have code access from Cowork):
+1. Does every sale/purchase/girvi payment already store a payment mode (cash/UPI/card/bank) and date? Phase 1 can't split cash from non-cash without this — may be a prerequisite piece of work.
+2. How are old-gold exchange and sales returns recorded today?
+3. Where do order advances live — do they store payment mode?
+4. How are part-payment / credit (udhar) sales handled?
+
+**Open design decision flagged for Opus, not decided here:** if auto lines are always recomputed live, editing an old bill silently changes a past day's closing — a paper rojmel can never do that. Spec proposes "Close Day locks the day; later corrections show as a visible adjustment on the current day, not a rewrite of the past." Needs Opus sign-off before UI work starts.
+
+**Constraints already respected in the spec:** new module in `js/` (ES5), one JSON blob per shop (store only manual entries and closes, not the derived lines), `shopScopedKey()` for any new localStorage key, new state added to both export and restore + `backup-check.js`/`roundtrip.js`, new tests go in the real `tests/regression.test.js`, do not touch `girviLedgerState` internals.
+
+**Decisions still needed from Tanish** (in the spec, §12): In/Out vs Jama/Udhar labels (check with a couple of real shops), whether day-book entries should be blocked in the post-lapse read-only state (recommended: no), financial year default (April–March).
+
+**Side finding:** JewelBooks (jewelbooks.in) is a cloud jewellery accounting competitor with a day book, karigar settlement, UPI/split payments and Tally XML — not in the existing competitor notes and undermines any "competitors are all desktop" framing. Flagged for a separate research pass, not investigated further here.
+
+→ FOR CLAUDE CODE: read `docs/DAYBOOK-SPEC.md` in full before touching anything. Do not start Phase 1 implementation until (a) the four verify-first questions above are answered against the real code and (b) Opus has ruled on the locked-day design. If payment mode isn't already stored on sales/purchases/girvi/orders, that's a prerequisite sub-task — flag it back to HANDOFF rather than guessing a schema for it.
+
+### 2026-09-20 · Cowork (answered the daybook spec's four verify-first questions against the real
+code — Phase 1 is unblocked)
+
+The spec above was written without code access. I have it from here, so read the actual code
+before Claude Code has to — staged all ten `js/` files plus `index.html` fresh from this device
+and grepped rather than guessing. Full detail now also in `docs/DAYBOOK-SPEC.md` §10.
+
+**1. Payment mode + date — already captured almost everywhere. Not a blocker.**
+- Sales support **split payments across modes** (`splitRows: [{amount, mode}]` at sale time),
+  plus `nowPaying{amount,mode}` and `extraPayments[]` for cash collected later against an
+  already-made sale, and `prevAdvance{amount,mode}`. `sale.payment` holds the joined mode
+  string ("Cash+UPI") when split.
+- Purchases carry **one** `bill.paymentMethod` per whole bill — options are Cash / Bank
+  Transfer / UPI / Cheque / **Credit**. A "Credit" bill has zero cash movement — day book must
+  skip these, not post a cash-out line. Real gap versus sales: no split-across-modes on a
+  single purchase bill. Doesn't block Phase 1, a bill only ever needs the one mode it used.
+- Girvi: disbursement mode captured at loan creation (`gl-mode`), each repayment in
+  `g.payments[]` carries its own `mode` and `date`.
+- Orders: advances on `order.ledger[]` / `nowPaying` / `prevAdvance`, each with `mode` and
+  `date` (legacy entries default to `o.payment||'Cash'` dated `o.createdAt`).
+
+**2. Old-gold exchange & returns.**
+- Old-gold exchange (`sale.oldGold = {weight, purity, value}`) is a **deduction from the sale
+  total**, not a separate cash transaction — it just changes how much cash the sale actually
+  generates. No extra day-book line needed for it specifically.
+- Returns/refunds live in `sale.refunds[]` (`refundStatus`: 'full'/partial) plus
+  `sale.returnedItemIdx` for stock that physically came back (re-added to inventory as a new
+  `status:'returned'` product row). **Not confirmed:** whether each refund entry itself carries
+  a payment mode — I found the array and the status field but didn't trace a `mode` on
+  individual refund objects. Claude Code should check this specifically before wiring the
+  "Refund, paid in cash → out" row in the spec's §5 posting table; if refunds don't record mode,
+  that's the one real prerequisite sub-task the original four questions were worried about.
+
+**3. Order advances — confirmed, see #1.** Mode and date both present.
+
+**4. Part-payment / udhar — already modeled, nothing new needed.** `payStatus`
+('partial'/'full'), split rows at sale time, and `extraPayments[]` for later collection already
+give the day book what it needs: build auto-lines from individual payment *events* (each split
+row, each `extraPayments` entry), not from a sale's total value. This is what the spec already
+assumed in §5 — confirmed correct, not a guess.
+
+**Net effect: Phase 1 is unblocked except for one narrow check** (refund payment mode). Opus
+still needs to rule on the locked-day design (spec §6) before any UI work — that's a judgment
+call, not something code-reading answers.
+
+→ FOR CLAUDE CODE: three of the four verify-first questions are answered above with file/field
+names, not just yes/no — use them instead of re-deriving. The one open item is whether
+`sale.refunds[]` entries carry a payment mode; check that first, then this is an Opus-plans /
+Sonnet-implements job per the spec's own model-policy note (§9). Nothing else pending from
+Cowork on this until Opus rules on §6.
+
+### 2026-09-20 · Claude Code (closed the last verify-first gap — refund payment mode is
+already stored — but did not start Phase 1)
+
+**The one open item from Cowork's entry above is answered: yes, `sale.refunds[]` entries carry
+a payment mode.** Grepped `js/01-sync-core.js:1529` — `_submitRefund` pushes
+`{id, amount, mode, reason, note, date, by}` onto `sale.refunds[]`, `mode` taken from the refund
+form same as any other payment capture. Girvi refunds are the same shape one level down: a
+`type:'refund'` entry on `g.payments[]` (`08-girvi-viewmode.js:859`) also carries `mode` and
+`date`. So the day book's §5 "Refund or return paid in cash → out" row can read `mode` directly
+off both without a schema change. **All four of the spec's §10 verify-first questions are now
+closed — nothing left blocking Phase 1 on the data side.**
+
+**Did not start implementation.** §6 (locked-day design) is still an open Opus judgment call,
+not a code-reading question, and the spec's own §9 model policy is explicit: Opus plans the
+data model and posting rules for a 🔴 task, Sonnet implements after that. I'm Sonnet this
+session — starting the new `js/` module or the data model now would mean guessing at a decision
+the spec itself flags as Opus's to make, so I stopped here rather than build ahead of that
+ruling. Committed this entry plus Cowork's spec and 20 Sep entry (both were sitting uncommitted
+when I arrived — same "commit what you find" precedent as 8 Sep).
+
+Not verified: nothing code-side changed, so no `check.bat` run.
+
+→ FOR COWORK / TANISH: Day Book is fully unblocked on the data side. The only remaining gate
+before any Phase 1 code is Opus ruling on §6 (locked-day vs. always-recomputed). Once that's
+decided, this is ready for a Sonnet implementation session against the spec as written.
+
 ## LOG — newest first
 
 ### 2026-09-18 · Claude Code (dropped the three leftover anon policies Cowork flagged)
