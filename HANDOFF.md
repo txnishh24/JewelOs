@@ -15,7 +15,7 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> Claude Code — Day Book Phase 1, Batch E (UI) — since 20 Sep
+> nobody
 
 **Claim it before you start.** Replace the line above with e.g.
 `Claude Code — batch16 girvi photo fixes — since 8 Sep 21:40`.
@@ -720,6 +720,41 @@ Batch E — structurally checked, not visually, for the same reason (no live cre
 → FOR COWORK / TANISH: nothing new needed from you beyond the standing ask above. Starting
 Batch G now (the girvi `disburseMode` field) — the last piece before this needs a real
 tap-through more than it needs more code.
+
+### 2026-09-20 · Claude Code (Batch G done — Day Book Phase 1 is code-complete, A through G)
+
+**"Disbursed Via" select added to the girvi loan form** (Cash/UPI/Bank Transfer/Cheque,
+defaults Cash), visible only when creating a new loan — hidden on edit via
+`gf-disburse-mode-row`, so editing an existing loan can never look like it's changing how
+that loan was originally paid out. Read into the new record on create only; the edit path
+never touches the field, so an existing loan's `disburseMode` (present or absent) survives
+editing anything else about it untouched. No other schema change needed — Batch B already
+treats a missing `disburseMode` as "not recorded, not counted," so every loan created before
+today keeps behaving exactly as it already did.
+
+**That's all seven batches.** A (state plumbing) → B (derivation) → C (manual entries, Close
+Day) → D (the locked-day sweep — the actual §6 mechanic) → E (the tab and modals) → F (print/
+WhatsApp) → G (this one). 168 regression tests across the whole feature, all passing, plus
+`loadorder`/`backup-check`/`roundtrip` clean at every batch. **Day Book Phase 1 is code-complete
+and structurally verified. It has never been opened in a browser or tapped on a phone —**
+that's the one thing left, and it's the one thing I can't do myself without live Supabase
+credentials I don't have.
+
+**Still open, unchanged from earlier entries today:**
+1. Staff access — `daybook` is still unrestricted for staff logins. Tanish deferred this;
+   it's a one-line addition to `staffBlocked` (`02-ui-inactivity-modals.js`) whenever decided.
+2. Spec §12's original open questions (In/Out vs Jama/Udhar labels, financial year default)
+   were never blocking Phase 1 and are still open — defaults per the spec (`In`/`Out`,
+   April–March) are what's built.
+3. Reports/P&L wiring (turning recorded expenses into net profit, spec §3 item 6) was
+   deliberately deferred to a later batch, after real usage, per the Opus plan.
+
+Releasing `NOW`.
+
+→ FOR COWORK / TANISH: the whole feature needs a real tap-through before it's trusted —
+set an opening balance, add and void an expense, close a day, correct a count, print, share
+to WhatsApp. That's the one gap nothing structural can close. Everything else about Day Book
+Phase 1 is done from this side.
 
 ## LOG — newest first
 
