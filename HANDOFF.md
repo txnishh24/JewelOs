@@ -703,6 +703,24 @@ works. **This needs a real login on a phone or in a browser before anyone trusts
 checks can't give me. Continuing to Batch F (print/WhatsApp) and G (girvi disburseMode field)
 now; will log each separately as promised.
 
+### 2026-09-20 · Claude Code (Batch F done — Print and WhatsApp for the Day Book)
+
+Both read from one new `dbBuildDaySummary(dateKey)`, so they can't disagree with each other
+or with what the screen already shows. Print renders the two-column rojmel layout (Cash In /
+Cash Out side by side) spec §7/§8 describes, using the same `window.open` / `document.write`
+/ `window.print()` pattern `pbPrintBill` already uses. WhatsApp reuses `sendWhatsApp()` the
+same way the existing daily-digest feature does, sent to the shop's own registered phone, not
+a customer. Voided and unknown-mode lines are left out of both — same reasoning as leaving
+them out of the totals.
+
+2 new tests (the summary's four figures match `dbDayView` exactly; voided/unknown amounts
+never leak into the printed or shared text). 168/168 passing. Same verification limits as
+Batch E — structurally checked, not visually, for the same reason (no live credentials).
+
+→ FOR COWORK / TANISH: nothing new needed from you beyond the standing ask above. Starting
+Batch G now (the girvi `disburseMode` field) — the last piece before this needs a real
+tap-through more than it needs more code.
+
 ## LOG — newest first
 
 ### 2026-09-18 · Claude Code (dropped the three leftover anon policies Cowork flagged)
