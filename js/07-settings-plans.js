@@ -411,6 +411,10 @@ function openGirviForm(editId, prefill){
   var risk=document.getElementById('gf-risk'); if(risk) risk.value='medium';
   // gf-metal / gf-purity removed — now managed per-item in GF_ITEMS array
   document.getElementById('gf-start').value = new Date().toISOString().slice(0,10);
+  var dm=document.getElementById('gf-disburse-mode'); if(dm) dm.value='Cash';
+  // Disbursement mode is asked once, at creation, and never back-filled onto
+  // an existing loan on edit -- see the Day Book HANDOFF entry, 20 Sep 2026.
+  var dmRow=document.getElementById('gf-disburse-mode-row'); if(dmRow) dmRow.style.display = editId ? 'none' : '';
   var sb=document.getElementById('gf-save-btn'); if(sb) sb.removeAttribute('data-edit');
 
   if(editId){
@@ -702,6 +706,10 @@ function saveGirviEntry(){
     financerRate:parseFloat(document.getElementById('gf-financer-rate').value)||0,
     financerRateType:document.getElementById('gf-financer-ratetype').value,
     startDate:document.getElementById('gf-start').value,
+    // New, optional. Read by the Day Book to post the disbursement as a cash
+    // line. Never back-filled on an existing loan by the edit path above --
+    // an absent value means "not recorded", not "assumed Cash".
+    disburseMode:(document.getElementById('gf-disburse-mode')||{value:'Cash'}).value,
     duration:parseInt(document.getElementById('gf-duration').value)||0,
     notes:(document.getElementById('gf-notes').value||'').trim(),
     status:'active',payments:[],

@@ -2313,6 +2313,12 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
           <div id="gf-duedate-display" style="padding:10px 12px;border-radius:11px;border:1.5px solid #C9A84C;background:var(--card1);color:var(--gold-dark);font-size:13px;font-weight:700;min-height:38px;display:flex;align-items:center;">Auto</div>
         </div>
       </div>
+      <div style="margin-bottom:9px;" id="gf-disburse-mode-row">
+        <label style="display:block;font-weight:700;font-size:12px;color:var(--ink);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Disbursed Via</label>
+        <select id="gf-disburse-mode" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:11px;border:1.5px solid var(--border-gold);background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">
+          <option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option>
+        </select>
+      </div>
       <div style="margin-bottom:9px;">
         <label style="display:block;font-weight:700;font-size:12px;color:var(--ink);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Notes</label>
         <textarea id="gf-notes" placeholder="Optional — item condition, witness, etc." rows="3"
