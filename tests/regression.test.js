@@ -2178,6 +2178,123 @@ test('dbFirstOpenDay is today, or tomorrow if today is already closed', function
   assert(a.dbFirstOpenDay() !== a.dbToday(), 'once today is closed, first open day must move to tomorrow');
 });
 
+// ── Day Book — Batch D: the locked-day restatement sweep (spec §6) ────
+// The core of the whole feature: a closed day's stored closing must
+// never move, and a later correction to a record dated inside it must
+// surface as a visible adjustment instead of rewriting the past.
+console.log('\nDay Book locked-day sweep:');
+
+test('editing a sale on a closed day does not change that day\'s stored closing', function(){
+  var a = _dbHarness();
+  a.S.sales = [{ id:'s1', date:'2026-09-01', invNo:'INV-1', splitPayments:[{amount:1000, mode:'Cash'}] }];
+  a.S.dayBook.closes = [_dbCloseFixture('2026-09-01', {autoIn:1000, closing:1000, counted:1000})];
+  a.S.sales[0].splitPayments[0].amount = 800; // the correction, made after close
+  var v = a.dbDayView('2026-09-01');
+  assert(v.closing === 1000, 'a closed day\'s closing must be frozen, got ' + v.closing);
+});
+
+test('the sweep posts exactly one adjustment, on the first open day, for the net delta', function(){
+  var a = _dbHarness();
+  a.S.sales = [{ id:'s1', date:'2026-09-01', invNo:'INV-1', splitPayments:[{amount:1000, mode:'Cash'}] }];
+  a.S.dayBook.closes = [_dbCloseFixture('2026-09-01', {autoIn:1000, closing:1000, counted:1000})];
+  a.S.sales[0].splitPayments[0].amount = 800;
+  a.dbSweepRestatements(function(err, count){
+    assert(!err, 'sweep should succeed: ' + (err && err.message));
+    assert(count === 1, 'expected exactly one close restated, got ' + count);
+    var adj = a.S.dayBook.entries.filter(function(e){ return e.kind === 'adjust'; });
+    assert(adj.length === 1, 'expected exactly one adjustment entry, got ' + adj.length);
+    assert(adj[0].dir === 'out' && adj[0].amount === 200, 'expected out 200 (1000 -> 800), got ' + adj[0].dir + ' ' + adj[0].amount);
+    assert(adj[0].date === a.dbFirstOpenDay(), 'adjustment must land on the first open day');
+    assert(adj[0].srcDate === '2026-09-01', 'adjustment must reference the day it corrects');
+  });
+});
+
+test('running the sweep twice posts the adjustment only once (idempotent)', function(){
+  var a = _dbHarness();
+  a.S.sales = [{ id:'s1', date:'2026-09-01', invNo:'INV-1', splitPayments:[{amount:1000, mode:'Cash'}] }];
+  a.S.dayBook.closes = [_dbCloseFixture('2026-09-01', {autoIn:1000, closing:1000, counted:1000})];
+  a.S.sales[0].splitPayments[0].amount = 800;
+  a.dbSweepRestatements(function(){
+    a.dbSweepRestatements(function(err2, count2){
+      assert(!err2, err2 && err2.message);
+      assert(count2 === 0, 'the second run should find nothing left to restate, got ' + count2);
+      var adj = a.S.dayBook.entries.filter(function(e){ return e.kind === 'adjust'; });
+      assert(adj.length === 1, 'still exactly one adjustment after two sweeps, got ' + adj.length);
+    });
+  });
+});
+
+test('a sweep records prev/new totals on the close and re-baselines it', function(){
+  var a = _dbHarness();
+  a.S.sales = [{ id:'s1', date:'2026-09-01', invNo:'INV-1', splitPayments:[{amount:1000, mode:'Cash'}] }];
+  a.S.dayBook.closes = [_dbCloseFixture('2026-09-01', {autoIn:1000, closing:1000, counted:1000})];
+  a.S.sales[0].splitPayments[0].amount = 800;
+  a.dbSweepRestatements(function(){
+    var close = a.S.dayBook.closes[0];
+    assert(close.restatements.length === 1, 'expected one restatement record, got ' + close.restatements.length);
+    assert(close.restatements[0].prevIn === 1000 && close.restatements[0].newIn === 800, 'restatement should record prev/new totals');
+    assert(close.autoIn === 800, 'the close baseline must be re-anchored to the new total, got ' + close.autoIn);
+  });
+});
+
+test('moving a record from one closed day to another posts two adjustments netting zero', function(){
+  var a = _dbHarness();
+  a.S.sales = [{ id:'s1', date:'2026-09-02', invNo:'INV-1', splitPayments:[{amount:500, mode:'Cash'}] }];
+  a.S.dayBook.closes = [
+    _dbCloseFixture('2026-09-01', {autoIn:500, closing:500, counted:500}), // the sale used to be here
+    _dbCloseFixture('2026-09-02', {autoIn:0,   closing:0,   counted:0})
+  ];
+  a.dbSweepRestatements(function(err, count){
+    assert(!err, err && err.message);
+    assert(count === 2, 'both closed days should be restated, got ' + count);
+    var adj = a.S.dayBook.entries.filter(function(e){ return e.kind === 'adjust'; });
+    assert(adj.length === 2, 'expected two adjustment entries, got ' + adj.length);
+    var net = adj.reduce(function(s,e){ return s + (e.dir === 'in' ? e.amount : -e.amount); }, 0);
+    assert(net === 0, 'the two adjustments should net to zero, got ' + net);
+  });
+});
+
+test('an adjustment entry can never be voided', function(){
+  var a = _dbHarness();
+  a.S.sales = [{ id:'s1', date:'2026-09-01', invNo:'INV-1', splitPayments:[{amount:1000, mode:'Cash'}] }];
+  a.S.dayBook.closes = [_dbCloseFixture('2026-09-01', {autoIn:0, closing:0, counted:0})];
+  a.dbSweepRestatements(function(){
+    var adj = a.S.dayBook.entries[0];
+    a.dbVoidEntry(adj.id, 'trying anyway', function(err2){
+      assert(err2 && err2.message === 'cannot-void-adjustment', 'got ' + (err2 && err2.message));
+    });
+  });
+});
+
+test('when today is already closed, the adjustment lands on today + 1, not on today', function(){
+  var a = _dbHarness();
+  var today = a.dbToday();
+  a.S.sales = [{ id:'s1', date:'2026-08-01', invNo:'INV-1', splitPayments:[{amount:1000, mode:'Cash'}] }];
+  a.S.dayBook.closes = [
+    _dbCloseFixture('2026-08-01', {autoIn:0, closing:0, counted:0}),
+    _dbCloseFixture(today,        {autoIn:0, closing:0, counted:0})
+  ];
+  a.dbSweepRestatements(function(err, count){
+    assert(!err, err && err.message);
+    var adj = a.S.dayBook.entries.filter(function(e){ return e.kind === 'adjust' && e.srcDate === '2026-08-01'; })[0];
+    assert(adj, 'expected an adjustment correcting 2026-08-01');
+    assert(adj.date !== today, 'must not land on an already-closed today');
+    assert(adj.date === a._dbNextDay(today), 'expected it on today + 1, got ' + adj.date);
+  });
+});
+
+test('a failed sweep save rolls back both the re-baselined totals and the new adjustment entry', function(){
+  var a = _dbHarness();
+  a.S.sales = [{ id:'s1', date:'2026-09-01', invNo:'INV-1', splitPayments:[{amount:1000, mode:'Cash'}] }];
+  a.S.dayBook.closes = [_dbCloseFixture('2026-09-01', {autoIn:0, autoOut:0, closing:0, counted:0})];
+  a.saveToCloud = function(cb){ cb(new Error('network down')); };
+  a.dbSweepRestatements(function(err){
+    assert(err, 'expected the sweep\'s save failure to propagate');
+    assert(a.S.dayBook.closes[0].autoIn === 0, 'the baseline must roll back on save failure, got ' + a.S.dayBook.closes[0].autoIn);
+    assert(a.S.dayBook.entries.length === 0, 'the adjustment entry must be rolled back too, got ' + a.S.dayBook.entries.length);
+  });
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

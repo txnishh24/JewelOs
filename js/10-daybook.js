@@ -528,3 +528,63 @@ function dbCorrectCount(dateKey, newCounted, reason, cb){
   auditLog('correct', 'daybook', dateKey, 'Count corrected '+prev+' -> '+latest.counted+': '+reason.trim());
   _dbCommit(snap, cb);
 }
+
+// ── LOCKED-DAY RESTATEMENT SWEEP (spec §6) ────────────────────────────
+// A closed day's opening/autoIn/autoOut/manualIn/manualOut/closing are
+// frozen at close time and NEVER recomputed from live records — that is
+// the whole point of closing a day. But records can still change after
+// close (a backdated edit, a new record landing on an old date). This
+// sweep is how that correction surfaces: as a visible adjustment entry
+// on today (or tomorrow, if today is itself closed) instead of quietly
+// rewriting the past.
+var DB_RESTATE_THRESHOLD = 0.5; // rupees; below this is float noise, not a real correction
+
+// Internal: builds the kind:'adjust' entry and the close's restatements[]
+// record IN MEMORY ONLY. No save — dbSweepRestatements does exactly one
+// saveToCloud for every adjustment a sweep produces, never one per close.
+function dbPostAdjustment(close, newIn, newOut){
+  var netDelta = dbRound((newIn - close.autoIn) - (newOut - close.autoOut));
+  var entry = {
+    id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'ADJ-'+Date.now()+'-'+Math.random().toString(36).slice(2),
+    date: dbFirstOpenDay(), dir: netDelta >= 0 ? 'in' : 'out', amount: dbRound(Math.abs(netDelta)),
+    cat: 'adjust', note: 'Correction to '+close.date, kind: 'adjust', srcDate: close.date,
+    ts: new Date().toISOString(), by: _dbUserName(), voided: false, voidReason: ''
+  };
+  S.dayBook.entries.push(entry);
+  if(!close.restatements) close.restatements = [];
+  close.restatements.push({ts:entry.ts, by:entry.by, prevIn:close.autoIn, prevOut:close.autoOut, newIn:newIn, newOut:newOut, entryId:entry.id});
+  close.autoIn = newIn;
+  close.autoOut = newOut;
+  return entry.id;
+}
+
+// Called ONLY when the Day Book screen is opened (never from boot, a
+// timer, or loadFromCloud) — so it never fires on a screen nobody is
+// looking at. Recomputes every closed day's live auto totals; where they
+// differ from the close's stored baseline by more than the rounding
+// threshold, posts one adjustment and re-baselines that close. Naturally
+// idempotent: re-baselining means a second run sees zero delta and posts
+// nothing, so running it twice in a row is always safe.
+//
+// Snapshot is taken only once real work exists, and a save failure
+// (including a version conflict from another device saving first) rolls
+// back every adjustment this call made. That rollback matters more here
+// than anywhere else in the app: if the baseline advanced while the save
+// failed, the next sweep would see zero delta and silently never post
+// the correction at all.
+function dbSweepRestatements(cb){
+  var dirty = [];
+  (S.dayBook.closes||[]).forEach(function(close){
+    var t = dbAutoTotals(close.date);
+    if(Math.abs(t.in - close.autoIn) > DB_RESTATE_THRESHOLD || Math.abs(t.out - close.autoOut) > DB_RESTATE_THRESHOLD){
+      dirty.push({close:close, newIn:t.in, newOut:t.out});
+    }
+  });
+  if(!dirty.length){ if(cb) cb(null, 0); return; }
+
+  var snap = _dbSnapshot();
+  dirty.forEach(function(d){ dbPostAdjustment(d.close, d.newIn, d.newOut); });
+  saasActivityLog('daybook', dirty.length+' day(s) restated after a record dated inside a closed day changed');
+  auditLog('restate', 'daybook', dirty.map(function(d){ return d.close.date; }).join(','), dirty.length+' day(s) restated');
+  _dbCommit(snap, function(err){ if(cb) cb(err, err ? 0 : dirty.length); });
+}
