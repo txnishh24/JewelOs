@@ -280,6 +280,7 @@ function renderInv(){
         '<td><div style="display:flex;gap:5px;flex-wrap:wrap;">'+
           '<button class="btn btn-sm btn-info" onclick="editProd(\''+p.id+'\')" title="Edit product">&#9998;</button>'+
           '<button class="btn btn-sm" onclick="openItemHistoryModal(\''+p.id+'\')" title="Movement history" style="background:var(--surf2);border:1px solid var(--border2);color:var(--text2);">&#128337;</button>'+
+          '<button class="btn btn-sm" onclick="openAdjustStockModal(\''+p.id+'\')" title="Adjust stock quantity" style="background:var(--surf2);border:1px solid var(--border2);color:var(--text2);">&#177;</button>'+
           (returned
             ?'<button class="btn btn-sm btn-success" onclick="markReturnedSellable(\''+p.id+'\')" title="Inspected — move to sellable stock" style="font-size:11px;">&#10003; Mark Sellable</button>'
             :'<button class="btn btn-sm '+(sold?'btn-success':'btn-danger')+'" onclick="toggleStatus(\''+p.id+'\')" style="font-size:11px;">'+(sold?'&#9850; Restore':'&#10005; Sold')+'</button>'
@@ -337,6 +338,45 @@ function updQty(id,v){
     }
   });
 }
+
+// ── ADJUST STOCK — the entry point updQty() never had ──────────────────
+// A separate action, not an inline stepper or an Edit Product field:
+// updQty already logs a stockMovements 'adjustment' event, so this is
+// modeled as an event with its own stakes, same shape as a sale or
+// purchase changing stock, not a quiet metadata edit.
+var _asProductId = null;
+
+function openAdjustStockModal(id){
+  var p = S.products.find(function(x){ return x.id === id; });
+  if(!p) return;
+  _asProductId = id;
+  var info = document.getElementById('as-product-info');
+  if(info) info.innerHTML = '<b>'+escHtml(p.name)+'</b><br/>Current quantity: '+p.qty+' &middot; Current weight: '+fmtW(p.weight);
+  var warn = document.getElementById('as-weight-warning');
+  if(warn){
+    // p.weight only recomputes from qty when unitWeight is set (updQty's
+    // own rule) — flag it here rather than let the owner discover it later.
+    if(p.unitWeight){
+      warn.style.display = 'none';
+    } else {
+      warn.style.display = 'block';
+      warn.textContent = 'No per-unit weight on this item — changing quantity will NOT update the total weight. Correct it in Edit Product if needed.';
+    }
+  }
+  var qtyEl = document.getElementById('as-new-qty');
+  if(qtyEl) qtyEl.value = p.qty;
+  document.getElementById('adjust-stock-modal').style.display = 'block';
+}
+
+function submitAdjustStock(){
+  var newQty = parseInt((document.getElementById('as-new-qty')||{}).value, 10);
+  if(isNaN(newQty) || newQty < 0){ toast('Enter a valid quantity (0 or more)'); return; }
+  var id = _asProductId;
+  updQty(id, newQty); // updQty takes the new TOTAL quantity, not a delta
+  document.getElementById('adjust-stock-modal').style.display = 'none';
+  toast('Stock adjusted');
+}
+
 function toggleStatus(id){
   var p=S.products.find(function(x){return x.id===id;});
   if(!p)return;

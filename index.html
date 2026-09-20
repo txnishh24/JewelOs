@@ -778,7 +778,7 @@ tr:hover td{background:var(--gold-bg);}
 
 /* ── Payment Ledger Modal ── */
 #girvi-ledger-modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:960;overflow-y:auto;-webkit-overflow-scrolling:touch;}
-.db-modal-overlay{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:960;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.modal-overlay{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:960;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 .gl-wrap{max-width:500px;margin:16px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);}
 .gl-header{display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .8rem;background:linear-gradient(135deg,rgba(28,96,64,.1),rgba(28,96,64,.03));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(28,96,64,.2);}
 .gl-header h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;font-weight:700;color:var(--success);letter-spacing:.02em;}
@@ -2487,13 +2487,29 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   </div>
 </div>
 
+<!-- ════════════════════════════════ ADJUST STOCK MODAL ═══════ -->
+<div class="modal-overlay" id="adjust-stock-modal">
+  <div class="gl-wrap">
+    <div class="gl-header">
+      <h2>Adjust Stock</h2>
+      <button class="ge-close" onclick="document.getElementById('adjust-stock-modal').style.display='none'">✕</button>
+    </div>
+    <div class="gl-body">
+      <div id="as-product-info" style="font-size:13px;color:var(--text2);margin-bottom:10px;"></div>
+      <div id="as-weight-warning" style="display:none;font-size:12px;color:var(--danger);margin-bottom:10px;"></div>
+      <div class="ge-fg" style="margin-bottom:14px;"><label>New quantity</label><input id="as-new-qty" type="number" min="0" inputmode="numeric"/></div>
+      <button class="btn btn-gold" style="width:100%;" onclick="submitAdjustStock()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════════════════════════════════════════════ DAY BOOK PANEL -->
 <div id="panel-daybook" class="panel">
   <div id="db-body"></div>
 </div>
 
 <!-- ════════════════════════════════ DAY BOOK MODALS ═══════ -->
-<div class="db-modal-overlay" id="db-entry-modal">
+<div class="modal-overlay" id="db-entry-modal">
   <div class="gl-wrap">
     <div class="gl-header">
       <h2>Add Entry</h2>
@@ -2508,7 +2524,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   </div>
 </div>
 
-<div class="db-modal-overlay" id="db-void-modal">
+<div class="modal-overlay" id="db-void-modal">
   <div class="gl-wrap">
     <div class="gl-header">
       <h2>Void Entry</h2>
@@ -2521,7 +2537,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   </div>
 </div>
 
-<div class="db-modal-overlay" id="db-close-modal">
+<div class="modal-overlay" id="db-close-modal">
   <div class="gl-wrap">
     <div class="gl-header">
       <h2>Close Day</h2>
@@ -2535,7 +2551,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   </div>
 </div>
 
-<div class="db-modal-overlay" id="db-correct-modal">
+<div class="modal-overlay" id="db-correct-modal">
   <div class="gl-wrap">
     <div class="gl-header">
       <h2>Correct Today's Count</h2>

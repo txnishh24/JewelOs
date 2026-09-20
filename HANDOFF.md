@@ -15,7 +15,7 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> nobody
+> Claude Code — clearing the four standing tasks (dead auth code, PIN fallback, batch25 zip, Adjust Stock) — since 20 Sep
 
 **Claim it before you start.** Replace the line above with e.g.
 `Claude Code — batch16 girvi photo fixes — since 8 Sep 21:40`.

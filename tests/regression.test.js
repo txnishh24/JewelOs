@@ -650,6 +650,51 @@ test('a failed save rolls back both the quantity and the weight', function(){
   assert(app2.S.stockMovements.length === 0, 'expected the movement rolled back too');
 });
 
+// ── Adjust Stock entry point (Task 4, 20 Sep) ──────────────────────────
+// updQty() itself is fully covered above; these only check the new modal
+// glue actually calls it correctly (new TOTAL qty, not a delta) and warns
+// when unitWeight is missing.
+console.log('\nAdjust Stock action:');
+
+test('openAdjustStockModal pre-fills the current quantity and warns when unitWeight is missing', function(){
+  var app2 = require('./harness.js').loadApp();
+  app2.S.products = [{ id:'p1', name:'Loose Stone', qty:3, weight:12, status:'available' }];
+  app2.openAdjustStockModal('p1');
+  assert(app2._els['as-new-qty'].value === 3, 'expected the current qty pre-filled, got ' + app2._els['as-new-qty'].value);
+  assert(app2._els['as-weight-warning'].style.display === 'block', 'expected the no-unitWeight warning to show');
+});
+
+test('openAdjustStockModal hides the warning when unitWeight is set', function(){
+  var app2 = require('./harness.js').loadApp();
+  app2.S.products = [{ id:'p1', name:'Chain', qty:4, unitWeight:5, weight:20, status:'available' }];
+  app2.openAdjustStockModal('p1');
+  assert(app2._els['as-weight-warning'].style.display === 'none', 'expected no warning when unitWeight is set');
+});
+
+test('submitAdjustStock passes the new TOTAL quantity to updQty, not a delta', function(){
+  var app2 = require('./harness.js').loadApp();
+  app2.S.products = [{ id:'p1', name:'Chain', qty:4, unitWeight:5, weight:20, status:'available' }];
+  app2.S.stockMovements = [];
+  app2.saveToCloud = function(cb){ cb(null); };
+  app2.renderInv = function(){};
+  app2.openAdjustStockModal('p1');
+  app2._els['as-new-qty'].value = '9';
+  app2.submitAdjustStock();
+  var p = app2.S.products[0];
+  assert(p.qty === 9, 'expected qty set to 9 (the new total), got ' + p.qty);
+  assert(approxEqual(p.weight, 45), 'expected weight recomputed to 45 (9 x 5), got ' + p.weight);
+});
+
+test('submitAdjustStock rejects a negative or non-numeric quantity without touching the product', function(){
+  var app2 = require('./harness.js').loadApp();
+  app2.S.products = [{ id:'p1', name:'Chain', qty:4, unitWeight:5, weight:20, status:'available' }];
+  app2.saveToCloud = function(cb){ cb(null); };
+  app2.openAdjustStockModal('p1');
+  app2._els['as-new-qty'].value = '-3';
+  app2.submitAdjustStock();
+  assert(app2.S.products[0].qty === 4, 'a negative quantity must be rejected, qty should stay 4, got ' + app2.S.products[0].qty);
+});
+
 test('shopScopedKey ties a key to the signed-in shop', function(){
   var app2 = require('./harness.js').loadApp();
   app2.SAAS = app2.SAAS || {};
