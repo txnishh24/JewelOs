@@ -715,12 +715,13 @@ function _dbPaint(){
   }
   html += '</div>';
 
-  if(!v.closed){
-    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">'+
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">'+
+    (v.closed ? '' :
       '<button class="btn btn-gold" onclick="dbOpenEntryModal()">+ Add Entry</button>'+
-      '<button class="btn" onclick="dbOpenCloseModal()">🔒 Close Day</button>'+
-    '</div>';
-  }
+      '<button class="btn" onclick="dbOpenCloseModal()">🔒 Close Day</button>')+
+    '<button class="btn" onclick="dbPrintDay()">🖨 Print</button>'+
+    '<button class="btn btn-dark" onclick="dbWhatsAppDay()">💬 WhatsApp</button>'+
+  '</div>';
 
   body.innerHTML = html;
 }
@@ -837,4 +838,67 @@ function dbSubmitCorrect(){
     toast('✓ Count corrected');
     renderDayBook();
   });
+}
+
+// ── PRINT / WHATSAPP (Batch F) ─────────────────────────────────────────
+// dbBuildDaySummary is the shared source for both, so the WhatsApp text
+// and the printed sheet can never disagree with each other or with what
+// dbDayView already showed on screen. Voided and unknown-mode lines are
+// excluded from both — a void is a correction (the void itself is on
+// screen, not on the paper record) and an unknown-mode line was never
+// counted in the totals to begin with.
+function dbBuildDaySummary(dateKey){
+  var v = dbDayView(dateKey);
+  var shopName = (typeof SAAS !== 'undefined' && SAAS.shop) ? SAAS.shop.name : 'My Shop';
+  var counted = v.lines.filter(function(l){ return !l.unknown && !l.voided; });
+  var ins  = counted.filter(function(l){ return l.dir === 'in'; });
+  var outs = counted.filter(function(l){ return l.dir === 'out'; });
+  var diffLine = v.closed
+    ? '\nCounted: '+fmt(v.counted)+(v.diff!==0 ? ' ('+(v.diff<0?'short '+fmt(-v.diff):'excess '+fmt(v.diff))+')' : ' (matched)')
+    : '';
+  return '📖 *'+shopName+' — Day Book*\n'+fmtDate(dateKey)+'\n─────────\n\n'+
+    'Opening: '+fmt(v.opening)+'\n\n'+
+    '*Cash In* ('+fmt(v.totalIn)+')\n'+
+    (ins.length ? ins.map(function(l){ return '  '+(l.label||l.cat)+': '+fmt(l.amount); }).join('\n') : '  —')+'\n\n'+
+    '*Cash Out* ('+fmt(v.totalOut)+')\n'+
+    (outs.length ? outs.map(function(l){ return '  '+(l.label||l.cat)+': '+fmt(l.amount); }).join('\n') : '  —')+'\n\n'+
+    'Closing: *'+fmt(v.closing)+'*'+diffLine+
+    '\n\n_Sent from JewelOS_';
+}
+
+function dbWhatsAppDay(){
+  var msg = dbBuildDaySummary(dbUiDate());
+  var ownerPhone = (typeof SAAS !== 'undefined' && SAAS.shop) ? SAAS.shop.phone : '';
+  sendWhatsApp(ownerPhone||'', msg);
+}
+
+// Two-column rojmel layout (Cash In | Cash Out side by side), matching
+// the paper cash book Prime's own product mimics — see spec §7/§8.
+function dbPrintDay(){
+  var dateKey = dbUiDate();
+  var v = dbDayView(dateKey);
+  var shopName = (typeof SAAS !== 'undefined' && SAAS.shop) ? SAAS.shop.name : 'My Shop';
+  var counted = v.lines.filter(function(l){ return !l.unknown && !l.voided; });
+  var ins  = counted.filter(function(l){ return l.dir === 'in'; });
+  var outs = counted.filter(function(l){ return l.dir === 'out'; });
+  function rows(arr){
+    return arr.map(function(l){
+      return '<tr><td>'+escHtml(l.label||l.cat||'')+'</td><td style="text-align:right;">'+fmt(l.amount)+'</td></tr>';
+    }).join('') || '<tr><td colspan="2" style="color:#999;">—</td></tr>';
+  }
+  var diffHtml = v.closed
+    ? '<br/>Counted: '+fmt(v.counted)+(v.diff!==0 ? ' ('+(v.diff<0?'short '+fmt(-v.diff):'excess '+fmt(v.diff))+')' : ' (matched)')
+    : '';
+  var w = window.open('', '_blank');
+  w.document.write('<html><head><title>Day Book '+escHtml(dateKey)+'</title>'+
+    '<style>body{font-family:sans-serif;padding:20px;}h2{margin-bottom:2px;}.sub{color:#666;margin-bottom:14px;}table{width:100%;border-collapse:collapse;font-size:13px;}td,th{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left;}.cols{display:flex;gap:20px;}.col{flex:1;}.tot{font-weight:700;border-top:2px solid #333;}.summary{margin-top:16px;font-size:14px;}</style>'+
+    '</head><body>'+
+    '<h2>'+escHtml(shopName)+' — Day Book</h2><div class="sub">'+escHtml(dateKey)+'</div>'+
+    '<div class="cols">'+
+      '<div class="col"><h3>Cash In</h3><table>'+rows(ins)+'<tr class="tot"><td>Total</td><td style="text-align:right;">'+fmt(v.totalIn)+'</td></tr></table></div>'+
+      '<div class="col"><h3>Cash Out</h3><table>'+rows(outs)+'<tr class="tot"><td>Total</td><td style="text-align:right;">'+fmt(v.totalOut)+'</td></tr></table></div>'+
+    '</div>'+
+    '<div class="summary">Opening: <b>'+fmt(v.opening)+'</b> &nbsp;→&nbsp; Closing: <b>'+fmt(v.closing)+'</b>'+diffHtml+'</div>'+
+    '<script>window.onload=function(){window.print();}<\/script></body></html>');
+  w.document.close();
 }

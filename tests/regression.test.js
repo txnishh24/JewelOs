@@ -2295,6 +2295,31 @@ test('a failed sweep save rolls back both the re-baselined totals and the new ad
   });
 });
 
+// ── Day Book — Batch F: print/WhatsApp share the same totals as the screen ──
+console.log('\nDay Book print/WhatsApp:');
+
+test('dbBuildDaySummary reports the same opening/in/out/closing as dbDayView for the same date', function(){
+  var a = _dbHarness();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', splitPayments:[{amount:1000, mode:'Cash'}] }];
+  a.S.dayBook.entries = [{ id:'e1', date:'2026-09-05', dir:'out', amount:200, cat:'rent', kind:'manual', voided:false }];
+  var v = a.dbDayView('2026-09-05');
+  var msg = a.dbBuildDaySummary('2026-09-05');
+  assert(msg.indexOf(a.fmt(v.opening)) !== -1, 'summary should mention the same opening as the screen');
+  assert(msg.indexOf(a.fmt(v.totalIn)) !== -1, 'summary should mention the same cash-in total as the screen');
+  assert(msg.indexOf(a.fmt(v.totalOut)) !== -1, 'summary should mention the same cash-out total as the screen');
+  assert(msg.indexOf(a.fmt(v.closing)) !== -1, 'summary should mention the same closing as the screen');
+});
+
+test('dbBuildDaySummary excludes voided and unknown-mode lines from the listed detail', function(){
+  var a = _dbHarness();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', advance:0, payment:'Cash',
+    extraPayments:[{id:'p1', amount:777, mode:'Manual', date:'2026-09-05'}] }];
+  a.S.dayBook.entries = [{ id:'e1', date:'2026-09-05', dir:'out', amount:333, cat:'rent', kind:'manual', voided:true, voidReason:'mistake' }];
+  var msg = a.dbBuildDaySummary('2026-09-05');
+  assert(msg.indexOf(a.fmt(777)) === -1, 'an unknown-mode amount must not appear in the printed/shared detail');
+  assert(msg.indexOf(a.fmt(333)) === -1, 'a voided amount must not appear in the printed/shared detail');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');
