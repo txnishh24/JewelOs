@@ -15,7 +15,7 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> nobody
+> Claude Code — Day Book non-cash visibility gap (Cowork's 21 Sep finding) — since 21 Sep
 
 **Claim it before you start.** Replace the line above with e.g.
 `Claude Code — batch16 girvi photo fixes — since 8 Sep 21:40`.
@@ -48,6 +48,123 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-09-21 · Cowork (Tanish said Day Book "looks unprofessional" and isn't recording sales/
+girvi interest — root cause found and it is NOT the auto-posting bug from 20 Sep. That one is
+already fixed. The real cause is a silent design gap: non-cash lines leave zero trace)
+
+Tanish's exact words: "day book is not right... no sale, no girvi int and everything is not
+recorded directly in it." Investigated by reading the current `js/10-daybook.js` (Batches
+A-G, already live) end to end, then live-testing against the real production site — not
+guessing from the 20 Sep report, which predates this file's current derivation logic and is
+now stale on this specific point.
+
+**First, the good news: the 20 Sep "sales never post to Day Book" bug is fixed.** Built a
+fresh throwaway shop (`Cowork QA Batch27 (TEST — delete me)`, sixth one for the cleanup
+list), recorded one Cash sale (₹78,68,00,000 — my own gold-rate typo inflated it, harmless
+for this test, ignore the figure), one Girvi loan disbursed in Cash, and one Girvi interest
+payment in Cash. **All three posted to Day Book correctly and automatically**, same day,
+no manual entry needed — confirmed live via screenshot, not just the data. Whatever was
+broken on 20 Sep, Batches A-D's derivation rewrite (`sale.splitPayments`, `disburseMode`,
+the Opus-ruled sweep) closed it. Good to strike that bug off the list.
+
+**The real problem — confirmed by reading the code, then proven live, not guessed:**
+`dbIsCash(mode)` in `dbAutoLines()` only pushes a line when the payment mode is exactly
+`'cash'` (case-insensitive). Every other mode — UPI, Card, Bank Transfer, Cheque — is
+correctly excluded from the *cash* totals, that's the whole point of a cash book. **But an
+excluded line isn't shown as excluded — it isn't shown at all.** Compare the two paths in
+the code: a payment with a genuinely *unknown* mode (e.g. `disburseMode == null` on an old
+loan) gets pushed as `{dir:null, unknown:true, ...}` and shows up as a "N cash movement(s)
+not counted" warning banner. A payment with a perfectly valid, recognized *non-cash* mode
+gets nothing — no line, no banner, not even counted toward `unknownCount`. Proved this
+against the live production app itself, not a copy: pushed a synthetic ₹25,000 UPI sale
+dated today into the real running `S.sales` array in the browser console and called the
+live `dbDayView()` — result: `totalIn` unchanged, `lines` unchanged, `unknownCount: 0`. The
+sale is invisible to Day Book in every respect.
+
+**Why this matches what Tanish is seeing:** most real jewellery sales of any size go UPI or
+card, not cash — that's normal in India today, not an edge case. A shop that did real
+business today but mostly non-cash will open Day Book and see it sitting near-empty or
+unchanged, with nothing on screen explaining why. It reads exactly like "sales aren't being
+recorded," even though the cash figure is arithmetically correct. Same mechanism explains
+"no girvi int" if his girvi collections are UPI/bank too — the interest-payment path
+(`type==='interest'`) posts fine in Cash, as tested above; a non-cash interest payment would
+vanish the identical way a non-cash sale does.
+
+**"Looks unprofessional" — three separate, real things, not one fix:**
+1. The gap above: a full business day can render as an empty or misleadingly small Day Book
+   with zero explanation. This is the main one — it doesn't just look unpolished, it looks
+   *wrong*, which is worse.
+2. **Confirmed still live, reproduced again today, same as the 20 Sep report:** the
+   "Powered by Netlify" free-tier badge sits directly on top of the bottom nav at 375px and
+   visually swallows the Day Book tab label (renders as just "BOOK", overlapped). This is a
+   deploy/hosting issue, not an app-code bug — nothing in `js/` or `index.html` can fix a
+   badge Netlify itself injects. Options are a paid Netlify tier that removes it, or
+   confirming whether Netlify allows disabling/repositioning it on the free tier. Tanish's
+   call, not a code task, but worth him knowing it's still there and still real (I worked
+   around it for testing with a direct JS click on the nav button, same as 20 Sep — a real
+   thumb can't do that).
+3. **Confirmed still live, same repro as 20 Sep:** a long shop name still overlaps the
+   header/tab bar at 375px (reproduced again with `Cowork QA Batch27 (TEST — delete me)`).
+   Real shop names are shorter than my test names, so this may bite less often in practice,
+   but it's unfixed.
+
+**What "make it professional and automated" should mean concretely — proposed, not built
+(Cowork doesn't touch code; this is a spec for whoever picks it up):**
+- Add a visible summary line/banner for excluded non-cash activity — something like "Also
+  today: ₹X across N sales/payments in UPI, Card, Bank — not counted in cash closing" —
+  reusing the exact same `dbAutoLines()` pass, just not filtering non-cash out before
+  reporting it, only before summing it into the cash totals. This is the single highest-value
+  fix: it turns "looks broken" into "correctly showing me my cash position," without
+  touching the cash-book design principle at all, which is worth keeping.
+- Visually distinguish system-derived lines (sale/purchase/girvi/order — already computed,
+  never hand-typed) from manual entries (expense/drawing/etc.) in the Lines list. Right now
+  they render identically; a shop owner can't tell at a glance what the app recorded itself
+  versus what they typed in.
+- Consider whether Day Book should show a secondary "Total sales today" figure (pulled from
+  Reports, which already has it) alongside the strict cash figures, purely as context — not
+  as something that flows into the cash closing math.
+- The Netlify-badge and header-overlap items above are real "unprofessional" contributors
+  too, not just the automation gap — worth fixing alongside if a UI pass happens here.
+
+**Not re-testing:** purchases and order advances specifically — same `dbIsCash()` gate,
+same code shape as sales/girvi, no reason to expect different behavior, so treating this as
+one root cause across all four record types rather than re-proving it four times.
+
+**Test-shop cleanup list, now six:** adding `Cowork QA Batch27 (TEST — delete me)` (21 Sep,
+this session) alongside the five already logged in memory/prior entries — still nobody has
+run the actual delete.
+
+→ FOR CLAUDE CODE: the 20 Sep "sales don't post" bug does not need re-investigating — it's
+fixed, verified live above. The actual open work is the non-cash-visibility gap: decide
+whether to build the "also today, non-cash: ₹X" banner (proposed above, reuses
+`dbAutoLines()` — the data is already being computed and thrown away, this is a render-layer
+addition, not a new derivation) and the auto-vs-manual visual distinction. Netlify badge and
+mobile header-overlap are the same two unresolved items from the 20 Sep entry — still open,
+still real, flagging again since they compound the "unprofessional" read. Girvi disbursement,
+girvi interest, sales, and purchases all share one `dbIsCash()` gate — a fix to the
+visibility gap should cover all four in one pass, not sale-by-sale.
+
+### 2026-09-20 · Cowork (checked for a GitHub remote — none exists; gave Tanish push instructions, not yet run)
+
+Tanish asked whether JewelOS has a GitHub repo. Checked `.git/config` on his machine directly
+via the device bridge — no `[remote "origin"]` section at all. The local repo (initialized
+~8 Sep) has commit history but has never been pushed anywhere. Before recommending he push,
+scanned the tracked tree for anything secret-shaped: `supabase/functions/*/index.ts` are
+plain Deno source with no hardcoded keys, no `.env` present. Nothing found — safe to push.
+
+Gave him the 3-step path: create an empty **private** repo on github.com named `jewelos`,
+then from a terminal in `Desktop\jewelos` — `git remote add origin ...`, `git branch -M
+main`, `git push -u origin main`. Also wrote a one-line repo description for GitHub's
+"About" field. He has not confirmed running these commands yet; as of this entry there is
+still no remote configured.
+
+→ FOR CLAUDE CODE: nothing in the repo or codebase changed, no action needed now. If a
+remote exists next time you're in this folder (`git remote -v`), it means he ran the push
+himself — worth a sanity check that it actually went through, since this was only advised
+from this side, never executed or verified end-to-end.
 
 ---
 
