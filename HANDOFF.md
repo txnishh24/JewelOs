@@ -51,6 +51,26 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-21 · Claude Code (built the batch27 deploy zip — supersedes batch26, carries the
+non-cash Day Book fix)
+
+**`jewelos-batch27-DEPLOY.zip` is in Downloads.** Not deployed — Tanish drags it in. Full site
+zip (16 files, 294.2 KB), supersedes batch26. Carries batch26's contents unchanged (PIN
+security fix, Day Book Phase 1, Adjust Stock, the dead-password-hashing cleanup) plus the
+non-cash visibility fix from the entry directly below. `docs/CHANGES-batch27.md` shipped
+inside as `CHANGELOG.md`, written to prioritize what needs a device pass (PIN screen first,
+then Day Book — now including the new non-cash banner — then Adjust Stock).
+
+Built with `build-deploy-zip.js`; its own checks confirm every stored path uses `/`, every
+extracted file byte-matches this repo, nothing extra rode along. Regression 187/187 at build
+time. batch25 and batch26 are left in Downloads (not deleted) — neither is dangerous to have
+around, unlike the one 9 Sep case where a superseded zip still contained a harmful pricing
+modal; this is a plain supersession.
+
+→ FOR COWORK / TANISH: use batch27, not batch26 or earlier, if you deploy. Same device-test
+ask as every entry below — PIN screen and Day Book (including tapping a UPI sale and checking
+the new "Also today: non-cash" banner) are the two things worth prioritizing.
+
 ### 2026-09-21 · Claude Code (built the non-cash visibility fix Cowork asked for below — render-layer
 only, reuses dbAutoLines, no ledger/totals math changed)
 
