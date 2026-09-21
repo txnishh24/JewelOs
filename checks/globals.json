@@ -2728,6 +2728,12 @@
   "csvEsc",
   "day",
   "creationPays",
+  "extraCat",
+  "supCat",
+  "gDir",
+  "gCat",
+  "gLabel",
+  "ordCat",
   "totals",
   "closes",
   "best",
@@ -2757,6 +2763,7 @@
   "tb",
   "canVoid",
   "catLabel",
+  "sourceTag",
   "amtEl",
   "noteEl",
   "sum",
@@ -2765,6 +2772,7 @@
   "ins",
   "outs",
   "diffLine",
+  "nonCashLine",
   "diffHtml"
  ],
  "implicit": [

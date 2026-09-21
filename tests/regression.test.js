@@ -2464,6 +2464,67 @@ test('dbBuildDaySummary excludes voided and unknown-mode lines from the listed d
   assert(msg.indexOf(a.fmt(333)) === -1, 'a voided amount must not appear in the printed/shared detail');
 });
 
+// ── Day Book — non-cash visibility (21 Sep Cowork finding) ─────────────
+// A recognized non-cash mode (UPI/Card/Bank/Cheque) must never touch the
+// cash in/out totals, but unlike before it must not vanish either — it
+// gets its own nonCash-flagged line so the screen/print/WhatsApp can show
+// "also today, non-cash: X" instead of a business day looking empty.
+console.log('\nDay Book non-cash visibility:');
+
+test('a UPI-only sale produces a nonCash line, not a cash line, and is not flagged unknown', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', advance:5000, payment:'UPI' }];
+  var lines = a.dbAutoLines('2026-09-05');
+  assert(lines.length === 1, 'expected exactly one line, got ' + lines.length);
+  assert(lines[0].nonCash === true && lines[0].mode === 'UPI', 'expected a nonCash UPI line, got ' + JSON.stringify(lines[0]));
+  var t = a.dbAutoTotals('2026-09-05');
+  assert(t.in === 0 && t.unknownCount === 0, 'a recognized non-cash mode must not be counted as cash or as unknown');
+  assert(t.nonCashCount === 1 && t.nonCashAmount === 5000, 'expected nonCashCount=1 amount=5000, got ' + t.nonCashCount + '/' + t.nonCashAmount);
+});
+
+test('a split sale (Cash 20,000 + UPI 30,000) posts 20,000 cash in and 30,000 non-cash, not summed together', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', splitPayments:[{amount:20000,mode:'Cash'},{amount:30000,mode:'UPI'}] }];
+  var t = a.dbAutoTotals('2026-09-05');
+  assert(t.in === 20000, 'cash-in must stay exactly the cash split: ' + t.in);
+  assert(t.nonCashAmount === 30000 && t.nonCashCount === 1, 'got nonCashAmount=' + t.nonCashAmount + ' count=' + t.nonCashCount);
+});
+
+test('a non-Credit, non-Cash purchase bill (Bank Transfer) posts a nonCash line, not nothing', function(){
+  var a = loadApp();
+  a.S.purchases = [{ id:'p1', date:'2026-09-05', billNo:'PB-1', amountPaid:15000, paymentMethod:'Bank Transfer' }];
+  var t = a.dbAutoTotals('2026-09-05');
+  assert(t.out === 0, 'must not post to cash out: ' + t.out);
+  assert(t.nonCashCount === 1 && t.nonCashAmount === 15000, 'got count=' + t.nonCashCount + ' amount=' + t.nonCashAmount);
+});
+
+test('a girvi loan disbursed via UPI posts a nonCash line, not an unknown one', function(){
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-09-05', principal:150000, disburseMode:'UPI', payments:[] }];
+  var t = a.dbAutoTotals('2026-09-05');
+  assert(t.out === 0 && t.unknownCount === 0, 'must be neither cash nor unknown');
+  assert(t.nonCashCount === 1 && t.nonCashAmount === 150000, 'got count=' + t.nonCashCount + ' amount=' + t.nonCashAmount);
+});
+
+test('an order ledger advance paid by Card posts a nonCash line', function(){
+  var a = loadApp();
+  a.S.orders = [{ id:'o1', ordNo:'ORD-1', createdAt:'2026-09-01T10:00:00.000Z', advance:0,
+    ledger:[{ txnId:'t1', type:'advance', amount:2000, mode:'Card', date:'2026-09-01T10:00:00.000Z' }] }];
+  var t = a.dbAutoTotals('2026-09-01');
+  assert(t.in === 0 && t.nonCashCount === 1 && t.nonCashAmount === 2000, 'got in=' + t.in + ' nonCashCount=' + t.nonCashCount + ' nonCashAmount=' + t.nonCashAmount);
+});
+
+test('dbBuildDaySummary excludes nonCash lines from the listed detail but names the total in a separate note', function(){
+  var a = _dbHarness();
+  a.S.sales = [
+    { id:'s1', date:'2026-09-05', invNo:'INV-1', splitPayments:[{amount:1000, mode:'Cash'}] },
+    { id:'s2', date:'2026-09-05', invNo:'INV-2', advance:2500, payment:'UPI' }
+  ];
+  var msg = a.dbBuildDaySummary('2026-09-05');
+  assert(msg.indexOf(a.fmt(2500)+' across 1 payment') !== -1, 'expected a non-cash summary note mentioning 2500, got: ' + msg);
+  assert(msg.indexOf('INV-2') === -1, 'the non-cash sale must not appear in the Cash In detail list');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

@@ -109,8 +109,11 @@ function dbAutoLines(dateKey){
         creationPays = [{amount:sale.advance||0, mode:sale.payment}];
       }
       creationPays.forEach(function(p){
-        if(p.amount > 0 && dbIsCash(p.mode)){
+        if(!(p.amount > 0)) return;
+        if(dbIsCash(p.mode)){
           lines.push({dir:'in', amount:dbRound(p.amount), cat:'sale', label:'Sale '+(sale.invNo||''), src:'sale', srcId:sale.id, ref:sale.invNo||''});
+        } else {
+          lines.push({dir:'in', nonCash:true, mode:p.mode||'', amount:dbRound(p.amount), cat:'sale', label:'Sale '+(sale.invNo||''), src:'sale', srcId:sale.id, ref:sale.invNo||''});
         }
       });
       // A2 sale.prevAdvance and A3 sale.oldGold: never a line — see header note.
@@ -125,9 +128,13 @@ function dbAutoLines(dateKey){
         lines.push({dir:null, unknown:true, amount:dbRound(p.amount), cat:'sale-manual-settle', label:'Sale '+(sale.invNo||'')+' settled, mode not recorded', src:'sale', srcId:sale.id, ref:p.id});
         return;
       }
-      if(!dbIsCash(p.mode)) return;
       var dir = (p.type === 'reversal') ? 'out' : 'in';
-      lines.push({dir:dir, amount:dbRound(p.amount), cat: dir==='out' ? 'sale-payment-reversal' : 'sale-extra-payment', label:'Sale '+(sale.invNo||''), src:'sale', srcId:sale.id, ref:p.id});
+      var extraCat = dir==='out' ? 'sale-payment-reversal' : 'sale-extra-payment';
+      if(!dbIsCash(p.mode)){
+        lines.push({dir:dir, nonCash:true, mode:p.mode||'', amount:dbRound(p.amount), cat:extraCat, label:'Sale '+(sale.invNo||''), src:'sale', srcId:sale.id, ref:p.id});
+        return;
+      }
+      lines.push({dir:dir, amount:dbRound(p.amount), cat:extraCat, label:'Sale '+(sale.invNo||''), src:'sale', srcId:sale.id, ref:p.id});
     });
     // A6 sale.paymentHistory: never a line — it mirrors A1/A4, see header note.
 
@@ -135,24 +142,36 @@ function dbAutoLines(dateKey){
     (sale.refunds||[]).forEach(function(r){
       if(dbDayKey(r.date) !== dateKey) return;
       if(!r.amount || r.amount <= 0) return;
-      if(!dbIsCash(r.mode)) return;
+      if(!dbIsCash(r.mode)){
+        lines.push({dir:'out', nonCash:true, mode:r.mode||'', amount:dbRound(r.amount), cat:'sale-refund', label:'Refund, sale '+(sale.invNo||''), src:'sale', srcId:sale.id, ref:r.id});
+        return;
+      }
       lines.push({dir:'out', amount:dbRound(r.amount), cat:'sale-refund', label:'Refund, sale '+(sale.invNo||''), src:'sale', srcId:sale.id, ref:r.id});
     });
   });
 
   // ── B. Purchases ──────────────────────────────────────────────────
   (S.purchases||[]).forEach(function(bill){
-    // B1: whole-bill payment method. 'Credit' means zero cash moved.
-    if(dbDayKey(bill.date) === dateKey && bill.amountPaid > 0 && dbIsCash(bill.paymentMethod)){
-      lines.push({dir:'out', amount:dbRound(bill.amountPaid), cat:'purchase', label:'Purchase '+(bill.billNo||''), src:'purchase', srcId:bill.id, ref:bill.billNo||''});
+    // B1: whole-bill payment method. 'Credit' means zero cash moved, so it
+    // never produces a line at all — not even a non-cash one.
+    if(dbDayKey(bill.date) === dateKey && bill.amountPaid > 0){
+      if(dbIsCash(bill.paymentMethod)){
+        lines.push({dir:'out', amount:dbRound(bill.amountPaid), cat:'purchase', label:'Purchase '+(bill.billNo||''), src:'purchase', srcId:bill.id, ref:bill.billNo||''});
+      } else if(String(bill.paymentMethod||'').trim().toLowerCase() !== 'credit'){
+        lines.push({dir:'out', nonCash:true, mode:bill.paymentMethod||'', amount:dbRound(bill.amountPaid), cat:'purchase', label:'Purchase '+(bill.billNo||''), src:'purchase', srcId:bill.id, ref:bill.billNo||''});
+      }
     }
     // B2: payments made to the supplier after the bill was entered.
     (bill.supplierPayments||[]).forEach(function(p){
       if(dbDayKey(p.date) !== dateKey) return;
       if(!p.amount || p.amount <= 0) return;
-      if(!dbIsCash(p.mode)) return;
       var dir = (p.type === 'reversal') ? 'in' : 'out';
-      lines.push({dir:dir, amount:dbRound(p.amount), cat: dir==='in' ? 'supplier-payment-reversal' : 'supplier-payment', label:'Purchase '+(bill.billNo||''), src:'purchase', srcId:bill.id, ref:p.id});
+      var supCat = dir==='in' ? 'supplier-payment-reversal' : 'supplier-payment';
+      if(!dbIsCash(p.mode)){
+        lines.push({dir:dir, nonCash:true, mode:p.mode||'', amount:dbRound(p.amount), cat:supCat, label:'Purchase '+(bill.billNo||''), src:'purchase', srcId:bill.id, ref:p.id});
+        return;
+      }
+      lines.push({dir:dir, amount:dbRound(p.amount), cat:supCat, label:'Purchase '+(bill.billNo||''), src:'purchase', srcId:bill.id, ref:p.id});
     });
     // B3 bill.pendingAmount / totalPaid / overpaidAmount: derived, never a line.
   });
@@ -166,23 +185,27 @@ function dbAutoLines(dateKey){
         lines.push({dir:null, unknown:true, amount:dbRound(g.principal), cat:'girvi-disbursement-unknown', label:'Loan '+(g.grvNo||'')+' disbursed, mode not recorded', src:'girvi', srcId:g.id, ref:g.grvNo||''});
       } else if(dbIsCash(g.disburseMode)){
         lines.push({dir:'out', amount:dbRound(g.principal), cat:'girvi-disbursement', label:'Loan '+(g.grvNo||'')+' disbursed', src:'girvi', srcId:g.id, ref:g.grvNo||''});
+      } else {
+        lines.push({dir:'out', nonCash:true, mode:g.disburseMode||'', amount:dbRound(g.principal), cat:'girvi-disbursement', label:'Loan '+(g.grvNo||'')+' disbursed', src:'girvi', srcId:g.id, ref:g.grvNo||''});
       }
     }
     // C2: repayments, interest, refunds — dispatch on type. penalty and
     // waiver are excluded by type (a penalty is a charge, not cash in;
-    // a waiver's mode is hard-coded 'Waiver' anyway).
+    // a waiver's mode is hard-coded 'Waiver' anyway) regardless of mode.
     (g.payments||[]).forEach(function(p){
       var day = dbDayKey(p.date || p.ts);
       if(day !== dateKey) return;
       if(!p.amount || p.amount <= 0) return;
-      if(!dbIsCash(p.mode)) return;
       var type = p.type || 'payment'; // legacy entries predate the type field
-      if(type === 'payment' || type === 'interest'){
-        lines.push({dir:'in', amount:dbRound(p.amount), cat:'girvi-repayment', label:'Loan '+(g.grvNo||''), src:'girvi', srcId:g.id, ref:p.id});
-      } else if(type === 'refund'){
-        lines.push({dir:'out', amount:dbRound(p.amount), cat:'girvi-refund', label:'Loan '+(g.grvNo||'')+' refund', src:'girvi', srcId:g.id, ref:p.id});
+      if(type !== 'payment' && type !== 'interest' && type !== 'refund') return;
+      var gDir = (type === 'refund') ? 'out' : 'in';
+      var gCat = (type === 'refund') ? 'girvi-refund' : 'girvi-repayment';
+      var gLabel = 'Loan '+(g.grvNo||'')+(type==='refund' ? ' refund' : '');
+      if(!dbIsCash(p.mode)){
+        lines.push({dir:gDir, nonCash:true, mode:p.mode||'', amount:dbRound(p.amount), cat:gCat, label:gLabel, src:'girvi', srcId:g.id, ref:p.id});
+        return;
       }
-      // penalty, waiver: not cash movements — excluded by type, deliberately.
+      lines.push({dir:gDir, amount:dbRound(p.amount), cat:gCat, label:gLabel, src:'girvi', srcId:g.id, ref:p.id});
     });
     // C3 g.ledger: an event log, never a line — its money entries duplicate g.payments.
   });
@@ -194,14 +217,22 @@ function dbAutoLines(dateKey){
       o.ledger.forEach(function(txn){
         if(dbDayKey(txn.date) !== dateKey) return;
         if(!txn.amount || txn.amount <= 0) return;
-        if(!dbIsCash(txn.mode)) return;
         var dir = (txn.type === 'reversal') ? 'out' : 'in';
-        lines.push({dir:dir, amount:dbRound(txn.amount), cat: dir==='out' ? 'order-advance-reversal' : 'order-advance', label:'Order '+(o.ordNo||''), src:'order', srcId:o.id, ref:txn.txnId||''});
+        var ordCat = dir==='out' ? 'order-advance-reversal' : 'order-advance';
+        if(!dbIsCash(txn.mode)){
+          lines.push({dir:dir, nonCash:true, mode:txn.mode||'', amount:dbRound(txn.amount), cat:ordCat, label:'Order '+(o.ordNo||''), src:'order', srcId:o.id, ref:txn.txnId||''});
+          return;
+        }
+        lines.push({dir:dir, amount:dbRound(txn.amount), cat:ordCat, label:'Order '+(o.ordNo||''), src:'order', srcId:o.id, ref:txn.txnId||''});
       });
     } else if(o.advance > 0){
       // D2: legacy fallback for an order created before o.ledger existed.
-      if(dbDayKey(o.createdAt) === dateKey && dbIsCash(o.payment || 'Cash')){
-        lines.push({dir:'in', amount:dbRound(o.advance), cat:'order-advance-legacy', label:'Order '+(o.ordNo||''), src:'order', srcId:o.id, ref:''});
+      if(dbDayKey(o.createdAt) === dateKey){
+        if(dbIsCash(o.payment || 'Cash')){
+          lines.push({dir:'in', amount:dbRound(o.advance), cat:'order-advance-legacy', label:'Order '+(o.ordNo||''), src:'order', srcId:o.id, ref:''});
+        } else {
+          lines.push({dir:'in', nonCash:true, mode:o.payment||'', amount:dbRound(o.advance), cat:'order-advance-legacy', label:'Order '+(o.ordNo||''), src:'order', srcId:o.id, ref:''});
+        }
       }
     }
     // D3 o.advance (scalar) is a derived cache when o.ledger exists — never posted directly.
@@ -212,9 +243,10 @@ function dbAutoLines(dateKey){
 
 function dbAutoTotals(dateKey){
   var lines = dbAutoLines(dateKey);
-  var totals = {in:0, out:0, unknownCount:0};
+  var totals = {in:0, out:0, unknownCount:0, nonCashCount:0, nonCashAmount:0};
   lines.forEach(function(l){
     if(l.unknown){ totals.unknownCount++; return; }
+    if(l.nonCash){ totals.nonCashCount++; totals.nonCashAmount = dbRound(totals.nonCashAmount + l.amount); return; }
     if(l.dir === 'in')  totals.in  = dbRound(totals.in  + l.amount);
     if(l.dir === 'out') totals.out = dbRound(totals.out + l.amount);
   });
@@ -361,7 +393,9 @@ function dbDayView(dateKey){
     closing: closing,
     counted: closed ? closed.counted : null,
     diff: closed ? closed.diff : null,
-    unknownCount: autoT.unknownCount
+    unknownCount: autoT.unknownCount,
+    nonCashCount: autoT.nonCashCount,
+    nonCashAmount: autoT.nonCashAmount
   };
 }
 
@@ -673,6 +707,12 @@ function _dbPaint(){
     '</div>';
   }
 
+  if(v.nonCashCount > 0){
+    html += '<div class="card" style="border:1px solid var(--gold);">'+
+      '<div style="font-size:12px;color:var(--text2);">Also today: <b>'+fmt(v.nonCashAmount)+'</b> across '+v.nonCashCount+' sale(s)/payment(s) in UPI, Card or Bank — correctly not counted in the cash figures above.</div>'+
+    '</div>';
+  }
+
   if(v.unknownCount > 0){
     // ponytail: a flat count-only banner, not a per-line [Add manual entry]
     // prefill action — add the one-tap version if a real shop hits this often.
@@ -698,13 +738,21 @@ function _dbPaint(){
         '</div>';
         return;
       }
+      if(line.nonCash){
+        html += '<div class="gl-entry" style="opacity:.7;">'+
+          '<div class="gl-entry-left"><div class="gl-entry-amt">'+fmt(line.amount)+' — '+escHtml(line.mode||'non-cash')+', not counted</div>'+
+          '<div class="gl-entry-meta">'+escHtml(line.label||'')+'</div></div>'+
+        '</div>';
+        return;
+      }
       running = dbRound(running + (line.dir==='in' ? line.amount : -line.amount));
       var canVoid = (line.kind==='manual') && !line.voided && !v.closed;
       var catLabel = (line.cat && DB_CATS[line.cat]) ? DB_CATS[line.cat].label : (line.cat||'');
+      var sourceTag = line.src ? ' • auto' : (line.kind==='manual' ? ' • manual' : '');
       html += '<div class="gl-entry"'+(line.voided?' style="opacity:.5;"':'')+'>'+
         '<div class="gl-entry-left">'+
           '<div class="gl-entry-amt '+(line.dir==='in'?'credit':'debit')+'">'+(line.dir==='in'?'+':'−')+fmt(line.amount)+(line.voided?' (voided)':'')+'</div>'+
-          '<div class="gl-entry-meta">'+escHtml(line.label||catLabel)+(line.note?' • '+escHtml(line.note):'')+(line.kind==='adjust'?' • system adjustment':'')+(line.voided?' • '+escHtml(line.voidReason||''):'')+'</div>'+
+          '<div class="gl-entry-meta">'+escHtml(line.label||catLabel)+(line.note?' • '+escHtml(line.note):'')+(line.kind==='adjust'?' • system adjustment':sourceTag)+(line.voided?' • '+escHtml(line.voidReason||''):'')+'</div>'+
         '</div>'+
         '<div class="gl-entry-right">'+
           '<div style="font-size:12px;font-weight:600;color:var(--ink3);">'+fmt(running)+'</div>'+
@@ -850,11 +898,14 @@ function dbSubmitCorrect(){
 function dbBuildDaySummary(dateKey){
   var v = dbDayView(dateKey);
   var shopName = (typeof SAAS !== 'undefined' && SAAS.shop) ? SAAS.shop.name : 'My Shop';
-  var counted = v.lines.filter(function(l){ return !l.unknown && !l.voided; });
+  var counted = v.lines.filter(function(l){ return !l.unknown && !l.nonCash && !l.voided; });
   var ins  = counted.filter(function(l){ return l.dir === 'in'; });
   var outs = counted.filter(function(l){ return l.dir === 'out'; });
   var diffLine = v.closed
     ? '\nCounted: '+fmt(v.counted)+(v.diff!==0 ? ' ('+(v.diff<0?'short '+fmt(-v.diff):'excess '+fmt(v.diff))+')' : ' (matched)')
+    : '';
+  var nonCashLine = v.nonCashCount > 0
+    ? '\nAlso today (UPI/Card/Bank, not counted above): '+fmt(v.nonCashAmount)+' across '+v.nonCashCount+' payment(s)'
     : '';
   return '📖 *'+shopName+' — Day Book*\n'+fmtDate(dateKey)+'\n─────────\n\n'+
     'Opening: '+fmt(v.opening)+'\n\n'+
@@ -862,7 +913,7 @@ function dbBuildDaySummary(dateKey){
     (ins.length ? ins.map(function(l){ return '  '+(l.label||l.cat)+': '+fmt(l.amount); }).join('\n') : '  —')+'\n\n'+
     '*Cash Out* ('+fmt(v.totalOut)+')\n'+
     (outs.length ? outs.map(function(l){ return '  '+(l.label||l.cat)+': '+fmt(l.amount); }).join('\n') : '  —')+'\n\n'+
-    'Closing: *'+fmt(v.closing)+'*'+diffLine+
+    'Closing: *'+fmt(v.closing)+'*'+diffLine+nonCashLine+
     '\n\n_Sent from JewelOS_';
 }
 

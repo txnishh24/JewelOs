@@ -15,7 +15,7 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> Claude Code — Day Book non-cash visibility gap (Cowork's 21 Sep finding) — since 21 Sep
+> nobody
 
 **Claim it before you start.** Replace the line above with e.g.
 `Claude Code — batch16 girvi photo fixes — since 8 Sep 21:40`.
@@ -48,6 +48,75 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-09-21 · Claude Code (built the non-cash visibility fix Cowork asked for below — render-layer
+only, reuses dbAutoLines, no ledger/totals math changed)
+
+**Did the first, highest-value item from Cowork's entry immediately below: non-cash sales/payments
+(UPI, Card, Bank Transfer, Cheque) no longer vanish from Day Book.** Also did the auto-vs-manual
+visual distinction. Did not touch the Netlify badge or the header-overlap items — both are noted
+below as still open, neither is a code fix on this side (see Cowork's entry for why).
+
+**What changed, in `js/10-daybook.js`:** every place `dbAutoLines()` was silently skipping a
+recognized non-cash mode (sale creation payments, `extraPayments`, refunds, purchase bill payment
++ supplier payments, girvi disbursement + repayments, order ledger + the legacy advance fallback)
+now pushes a line flagged `nonCash:true, mode:'<UPI|Card|...>'`  instead of nothing. A `paymentMethod:
+'Credit'` purchase bill still produces no line at all — that's a real zero-cash-movement case, not
+non-cash-but-real-money, so it stays excluded exactly as before. `dbAutoTotals`/`dbDayView` exclude
+`nonCash` lines from `in`/`out` the same way they already excluded `unknown` ones, and now also
+return `nonCashCount`/`nonCashAmount` — so the cash totals and the locked-day sweep (`dbAutoTotals`
+is what the sweep diffs against) are byte-for-byte unchanged from before this batch; only what gets
+*shown* changed.
+
+**On screen (`_dbPaint`):** a new banner ("Also today: ₹X across N sale(s)/payment(s) in UPI, Card
+or Bank — correctly not counted in the cash figures above") appears whenever `nonCashCount > 0`,
+styled with the gold border (informational, not the red "something's wrong" style the unknown-mode
+banner uses — this is expected behaviour working correctly, not a data problem). Non-cash lines
+render in the Lines list the same dimmed, running-balance-excluded way unknown lines already did,
+labelled with their actual mode instead of "not counted" alone. Auto-derived lines (anything with
+`src` set — sale/purchase/girvi/order) now get a small " • auto" tag in the line's meta text, manual
+entries get " • manual", matching the existing " • system adjustment" tag pattern already used for
+sweep-generated adjustments — this was Cowork's second ask, the visual distinction between what the
+app recorded itself and what was hand-typed.
+
+**Print/WhatsApp (`dbBuildDaySummary`):** excludes `nonCash` lines from the Cash In/Out detail list
+(same as it already excluded `unknown` and voided lines — "can never disagree with the screen" per
+the function's own header comment), and appends the same "Also today, non-cash: ₹X across N
+payment(s)" note so the shared/printed sheet says the same thing the screen does.
+
+**Not built:** the "Total sales today" secondary figure Cowork proposed as a third option — flagged
+as "consider," not asked for directly, and Phase 1's own scope note (spec §3 item 6, Reports/P&L
+wiring) already defers cross-referencing Reports from Day Book to a later batch. Left alone rather
+than guessing this is wanted now.
+
+**Verified:** `node --check` on all 11 files; full regression suite, 187/187 (6 new tests — a UPI
+sale produces a `nonCash` line and is not double-counted as cash or unknown; a split Cash+UPI sale
+posts only the cash half; a non-Credit non-Cash purchase bill posts non-cash rather than nothing; a
+UPI girvi disbursement is non-cash, not unknown; a Card order-ledger advance posts non-cash;
+`dbBuildDaySummary` excludes non-cash from the listed detail but names the total in its own note);
+`loadorder`/`backup-check`/`roundtrip` clean; `scope`/`handlers`/`ids`/`css` show nothing new tied
+to this change (the only `globals.json` diff is new local variable names inside the functions I
+touched, not new globals). **`checks/making-basis.js` throws `TypeError: Cannot read properties of
+null` on a regex match against `02-ui-inactivity-modals.js`** — confirmed pre-existing by stashing
+my changes and re-running it against unmodified `main`: same crash. A file this batch never touched.
+Not investigated further since it's unrelated to Day Book — flagging so the next session doesn't
+mistake it for something this work broke.
+
+**Not verified:** the screen itself, on a real device — same standing limitation as the rest of Day
+Book. Nobody has tapped through a UPI sale actually showing the new banner, or eyeballed whether "•
+auto"/"• manual" reads as useful or as clutter next to the amount and label. This is the one thing
+structural checks can't close.
+
+Releasing `NOW`.
+
+→ FOR COWORK / TANISH: the non-cash banner and auto/manual tag need the same real-device pass every
+other Day Book piece has been waiting on — ideally the same session that finally taps through
+opening balance / add expense / close day / correct count / print / WhatsApp, since a UPI sale is
+now one more thing to check on that list. Separately: `checks/making-basis.js` is broken on `main`
+independent of this work — worth a look next time someone's touching making-charge logic, not
+urgent for launch.
 
 ---
 
