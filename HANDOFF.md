@@ -51,6 +51,135 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-24 · Claude Code (Sonnet) (added Sentry error monitoring — 🟢 low risk, no
+financial/girvi/ledger logic touched)
+
+**Wired up Sentry.** JewelOS had no error visibility before this — no way to know what
+breaks for a real shop unless Tanish happens to report it. Added the Sentry Loader
+Script (right choice for this codebase: no bundler, no `package.json`, plain `<script>`
+tags) as the first two `<script>` tags in `index.html`'s `<head>`, before the charset
+meta's siblings. Errors, Tracing, and Session Replay are all enabled (Replay masks all
+text and blocks all media by default — matters here since this app shows billing/customer
+data). `environment` is set from `location.hostname` (`development` on localhost,
+`production` everywhere else) so events don't get mixed together once this is live.
+
+Provisioned a new Sentry project (`jewelos/jewelos`) in the org via MCP —
+**SENTRY_DSN**: `https://8eb35178a8a4cf454e8c7895ee7c5194@o4512137338355712.ingest.us.sentry.io/4512137347596288`
+— it's baked into the loader script URL already, nothing else needs it.
+
+**Verified end to end, not just wired:** served this folder locally (`node`'s built-in
+`http` module, no bundler needed), opened it in a real browser, threw a genuine uncaught
+error through the actual loaded page (not a standalone script bypassing init), and
+confirmed it landed in Sentry — `JEWELOS-1`, trace and replay both attached. Resolved
+that test issue afterward so the issue stream stays clean; it was a synthetic error, not
+a real bug.
+
+**Source maps: not needed.** `build-deploy-zip.js` doesn't minify or bundle — it ships
+the `js/*.js` files as-is. So there's nothing to mangle; a real production stack trace
+will show actual file/line/function already. Confirmed this isn't wishful thinking — the
+one frame quirk I did see was from injecting the test error via DevTools console
+(`<anonymous>:1:31`), which is an artifact of *how I triggered it*, not of the build.
+
+**Not done — needs Tanish:** this only helps once it's live. The loader script is in
+`index.html` already, so the next deploy zip carries it automatically — no extra step
+needed on that front. What *is* still open: no `release` value is set (so events won't
+tie to a specific batch/deploy yet), and nobody's watching the Sentry inbox day to day.
+Both are cheap to add later; didn't want to guess at a release-naming scheme without
+asking.
+
+Not verified: nothing about the real production environment (only tested against a local
+static server). No browser automation exists in this project normally — I only had it
+available this session outside the usual JewelOS workflow, to prove the wiring actually
+works rather than just asserting it.
+
+→ FOR COWORK: FYI only — JewelOS now reports errors to Sentry (org `jewelos`, project
+`jewelos`). Nothing for you to do unless you want to set up alert routing (email/Slack)
+from the Sentry side, which I didn't touch.
+
+---
+
+### 2026-09-23 · Cowork (Opus) (batch29 device pass — clicked through every fix on a fresh
+throwaway test shop, "Cowork QA Batch29 (TEST — delete me)". Nothing here touches Tanish's
+real shop.)
+
+Built-in browser, 375×812 mobile viewport, signed up a brand-new test account (no password
+of Tanish's involved) and loaded demo data. One snag: Netlify's own "Build your own site"
+AI-badge iframe sat on top of the bottom nav bar and ate clicks — not a JewelOS bug, worked
+around it by hiding that one injected element for the rest of the pass, and used the app's
+own `switchTab()`/`dbOpenEntryModal()` JS entry points where the click still couldn't land.
+
+**✅ Everything from batch29 renders correctly:**
+- **Pre-opening Month-view clip:** started Day Book on "23 Sept 2026" (today, for a fresh
+  shop) and Month view correctly shows "Day Book started 23 Sept 2026" instead of summing
+  phantom days before it.
+- **Chart date labels:** the trend bar for today is labeled "23" underneath — no longer
+  tooltip-only.
+- **One-row date nav:** `‹  23-09-2026  ›` on one line.
+- **Negative-cash warning + minus-sign format:** added a ₹65,000 Rent entry against a
+  ₹50,000 opening. Closing showed **`−₹15,000`** (proper minus sign, not `₹-15,000`) with
+  a banner: *"⚠ Closing cash is negative (−₹15,000). That usually means the opening balance
+  or a payment mode on one of today's entries is wrong."* Both new.
+- **Operating Expenses tile (Month view):** ₹65,000, sub-labelled "already inside Cash Out"
+  — confirms the double-subtraction blocker stayed fixed, not just removed-and-forgotten.
+- **Non-cash/UPI banner:** never confirmed live before (batch28's real-shop test had no UPI
+  sales) — now confirmed: *"Also today: ₹1,20,000 across 1 sale(s)/payment(s) in UPI, Card
+  or Bank — correctly not counted in the cash figures above."*
+- **Reports P&L card:** `(+) Total Revenue → (-) Metal Cost → (-) GST → = Gross Profit →
+  (-) Operating Expenses → = Net Profit`, all present. Profit tile showed **`−₹55,320`** in
+  red (loss month, from the Rent entry above) — confirms Net Profit is colored by sign, not
+  hardcoded. "Gross margin" label confirmed (not "Profit Margin").
+- **Monthly PDF (`showPdfReport`/`pdfRow`):** read the live function source directly rather
+  than fighting a print-preview window. Confirmed: Gross Profit row, `(−) Operating
+  Expenses` row, Net Profit row colored `thisM.netProfit>=0?'#22c55e':'#ef4444'`, "Gross
+  margin" label, and the same Gross/Net split applied to the All-Time section. Matches the
+  HANDOFF description exactly — safe to send to a CA now.
+- **WhatsApp digest (`shareDigestWhatsApp`):** source now computes `netMargin =
+  netProfit/revenue`, paired with `netProfit` in the message — no longer net profit next to
+  gross margin.
+- **Lock-screen padding:** `getComputedStyle(#pin-screen).paddingBottom === '96px'`
+  (`2rem + 64px`, matches the fix exactly), and visually the "↻ FORGOT PIN" button sits well
+  clear of where the badge would be.
+- **Stored-XSS fix, tested end-to-end, not just read from source:** drove the real
+  `custAutocomplete()` with an in-memory-only fake sale (`customer: "x'-alert(document.cookie)-'"`,
+  restored immediately after, nothing saved). Rendered `onclick="fillCust('x\'-alert(...)-\'',…)"`
+  — the quote comes out backslash-escaped, no `alert()` fired. The fix holds under the exact
+  attack HANDOFF described, not just in the diff.
+- **Add Entry category chips:** all 11 categories still render icon + colored border.
+
+**Not exercised this pass:** the all-time-girvi-interest fix specifically (this is a fresh
+shop with only a few days of history — there's no "all-time < one month" scenario to
+reproduce here the way Tanish's real shop had one). The source and the Opus review already
+cover its correctness; a real confirmation needs either Tanish's real shop or a longer-lived
+test shop with multiple closed months, neither available in one sitting.
+
+**Cleanup:** deleted nothing — this is a throwaway shop (`Cowork QA Batch29 (TEST — delete
+me)`), same pattern as prior test shops. Flagging in case anyone wants to clean up unused
+test accounts later; not urgent.
+
+→ FOR COWORK / TANISH: batch29 is confirmed live AND confirmed working end-to-end on a
+device — not just hash-matched. Nothing new to fix from this pass. Still open: the INV-027
+duplicate-sale decision, and `isDuplicateSale()`'s real fix.
+
+---
+
+### 2026-09-23 · Cowork (Opus) (batch29 confirmed live — hash-verified against the deploy zip)
+
+**Tanish deployed `jewelos-batch29-DEPLOY.zip`. Live site matches the zip.** Fetched all 11
+`js/*.js` files from the live origin (cache-busted, via the browser pane's own `fetch` +
+`crypto.subtle.digest` so it runs on Tanish's network, not this container's — the container's
+own egress is proxied and blocks this host) and SHA-256'd each: 11/11 byte-identical to the
+zip. `index.html` differs by exactly +184 bytes, which is Netlify's own injected
+`<script ... hud?variant=public ...>` badge tag appended at deploy time — confirmed by
+diffing the tail and by spot-checking `#pin-screen{...}` mid-file, which matches the zip
+exactly, including the batch29 padding fix (`calc(2rem + 64px)`). Not re-run: the device/
+click-through pass — this is a code-match check only, not a rendered-UI check.
+
+→ FOR COWORK / TANISH: batch29 is confirmed live, including the stored-XSS fix from the
+security audit. Still open and unaffected by this deploy: the INV-027 duplicate-sale
+decision, and `isDuplicateSale()`'s real fix (investigated, not yet built).
+
+---
+
 ### 2026-09-23 · Claude Code (Sonnet) (packaged batch29 deploy zip — carries everything
 since batch28: the two Opus-reviewed profit fixes, the stored-XSS security fix, and the
 display-only batch)

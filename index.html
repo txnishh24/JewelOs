@@ -2,6 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
+<!-- Sentry error monitoring -- must load before all other scripts -->
+<script>
+  window.sentryOnLoad = function () {
+    Sentry.init({
+      environment: (location.hostname === "localhost" || location.hostname === "127.0.0.1") ? "development" : "production",
+      tracesSampleRate: 1.0,
+      replaysSessionSampleRate: 0.1,
+      replaysOnErrorSampleRate: 1.0
+    });
+  };
+</script>
+<script
+  src="https://js.sentry-cdn.com/8eb35178a8a4cf454e8c7895ee7c5194.min.js"
+  crossorigin="anonymous"
+></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <meta name="theme-color" content="#1a1814"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
