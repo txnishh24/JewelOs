@@ -51,6 +51,165 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-23 · Claude Code (Opus) (final review of Day Book v2 §1+§3+§2+§6, commits
+`a1c8310` + `c17c125` — the MODEL-POLICY.md §3/§6 review gate both entries below asked for.
+Verdict: **NO-GO as-is. Two blockers, both small and localised. Neither touches the ledger.**)
+
+Reviewed both commits together, as the §2+§6 entry recommended. Read `docs/DAYBOOK-SPEC-v2.md`
+in full and checked §1/§2/§3/§6 and especially §7 against the actual diff. Ran everything
+`check.bat` runs. **Review only — I fixed nothing.** A Sonnet session should do the two fixes.
+
+**The headline: the ledger is untouched and the money math in Reports is right. The one wrong
+number is a new Month-view tile.**
+
+---
+
+#### 🔴 BLOCKER 1 — "Net Cash After Expenses" subtracts expenses twice (`js/10-daybook.js:872`)
+
+`netAfterExp = dbRound(netCash - expenses.total)`. But `netCash` comes from summing
+`dbDayView().totalOut`, and `dbDayView` → `dbManualTotals` already counts **every**
+`dir:'out'` manual entry — which is exactly the set `calcDayBookExpenses` re-totals. So every
+cash expense is deducted once in `totalOut` and again in `expenses.total`.
+
+Ran it through the real test harness rather than reasoning about it. Opening ₹10,000,
+one ₹5,000 cash sale, one ₹3,000 cash rent entry:
+
+```
+Cash In                 : 5000
+Cash Out                : 3000   <- the rent is already in here
+Net Cash                : 2000
+Operating Expenses      : 3000
+Net Cash After Expenses : -1000   <- the tile, as shipped
+True cash position (dbDayView closing): 12000  = 10000 + 5000 - 3000
+```
+
+The shop netted **+₹2,000** in cash; the tile says **−₹1,000**, and because it is negative it
+renders in `var(--danger)` — so it tells a jeweller in red that he lost money in a month he
+made money. That is the specific failure mode this review gate exists to catch.
+
+Worth saying plainly: spec §6.2 point 3 asked for this tile, so the spec invited the error. But
+once cash-out already contains expenses, "Net Cash After Expenses" has no second thing left to
+subtract — `netCash` **is** the after-expenses figure. Whoever fixes this should decide between
+dropping the tile as redundant or relabelling, not just patching the arithmetic. Flagging the
+choice rather than making it, since it is a display-semantics call, not a bug with one answer.
+
+#### 🔴 BLOCKER 2 — the emailed Monthly Business Report now contradicts Reports (`js/07-settings-plans.js:32`)
+
+`pdfRow('Net Profit', fmt(thisM.profit), ...)` — a row labelled **"Net Profit"** rendering
+**gross** profit. That mislabel pre-dates this work and was survivable while nothing disagreed
+with it. It is not survivable now: Reports' P&L card renders a genuinely different
+`= Net Profit` for the same month. Two documents, same label, same month, two numbers — and
+the PDF is the artifact that leaves the building and gets filed or shown to someone.
+
+One-line fix (`thisM.netProfit`), and ideally the same Gross/Expenses/Net breakdown the P&L card
+now has. `allT.profit` on line 49 is labelled "Total Profit" — ambiguous rather than wrong;
+worth aligning in the same pass.
+
+---
+
+#### What I verified as actually correct (not just claimed)
+
+- **Spec §7 holds exactly.** Hashed each function body at `25151e6` vs `c17c125`:
+  `dbAutoLines`, `dbAutoTotals`, `dbDayView`, `dbIsCash`, `dbSweepRestatements`,
+  `dbPostAdjustment`, `dbManualLines`, `dbManualTotals`, `dbOpening`, `dbNetMovement`,
+  `dbCloseDay`, `dbAddEntry` — **all twelve byte-for-byte unchanged.** The locked-day sweep
+  diffs against precisely what it did before.
+- **Closed days render frozen.** `dbBuildTrend` genuinely delegates to `dbDayView` per day — no
+  duplicated in/out/closing math anywhere. A closed day returns `closed.closing`, never a
+  recompute. The test for this does discriminate (frozen 1300 vs a recompute's 1000).
+- **The `_dbPaint` refactor drops nothing.** Diffed the old single function against the new
+  dispatcher + `_dbPaintDay` line by line: the only changes on the day path are the icon badge
+  and `return html` replacing `body.innerHTML = html`. The first-run "set opening balance"
+  early-return stayed in the dispatcher and still short-circuits correctly.
+- **Reports' `netProfit` is NOT double-counted.** `calcMonthProfit.profit` is sales-derived;
+  expenses are not in it. `netProfit = profit - expenses.total` is correct. Blocker 1 is
+  confined to the Month-view tile.
+- **Owner Drawings/Capital correctly excluded**, and `calcDayBookExpenses` also excludes any
+  `cat` that is not a `DB_CATS` key — **safer than the spec's own §1.2 snippet**, which as
+  written (`if(DB_CATS[e.cat] && ...)`) would have counted unknown categories as expenses. Good
+  deviation; it is just undocumented and untested.
+- **Month boundaries are right in IST.** Tested 31 Jul / 1 Aug / 15 Aug / 31 Aug / 1 Sep — first
+  and last day both land in the right month, neighbours excluded. (The "missing 30 Sep" I first
+  saw was `dbAddEntry`'s pre-existing `future-date` guard doing its job, not a filter bug.)
+- **`calcAllTimeProfit()` with no args really does total all-time** — single pass over
+  `S.dayBook.entries`, no monthly loop, no silent zero, no throw.
+- **No XSS gap.** `plRow` interpolates its label raw, so escaping must happen at the call site —
+  and `dbExpenseBreakdownHtml` does `escHtml(c.label)` correctly. Icons/colors are from static
+  maps. Every new `onclick` arg is an internal `YYYY-MM-DD` key and is properly quoted;
+  `unquoted-args.js` flags nothing in `10-daybook.js`.
+- **ES5 is fine.** `padStart` is not a new deviation — it is already used in 9 places, including
+  the identical `String(month+1).padStart(2,'0')` month-key pattern in `03-billing-numbers.js`
+  and `06-inventory-stock.js`. No `let`/`const`/arrows/template literals introduced.
+- **Blast radius is genuinely nil.** `backup-check` 22/22 both directions, `roundtrip` PASS,
+  `loadorder` clean (confirms 03 calling `dbExpenseBreakdownHtml` from 10 is safe — it is a
+  render-time call, not load-time). No new stored fields. `S.dayBook` shape untouched.
+- **199/199 tests, `node --check` clean on all 11 files**, all nine `checks/` scripts run:
+  `scope` Tier A is the same documented three (html2canvas/TextEncoder/Razorpay), `css`/`ids`/
+  `handlers`/`unquoted-args` show nothing new. Every class the new Month view markup uses is
+  already styled.
+
+#### 🟡 Non-blocking (worth doing, none of it stops a device test)
+
+1. **Month-view tiles and the chart cover different ranges.** Tiles are month-to-date; the chart
+   directly above is 14d/30d. Neither is labelled with its range. Easy misread.
+2. **"Profit" now means two things across the app.** Reports' tile is net; the dashboard digest
+   (`06-inventory-stock.js:1265`) and its share text (`:1307`) are gross, both labelled
+   "Profit". On the Reports screen itself the 6-month chart (`03-billing-numbers.js:1092`) plots
+   gross, so the current month's green bar will not match the tile above it. And "Avg margin"
+   (`:1151`) is still gross margin, printed under `= Net Profit`.
+3. **`calcDayBookExpenses` mixes UTC and local dates.** `new Date('2026-08-01')` parses as UTC
+   midnight; `new Date(year, month, 1)` is local. Correct in IST (18.5h of headroom, verified)
+   but it contradicts `dbDayKey`'s own comment warning about exactly this, and the rest of
+   `10-daybook.js` compares dateKeys as plain strings — simpler *and* timezone-proof. Cheap to
+   align while someone is in there.
+4. **`dbBuildTrend` cost on a book that is not closed daily.** Each `dbDayView` → `dbOpening` →
+   `dbMovementDatesInRange` scans all of `S.sales`/`purchases`/`girvi`/`orders`, and for an
+   unclosed day walks every movement date since the last close, each one another full scan —
+   ×30 days, re-run on every month page and every 14d/30d tap. A shop that closes days daily
+   short-circuits via the stored close and is fine; a shop that does not could see a visible
+   freeze on a low-end Android WebView. Worth watching on the device test with real data.
+5. **Test gaps.** The 12 new tests cover the pure functions well and are honest, but they skip
+   the one place the renderer does money math inline — which is exactly where Blocker 1 lives.
+   Also `dbExpenseBreakdownHtml`'s test asserts only that two amounts appear in the HTML, not
+   that the rendered total equals `calcDayBookExpenses().total`, though both its own name and
+   spec §9 claim that equality.
+6. 💭 `calcDayBookExpenses` accumulates with bare `+=`, no `dbRound`, unlike every other money
+   path in the module. Amounts are `parseFloat`'d on entry so drift is unlikely — but it is
+   inconsistent with the module's own discipline.
+7. 💭 `_dbMonthYear`/`_dbMonthMonth` are set once at script load; an app left open across a
+   month boundary keeps the stale month. Same class of thing `dbUiDate()` already handles lazily
+   for `_dbDate`.
+
+#### Correcting the record on `checks/making-basis.js`
+
+It still crashes, and it is still **not** caused by this work — but the 21 Sep entry's diagnosis
+was wrong and cost me time, so: it is the **`01-sync-core.js`** regex on line 11, not the
+`02-ui-inactivity-modals.js` one. Root cause is **CRLF line endings** in the working tree against
+two regexes that hard-code `\n`. Proved it is content-independent: the same regex matches the
+file's content at `25151e6`, `a1c8310` **and** `c17c125` when line endings are LF. Fix is `\r?\n`
+in the two regexes on lines 11-12. Cheap, and it would restore a check that has been dark for days.
+
+#### Not verified
+
+Nothing visual, as always — no browser automation here. The chart bars, the Day/Month toggle, the
+`<details>` collapsible, the icon colors and the chip styling are all unverified until someone
+opens this on a device. I also did not re-derive spec §5's storage-size estimate; §4 and §5 are
+still unbuilt so that gate is still ahead, not behind.
+
+Releasing `NOW`.
+
+→ FOR CLAUDE CODE: **two blockers to fix before this is zipped** — (1) `js/10-daybook.js:872`,
+the "Net Cash After Expenses" double-subtraction, which needs a display-semantics decision
+(drop the tile or relabel it), not just an arithmetic patch; (2) `js/07-settings-plans.js:32`,
+the PDF report's "Net Profit" row showing gross — one line. Both are small, neither touches the
+ledger, and §7's byte-for-byte guarantee is intact, so this does **not** need re-planning. Add a
+test that covers the Month-view tile arithmetic, since that is the gap that let (1) through.
+Non-blockers 1-3 are worth folding into the same pass while you are in these files. After that
+it is a go for a build. **→ FOR COWORK / TANISH: do not zip `c17c125` as it stands** — one
+Month-view tile would show a loss in red in a profitable month.
+
+---
+
 ### 2026-09-23 · Cowork (Day Book v2 spec — Tanish said it "looks cheap and unprofessional,"
 researched real competitors, traced the gap to the actual code, wrote the fix as a spec)
 
