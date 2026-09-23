@@ -865,9 +865,13 @@ function _dbPaintMonth(){
 
   var totalIn=0, totalOut=0;
   trend.forEach(function(d){ totalIn = dbRound(totalIn+d.totalIn); totalOut = dbRound(totalOut+d.totalOut); });
+  // Net Cash already nets every cash movement, including expense payments
+  // (dbDayView's totalOut is auto+manual cash out, and manual out includes
+  // every group:'expense' entry) — so there is no separate "after expenses"
+  // figure to show without double-subtracting them. Opus review 23 Sep 2026
+  // caught an earlier version of this tile doing exactly that (HANDOFF.md).
   var netCash = dbRound(totalIn - totalOut);
   var expenses = calcDayBookExpenses(year, month);
-  var netAfterExp = dbRound(netCash - expenses.total);
 
   var html = '';
 
@@ -906,11 +910,10 @@ function _dbPaintMonth(){
   '</div>';
 
   html += '<div class="metrics">'+
-    '<div class="metric"><div class="metric-label">Cash In</div><div class="metric-value" style="color:var(--success)">'+fmt(totalIn)+'</div></div>'+
-    '<div class="metric"><div class="metric-label">Cash Out</div><div class="metric-value" style="color:var(--danger)">'+fmt(totalOut)+'</div></div>'+
-    '<div class="metric"><div class="metric-label">Net Cash</div><div class="metric-value" style="color:'+(netCash>=0?'var(--success)':'var(--danger)')+'">'+fmt(netCash)+'</div></div>'+
-    '<div class="metric"><div class="metric-label">Operating Expenses</div><div class="metric-value" style="color:var(--danger)">'+fmt(expenses.total)+'</div></div>'+
-    '<div class="metric"><div class="metric-label">Net Cash After Expenses</div><div class="metric-value" style="color:'+(netAfterExp>=0?'var(--success)':'var(--danger)')+'">'+fmt(netAfterExp)+'</div></div>'+
+    '<div class="metric"><div class="metric-label">Cash In</div><div class="metric-value" style="color:var(--success)">'+fmt(totalIn)+'</div><div class="metric-sub">'+MN[month]+' so far</div></div>'+
+    '<div class="metric"><div class="metric-label">Cash Out</div><div class="metric-value" style="color:var(--danger)">'+fmt(totalOut)+'</div><div class="metric-sub">'+MN[month]+' so far</div></div>'+
+    '<div class="metric"><div class="metric-label">Net Cash</div><div class="metric-value" style="color:'+(netCash>=0?'var(--success)':'var(--danger)')+'">'+fmt(netCash)+'</div><div class="metric-sub">'+MN[month]+' so far</div></div>'+
+    '<div class="metric"><div class="metric-label">Operating Expenses</div><div class="metric-value" style="color:var(--danger)">'+fmt(expenses.total)+'</div><div class="metric-sub">already inside Cash Out</div></div>'+
   '</div>';
 
   if(Object.keys(expenses.byCat).length){

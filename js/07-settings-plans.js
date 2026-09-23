@@ -29,7 +29,7 @@ function showPdfReport(){
       pdfRow('Metal Cost',         fmt(thisM.cost),   '#ef4444',false)+
       pdfRow('GST Collected',      fmt(thisM.gst),    '#666',  false)+
       '<div style="border-top:2px solid #eee;margin:8px 0;"></div>'+
-      pdfRow('Net Profit',         fmt(thisM.profit), '#22c55e',true)+
+      pdfRow('Net Profit',         fmt(thisM.netProfit), '#22c55e',true)+
       pdfRow('Profit Margin',      thisM.margin.toFixed(1)+'%', '#22c55e',false)+
       pdfRow('Bills This Month',   thisM.count+' invoices','#666',false)+
     '</div>'+

@@ -2633,6 +2633,36 @@ test('dbExpenseBreakdownHtml renders the same total calcDayBookExpenses reports 
   var html = a.dbExpenseBreakdownHtml(exp.byCat);
   assert(html.indexOf(a.fmt(700)) !== -1, 'expected the electricity amount in the breakdown html');
   assert(html.indexOf(a.fmt(300)) !== -1, 'expected the tea amount in the breakdown html');
+  var summed = Object.keys(exp.byCat).reduce(function(s,k){ return s+exp.byCat[k]; }, 0);
+  assert(summed === exp.total, 'the rendered rows must sum to exactly calcDayBookExpenses().total: rows sum to ' + summed + ', total is ' + exp.total);
+});
+
+// Regression guard for the Opus review's blocker 1 (23 Sep 2026): a Month-view
+// tile computed netCash - calcDayBookExpenses().total, double-subtracting
+// expenses that dbDayView's totalOut (which feeds netCash) already counts as
+// cash out. The tile was removed rather than patched — this locks in why.
+test('a month’s Cash Out (from dbBuildTrend) already includes manual expense entries — nothing should subtract them again', function(){
+  var a = _dbHarness();
+  a.S.dayBook.opening = { date:'2026-09-01', amount:10000, ts:'2026-09-01T00:00:00.000Z' };
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', splitPayments:[{amount:5000, mode:'Cash'}] }];
+  a.dbAddEntry('2026-09-06', 'out', 3000, 'rent', '', function(){});
+  var trend = a.dbBuildTrend('2026-09-01', '2026-09-06');
+  var totalOut = trend.reduce(function(s,d){ return s+d.totalOut; }, 0);
+  assert(totalOut === 3000, 'the rent entry must already be inside Cash Out, got totalOut=' + totalOut);
+  var netCash = trend.reduce(function(s,d){ return s+d.totalIn; }, 0) - totalOut;
+  assert(netCash === 2000, 'net cash should be 5000 in - 3000 out = 2000, got ' + netCash);
+});
+
+test('_dbPaintMonth renders Net Cash correctly and never shows a separate "After Expenses" figure', function(){
+  var a = _dbHarness();
+  a._dbMonthYear = 2026; a._dbMonthMonth = 8; // September
+  a._dbDate = '2026-09-10';
+  a.S.dayBook.opening = { date:'2026-09-01', amount:10000, ts:'2026-09-01T00:00:00.000Z' };
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', splitPayments:[{amount:5000, mode:'Cash'}] }];
+  a.dbAddEntry('2026-09-06', 'out', 3000, 'rent', '', function(){});
+  var html = a._dbPaintMonth();
+  assert(html.indexOf('After Expenses') === -1, 'the double-subtracting tile must not come back: ' + html.slice(0,50));
+  assert(html.indexOf(a.fmt(2000)) !== -1, 'expected the correct Net Cash figure ' + a.fmt(2000) + ' somewhere in Month view');
 });
 
 Promise.all(asyncTests).then(function(){

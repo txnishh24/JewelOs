@@ -1709,21 +1709,23 @@ function girviOutstandingWithPenalty(g){
 // at render time from S.dayBook.entries — no new stored field.
 function calcDayBookExpenses(year, month){
   var filterByMonth = (year !== undefined && month !== undefined);
-  var monthStart, monthEnd;
+  var monthStartKey, monthEndKey;
   if(filterByMonth){
-    monthStart = new Date(year, month, 1);
-    monthEnd   = new Date(year, month+1, 0, 23, 59, 59);
+    // Plain 'YYYY-MM-DD' string compare, like every other date check in
+    // 10-daybook.js — e.date is always a dateKey (dbAddEntry never stores
+    // a timestamp there), and new Date('YYYY-MM-DD') parses as UTC
+    // midnight while new Date(year,month,1) is local, a mismatch an Opus
+    // review caught on 23 Sep 2026 (correct in IST by luck, not by design).
+    monthStartKey = year+'-'+String(month+1).padStart(2,'0')+'-01';
+    monthEndKey   = dbDayKey(new Date(year, month+1, 0));
   }
   var byCat = {}, total = 0;
   (S.dayBook && S.dayBook.entries || []).forEach(function(e){
     if(e.voided) return;
     if(!DB_CATS[e.cat] || DB_CATS[e.cat].group !== 'expense') return;
-    if(filterByMonth){
-      var d = new Date(e.date);
-      if(d < monthStart || d > monthEnd) return;
-    }
-    total += e.amount;
-    byCat[e.cat] = (byCat[e.cat]||0) + e.amount;
+    if(filterByMonth && (e.date < monthStartKey || e.date > monthEndKey)) return;
+    total = dbRound(total + e.amount);
+    byCat[e.cat] = dbRound((byCat[e.cat]||0) + e.amount);
   });
   return { total: total, byCat: byCat };
 }

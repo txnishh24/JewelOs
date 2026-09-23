@@ -1090,7 +1090,7 @@ function renderReports(){
     var cm=repMonth-ci, cy=repYear;
     if(cm<0){cm+=12;cy--;}
     var mp=calcMonthProfit(cy,cm);
-    chartData.push({label:MS[cm],rev:mp.revenue,profit:mp.profit,active:(cm===repMonth&&cy===repYear)});
+    chartData.push({label:MS[cm],rev:mp.revenue,profit:mp.netProfit,active:(cm===repMonth&&cy===repYear)});
   }
   var mx=Math.max.apply(null,chartData.map(function(d){return d.rev;}))||1;
   var ce=document.getElementById('rep-chart');
@@ -1148,7 +1148,7 @@ function renderReports(){
       '<div style="border-top:0.5px solid var(--border);padding-top:8px;margin-top:8px;font-size:11px;color:var(--text3);">'+
       plRow('Gold sold',  fmtW(goldSold),   'var(--text2)', false)+
       plRow('Silver sold',fmtW(silverSold), 'var(--text2)', false)+
-      plRow('Avg margin', mProfit.margin.toFixed(1)+'%', 'var(--text2)', false)+
+      plRow('Gross margin', mProfit.margin.toFixed(1)+'%', 'var(--text2)', false)+
       '</div></div>'+
       '<div style="margin-top:12px;padding:10px 14px;background:var(--card2);border-radius:10px;font-size:12px;">'+
         '<div style="font-weight:700;margin-bottom:6px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">All-Time Summary</div>'+

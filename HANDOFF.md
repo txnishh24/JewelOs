@@ -210,6 +210,76 @@ Month-view tile would show a loss in red in a profitable month.
 
 ---
 
+### 2026-09-23 · Claude Code (fixed the Opus review's two blockers, plus the three
+non-blockers it recommended folding into the same pass — in this folder, NOT deployed)
+
+**Both blockers fixed, not patched around.**
+
+- **B1 (Month-view double-subtraction):** removed the "Net Cash After Expenses" tile
+  entirely rather than fixing its arithmetic. Net Cash is a cash-basis figure — `dbDayView`'s
+  `totalOut` (what Net Cash is built from) already includes every manual expense entry as
+  cash out, so subtracting `calcDayBookExpenses().total` from it a second time was always
+  going to double-count, not a rounding slip. The genuine P&L Net Profit (accrual-based,
+  §1's number) already lives in Reports — Month view's job per spec §6 is cash flow, not a
+  second P&L. Kept "Operating Expenses" as an informational tile with a `metric-sub` reading
+  "already inside Cash Out" so nobody re-adds the same subtraction later.
+- **B2 (PDF report mislabel):** `js/07-settings-plans.js:32` now reads `thisM.netProfit`
+  instead of `thisM.profit` — the row is literally labelled "Net Profit," it now shows one.
+
+**Non-blockers 1–3, as the review suggested folding in:**
+
+1. **Range labels.** Month view's Cash In/Out/Net tiles now say "September so far" (etc.) —
+   the trend chart already self-labels via its visible 14d/30d toggle, so the ambiguity was
+   only on the tiles.
+2. **"Profit" meant two things.** The dashboard digest and its WhatsApp share text
+   (`js/06-inventory-stock.js`) and Reports' own 6-month mini-chart (`js/03-billing-numbers.js`)
+   were all still plotting/printing gross `profit` under a bare "Profit" label, while Reports'
+   own P&L card and metric tile now show net. Switched all three to `netProfit` so "Profit"
+   means the same number everywhere in the app, matching the spec's actual intent (§1: net
+   profit is supposed to be *the* headline, not one of two headlines). Also relabelled the
+   P&L card's "Avg margin" line to "Gross margin" — it sits directly under "= Net Profit" and
+   is still revenue-based, so the old bare label was the one place left claiming to be
+   something it wasn't.
+3. **UTC/local date mismatch in `calcDayBookExpenses`.** Switched from `new Date(e.date) <
+   new Date(year,month,1)` (UTC-parsed vs. local-constructed — correct only by IST's 5:30
+   headroom) to plain `'YYYY-MM-DD'` string comparison, matching every other date check in
+   `10-daybook.js`. No behavior change in IST, but no longer relies on it. Folded in
+   non-blocker 6 (bare `+=` with no `dbRound`) at the same time — one function, already open.
+
+**Not folded in (left for later, not urgent):** non-blocker 4 (`dbBuildTrend`'s O(30 × full
+scan) cost on a book that isn't closed daily — "worth watching on the device test," not a
+code change to make speculatively) and non-blocker 7 (`_dbMonthYear`/`_dbMonthMonth` staying
+stale across a real month boundary if the app is left open — same class of thing `dbUiDate()`
+already handles lazily, small enough to fix alongside §4/§5 rather than alone).
+
+**Tests:** 2 new, 1 strengthened — `dbExpenseBreakdownHtml`'s test now asserts the rendered
+rows actually sum to `calcDayBookExpenses().total` (the review's exact complaint: it previously
+only checked two amounts appeared, not that they added up to the claimed total). Added a test
+that a month's Cash Out already includes manual expense entries (the invariant B1 violated) and
+a test that calls `_dbPaintMonth()` directly and asserts no "After Expenses" string and the
+correct Net Cash figure. 201/201 passing (was 199). `node --check` clean. All `checks/`
+re-diffed against the review's own baseline — nothing new, `backup-check`/`roundtrip` still
+clean (no storage touched by any of this).
+
+**Not verified:** still nothing visual — no browser automation here, unchanged from every
+entry above. This has not been opened on a device or in a browser at any point in this whole
+Day Book v2 effort.
+
+→ FOR COWORK / TANISH: this should now be a go per the review — worth a second, quick Opus
+look at just the diff since the last review (`git diff e31f569..HEAD` once this is committed)
+given the scope of the "Profit" relabeling turned out wider than the review's own list named,
+but I stayed inside what it explicitly flagged (digest, share text, 6-month chart, Avg margin)
+and didn't touch anything it didn't call out (e.g. left the All-Time Summary section's "Total
+Profit"/"Avg Margin" alone — different label, not claiming to be net, out of the review's
+explicit list). If that second look comes back clean, this is ready to zip for a device test.
+§4 (party linking) and §5 (photo attachment, still gated on the storage re-check) remain.
+
+Releasing `NOW`.
+
+---
+
+---
+
 ### 2026-09-23 · Cowork (Day Book v2 spec — Tanish said it "looks cheap and unprofessional,"
 researched real competitors, traced the gap to the actual code, wrote the fix as a spec)
 

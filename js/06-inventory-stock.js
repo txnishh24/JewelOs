@@ -1262,7 +1262,7 @@ function showDailyDigest(){
     '</div>'+
     digestSection('\ud83d\udcb0 This Month So Far',[
       ['Revenue', fmt(thisMonth.revenue)],
-      ['Profit',  fmt(thisMonth.profit)],
+      ['Profit',  fmt(thisMonth.netProfit)],
       ['Cash In', fmt(cf.cashIn)],
       ['Margin',  thisMonth.margin.toFixed(1)+'%']
     ])+
@@ -1304,7 +1304,7 @@ function shareDigestWhatsApp(){
     dayName+'\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n'+
     '\ud83d\udcb0 *This Month*\n'+
     'Revenue: '+fmt(thisMonth.revenue)+'\n'+
-    'Profit: '+fmt(thisMonth.profit)+' ('+thisMonth.margin.toFixed(1)+'%)\n\n'+
+    'Profit: '+fmt(thisMonth.netProfit)+' ('+thisMonth.margin.toFixed(1)+'%)\n\n'+
     '\u26a0\ufe0f *Action Items*\n'+
     'Pending dues: '+fmt(pendingBal)+'\n'+
     'Girvi outstanding: '+fmt(Math.round(girviOut))+'\n\n'+
