@@ -1127,11 +1127,8 @@ function renderReports(){
     var plLabel=document.getElementById('rep-pl-label'); if(plLabel) plLabel.textContent=mlbl;
     var goldSold=monthSales.reduce(function(s,x){return s+x.items.filter(function(i){return i.metal==='gold';}).reduce(function(a,i){return a+i.weight*i.qty;},0);},0);
     var silverSold=monthSales.reduce(function(s,x){return s+x.items.filter(function(i){return i.metal==='silver';}).reduce(function(a,i){return a+i.weight*i.qty;},0);},0);
-    var expByCat=Object.keys(mProfit.expenses.byCat).sort(function(a,b){return mProfit.expenses.byCat[b]-mProfit.expenses.byCat[a];});
-    var expBreakdownHtml=expByCat.map(function(cat){
-      var c=DB_CATS[cat]||{label:cat,icon:'',color:'var(--text3)'};
-      return plRow('  '+c.icon+' '+escHtml(c.label), fmt(mProfit.expenses.byCat[cat]), c.color, false);
-    }).join('');
+    var expByCat=Object.keys(mProfit.expenses.byCat);
+    var expBreakdownHtml=dbExpenseBreakdownHtml(mProfit.expenses.byCat);
     plEl.innerHTML=
       '<div style="display:grid;gap:0;">'+
       plRow('(+) Total Revenue',     fmt(mProfit.revenue),  'var(--gold-dark)', true)+

@@ -48,6 +48,17 @@ function dbLineIcon(line){
   return {icon:'•', color:'var(--text3)'};
 }
 
+// Renders a calcDayBookExpenses().byCat breakdown as plRow() lines, icon +
+// color per category. Shared by Reports' P&L card (03-billing-numbers.js)
+// and Day Book's Month view (§6.2 point 4) so the two can never drift —
+// same function, same data, per DAYBOOK-SPEC-v2.md §6.3.
+function dbExpenseBreakdownHtml(byCat){
+  return Object.keys(byCat).sort(function(a,b){ return byCat[b]-byCat[a]; }).map(function(cat){
+    var c = DB_CATS[cat] || {label:cat, icon:'', color:'var(--text3)'};
+    return plRow('  '+c.icon+' '+escHtml(c.label), fmt(byCat[cat]), c.color, false);
+  }).join('');
+}
+
 // Canonical LOCAL calendar-day key ('YYYY-MM-DD') from an ISO string, a
 // Date, or an already-keyed string. Never use toISOString().slice(0,10)
 // for this — IST is UTC+5:30, so anything after 18:30 local lands on
@@ -418,6 +429,21 @@ function dbDayView(dateKey){
   };
 }
 
+// Day Book v2 §2 — one entry per calendar day in [fromDateKey, toDateKey]
+// inclusive, for the trend chart and Month view's day-by-day list. Reuses
+// dbDayView for every day rather than re-implementing its in/out/closing
+// logic — a closed day still comes back frozen at its stored closing.
+function dbBuildTrend(fromDateKey, toDateKey){
+  var out = [];
+  var k = fromDateKey;
+  while(k <= toDateKey){
+    var v = dbDayView(k);
+    out.push({date:k, totalIn:v.totalIn, totalOut:v.totalOut, closing:v.closing, isClosed:v.closed});
+    k = _dbNextDay(k);
+  }
+  return out;
+}
+
 // 'YYYY-MM-DD' + 1 calendar day, built from local parts (never through
 // UTC midnight parsing — same reasoning as subPaidUntil in 04-orders-detail.js).
 function _dbNextDay(dateKey){
@@ -647,6 +673,10 @@ function dbSweepRestatements(cb){
 var _dbDate = null;         // 'YYYY-MM-DD' the screen is currently showing
 var _dbVoidTargetId = null; // entry id the void modal is open for
 var _dbEntryCat = null;     // category chip selected in the Add Entry modal
+var _dbViewMode = 'day';    // 'day' | 'month' (DAYBOOK-SPEC-v2.md §6)
+var _dbMonthYear = new Date().getFullYear();
+var _dbMonthMonth = new Date().getMonth();
+var _dbChartDays = 14;      // trend chart window toggle: 14 or 30
 
 function dbUiDate(){ if(!_dbDate) _dbDate = dbToday(); return _dbDate; }
 
@@ -662,8 +692,24 @@ function _dbPrevDay(dateKey){
 
 function dbGoPrev(){ _dbDate = _dbPrevDay(dbUiDate()); renderDayBook(); }
 function dbGoNext(){ if(dbUiDate() >= dbToday()) return; _dbDate = _dbNextDay(dbUiDate()); renderDayBook(); }
-function dbGoDate(k){ if(!k) return; _dbDate = (k > dbToday()) ? dbToday() : k; renderDayBook(); }
+// Jumping to a specific date always means "show me that day" — used both by
+// the day-nav date input and by tapping a bar/row in Month view, so it also
+// switches back to Day mode (§6.2: "tap to drill into that day's single-day view").
+function dbGoDate(k){ if(!k) return; _dbDate = (k > dbToday()) ? dbToday() : k; _dbViewMode = 'day'; renderDayBook(); }
 function dbGoToday(){ _dbDate = dbToday(); renderDayBook(); }
+
+function dbSetViewMode(mode){
+  if(_dbViewMode === mode) return;
+  _dbViewMode = mode;
+  renderDayBook();
+}
+function dbChangeMonth(dir){
+  _dbMonthMonth += dir;
+  if(_dbMonthMonth > 11){ _dbMonthMonth = 0; _dbMonthYear++; }
+  if(_dbMonthMonth < 0){ _dbMonthMonth = 11; _dbMonthYear--; }
+  renderDayBook();
+}
+function dbSetChartDays(n){ _dbChartDays = n; renderDayBook(); }
 
 // Entry point from switchTab/renderTab. Always sweeps first (spec §6:
 // the sweep runs when the screen is opened, never from boot or a timer)
@@ -683,7 +729,6 @@ function renderDayBook(){
 function _dbPaint(){
   var body = document.getElementById('db-body');
   if(!body) return;
-  var dateKey = dbUiDate();
 
   // First-time setup: nothing entered yet at all.
   if(!S.dayBook.opening && !(S.dayBook.closes||[]).length){
@@ -697,6 +742,15 @@ function _dbPaint(){
     return;
   }
 
+  var toggle = '<div style="display:flex;gap:6px;margin-bottom:10px;">'+
+    '<button class="btn btn-sm'+(_dbViewMode==='day'?' btn-gold':'')+'" onclick="dbSetViewMode(\'day\')">Day</button>'+
+    '<button class="btn btn-sm'+(_dbViewMode==='month'?' btn-gold':'')+'" onclick="dbSetViewMode(\'month\')">📅 Month</button>'+
+  '</div>';
+  body.innerHTML = toggle + (_dbViewMode==='month' ? _dbPaintMonth() : _dbPaintDay());
+}
+
+function _dbPaintDay(){
+  var dateKey = dbUiDate();
   var v = dbDayView(dateKey);
   var isToday = dateKey === dbToday();
   var html = '';
@@ -792,7 +846,94 @@ function _dbPaint(){
     '<button class="btn btn-dark" onclick="dbWhatsAppDay()">💬 WhatsApp</button>'+
   '</div>';
 
-  body.innerHTML = html;
+  return html;
+}
+
+// Day Book v2 §6 — Month view: month picker, trend chart (§2), Cash In/Out/
+// Net + expenses tiles, the shared expense breakdown (§6.3 — same function
+// as Reports' P&L card), and a day-by-day list. Read-only aggregation over
+// dbBuildTrend/calcDayBookExpenses — no new storage, nothing that touches
+// dbAutoTotals or the locked-day sweep.
+function _dbPaintMonth(){
+  var MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var year = _dbMonthYear, month = _dbMonthMonth;
+  var monthStart = year+'-'+String(month+1).padStart(2,'0')+'-01';
+  var monthEndKey = dbDayKey(new Date(year, month+1, 0));
+  var today = dbToday();
+  var rangeEnd = monthEndKey < today ? monthEndKey : today;
+  var trend = monthStart <= rangeEnd ? dbBuildTrend(monthStart, rangeEnd) : [];
+
+  var totalIn=0, totalOut=0;
+  trend.forEach(function(d){ totalIn = dbRound(totalIn+d.totalIn); totalOut = dbRound(totalOut+d.totalOut); });
+  var netCash = dbRound(totalIn - totalOut);
+  var expenses = calcDayBookExpenses(year, month);
+  var netAfterExp = dbRound(netCash - expenses.total);
+
+  var html = '';
+
+  html += '<div class="card" style="padding:0.85rem 1.1rem;">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;">'+
+      '<button class="btn btn-sm" onclick="dbChangeMonth(-1)">‹</button>'+
+      '<div style="font-size:13px;font-weight:700;">'+MN[month]+' '+year+'</div>'+
+      '<button class="btn btn-sm" onclick="dbChangeMonth(1)">›</button>'+
+    '</div>'+
+  '</div>';
+
+  var chartDays = trend.slice(Math.max(0, trend.length-_dbChartDays));
+  var mx = Math.max.apply(null, chartDays.map(function(d){return Math.max(d.totalIn,d.totalOut);})) || 1;
+  html += '<div class="card">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'+
+      '<div class="card-title" style="margin:0;">Cash flow trend</div>'+
+      '<div style="display:flex;gap:4px;">'+
+        '<button class="btn btn-sm'+(_dbChartDays===14?' btn-gold':'')+'" onclick="dbSetChartDays(14)">14d</button>'+
+        '<button class="btn btn-sm'+(_dbChartDays===30?' btn-gold':'')+'" onclick="dbSetChartDays(30)">30d</button>'+
+      '</div>'+
+    '</div>'+
+    (chartDays.length ?
+      '<div style="display:flex;align-items:flex-end;gap:2px;height:90px;">'+
+      chartDays.map(function(d){
+        var hIn  = Math.max(2, Math.round(d.totalIn/mx*80));
+        var hOut = Math.max(2, Math.round(d.totalOut/mx*80));
+        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;cursor:pointer;" onclick="dbGoDate(\''+d.date+'\')" title="'+fmtDate(d.date)+'">'+
+          '<div style="width:100%;display:flex;align-items:flex-end;gap:1px;height:80px;">'+
+            '<div style="flex:1;height:'+hIn+'px;background:var(--gold-dark);border-radius:2px 2px 0 0;"></div>'+
+            '<div style="flex:1;height:'+hOut+'px;background:var(--danger);border-radius:2px 2px 0 0;opacity:.85;"></div>'+
+          '</div>'+
+        '</div>';
+      }).join('')+
+      '</div>'
+      : '<div class="empty" style="padding:16px 0;">No activity yet this range</div>')+
+  '</div>';
+
+  html += '<div class="metrics">'+
+    '<div class="metric"><div class="metric-label">Cash In</div><div class="metric-value" style="color:var(--success)">'+fmt(totalIn)+'</div></div>'+
+    '<div class="metric"><div class="metric-label">Cash Out</div><div class="metric-value" style="color:var(--danger)">'+fmt(totalOut)+'</div></div>'+
+    '<div class="metric"><div class="metric-label">Net Cash</div><div class="metric-value" style="color:'+(netCash>=0?'var(--success)':'var(--danger)')+'">'+fmt(netCash)+'</div></div>'+
+    '<div class="metric"><div class="metric-label">Operating Expenses</div><div class="metric-value" style="color:var(--danger)">'+fmt(expenses.total)+'</div></div>'+
+    '<div class="metric"><div class="metric-label">Net Cash After Expenses</div><div class="metric-value" style="color:'+(netAfterExp>=0?'var(--success)':'var(--danger)')+'">'+fmt(netAfterExp)+'</div></div>'+
+  '</div>';
+
+  if(Object.keys(expenses.byCat).length){
+    html += '<div class="card"><div class="card-title">Expense breakdown</div>'+dbExpenseBreakdownHtml(expenses.byCat)+'</div>';
+  }
+
+  html += '<div class="card"><div class="card-title">Days</div>';
+  if(!trend.length){
+    html += '<div style="text-align:center;color:var(--text3);padding:16px;font-size:13px;">No days in this range yet.</div>';
+  } else {
+    html += trend.slice().reverse().map(function(d){
+      return '<div class="gl-entry" style="cursor:pointer;" onclick="dbGoDate(\''+d.date+'\')">'+
+        '<div class="gl-entry-left">'+
+          '<div class="gl-entry-amt">'+(d.isClosed?'🔒 ':'')+fmtDate(d.date)+'</div>'+
+          '<div class="gl-entry-meta">In '+fmt(d.totalIn)+' • Out '+fmt(d.totalOut)+'</div>'+
+        '</div>'+
+        '<div class="gl-entry-right"><div style="font-size:12px;font-weight:600;color:var(--ink3);">'+fmt(d.closing)+'</div></div>'+
+      '</div>';
+    }).join('');
+  }
+  html += '</div>';
+
+  return html;
 }
 
 function dbSubmitOpening(){

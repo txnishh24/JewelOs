@@ -2594,6 +2594,47 @@ test('dbLineIcon resolves an auto line by src even when its cat is not a DB_CATS
   assert(icon.icon === a.DB_AUTO_ICONS.girvi.icon, 'expected the girvi auto icon, got ' + JSON.stringify(icon));
 });
 
+// ── Day Book v2 — trend chart / Month view (docs/DAYBOOK-SPEC-v2.md §2/§6) ─
+console.log('\nDay Book v2 — trend / Month view:');
+
+test('dbBuildTrend returns one entry per calendar day in range, inclusive both ends', function(){
+  var a = _dbHarness();
+  var t = a.dbBuildTrend('2026-09-01', '2026-09-05');
+  assert(t.length === 5, 'expected 5 days, got ' + t.length);
+  assert(t[0].date === '2026-09-01' && t[4].date === '2026-09-05', 'range bounds: ' + t[0].date + '..' + t[4].date);
+});
+
+test('dbBuildTrend agrees with dbDayView day-for-day — no separate computation to drift', function(){
+  var a = _dbHarness();
+  a.S.dayBook.opening = { date:'2026-09-01', amount:1000, ts:'2026-09-01T00:00:00.000Z' };
+  a.S.sales = [{ id:'s1', date:'2026-09-02', invNo:'INV-1', splitPayments:[{amount:500, mode:'Cash'}] }];
+  a.dbAddEntry('2026-09-03', 'out', 200, 'rent', '', function(){});
+  var t = a.dbBuildTrend('2026-09-01', '2026-09-03');
+  t.forEach(function(d){
+    var v = a.dbDayView(d.date);
+    assert(d.totalIn === v.totalIn && d.totalOut === v.totalOut && d.closing === v.closing && d.isClosed === v.closed,
+      'mismatch on ' + d.date + ': trend=' + JSON.stringify(d) + ' dayView totalIn/out/closing/closed=' + v.totalIn + '/' + v.totalOut + '/' + v.closing + '/' + v.closed);
+  });
+});
+
+test('dbBuildTrend reports a closed day at its frozen closing, not a live recompute', function(){
+  var a = _dbHarness();
+  a.S.dayBook.closes = [{ date:'2026-09-01', opening:1000, autoIn:500, autoOut:0, manualIn:0, manualOut:200, closing:1300, counted:1300, diff:0, restatements:[], countCorrections:[] }];
+  var t = a.dbBuildTrend('2026-09-01', '2026-09-01');
+  assert(t[0].isClosed === true, 'expected isClosed true');
+  assert(t[0].closing === 1300, 'expected the frozen closing 1300, got ' + t[0].closing);
+});
+
+test('dbExpenseBreakdownHtml renders the same total calcDayBookExpenses reports — one function, not a re-derivation', function(){
+  var a = _dbHarness();
+  a.dbAddEntry('2026-09-05', 'out', 700, 'electricity', '', function(){});
+  a.dbAddEntry('2026-09-06', 'out', 300, 'tea', '', function(){});
+  var exp = a.calcDayBookExpenses(2026, 8);
+  var html = a.dbExpenseBreakdownHtml(exp.byCat);
+  assert(html.indexOf(a.fmt(700)) !== -1, 'expected the electricity amount in the breakdown html');
+  assert(html.indexOf(a.fmt(300)) !== -1, 'expected the tea amount in the breakdown html');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

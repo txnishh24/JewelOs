@@ -177,6 +177,70 @@ Releasing `NOW`.
 
 ---
 
+### 2026-09-23 · Claude Code (built §2+§6 from DAYBOOK-SPEC-v2.md — trend chart + Month
+view — in this folder, NOT deployed, not committed to a new build zip)
+
+**Continued straight on from §1+§3 in the same session.** §4 (party linking) and §5
+(photo attachment) are still open, per spec §8's staging — §5 still needs the storage-model
+re-check spec §5.2 requires before any code.
+
+**§2 — `dbBuildTrend(fromDateKey, toDateKey)`** in `js/10-daybook.js`, next to `dbDayView`.
+Loops each calendar day in range and calls the existing `dbDayView` for each one — does not
+re-implement in/out/closing math, so a closed day comes back at its frozen `closing` exactly
+as stored, never live-recomputed. Returns `[{date, totalIn, totalOut, closing, isClosed}]`.
+
+**§6 — Month view.** Day Book's single-day screen is unchanged; a new Day/Month toggle sits
+above it (`_dbPaint` is now a small dispatcher that renders the toggle and delegates to
+`_dbPaintDay()` — the old single-day renderer, same markup, just returns its html string
+instead of assigning `body.innerHTML` directly — or the new `_dbPaintMonth()`). Month view has
+its own month picker (`_dbMonthYear`/`_dbMonthMonth`, same `changeMonth`-style pattern Reports
+already uses), a trend chart with a 14d/30d toggle reusing the exact div-bar pattern from
+`rep-chart` (gold bars for cash in, red for cash out, side by side not stacked), Cash In/Cash
+Out/Net Cash tiles plus the new Operating Expenses/Net Cash After Expenses tiles, an expense
+breakdown, and a day-by-day list (closed days show a lock icon). Tapping a chart bar or a day
+row calls `dbGoDate()`, which I changed to also flip `_dbViewMode` back to `'day'` — jumping to
+a date always means "show me that day," whether the tap came from the date-nav arrows already
+in Day view or from Month view.
+
+**One design call worth flagging, not in the spec text:** the month picker can be paged to any
+month, but I capped both the chart and the day-by-day list at `min(month-end, today)` rather
+than listing empty future days — otherwise paging forward from the current month would show a
+wall of zero-activity days through the 28th/30th/31st. Past months are unaffected (their own
+end-of-month already precedes today). Flagging in case Tanish wants future days visible for
+some reason I'm not seeing.
+
+**Expense breakdown de-duplicated, not just reused:** rather than let §1's P&L-card breakdown
+and §6's Month-view breakdown become two copies that could drift (spec §6.3's explicit
+requirement), I factored the rendering itself into `dbExpenseBreakdownHtml(byCat)` in
+`js/10-daybook.js` and changed Reports' P&L card (`js/03-billing-numbers.js`) to call it too,
+instead of the inline version I wrote in the §1+§3 commit. Same function, same data, both
+places.
+
+**Tests:** 4 new (`dbBuildTrend` range bounds, agreement with `dbDayView` day-for-day, a closed
+day's frozen `closing`, and the shared breakdown renderer). 199/199 passing (was 195).
+`node --check` clean. All `checks/` scripts re-run and diffed against the §1+§3 baseline —
+`scope.js`/`css.js`/`unquoted-args.js`/`loadorder.js` identical aside from the expected higher
+identifier count; `backup-check.js` and `roundtrip.js` both pass (still no new stored fields —
+Month view is a pure read layer, exactly as spec §6.3/§7 required).
+
+**Not verified:** nothing visual, same caveat as every entry here — no browser automation. The
+chart bars, the toggle, tapping into a day from Month view, and the future-day cap above are
+all unverified until someone opens Day Book on a device. Not zipped or deployed.
+
+**Model policy note:** still 🔴 (financial display). Same Opus-review-before-deploy note as
+the §1+§3 entry above applies to this batch too — recommend reviewing both together, not
+separately, since Reports' P&L card changed again here (function reused, not rewritten, but
+still touching that render path).
+
+→ FOR COWORK / TANISH: §2+§6 implemented and tested, not zipped or deployed, needs the same
+Opus review + device pass as §1+§3 (probably one combined pass makes more sense than two).
+§4 (party linking, `custAutocomplete()` is the picker to reuse) and §5 (photo attachment,
+gated on the storage-size re-check) remain.
+
+Releasing `NOW`.
+
+---
+
 ### 2026-09-21 · Claude Code (built the batch27 deploy zip — supersedes batch26, carries the
 non-cash Day Book fix)
 
