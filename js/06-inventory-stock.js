@@ -1300,11 +1300,15 @@ function shareDigestWhatsApp(){
   var shopName   = SAAS.shop?SAAS.shop.name:'My Shop';
   var dayName    = now.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'});
 
+  // Net profit paired with its own net margin, not the gross margin
+  // calcMonthProfit returns as .margin (batch28 review, 23 Sep 2026
+  // HANDOFF entry: the two numbers didn't agree with each other).
+  var netMargin = thisMonth.revenue>0 ? (thisMonth.netProfit/thisMonth.revenue*100) : 0;
   var msg = '\ud83d\udcca *'+shopName+' — Daily Summary*\n'+
     dayName+'\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n'+
     '\ud83d\udcb0 *This Month*\n'+
     'Revenue: '+fmt(thisMonth.revenue)+'\n'+
-    'Profit: '+fmt(thisMonth.netProfit)+' ('+thisMonth.margin.toFixed(1)+'%)\n\n'+
+    'Profit: '+fmt(thisMonth.netProfit)+' ('+netMargin.toFixed(1)+'%)\n\n'+
     '\u26a0\ufe0f *Action Items*\n'+
     'Pending dues: '+fmt(pendingBal)+'\n'+
     'Girvi outstanding: '+fmt(Math.round(girviOut))+'\n\n'+

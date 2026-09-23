@@ -2579,6 +2579,16 @@ test('calcAllTimeProfit sums Day Book expenses across every month, not just the 
   assert(at.netProfit === at.profit - 3000, 'all-time netProfit should be profit - 3000');
 });
 
+test('calcAllTimeProfit includes girvi interest, same as calcMonthProfit (batch28/29 fix)', function(){
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-01-01', principal:50000,
+    interestRate:24, rateType:'yearly', compound:false,
+    payments:[{ id:'pay1', amount:1200, type:'interest', mode:'Cash', date:'2026-02-01' }] }];
+  var at = a.calcAllTimeProfit();
+  assert(at.revenue >= 1200, 'expected the 1200 interest payment in all-time revenue, got ' + at.revenue);
+  assert(at.profit >= 1200, 'interest is pure profit — expected it in all-time profit, got ' + at.profit);
+});
+
 test('every DB_CATS key has an icon and a color — no undefined fallback (spec §9)', function(){
   var a = loadApp();
   Object.keys(a.DB_CATS).forEach(function(k){
@@ -2663,6 +2673,16 @@ test('_dbPaintMonth renders Net Cash correctly and never shows a separate "After
   var html = a._dbPaintMonth();
   assert(html.indexOf('After Expenses') === -1, 'the double-subtracting tile must not come back: ' + html.slice(0,50));
   assert(html.indexOf(a.fmt(2000)) !== -1, 'expected the correct Net Cash figure ' + a.fmt(2000) + ' somewhere in Month view');
+});
+
+test('_dbPaintMonth clips the trend/Days list to the Day Book opening date, not the 1st of the month (batch29 fix)', function(){
+  var a = _dbHarness();
+  a._dbMonthYear = 2026; a._dbMonthMonth = 8; // September
+  a.S.dayBook.opening = { date:'2026-09-15', amount:185000, ts:'2026-09-15T00:00:00.000Z' };
+  var html = a._dbPaintMonth();
+  assert(html.indexOf("dbGoDate('2026-09-05')") === -1, 'a day before the opening date must not appear in Month view: ' + html.slice(0,50));
+  assert(html.indexOf("dbGoDate('2026-09-20')") !== -1, 'a day on/after the opening date should still appear');
+  assert(html.indexOf('Day Book started') !== -1, 'expected the started-on note when the range is clipped');
 });
 
 Promise.all(asyncTests).then(function(){

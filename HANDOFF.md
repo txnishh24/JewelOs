@@ -51,6 +51,235 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-23 · Cowork (Opus) (batch28 device pass, part 2: Tanish signed in to his real shop
+in Chrome. I only looked; **nothing was saved or edited**)
+
+Shop `lumineer jewelOs` (`shop_mt9toiig72ib`), desktop Chrome at 1536px wide. It's live data,
+so I only opened screens and checked numbers from the console. I opened the Add Entry modal
+and closed it without saving. Day Book entries and sales count are the same as before I
+started.
+
+**✅ Works:**
+- **Reports:** the Profit tile says "net of expenses" and shows ₹73,791, the same as the P&L
+  card's `= Net Profit`. The P&L adds up (₹12,43,029 − ₹11,69,238 − ₹0 GST = ₹73,791), and
+  the margin row now reads "Gross margin".
+- **Month view:** the Day/Month toggle, chart, tiles and Days list all render, and tapping a
+  day opens it.
+- **Icons:** the Add Entry chips show icon + colored border for all 11 categories, and
+  lines show 💎 / 📥 icons with the "• auto" tag.
+- **Unknown-mode banner:** fires correctly on 4 Sep (3 lines).
+
+**🔴 Duplicate sale in live data.** Two `S.sales` records both have `INV-027`, and they are
+identical: customer "tanish", necklace 16.43g, ₹2,40,427.50, Cash ₹52,000, dated 3 Sep. Their
+ids differ (`b33ea256…` and `706c03fa…`). The same bill was saved twice. It inflates
+September revenue by ₹2,40,428, and the Day Book shows +₹52,000 cash twice on 3 Sep.
+`isDuplicateSale()` exists, so either this record predates it or it slipped past it; worth
+finding out which. **I didn't touch the data.** Tanish decides which copy to void.
+
+**🟠 Month view counts days from before the opening date.** The opening balance was set on
+21 Sep (₹1,85,000), but September's Month view adds up flows from 1–20 Sep: Cash In
+₹8,14,250, Out ₹6,48,885, Net ₹1,65,365. It also lists those early days with a closing
+computed from ₹0 every day (2 Sep −₹2,00,000, 3 Sep ₹3,41,000, 4 Sep −₹22,885). Those flows are
+already inside the ₹1,85,000 the owner typed, so the month totals mean nothing and the early
+closings look like errors. Fix: start the trend, tiles and Days list at
+`max(monthStart, opening.date)`, show "Day Book started 21 Sep", and have Day view say
+"before your Day Book start date" for those dates instead of showing Opening ₹0. This hits
+**every shop in its first month**, which is exactly when a jeweller is deciding whether to
+trust the app.
+
+**🟠 Two different "Cash In" numbers for September.** Reports shows Cash In ₹5,67,105 and
+Net Cash ₹3,50,037 (`calcCashFlow`). Day Book Month view shows Cash In ₹8,14,250 and Net Cash
+₹1,65,365 (cash only, plus orders, girvi and purchases). The labels are the same and the
+numbers differ. Rename the Reports tiles (e.g. "Collected, all modes") or make the two agree.
+
+**🟠 All-time profit (₹39,117) is less than one month's profit (₹73,791).**
+`calcAllTimeProfit` counts sales only, while `calcMonthProfit` also adds girvi interest
+(about ₹50,424 this September). Sales-only profit by month is Aug ₹15,750 and Sep ₹23,367,
+which add up to ₹39,117. This was already true before batch28, but it's now shown directly
+under the monthly figure. Add girvi interest to the all-time number.
+
+**🟡 Smaller problems:**
+- **Negative cash with no warning.** On 21 Sep, cash purchase PB-00009 was ₹2,00,000 with
+  ₹1,85,000 on hand, so closing is −₹15,000, and it has stayed there since. Warn when a
+  day's closing goes below zero; it means the opening or the payment mode is wrong. The
+  format also shows `₹-15,000` where it should be `−₹15,000`.
+- **The chart has no date labels.** The day name is only in a `title` tooltip, which touch
+  screens don't show, so you can't tell which bar is which day.
+- **Day view date nav looks broken at desktop width.** ‹ sits above, › below, the date is in
+  the middle and Today is off to the right. Put ‹ date › Today in one row.
+
+**Not tested:**
+- The non-cash banner: this shop has no UPI or card payments at all, and I didn't create
+  any.
+- Mobile width in his Chrome: I didn't resize his window.
+- Wrong-PIN lockout.
+- Adjust Stock.
+
+→ FOR CLAUDE CODE: add the pre-opening Month-view fix and the all-time girvi-interest fix
+to the batch from the entry below. Both are 🔴-class display math, so run them past Opus. The
+chart date labels, one-row date nav, negative-cash warning and minus-sign format are cheap
+and belong with it. Also look into why `isDuplicateSale` didn't stop INV-027 (read only; no
+data fix from your side). **→ FOR TANISH:** decide which INV-027 copy to void. They're
+identical, so either one works.
+
+---
+
+### 2026-09-23 · Cowork (Opus) (batch28 confirmed live; second-look review of the shipped
+zip; device test started, stopped partway — details below)
+
+**Tanish deployed `jewelos-batch28-DEPLOY.zip`. Live site matches the zip exactly.** Fetched
+all 11 JS files from the live origin (cache-busted) and compared SHA-256 against the zip: 11/11
+identical. `dbBuildTrend`, `calcDayBookExpenses`, `_dbPaintMonth` are live.
+
+**Second look, done on the zip itself (batch27 zip compared with batch28 zip), not the
+working tree.** No git on this side, so I compared function bodies across the two zips:
+- **§7 still holds in what shipped.** All twelve ledger functions (`dbAutoLines` …
+  `dbAddEntry`) are byte-identical between batch27 and batch28.
+- **The code changes are only what the entries below describe:** `calcDayBookExpenses` plus
+  two return lines in 01; the Reports tile, 6-month chart and P&L card in 03; digest and
+  share text in 06; the PDF row in 07; Month view, icons and chips in 10. Nothing else.
+- **Hygiene: `js/01-sync-core.js` was converted from LF to CRLF in full** (80 functions
+  show as changed, and the only difference is line endings; `10-daybook.js` now has mixed
+  endings). Browsers don't care, so this doesn't break anything live. But it is the same
+  CRLF problem that breaks `checks/making-basis.js`, so a `.gitattributes` (`*.js text
+  eol=lf`) plus one normalising commit would stop it from recurring.
+
+**What the fix pass missed: the monthly PDF.** `showPdfReport()` (07:26-49) now shows real
+net profit under the "Net Profit" label, but the rows around it didn't change:
+1. The PDF lists Revenue → Metal Cost → GST → **Net Profit**. It has no Gross Profit row and
+   no Operating Expenses row, so the numbers on the page don't add up. Anyone checking the
+   arithmetic (a CA, a bank) finds a gap equal to that month's expenses.
+2. The Net Profit row color is hard-coded `'#22c55e'`, so **a loss month prints in green.**
+   Now that rent and salary come off the profit, a slow month going negative is a normal
+   case, not an edge case.
+3. "Profit Margin" sits under Net Profit but is the gross margin. The All-Time "Total Profit"
+   row shows gross.
+
+Fix: add Gross Profit and (−) Operating Expenses rows, color Net Profit by its sign,
+relabel the margin row "Gross margin", and apply the same Gross/Net split to All-Time.
+About ten lines, and nothing in the ledger changes. **Until this ships, don't send the
+monthly PDF to anyone.**
+
+**🟡 Smaller issues:**
+- WhatsApp digest share text (06:1307): `'Profit: '+netProfit+' ('+margin+'%)'`. The number
+  is net but the % next to it is gross margin.
+- **The Month-view chart can only show the selected month.** `chartDays =
+  trend.slice(-_dbChartDays)`, and `trend` covers only the 1st of the selected month up to
+  today. So on the 3rd of a month the chart shows 3 bars whether you tap 14d or 30d, and 30d
+  never reaches back into last month. At the start of every month, the new chart is close to
+  empty. Either build the chart from its own range (today−N to today, independent of the
+  month picker) or drop the 14d/30d toggle and label the chart "this month".
+- Month view uses two colors for the same number: the Cash In tile is green
+  (`var(--success)`) and the cash-in bars directly above it are gold.
+- The tiles say "Aug so far" even when August is over. Only the current month should say
+  "so far".
+
+**Device test (browser pane, 375×812 mobile viewport, my own test shop).**
+- ✅ **PIN set flow works live.** "SET YOUR 4-DIGIT PIN" → "CONFIRM NEW PIN" → unlocked. It
+  no longer silently accepts `1234`.
+- ⚠ **New problem: at 375px the Netlify badge now covers the lock screen's "↻ FORGOT PIN"
+  button.** Earlier this was a nav annoyance. Now it hides the only way back into a
+  locked-out shop, because Change PIN was moved off the lock screen in batch26. Two fixes:
+  pad the bottom of the lock screen past the badge (a code fix, on your side), or remove the
+  badge (a Netlify setting or custom domain, on Tanish's side). The padding is the quicker
+  fix.
+- ⏸ **Stopped there.** To test wrong-PIN lockout I called `clearPinSession()` and reloaded.
+  That signed the test shop out completely, back to email/password login. I don't type
+  account passwords, so Reports Net Profit, Month view, icons, the non-cash banner and
+  Adjust Stock are **still untested on a device.**
+- I did not measure `dbBuildTrend` performance on a large, never-closed book. That concern
+  from the review is still open.
+
+→ FOR CLAUDE CODE: one small batch, all display-only, nothing in the ledger: (1) the PDF
+P&L fix above, (2) the share-text margin label, (3) the Month-view chart range, (4) bottom
+padding on the lock screen so the Netlify badge can't cover Forgot PIN, (5) the
+`.gitattributes` fix and one commit normalising line endings (make that commit separate, so
+the diff stays reviewable). **→ FOR TANISH:** the rest of the device pass needs someone signed
+in: Reports → Net Profit tile vs the P&L card, Day Book → Month toggle, tap a bar, category
+icons in Add Entry, one UPI sale for the non-cash banner.
+
+---
+
+### 2026-09-23 · Claude Code (Sonnet, plan → Opus review gate on the two 🔴 items) (batch29 —
+both batches from the two entries above: pre-opening Month-view fix, all-time girvi interest,
+display fixes, and the isDuplicate investigation)
+
+**🔴 Both risk-gated fixes got an Opus GO. No blockers.**
+
+1. **`calcAllTimeProfit()` (01:1766)** now adds girvi interest income the same way
+   `calcMonthProfit()` already does — no date filter, since every payment counts for an
+   all-time total. Opus verified: no double-count (interest never appears in `S.sales`, and
+   `calcDayBookExpenses` only sums `group:'expense'`), `interestPortion` is computed
+   independently of `asOfDate` so the total is stable across renders, and closed/soft-deleted
+   girvi are included — consistent with `calcMonthProfit`'s existing behaviour, not a new gap.
+   Two 🟡 notes, not fixed here: neither this nor `calcMonthProfit` filters `_deleted` girvi
+   (pre-existing, 18 other aggregates do filter it — fixing it means touching `calcMonthProfit`
+   too, a separate 🔴 change); the top-customer % at `05:1546` now divides by a denominator
+   that includes interest, reads slightly low (display-only).
+2. **`_dbPaintMonth()` (10:857)** — Month view's trend/tiles/Days list now start at
+   `max(monthStart, opening.date)` instead of always the 1st, with a "Day Book started
+   &lt;date&gt;" note when clipped. Opus verified the semantics against `dbOpening()` (12
+   protected functions in 10-daybook.js — **untouched**, confirmed byte-identical in the
+   diff): `dbOpening(openingDate)` excludes that day's own flows (hi-exclusive sum), so
+   `rangeStart = max(...)` inclusive is correct with no off-by-one, and `dbSetOpening`
+   already refuses once any close exists, so no closed day can ever sort before the clip.
+   Opus flagged a perf note (the chart's own range, below, made `dbBuildTrend` run twice
+   over overlapping spans) — folded both into one `dbBuildTrend` call, sliced twice, before
+   shipping.
+
+**Display-only, not risk-gated (all verified against `checks/` + the 203-test regression
+suite, all green):**
+- Chart date labels (day number under each bar), one-row date nav (‹ date › Today, no more
+  wrapping at desktop width), negative-cash warning banner on Day view, `fmt()` now prints
+  −₹15,000 instead of ₹-15,000 (one shared helper, every caller in the app fixed at once).
+- Monthly PDF (`07:showPdfReport`) and All-Time section both now show Gross Profit / (−)
+  Operating Expenses / Net Profit, Net Profit colored by sign, margin row relabeled "Gross
+  margin".
+- WhatsApp digest (`06:shareDigestWhatsApp`) — the profit figure is net, so it's now paired
+  with net margin, not gross margin.
+- Month-view chart (`_dbPaintMonth`) builds its own 14d/30d range instead of slicing the
+  month's trend — can now show up to 30 days even on the 3rd of a month, and reaches back
+  into the previous month. Still clipped at the opening date, same reasoning as above.
+- Lock screen (`index.html` `#pin-screen`) gets 64px more bottom padding so the Netlify
+  badge can't sit on top of "↻ Forgot PIN" at 375px.
+- `.gitattributes` (`*.js text eol=lf`) + one normalising re-checkout, committed separately
+  (`023387b`) before any of the above — git's stored blobs were already LF, only the
+  working-tree checkout was CRLF (`core.autocrlf`), which is what broke
+  `checks/making-basis.js`'s regex-based extraction. `making-basis.js` passes clean now.
+
+**🔍 Why `isDuplicateSale()` didn't catch INV-027 (read-only — no data touched, per the
+brief).** `isDuplicateSale()` (01:698) compares `new Date(s.date).getTime()` against a
+60-second-old wall-clock cutoff. But `sale.date` (set in `buildSaleObj()`, 02:1220) comes
+from the bill-date `<input type="date">` — `new Date('2026-09-03')` parses as **UTC
+midnight of the bill date**, not the time the bill was actually saved. So the guard's
+"was this sale created in the last 60 seconds" check is really "is the bill dated within
+60 seconds of UTC midnight today" — true only in the first minute after 5:30am IST, never
+for a normal daytime sale. This isn't specific to backdating: it's broken for same-day
+sales too, any time after 5:30am IST. `_saleSubmitLock` (02:1287) still blocks a genuine
+double-click while one save is in flight, which is why most duplicates never happen — but
+a second, separate submission (two taps, a retry after a slow network, a reload) will
+never be caught. **Not fixed** — the brief asked for investigation only; a real fix
+touches sale-recording logic and should get its own 🔴 review (candidate: compare against
+`Date.now()` at record time instead of `s.date`, e.g. stash a `createdAt` timestamp on the
+sale, since `s.date` legitimately needs to stay the user-editable bill date).
+
+**Verification:** `node --check` clean on all 11 files. `node tests/regression.test.js` →
+203 passed, 0 failed (added 2 new tests: all-time girvi interest, Month-view opening clip).
+Full `checks/` suite clean — `backup-check`/`roundtrip` pass, `making-basis` passes cleanly
+for the first time since batch28 (line-ending fix). Not verified: nothing here touches the
+DOM in a way `node --check`/the regression suite can't already cover, but there is still no
+browser automation — every rendered screen is unverified until clicked.
+
+→ FOR COWORK: the two 🔴 items got an Opus GO (verified all-time girvi interest and the
+Month-view opening-date clip — see above). Ready to zip and deploy whenever Tanish wants.
+**→ FOR TANISH:** the INV-027 duplicate sale is still unresolved — pick which of the two
+identical records to void; either is fine. `isDuplicateSale()` itself is still broken for
+any sale entered after 5:30am IST (see above) — it hasn't caused visible damage beyond
+INV-027 because the in-flight double-click lock catches the common case, but it's not a
+real guard. Worth a proper fix in its own batch, not bundled into this one.
+
+---
+
 ### 2026-09-23 · Claude Code (Opus) (final review of Day Book v2 §1+§3+§2+§6, commits
 `a1c8310` + `c17c125` — the MODEL-POLICY.md §3/§6 review gate both entries below asked for.
 Verdict: **NO-GO as-is. Two blockers, both small and localised. Neither touches the ledger.**)

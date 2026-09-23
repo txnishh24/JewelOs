@@ -29,8 +29,11 @@ function showPdfReport(){
       pdfRow('Metal Cost',         fmt(thisM.cost),   '#ef4444',false)+
       pdfRow('GST Collected',      fmt(thisM.gst),    '#666',  false)+
       '<div style="border-top:2px solid #eee;margin:8px 0;"></div>'+
-      pdfRow('Net Profit',         fmt(thisM.netProfit), '#22c55e',true)+
-      pdfRow('Profit Margin',      thisM.margin.toFixed(1)+'%', '#22c55e',false)+
+      pdfRow('Gross Profit',       fmt(thisM.profit), '#c9a84c',true)+
+      pdfRow('Operating Expenses', '(−) '+fmt(thisM.expenses.total), '#ef4444',false)+
+      '<div style="border-top:2px solid #eee;margin:8px 0;"></div>'+
+      pdfRow('Net Profit',         fmt(thisM.netProfit), thisM.netProfit>=0?'#22c55e':'#ef4444',true)+
+      pdfRow('Gross margin',       thisM.margin.toFixed(1)+'%', '#22c55e',false)+
       pdfRow('Bills This Month',   thisM.count+' invoices','#666',false)+
     '</div>'+
     // Capital
@@ -46,8 +49,10 @@ function showPdfReport(){
     '<div style="margin-bottom:20px;">'+
       '<h3 style="font-size:14px;font-weight:700;color:#333;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:10px;">All-Time Summary</h3>'+
       pdfRow('Total Revenue',  fmt(allT.revenue), '#c9a84c',false)+
-      pdfRow('Total Profit',   fmt(allT.profit),  '#22c55e',false)+
-      pdfRow('Avg Margin',     allT.margin.toFixed(1)+'%','#22c55e',false)+
+      pdfRow('Gross Profit',   fmt(allT.profit),  '#c9a84c',false)+
+      pdfRow('Operating Expenses', '(−) '+fmt(allT.expenses.total), '#ef4444',false)+
+      pdfRow('Net Profit',     fmt(allT.netProfit), allT.netProfit>=0?'#22c55e':'#ef4444',true)+
+      pdfRow('Gross margin',   allT.margin.toFixed(1)+'%','#22c55e',false)+
       pdfRow('Total Sales',    S.sales.length+' invoices','#666',false)+
     '</div>'+
     // Top customers

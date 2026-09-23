@@ -444,15 +444,17 @@ function dbBuildTrend(fromDateKey, toDateKey){
   return out;
 }
 
-// 'YYYY-MM-DD' + 1 calendar day, built from local parts (never through
-// UTC midnight parsing — same reasoning as subPaidUntil in 04-orders-detail.js).
-function _dbNextDay(dateKey){
+// 'YYYY-MM-DD' + n calendar days (n may be negative), built from local
+// parts (never through UTC midnight parsing — same reasoning as
+// subPaidUntil in 04-orders-detail.js).
+function _dbOffsetDay(dateKey, n){
   var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
   if(!m) return dateKey;
   var d = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
-  d.setDate(d.getDate()+1);
+  d.setDate(d.getDate()+n);
   return dbDayKey(d);
 }
+function _dbNextDay(dateKey){ return _dbOffsetDay(dateKey, 1); }
 
 function _dbUserName(){
   return (typeof SAAS !== 'undefined' && SAAS.user) ? (SAAS.user.name || SAAS.user.email || 'staff') : 'staff';
@@ -756,11 +758,11 @@ function _dbPaintDay(){
   var html = '';
 
   html += '<div class="card" style="padding:0.85rem 1.1rem;">'+
-    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'+
-      '<button class="btn btn-sm" onclick="dbGoPrev()">‹</button>'+
-      '<input type="date" id="db-date-input" value="'+dateKey+'" max="'+dbToday()+'" onchange="dbGoDate(this.value)" style="font-size:13px;font-weight:600;text-align:center;border:none;background:transparent;color:var(--ink);"/>'+
-      '<button class="btn btn-sm" onclick="dbGoNext()"'+(isToday?' disabled':'')+'>›</button>'+
-      (isToday?'':'<button class="btn btn-sm btn-gold" onclick="dbGoToday()">Today</button>')+
+    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap;gap:8px;">'+
+      '<button class="btn btn-sm" style="flex-shrink:0;" onclick="dbGoPrev()">‹</button>'+
+      '<input type="date" id="db-date-input" value="'+dateKey+'" max="'+dbToday()+'" onchange="dbGoDate(this.value)" style="flex:1;min-width:0;font-size:13px;font-weight:600;text-align:center;border:none;background:transparent;color:var(--ink);"/>'+
+      '<button class="btn btn-sm" style="flex-shrink:0;" onclick="dbGoNext()"'+(isToday?' disabled':'')+'>›</button>'+
+      (isToday?'':'<button class="btn btn-sm btn-gold" style="flex-shrink:0;" onclick="dbGoToday()">Today</button>')+
     '</div>'+
   '</div>';
 
@@ -770,6 +772,12 @@ function _dbPaintDay(){
     '<div class="metric"><div class="metric-label">Cash Out</div><div class="metric-value" style="color:var(--danger)">'+fmt(v.totalOut)+'</div></div>'+
     '<div class="metric"><div class="metric-label">Closing</div><div class="metric-value">'+fmt(v.closing)+'</div></div>'+
   '</div>';
+
+  if(v.closing < 0){
+    html += '<div class="card" style="border:1px solid var(--danger);">'+
+      '<div style="font-size:12px;color:var(--danger);font-weight:600;">⚠ Closing cash is negative ('+fmt(v.closing)+'). That usually means the opening balance or a payment mode on one of today\'s entries is wrong.</div>'+
+    '</div>';
+  }
 
   if(v.closed){
     var diffTxt = v.diff===0 ? 'matched exactly' : (v.diff<0 ? 'short by '+fmt(-v.diff) : 'excess of '+fmt(v.diff));
@@ -861,7 +869,22 @@ function _dbPaintMonth(){
   var monthEndKey = dbDayKey(new Date(year, month+1, 0));
   var today = dbToday();
   var rangeEnd = monthEndKey < today ? monthEndKey : today;
-  var trend = monthStart <= rangeEnd ? dbBuildTrend(monthStart, rangeEnd) : [];
+  // Flows before the Day Book's opening date are already folded into the
+  // owner-entered opening amount -- counting them again here double-counts
+  // a shop's first partial month and makes its early days look like errors
+  // (batch28 device pass, 23 Sep 2026 HANDOFF entry).
+  var openingDate = S.dayBook.opening && S.dayBook.opening.date;
+  var rangeStart = (openingDate && openingDate > monthStart) ? openingDate : monthStart;
+  // The chart's own range (below) can reach earlier than rangeStart (into
+  // the previous month) or later (a short 14d window in a long-open
+  // month) -- one dbBuildTrend over their combined span, sliced twice,
+  // instead of walking the same days from dbOpening() a second time
+  // (Opus review of this fix, 23 Sep 2026 HANDOFF entry: perf note).
+  var chartStart = _dbOffsetDay(rangeEnd, -(_dbChartDays-1));
+  if(openingDate && chartStart < openingDate) chartStart = openingDate;
+  var fullStart = chartStart < rangeStart ? chartStart : rangeStart;
+  var fullTrend = fullStart <= rangeEnd ? dbBuildTrend(fullStart, rangeEnd) : [];
+  var trend = fullTrend.filter(function(d){ return d.date >= rangeStart; });
 
   var totalIn=0, totalOut=0;
   trend.forEach(function(d){ totalIn = dbRound(totalIn+d.totalIn); totalOut = dbRound(totalOut+d.totalOut); });
@@ -881,9 +904,15 @@ function _dbPaintMonth(){
       '<div style="font-size:13px;font-weight:700;">'+MN[month]+' '+year+'</div>'+
       '<button class="btn btn-sm" onclick="dbChangeMonth(1)">›</button>'+
     '</div>'+
+    (rangeStart > monthStart ? '<div style="text-align:center;font-size:11px;color:var(--text3);margin-top:4px;">Day Book started '+fmtDate(rangeStart)+'</div>' : '')+
   '</div>';
 
-  var chartDays = trend.slice(Math.max(0, trend.length-_dbChartDays));
+  // Its own range, independent of the month picker -- a trend clipped to
+  // the selected month can't show more than a handful of bars on the 3rd
+  // of a month, and 30d would never reach back into the previous month
+  // (batch28 confirmed-live review, 23 Sep 2026 HANDOFF entry). chartStart
+  // was already folded into fullTrend above; just slice it back out.
+  var chartDays = fullTrend.filter(function(d){ return d.date >= chartStart; });
   var mx = Math.max.apply(null, chartDays.map(function(d){return Math.max(d.totalIn,d.totalOut);})) || 1;
   html += '<div class="card">'+
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'+
@@ -894,15 +923,17 @@ function _dbPaintMonth(){
       '</div>'+
     '</div>'+
     (chartDays.length ?
-      '<div style="display:flex;align-items:flex-end;gap:2px;height:90px;">'+
+      '<div style="display:flex;align-items:flex-end;gap:2px;height:104px;">'+
       chartDays.map(function(d){
         var hIn  = Math.max(2, Math.round(d.totalIn/mx*80));
         var hOut = Math.max(2, Math.round(d.totalOut/mx*80));
+        var dayNum = Number(d.date.slice(8,10));
         return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;cursor:pointer;" onclick="dbGoDate(\''+d.date+'\')" title="'+fmtDate(d.date)+'">'+
           '<div style="width:100%;display:flex;align-items:flex-end;gap:1px;height:80px;">'+
             '<div style="flex:1;height:'+hIn+'px;background:var(--gold-dark);border-radius:2px 2px 0 0;"></div>'+
             '<div style="flex:1;height:'+hOut+'px;background:var(--danger);border-radius:2px 2px 0 0;opacity:.85;"></div>'+
           '</div>'+
+          '<div style="font-size:9px;color:var(--text3);margin-top:3px;">'+dayNum+'</div>'+
         '</div>';
       }).join('')+
       '</div>'

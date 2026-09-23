@@ -571,7 +571,10 @@ function repairAndReload(){
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────
-function fmt(n){return '\u20B9'+Math.round(n||0).toLocaleString('en-IN');}
+function fmt(n){
+  var v = Math.round(n||0);
+  return (v<0?'\u2212':'')+'\u20B9'+Math.abs(v).toLocaleString('en-IN');
+}
 function fmtW(w){var v=parseFloat(w)||0;return (Math.round(v*100)/100).toFixed(2)+'g';}
 function fmtDate(d){try{var dt=new Date(d);if(isNaN(dt.getTime()))return '—';return dt.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});}catch(e){return '—';}}
 function fmtTime(d){try{var dt=new Date(d);if(isNaN(dt.getTime()))return '';return dt.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}catch(e){return '';}}
@@ -1769,6 +1772,15 @@ function calcAllTimeProfit(){
     var p=calcSaleProfit(s);
     totalRevenue += p.revenue;
     totalProfit  += p.profit;
+  });
+  // Add girvi interest income, same as calcMonthProfit -- otherwise the
+  // all-time figure is sales-only and can read lower than a single month
+  // that has interest in it (batch28 device pass, 23 Sep 2026 HANDOFF entry).
+  (S.girvi||[]).forEach(function(g){
+    girviLedgerState(g).payments.forEach(function(p){
+      totalRevenue += p.interestPortion;
+      totalProfit  += p.interestPortion; // interest is pure profit -- no cost
+    });
   });
   var expenses = calcDayBookExpenses();
   return { revenue:totalRevenue, profit:totalProfit, margin: totalRevenue>0?(totalProfit/totalRevenue*100):0, expenses:expenses, netProfit: totalProfit-expenses.total };
