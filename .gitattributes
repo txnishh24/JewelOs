@@ -1,3 +1,9 @@
 # core.autocrlf is true in this repo (Windows checkouts). Shell scripts must
 # keep LF line endings or their #!/bin/sh shebang breaks on checkout.
 githooks/* text eol=lf
+
+# js/*.js must stay LF too -- checks/making-basis.js extracts function
+# source with a regex that matches literal \n\n, so a CRLF file makes the
+# match fail silently. batch28 converted 01-sync-core.js to CRLF in full
+# (Opus review, 23 Sep 2026 HANDOFF entry); this stops it recurring.
+*.js text eol=lf
