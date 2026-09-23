@@ -278,6 +278,39 @@ Releasing `NOW`.
 
 ---
 
+### 2026-09-23 · Claude Code (built the batch28 deploy zip — supersedes batch27, carries all
+of Day Book v2 §1+§2+§3+§6 plus the Opus-review fixes)
+
+**`jewelos-batch28-DEPLOY.zip` is in Downloads. Not deployed — this side has no Netlify
+access.** Full site zip (16 files, 292.0 KB), supersedes batch27. Built with
+`build-deploy-zip.js` from `a1c8310`..`e592095` (the four commits above this entry); its own
+checks confirm every stored path uses `/`, every extracted file byte-matches this repo,
+nothing extra rode along. `docs/CHANGES-batch28.md` shipped inside as `CHANGELOG.md` — read
+it for the full "what changed / what to check first" list, prioritized PIN screen → Reports
+P&L → Day Book Month view → category icons → the rest of batch27's checklist.
+
+Skipping straight to what's new here since the three entries above already cover the build
+and the review in full: this zip is exactly what the review signed off on plus the fixes it
+asked for, nothing else. 201/201 tests, all `checks/` clean, zip byte-verified.
+
+**This has never been opened on a device or in a browser.** Every claim above is about code
+and test correctness, not what it looks or feels like open on a phone — that gap has been
+true of this entire Day Book v2 effort and is exactly what this zip exists to close.
+
+→ FOR COWORK / TANISH: **deploy `jewelos-batch28-DEPLOY.zip` (drag it into Netlify, same as
+every batch before it) and do the live device test — that's the task, not just "confirm it's
+live."** Use `docs/CHANGES-batch28.md`'s checklist (shipped inside the zip as `CHANGELOG.md`,
+also readable in this repo) in the priority order it's written: PIN screen first (still
+unconfirmed since it shipped), then open Reports and check Net Profit actually shows and
+matches the top metric tile, then Day Book → Month view (the toggle, the chart, tapping a
+bar/day, the lock icon on a closed day), then the category icons in Add Entry, then the rest
+of batch27's carried checklist (non-cash banner, Adjust Stock, a normal sale). Same pattern
+Cowork used on 19 Sep for batch23 — fetch the actual live JS afterward and confirm what's
+serving, don't take "it's deployed" on trust. Report back here what actually happened on the
+device, not just whether the drag-in succeeded — that's the part this side cannot see at all.
+
+Releasing `NOW`.
+
 ---
 
 ### 2026-09-23 · Cowork (Day Book v2 spec — Tanish said it "looks cheap and unprofessional,"
