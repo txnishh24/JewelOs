@@ -51,6 +51,31 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-23 · Claude Code (Sonnet) (packaged batch29 deploy zip — carries everything
+since batch28: the two Opus-reviewed profit fixes, the stored-XSS security fix, and the
+display-only batch)
+
+Full site zip built from `023387b..b3fde84` (`.gitattributes`/LF fix, batch29's profit +
+display fixes, the stored-XSS security fix) — see `docs/CHANGES-batch29.md` for the full
+changelog and `git log --oneline 1105546..b3fde84` for the exact commit range. Built with
+`node build-deploy-zip.js batch29`: every stored path uses `/`, every file byte-matches
+this folder, 16 files, 292.3 KB. **Not deployed — no Netlify access from this side**,
+same as every batch before it; `~/Downloads/jewelos-batch29-DEPLOY.zip` is ready to drag
+in.
+
+Regression suite 205/205 at build time, full `checks/` suite clean, both 🔴 profit fixes
+and the security fix independently Opus-reviewed before this zip was built (see the three
+entries below this one for the full reviews).
+
+→ FOR COWORK / TANISH: `~/Downloads/jewelos-batch29-DEPLOY.zip` is ready to deploy.
+Contains a real security fix (stored XSS via customer name) on top of the two profit
+fixes and the display batch — worth prioritizing over letting it sit. After deploying,
+`docs/CHANGES-batch29.md`'s "After you deploy" section has the device-check list; the
+INV-027 duplicate-sale decision and the `isDuplicateSale()` fix are both still open,
+unrelated to this zip.
+
+---
+
 ### 2026-09-23 · Cowork (Opus) (batch28 device pass, part 2: Tanish signed in to his real shop
 in Chrome. I only looked; **nothing was saved or edited**)
 
