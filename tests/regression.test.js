@@ -2525,6 +2525,75 @@ test('dbBuildDaySummary excludes nonCash lines from the listed detail but names 
   assert(msg.indexOf('INV-2') === -1, 'the non-cash sale must not appear in the Cash In detail list');
 });
 
+// ── Day Book v2 — expenses into P&L (docs/DAYBOOK-SPEC-v2.md §1) ──────────
+console.log('\nDay Book v2 — expenses into P&L:');
+
+test('calcDayBookExpenses: a month with zero Day Book expenses leaves netProfit === profit', function(){
+  var a = _dbHarness();
+  a.S.sales = [{ id:'s1', date:'2026-09-05', invNo:'INV-1', items:[{name:'Ring', metal:'gold', weight:5, qty:1, purity:'22K'}], splitPayments:[{amount:1000, mode:'Cash'}] }];
+  var mp = a.calcMonthProfit(2026, 8);
+  assert(mp.expenses.total === 0, 'expected 0 expenses, got ' + mp.expenses.total);
+  assert(mp.netProfit === mp.profit, 'netProfit ' + mp.netProfit + ' should equal profit ' + mp.profit + ' when there are no expenses');
+});
+
+test('calcDayBookExpenses: a ₹5,000 rent entry this month reduces netProfit by exactly 5000', function(){
+  var a = _dbHarness();
+  a.dbAddEntry('2026-09-10', 'out', 5000, 'rent', '', function(){});
+  var mp = a.calcMonthProfit(2026, 8);
+  assert(mp.expenses.total === 5000, 'expected 5000, got ' + mp.expenses.total);
+  assert(mp.netProfit === mp.profit - 5000, 'netProfit ' + mp.netProfit + ' should be profit - 5000');
+});
+
+test('calcDayBookExpenses: an Owner Drawings entry never touches netProfit', function(){
+  var a = _dbHarness();
+  a.dbAddEntry('2026-09-10', 'out', 20000, 'drawings', '', function(){});
+  var mp = a.calcMonthProfit(2026, 8);
+  assert(mp.expenses.total === 0, 'drawings must not count as an expense, got total=' + mp.expenses.total);
+  assert(mp.netProfit === mp.profit, 'netProfit must be unaffected by drawings');
+});
+
+test('calcDayBookExpenses: a voided expense entry is excluded', function(){
+  var a = _dbHarness();
+  a.dbAddEntry('2026-09-10', 'out', 3000, 'rent', '', function(err, entry){
+    a.dbVoidEntry(entry.id, 'entered by mistake', function(){});
+  });
+  var mp = a.calcMonthProfit(2026, 8);
+  assert(mp.expenses.total === 0, 'a voided entry must not count, got ' + mp.expenses.total);
+});
+
+test('calcDayBookExpenses: an expense dated last month does not appear in this month’s total', function(){
+  var a = _dbHarness();
+  a.dbAddEntry('2026-08-15', 'out', 1200, 'electricity', '', function(){});
+  var mp = a.calcMonthProfit(2026, 8); // September (month index 8)
+  assert(mp.expenses.total === 0, 'an August entry must not appear in September’s expenses, got ' + mp.expenses.total);
+  var mpAug = a.calcMonthProfit(2026, 7);
+  assert(mpAug.expenses.total === 1200, 'it should appear in August, got ' + mpAug.expenses.total);
+});
+
+test('calcAllTimeProfit sums Day Book expenses across every month, not just the current one', function(){
+  var a = _dbHarness();
+  a.dbAddEntry('2026-01-05', 'out', 1000, 'rent', '', function(){});
+  a.dbAddEntry('2026-09-05', 'out', 2000, 'salary', '', function(){});
+  var at = a.calcAllTimeProfit();
+  assert(at.expenses.total === 3000, 'expected 3000 across both months, got ' + at.expenses.total);
+  assert(at.netProfit === at.profit - 3000, 'all-time netProfit should be profit - 3000');
+});
+
+test('every DB_CATS key has an icon and a color — no undefined fallback (spec §9)', function(){
+  var a = loadApp();
+  Object.keys(a.DB_CATS).forEach(function(k){
+    var c = a.DB_CATS[k];
+    assert(!!c.icon, 'DB_CATS.' + k + ' is missing an icon');
+    assert(!!c.color, 'DB_CATS.' + k + ' is missing a color');
+  });
+});
+
+test('dbLineIcon resolves an auto line by src even when its cat is not a DB_CATS key', function(){
+  var a = loadApp();
+  var icon = a.dbLineIcon({ cat: 'girvi-disbursement', src: 'girvi' });
+  assert(icon.icon === a.DB_AUTO_ICONS.girvi.icon, 'expected the girvi auto icon, got ' + JSON.stringify(icon));
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

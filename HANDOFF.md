@@ -51,6 +51,132 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-23 · Cowork (Day Book v2 spec — Tanish said it "looks cheap and unprofessional,"
+researched real competitors, traced the gap to the actual code, wrote the fix as a spec)
+
+**`docs/DAYBOOK-SPEC-v2.md` is new — read it before starting anything below.** Tanish's
+complaint after seeing batch27's non-cash fix live: Day Book still "looks so unprofessional,"
+UI/UX "very simple, won't create an impression." Rather than guess at cosmetics, researched
+six real competitors (Prime/Rojmel — the original this feature is modeled on, GoldBook,
+JewellerBook, Vyapar Cash Book, Zoho Daybook, Khatabook) and cross-checked every pattern
+found against JewelOS's actual code, not assumption. Six confirmed gaps, all in the new spec:
+
+1. **Expenses never reach Reports.** Checked `calcMonthProfit()` directly — it only reads
+   `S.sales` and girvi interest, never `S.dayBook`. P&L stops at "Gross Profit." Spec §1 adds
+   `calcDayBookExpenses()`, wires it into `calcMonthProfit`/`calcAllTimeProfit`, and makes Net
+   Profit (not Gross) the headline number in Reports — matches every competitor surveyed.
+2. **No chart anywhere in Day Book.** Reports already has one (`rep-chart`) that Day Book
+   never reuses. Spec §2 adds `dbBuildTrend()`, built entirely on top of the existing
+   `dbDayView()` — no new math, just aggregation.
+3. **Categories are plain text, no color/icon.** Spec §3 extends `DB_CATS` with icon+color
+   per category, reusing existing CSS tokens (`var(--gold-dark)` etc.) already used
+   throughout Reports and Girvi — no new palette invented.
+4. **Manual entries never link to a person.** Spec §4 adds an optional `party` field,
+   explicitly telling whoever builds this to grep the sale form's existing customer-lookup
+   pattern first rather than write a second one — I didn't find a reusable picker component
+   in this pass and said so rather than guessing a function name.
+5. **No receipt/photo attachment.** Spec §5 points at the existing `gfCompressPhoto()`
+   (js/07-settings-plans.js:318) to reuse — but flags a real constraint: DAYBOOK-SPEC.md's
+   own blob-size math assumed text-only entries, and photos change that by orders of
+   magnitude. Spec explicitly gates this on Claude Code re-checking that math before writing
+   any storage code, not after.
+6. **Day Book is single-day only, no trend view.** Spec §6 adds a Day/Month toggle; Month
+   view is where the chart (2), expense breakdown (1) and party grouping (4) all live. The
+   existing single-day entry/close-day screen is untouched — it's already correct.
+
+**What explicitly does not change** (spec §7, stated up front on purpose): `dbAutoLines`,
+`dbAutoTotals`, `dbDayView`, `dbIsCash`, the locked-day sweep — byte-for-byte unchanged.
+Everything new is a read-only aggregation layer on top of logic that already works. Same
+discipline the batch27 non-cash fix followed ("only what gets shown changed").
+
+**Suggested build order is in spec §8** — expenses→P&L and category icons first (cheap, high
+value, low risk), chart+Month view together (biggest single piece), party linking (after the
+grep step), photo attachment last (gated on the storage check). Doesn't have to ship as one
+batch.
+
+**Model policy note (MODEL-POLICY.md):** this is 🔴 (touches P&L, financial display). This
+spec is the plan; per policy, Opus should still review before deploy, same as Phase 1's spec
+was.
+
+→ FOR CLAUDE CODE: start with §1+§3 from the build order in spec §8 whenever you pick this
+up — they're independent of the chart/Month-view work and safest to ship first. Flag back
+here if the sale form's customer-lookup pattern (needed for §4) turns out not to exist in a
+reusable form — that's useful to know either way.
+
+Releasing `NOW`.
+
+---
+
+### 2026-09-23 · Claude Code (built §1+§3 from DAYBOOK-SPEC-v2.md — expenses into P&L,
+category icons/colors — in this folder, NOT deployed, not committed to a new build zip)
+
+**Built the two items Cowork's entry above asked for, in build order.** Nothing else from
+the v2 spec touched — §2/§6 (chart, Month view), §4 (party linking) and §5 (photo
+attachment) are still open, per spec §8's staging.
+
+**§1 — expenses now reach Reports.** Added `calcDayBookExpenses(year, month)` in
+`js/01-sync-core.js`, next to `calcMonthProfit`. Wired into both `calcMonthProfit` and
+`calcAllTimeProfit`, each gaining `expenses:{total,byCat}` and `netProfit` fields;
+`profit` (gross) is untouched — same meaning, same value, as the spec required. Called
+with no args, `calcDayBookExpenses` totals all-time instead of one month, so
+`calcAllTimeProfit` reuses the exact same function rather than a second implementation.
+Only `DB_CATS[cat].group === 'expense'` counts — Owner Drawings/Capital never touch
+`netProfit`, verified by its own test.
+
+In `js/03-billing-numbers.js`: the `rep-metrics` "Profit" tile now shows `netProfit`
+(was gross `profit`), colored red when negative. The P&L card gained `(-) Operating
+Expenses` (a native `<details>/<summary>` — the same collapsible pattern already used
+three other places in this codebase, no new component) and `= Net Profit` as the new
+headline row below Gross Profit, which stays as a sub-line exactly as spec §1.4 asked.
+Expense breakdown rows reuse `plRow()`, not a second row renderer. All-Time Summary card
+left alone — spec's UI section only described the month card and the metric tile.
+
+**§3 — category icons and colors.** Extended every `DB_CATS` entry (including
+`cashShort`/`cashExcess`/`adjust`, which the spec's table didn't list but the "every
+DB_CATS key" acceptance test in §9 covers) with `icon`+`color`, all existing CSS tokens,
+no new palette. Auto lines (`sale`/`purchase`/`girvi`/`order`) don't map through
+`DB_CATS` — their `cat` values are free-form strings like `girvi-disbursement`, not
+`DB_CATS` keys — so added a small `DB_AUTO_ICONS` map keyed by `src` instead, and a
+`dbLineIcon(line)` helper that tries `DB_CATS` first, then `DB_AUTO_ICONS`, then a
+neutral dot fallback (never undefined). Wired into the entry-category chips
+(`dbOpenEntryModal`) and the Lines list (`_dbPaint`) — both now show icon + color per
+category/source.
+
+**§4 recon only, not built:** Cowork's entry above said no reusable customer-lookup
+picker was found in this pass. There is one — `custAutocomplete()`/`fillCust()` in
+`js/02-ui-inactivity-modals.js:573-596`, wired to `#s-cust` via `oninput`, matching
+past `S.sales.customer` values and filling `#s-cust`/`#s-phone` from a `#cust-suggestions`
+dropdown. Worth reusing when §4 gets built — flagging now so whoever picks up §4 doesn't
+re-search for it.
+
+**Tests:** 8 new in `tests/regression.test.js` (`calcDayBookExpenses` zero/rent/drawings/
+voided/prior-month cases, `calcAllTimeProfit` cross-month sum, every `DB_CATS` key has an
+icon+color, `dbLineIcon` resolves an auto line by `src`). 195/195 passing (was 187).
+`node --check` clean on all 11 files. All nine `checks/` scripts run and diffed against
+their pre-change output — `scope.js`/`css.js`/`unquoted-args.js` identical aside from the
+expected higher identifier/global count; `loadorder.js` clean; `backup-check.js` and
+`roundtrip.js` both pass (no new stored fields, so nothing new to round-trip). `ids.js`/
+`handlers.js` findings are the same pre-existing ones as before this batch.
+`making-basis.js` still crashes on its own regex — confirmed that happens on HEAD too,
+before any of these changes, so not a regression from this work.
+
+**Not verified:** nothing visual — no browser automation here. The `<details>` collapsible,
+the icon colors, and the chip styling are unverified until someone opens Reports and Day
+Book on a device. Not built into a deploy zip yet — this is source-only, same as the
+original spec's own "no code written" framing until reviewed.
+
+**Model policy note:** this touches P&L (🔴). Per `MODEL-POLICY.md` and Cowork's note
+above, Opus should review before this ships in a build.
+
+→ FOR COWORK / TANISH: §1+§3 are implemented and tested but not zipped or deployed. Needs
+an Opus review pass (financial display change) before it goes in a build, then a device
+look at the new P&L card and Day Book chip/line icons. §2/§6/§4/§5 remain, in that order
+per spec §8 — §4 now has a real picker to reuse (`custAutocomplete`), noted above.
+
+Releasing `NOW`.
+
+---
+
 ### 2026-09-21 · Claude Code (built the batch27 deploy zip — supersedes batch26, carries the
 non-cash Day Book fix)
 

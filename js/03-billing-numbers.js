@@ -1078,7 +1078,7 @@ function renderReports(){
   var rm=document.getElementById('rep-metrics');
   if(rm) rm.innerHTML=
     '<div class="metric"><div class="metric-label">Revenue</div><div class="metric-value" style="color:var(--gold-dark)">'+fmt(mProfit.revenue)+'</div><div class="metric-sub">'+monthSales.length+' bills + girvi interest</div></div>'+
-    '<div class="metric"><div class="metric-label">Profit</div><div class="metric-value" style="color:var(--success)">'+fmt(mProfit.profit)+'</div><div class="metric-sub">'+mProfit.margin.toFixed(1)+'% margin</div></div>'+
+    '<div class="metric"><div class="metric-label">Profit</div><div class="metric-value" style="color:'+(mProfit.netProfit>=0?'var(--success)':'var(--danger)')+'">'+fmt(mProfit.netProfit)+'</div><div class="metric-sub">net of expenses</div></div>'+
     '<div class="metric"><div class="metric-label">GST Collected</div><div class="metric-value">'+fmt(mProfit.gst)+'</div><div class="metric-sub">govt portion</div></div>'+
     '<div class="metric"><div class="metric-label">Cash In</div><div class="metric-value" style="color:var(--success)">'+fmt(cf.cashIn)+'</div><div class="metric-sub">actual collected</div></div>'+
     '<div class="metric"><div class="metric-label">Credit Given</div><div class="metric-value" style="color:var(--danger)">'+fmt(cf.credit)+'</div><div class="metric-sub">pending this month</div></div>'+
@@ -1127,6 +1127,11 @@ function renderReports(){
     var plLabel=document.getElementById('rep-pl-label'); if(plLabel) plLabel.textContent=mlbl;
     var goldSold=monthSales.reduce(function(s,x){return s+x.items.filter(function(i){return i.metal==='gold';}).reduce(function(a,i){return a+i.weight*i.qty;},0);},0);
     var silverSold=monthSales.reduce(function(s,x){return s+x.items.filter(function(i){return i.metal==='silver';}).reduce(function(a,i){return a+i.weight*i.qty;},0);},0);
+    var expByCat=Object.keys(mProfit.expenses.byCat).sort(function(a,b){return mProfit.expenses.byCat[b]-mProfit.expenses.byCat[a];});
+    var expBreakdownHtml=expByCat.map(function(cat){
+      var c=DB_CATS[cat]||{label:cat,icon:'',color:'var(--text3)'};
+      return plRow('  '+c.icon+' '+escHtml(c.label), fmt(mProfit.expenses.byCat[cat]), c.color, false);
+    }).join('');
     plEl.innerHTML=
       '<div style="display:grid;gap:0;">'+
       plRow('(+) Total Revenue',     fmt(mProfit.revenue),  'var(--gold-dark)', true)+
@@ -1134,6 +1139,14 @@ function renderReports(){
       plRow('(-) GST (Govt portion)',fmt(mProfit.gst),      'var(--text3)',     false)+
       '<div style="border-top:2px solid var(--border);padding-top:8px;margin-top:4px;">'+
       plRow('= Gross Profit',        fmt(mProfit.profit),   mProfit.profit>=0?'var(--success)':'var(--danger)', true)+
+      '</div>'+
+      (expByCat.length ?
+        '<details style="margin-top:2px;"><summary style="cursor:pointer;">'+
+          plRow('(-) Operating Expenses', fmt(mProfit.expenses.total), 'var(--danger)', false)+
+        '</summary>'+expBreakdownHtml+'</details>'
+        : plRow('(-) Operating Expenses', fmt(0), 'var(--text3)', false))+
+      '<div style="border-top:2px solid var(--border);padding-top:8px;margin-top:4px;">'+
+      plRow('= Net Profit',          fmt(mProfit.netProfit),mProfit.netProfit>=0?'var(--success)':'var(--danger)', true)+
       '</div>'+
       '<div style="border-top:0.5px solid var(--border);padding-top:8px;margin-top:8px;font-size:11px;color:var(--text3);">'+
       plRow('Gold sold',  fmtW(goldSold),   'var(--text2)', false)+

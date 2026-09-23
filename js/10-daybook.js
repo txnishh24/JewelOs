@@ -13,21 +13,40 @@
 // ══════════════════════════════════════════════════════════════════════
 
 var DB_CATS = {
-  rent:          {dir:'out', label:'Rent',              group:'expense'},
-  salary:        {dir:'out', label:'Salary',            group:'expense'},
-  electricity:   {dir:'out', label:'Electricity',       group:'expense'},
-  tea:           {dir:'out', label:'Tea / Refreshment', group:'expense'},
-  transport:     {dir:'out', label:'Transport',         group:'expense'},
-  repair:        {dir:'out', label:'Repair',            group:'expense'},
-  misc:          {dir:'out', label:'Miscellaneous',     group:'expense'},
-  drawings:      {dir:'out', label:'Owner Drawings',    group:'owner'},
-  capital:       {dir:'in',  label:'Owner Capital',     group:'owner'},
-  bankDeposit:   {dir:'out', label:'Bank Deposit',      group:'transfer'},
-  bankWithdrawal:{dir:'in',  label:'Bank Withdrawal',   group:'transfer'},
-  cashShort:     {dir:'out', label:'Cash Short',        group:'reconcile'},
-  cashExcess:    {dir:'in',  label:'Cash Excess',       group:'reconcile'},
-  adjust:        {dir:null,  label:'Adjustment',        group:'system'}
+  rent:          {dir:'out', label:'Rent',              group:'expense',  icon:'🏠', color:'var(--danger)'},
+  salary:        {dir:'out', label:'Salary',            group:'expense',  icon:'👤', color:'var(--danger)'},
+  electricity:   {dir:'out', label:'Electricity',       group:'expense',  icon:'💡', color:'var(--danger)'},
+  tea:           {dir:'out', label:'Tea / Refreshment', group:'expense',  icon:'☕',        color:'var(--danger)'},
+  transport:     {dir:'out', label:'Transport',         group:'expense',  icon:'🚗', color:'var(--danger)'},
+  repair:        {dir:'out', label:'Repair',            group:'expense',  icon:'🔧', color:'var(--danger)'},
+  misc:          {dir:'out', label:'Miscellaneous',     group:'expense',  icon:'📦', color:'var(--danger)'},
+  drawings:      {dir:'out', label:'Owner Drawings',    group:'owner',    icon:'💰', color:'var(--text3)'},
+  capital:       {dir:'in',  label:'Owner Capital',     group:'owner',    icon:'🏦', color:'var(--success)'},
+  bankDeposit:   {dir:'out', label:'Bank Deposit',      group:'transfer', icon:'🏧', color:'var(--text3)'},
+  bankWithdrawal:{dir:'in',  label:'Bank Withdrawal',   group:'transfer', icon:'🏧', color:'var(--text3)'},
+  cashShort:     {dir:'out', label:'Cash Short',        group:'reconcile',icon:'⚠️', color:'var(--danger)'},
+  cashExcess:    {dir:'in',  label:'Cash Excess',       group:'reconcile',icon:'✅',        color:'var(--success)'},
+  adjust:        {dir:null,  label:'Adjustment',        group:'system',   icon:'🔄', color:'var(--text3)'}
 };
+
+// Icon/color for auto lines (docs/DAYBOOK-SPEC-v2.md §3.1) — keyed by
+// src, not DB_CATS, because an auto line's cat (e.g. 'sale-refund',
+// 'girvi-disbursement') is a free-form label, not a DB_CATS key.
+var DB_AUTO_ICONS = {
+  sale:     {icon:'💎', color:'var(--gold-dark)'},
+  purchase: {icon:'📥', color:'var(--text2)'},
+  girvi:    {icon:'🪙', color:'#c9a84c'},
+  order:    {icon:'📝', color:'var(--text2)'}
+};
+
+// Icon+color for any Day Book line (manual, via DB_CATS; auto, via
+// DB_AUTO_ICONS by src). Falls back to a neutral dot rather than ever
+// showing nothing — see DAYBOOK-SPEC-v2.md §9's "no undefined icon" test.
+function dbLineIcon(line){
+  if(line.cat && DB_CATS[line.cat] && DB_CATS[line.cat].icon) return DB_CATS[line.cat];
+  if(line.src && DB_AUTO_ICONS[line.src]) return DB_AUTO_ICONS[line.src];
+  return {icon:'•', color:'var(--text3)'};
+}
 
 // Canonical LOCAL calendar-day key ('YYYY-MM-DD') from an ISO string, a
 // Date, or an already-keyed string. Never use toISOString().slice(0,10)
@@ -749,10 +768,12 @@ function _dbPaint(){
       var canVoid = (line.kind==='manual') && !line.voided && !v.closed;
       var catLabel = (line.cat && DB_CATS[line.cat]) ? DB_CATS[line.cat].label : (line.cat||'');
       var sourceTag = line.src ? ' • auto' : (line.kind==='manual' ? ' • manual' : '');
+      var lineIcon = dbLineIcon(line);
+      var iconBadge = '<span style="display:inline-block;width:16px;text-align:center;margin-right:5px;color:'+lineIcon.color+';">'+lineIcon.icon+'</span>';
       html += '<div class="gl-entry"'+(line.voided?' style="opacity:.5;"':'')+'>'+
         '<div class="gl-entry-left">'+
           '<div class="gl-entry-amt '+(line.dir==='in'?'credit':'debit')+'">'+(line.dir==='in'?'+':'−')+fmt(line.amount)+(line.voided?' (voided)':'')+'</div>'+
-          '<div class="gl-entry-meta">'+escHtml(line.label||catLabel)+(line.note?' • '+escHtml(line.note):'')+(line.kind==='adjust'?' • system adjustment':sourceTag)+(line.voided?' • '+escHtml(line.voidReason||''):'')+'</div>'+
+          '<div class="gl-entry-meta">'+iconBadge+escHtml(line.label||catLabel)+(line.note?' • '+escHtml(line.note):'')+(line.kind==='adjust'?' • system adjustment':sourceTag)+(line.voided?' • '+escHtml(line.voidReason||''):'')+'</div>'+
         '</div>'+
         '<div class="gl-entry-right">'+
           '<div style="font-size:12px;font-weight:600;color:var(--ink3);">'+fmt(running)+'</div>'+
@@ -791,7 +812,8 @@ function dbOpenEntryModal(){
   var row = document.getElementById('db-entry-cat-row');
   if(row){
     row.innerHTML = DB_ENTRY_CHIP_CATS.map(function(k){
-      return '<button type="button" class="gl-type-btn db-cat-chip" onclick="dbSetEntryCat(\''+k+'\',this)">'+escHtml(DB_CATS[k].label)+'</button>';
+      var c = DB_CATS[k];
+      return '<button type="button" class="gl-type-btn db-cat-chip" style="border-color:'+c.color+';" onclick="dbSetEntryCat(\''+k+'\',this)">'+c.icon+' '+escHtml(c.label)+'</button>';
     }).join('');
   }
   var amtEl = document.getElementById('db-entry-amt'); if(amtEl) amtEl.value = '';

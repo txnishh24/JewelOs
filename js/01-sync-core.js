@@ -1701,6 +1701,32 @@ function girviOutstandingWithPenalty(g){
 }
 
 // ── PROFIT SUMMARY HELPERS ───────────────────────────────────────────
+
+// Day Book expenses for P&L (docs/DAYBOOK-SPEC-v2.md §1). Only group:'expense'
+// entries count — Owner Drawings/Capital are equity movements, never a cost.
+// Called with no args, totals across all time (calcAllTimeProfit); called
+// with (year, month), totals that calendar month (calcMonthProfit). Derived
+// at render time from S.dayBook.entries — no new stored field.
+function calcDayBookExpenses(year, month){
+  var filterByMonth = (year !== undefined && month !== undefined);
+  var monthStart, monthEnd;
+  if(filterByMonth){
+    monthStart = new Date(year, month, 1);
+    monthEnd   = new Date(year, month+1, 0, 23, 59, 59);
+  }
+  var byCat = {}, total = 0;
+  (S.dayBook && S.dayBook.entries || []).forEach(function(e){
+    if(e.voided) return;
+    if(!DB_CATS[e.cat] || DB_CATS[e.cat].group !== 'expense') return;
+    if(filterByMonth){
+      var d = new Date(e.date);
+      if(d < monthStart || d > monthEnd) return;
+    }
+    total += e.amount;
+    byCat[e.cat] = (byCat[e.cat]||0) + e.amount;
+  });
+  return { total: total, byCat: byCat };
+}
 function calcMonthProfit(year, month){
   var sales = S.sales.filter(function(s){
     var d=new Date(s.date); return d.getFullYear()===year && d.getMonth()===month;
@@ -1731,7 +1757,8 @@ function calcMonthProfit(year, month){
     });
   });
   var margin = totalRevenue>0 ? (totalProfit/totalRevenue*100) : 0;
-  return { revenue:totalRevenue, cost:totalCost, profit:totalProfit, gst:totalGST, margin:margin, count:sales.length };
+  var expenses = calcDayBookExpenses(year, month);
+  return { revenue:totalRevenue, cost:totalCost, profit:totalProfit, gst:totalGST, margin:margin, count:sales.length, expenses:expenses, netProfit: totalProfit-expenses.total };
 }
 
 function calcAllTimeProfit(){
@@ -1741,7 +1768,8 @@ function calcAllTimeProfit(){
     totalRevenue += p.revenue;
     totalProfit  += p.profit;
   });
-  return { revenue:totalRevenue, profit:totalProfit, margin: totalRevenue>0?(totalProfit/totalRevenue*100):0 };
+  var expenses = calcDayBookExpenses();
+  return { revenue:totalRevenue, profit:totalProfit, margin: totalRevenue>0?(totalProfit/totalRevenue*100):0, expenses:expenses, netProfit: totalProfit-expenses.total };
 }
 
 // ── CUSTOMER FINANCIAL PROFILE ───────────────────────────────────────
