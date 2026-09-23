@@ -1162,6 +1162,41 @@ test('activity log notes and user names are escaped wherever the log is rendered
   });
 });
 
+// ── Bug: stored XSS via customer name, using encodeURIComponent() as
+// attribute escaping (23 Sep 2026 security audit — HANDOFF.md) ──────────
+// encodeURIComponent() does not escape ' ( ) — exactly what's needed to
+// break out of a single-quoted onclick="fn('...')" attribute. A customer
+// named e.g. x'-alert(1)-' ran that alert with zero percent-encoding
+// involved. jsAttrEsc() is the correct helper for this context.
+console.log('\nStored XSS — customer name in onclick attributes (23 Sep 2026):');
+
+test('no onclick attribute builds a value with encodeURIComponent() instead of jsAttrEsc()', function(){
+  var fs = require('fs'), path = require('path');
+  var root = path.join(__dirname, '..', 'js');
+  var offenders = [];
+  fs.readdirSync(root).forEach(function(f){
+    var text = fs.readFileSync(path.join(root, f), 'utf-8');
+    _liveCodeLines(text).forEach(function(line){
+      // Only the HTML-attribute-string form (onclick="...") is the risk --
+      // 'el.onclick = function(){ ... }' passes encodeURIComponent() a real
+      // JS variable at call time, never splices it into parsed markup.
+      if(/onclick="[^"]*encodeURIComponent\(/.test(line)) offenders.push(f + ': ' + line.trim().slice(0, 100));
+    });
+  });
+  assert(offenders.length === 0, 'onclick attribute still built with encodeURIComponent() (not attribute-safe) in:\n  ' + offenders.join('\n  '));
+});
+
+test('custAutocomplete() escapes a customer name/phone containing a single quote for the onclick attribute', function(){
+  var a = loadApp();
+  var hostileName = "x'-alert(1)-'";
+  a.S.sales = [{ customer: hostileName, phone: "1'-alert(2)-'", date: new Date().toISOString(), items: [] }];
+  a.document.getElementById('s-cust').value = 'x';
+  a.custAutocomplete();
+  var html = a.document.getElementById('cust-suggestions').innerHTML;
+  assert(html.indexOf("fillCust('x\\'-alert(1)-\\''") !== -1, 'expected the quote to be backslash-escaped inside the onclick attribute, got: ' + html.slice(0, 200));
+  assert(html.indexOf("fillCust('" + hostileName + "'") === -1, 'the raw, unescaped name must never reach the onclick attribute');
+});
+
 // ── Bug: a product's making charge never reached the sale (17 Sep) ──────
 // Found in Cowork's live walkthrough: set Making Charge 500/g on a product,
 // sell it through the SKU picker, and "Extra making" stayed 0. The bill

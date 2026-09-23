@@ -1116,8 +1116,12 @@ function sendWhatsApp(phone, message){
   saasActivityLog('whatsapp', 'WhatsApp sent to '+phone);
 }
 
-function custBalanceWA(encName, phone, balAmt){
-  var name = decodeURIComponent(encName);
+function custBalanceWA(custName, phone, balAmt){
+  // custName arrives already HTML-attribute-decoded -- escaped with
+  // jsAttrEsc() at the call site, not encodeURIComponent(), so no decode
+  // here (security review, 23 Sep 2026 HANDOFF entry: encodeURIComponent()
+  // was not safe attribute escaping and left a stored-XSS gap).
+  var name = custName;
   var shopName = (SAAS&&SAAS.shop&&SAAS.shop.name)||'hamari dukaan';
   var msg = 'Namaste '+name+' ji \ud83d\ude4f\n\n'+
     '*'+shopName+'* ki taraf se yaad dila rahe hain \u2014\n\n'+

@@ -583,15 +583,21 @@ function custAutocomplete(){
   if(!matches.length){box.style.display='none';return;}
   box.style.display='block';
   box.innerHTML=matches.map(function(s){
-    return '<div style="padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);" onclick="fillCust(\''+encodeURIComponent(s.customer)+'\',\''+encodeURIComponent(s.phone||'')+'\')">'+
+    return '<div style="padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);" onclick="fillCust(\''+jsAttrEsc(s.customer)+'\',\''+jsAttrEsc(s.phone||'')+'\')">'+
       '<strong>'+escHtml(s.customer)+'</strong>'+(s.phone?' &bull; '+escHtml(s.phone):'')+
     '</div>';
   }).join('');
 }
 
 function fillCust(name,phone){
-  document.getElementById('s-cust').value=decodeURIComponent(name);
-  document.getElementById('s-phone').value=decodeURIComponent(phone);
+  // name/phone arrive already HTML-attribute-decoded by the browser -- the
+  // markup that calls this escapes them with jsAttrEsc(), not encodeURIComponent(),
+  // so decoding here would both be wrong and throw on a name containing a
+  // raw '%' (security review, 23 Sep 2026 HANDOFF entry: this used to be a
+  // stored-XSS gap -- encodeURIComponent() does not escape the quote/paren
+  // characters needed to break out of the onclick attribute).
+  document.getElementById('s-cust').value=name;
+  document.getElementById('s-phone').value=phone;
   document.getElementById('cust-suggestions').style.display='none';
 }
 

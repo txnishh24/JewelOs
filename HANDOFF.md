@@ -280,6 +280,94 @@ real guard. Worth a proper fix in its own batch, not bundled into this one.
 
 ---
 
+### 2026-09-23 · Claude Code (Sonnet, plan → Opus review gate) (full security audit,
+requested after batch29 shipped — first a quick diff-scoped check, then a real whole-app
+audit: client escaping/localStorage, all three Edge Functions, RLS, secrets, PIN/session)
+
+**🔴 Found and fixed: stored XSS via customer name → owner-session takeover. Opus GO on
+the fix.** Two places built an inline `onclick="fn('...')"` attribute by wrapping a
+user-controlled value in `encodeURIComponent()` instead of the codebase's own
+`jsAttrEsc()` (`01:987`) — `encodeURIComponent()` doesn't escape `'` `(` `)`, exactly what's
+needed to break out of the quoted JS string. A customer named `x'-alert(document.cookie)-'`
+ran that alert with **zero percent-encoding involved**, no exotic input required. Any
+sale-entry-level account (lowest write role) sets the name once; it detonates in the
+**owner's** browser the next time they type a matching prefix in the new-sale customer
+field or open the Customers tab's due-balance "Remind" button — both routine during
+billing. Since it runs with the owner's session already in memory, it's a real staff →
+owner privilege-escalation path, not a theoretical one.
+- Fixed: `custAutocomplete()` (`02:586`) and `renderCustomers()`'s Remind button
+  (`03:423`) now use `jsAttrEsc()`. Their receivers, `fillCust()` (`02:592`) and
+  `custBalanceWA()` (`05:1119`), no longer `decodeURIComponent()` the value — it arrives
+  already HTML-attribute-decoded plain text, and decoding it was also a latent `URIError`
+  waiting for any customer name containing a literal `%`.
+- Opus verified `jsAttrEsc()` is the correct helper for this exact context (single-quoted
+  arg inside a double-quoted `onclick="..."` attribute), confirmed each fixed function has
+  exactly one caller (the fixed line), and scanned all 11 files for the same bug class —
+  none left in the *attribute-string* form. One near-miss, confirmed safe: `03:351-352`
+  builds `onclick="showCustHistory(&quot;'+cid+'&quot;)"` from an `encodeURIComponent()`
+  value — safe today only because percent-encoding happens to neutralize `"`/`&` too, "safe
+  by luck of quote choice, not by design." Not fixed — `showCustHistory()` has three other
+  callers that correctly pass real `encodeURIComponent()`'d JS arguments (not attribute
+  strings), so switching this one call site to `jsAttrEsc()` would need touching all four
+  plus the function's own `decodeURIComponent()`, for a spot that isn't actually
+  exploitable. Left as a documented "worth doing if you're ever in there for another
+  reason," not a blocker.
+- Two new regression tests (search "Stored XSS" in `tests/regression.test.js`): a static
+  scan that fails if any `onclick="..."`-built attribute anywhere in `js/` uses
+  `encodeURIComponent()` again (deliberately scoped to the attribute-string form only —
+  `el.onclick=function(){...}` property assignment is exempt and safe, since the value
+  there is a real JS variable at call time, never spliced into parsed markup — Opus
+  confirmed this distinction is correct, not just plausible), and a harness-level test
+  that calls the real `custAutocomplete()` with a hostile name and asserts the quote comes
+  out backslash-escaped. Opus flagged the tripwire is a narrow regression pin (misses
+  `onChange=`, split-line concatenation, etc.), not a class scanner — accepted as adequate
+  since the harness-level test carries the real weight.
+
+**🟡 Found, documented, deliberately not touched — Tanish's call, not this session's.**
+Full audit also found a dead client-side Razorpay plan-activation path
+(`upgradePlan`/`_openRazorpay`/`_activatePlan`, `05:686-809`) that reintroduces the exact
+"anyone can open devtools and call this directly" vuln the `razorpay-webhook` Edge
+Function was built to close — but it's explicitly marked **"DO NOT DELETE"** in its own
+comment block and confirmed unreachable from any UI (`checks/ids.js` already flags
+`#set-rzp-key` as looked-up-but-never-produced). Zero live impact today since `plan`
+doesn't gate anything (`PLAN_LIMITS`/`PLAN_FEATURES` alias every tier to the same object —
+`paidUntil` is the real gate). **Not touched, per the explicit DO NOT DELETE marker** —
+worth a proper server-side-verified redesign (have `_activatePlan` go through
+`razorpay-webhook` instead of trusting the client `handler` callback) whenever billing is
+actually reactivated, not a silent patch now. The same code path also has an unscoped
+`jewelos_rzp_key` localStorage key (should be `shopScopedKey()`) — same reasoning, left
+for whoever reactivates it.
+
+**🟢 Fixed, zero risk:** `checks/` had no committed lockfile, so `npm audit` couldn't run
+at all (`ENOLOCK`). Ran `npm install --package-lock-only`; `checks/package-lock.json` is
+now committed and `npm audit` reports 0 vulnerabilities. Dev-tooling only, not shipped
+app code.
+
+**Checked and clean (full detail in the audit's own report, not reproduced here):** all
+three Edge Functions (`store-proxy` resolves the shop server-side from the session, no
+client-supplied id is ever trusted — no IDOR; `auth-gateway` — PBKDF2 100k iterations,
+server-side rate limiting, constant-time compare, no account enumeration on reset;
+`razorpay-webhook` — signature verified before trusting payload, idempotent). RLS
+(`001_lockdown_rls.sql`) — no `USING (true)` anywhere, `service_role`-only on every
+shop-data table. No hardcoded secrets anywhere in `js/`/`supabase/` — all read from env.
+PIN/session localStorage keys all correctly `shopScopedKey()`'d, `loadCache()` verifiably
+rejects a mismatched shop's cache. `10-daybook.js` (newest module) specifically checked
+for the same escaping gap — none found, every free-text field already `escHtml()`'d.
+
+**Verification:** `node --check` clean. `node tests/regression.test.js` → 205 passed, 0
+failed (2 new). Full `checks/` suite clean. None of the 12 protected `10-daybook.js`
+ledger functions touched (this fix has nothing to do with that file).
+
+→ FOR COWORK: the stored-XSS fix got an Opus GO — ready to ship with the next deploy.
+**→ FOR TANISH:** nothing you need to act on right now — the live vulnerability is fixed.
+Two things are sitting as documented, accepted risk for whenever you touch billing again:
+the parked Razorpay activation code (`05:686-809`, marked DO NOT DELETE, currently
+harmless because `plan` doesn't gate anything) needs server-side payment verification
+before it's ever wired back up, and its `jewelos_rzp_key` localStorage key should move to
+`shopScopedKey()` at the same time.
+
+---
+
 ### 2026-09-23 · Claude Code (Opus) (final review of Day Book v2 §1+§3+§2+§6, commits
 `a1c8310` + `c17c125` — the MODEL-POLICY.md §3/§6 review gate both entries below asked for.
 Verdict: **NO-GO as-is. Two blockers, both small and localised. Neither touches the ledger.**)
