@@ -1,0 +1,44 @@
+---
+name: verify-ui
+description: Use when verifying a UI change, or before any release, once check.bat has passed. Click through the app in a real browser with Playwright — check.bat and the regression suite only test logic, never the screen.
+---
+
+# Verifying JewelOS in a browser
+
+`check.bat` tests syntax, math, and dead references. It does not open a screen. This
+closes that gap using the Playwright MCP tools (`mcp__plugin_playwright_playwright__*`)
+already available in this environment — actually load and click the app instead of
+reading code and assuming it renders.
+
+## When
+
+- Any change touching `js/` that isn't a pure backend/logic fix
+- Before handing back a build (pairs with the `Evidence Collector` agent routing in `CLAUDE.md`)
+- After a Girvi, billing, or daybook change specifically — these have the deepest DOM state
+
+## How
+
+1. `check.bat` must be green first. This is the next step after that, not a replacement.
+2. Serve the folder locally (e.g. `npx serve .`, or any static server — this is a PWA
+   with no build step) and navigate Playwright to it.
+3. Walk the flow the change touches, not the whole app:
+
+| Change touches | Walk this flow |
+|---|---|
+| `03-billing-numbers.js` | Create a sale, add items, confirm GST/total, save the bill |
+| `04-orders-detail.js` | Open Orders, check PIN gating, plan-limit banners |
+| `05-auth-login.js` | Log out, log back in, staff PIN entry |
+| `06-inventory-stock.js` | Add stock, edit an item, confirm weight recomputes from qty |
+| `08-girvi-viewmode.js` | Open a Girvi item, view interest/receipt — do not touch the interest engine itself |
+| `09-purchases.js` | Record a purchase, confirm it lands in stock |
+| `10-daybook.js` | Close Day, confirm cash-in/out derivation, check a locked-day adjustment |
+
+4. Screenshot anything that looks wrong and report it — do not silently retry.
+5. State plainly what you clicked and what you didn't. "Verified billing, did not touch
+   Girvi" is a real report. "Looks fine" is not.
+
+## What this does not replace
+
+A real phone, on real network conditions, is still the final check before shipping to
+Tanish's customers. This catches layout/rendering breaks Claude would otherwise only
+guess about — it is not a substitute for Tanish's own pass.

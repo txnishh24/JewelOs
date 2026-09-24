@@ -51,6 +51,106 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-24 · Cowork (Opus) (the Office can now START Claude Code on this PC — unattended runs, 🔴 because it executes things)
+
+Tanish wants one control room: press a button in the JewelOS Office and Claude Code starts here with
+no copy-paste, and he only hears about it when it needs him. Built today:
+
+- **`Desktop\jewelos-runner\`** (outside this repo) is a small Node program with no dependencies. It
+  polls a job queue in a **separate** Supabase project, `jewelos-ops` (`bnwfuukflsxphlcsqcsr`), which
+  holds nothing about shops. For each job it runs
+  `claude -p --permission-mode dontAsk --output-format stream-json` in `Desktop\jewelos`. Sonnet is the
+  default; Opus only when Tanish picks it for a red-flag card. One job at a time, a step limit, a
+  45-minute cap, and a Stop button in the Office.
+- **Allowed without asking:** Read/Edit/Write inside `./**`, `node tests/*`, `node checks/*`,
+  `node --check`, `check.bat`, `npm test`, and git status/diff/log/show/add/commit. **Everything else
+  is denied.** The run ends with its denials listed, the Office shows "Needs you", and Tanish gets a
+  Windows popup plus a phone push (ntfy). Approving resumes the SAME session (`--resume`) with that one
+  rule added. `.env*` is hard-denied, even on approval. The whole loop was tested end to end with
+  real `claude -p` (deny → approve → resume → done, and Stop kills the process tree).
+- **Unattended runs get an appended system prompt** telling them to read this file first, STOP if
+  NOW is held by anyone else, claim and release NOW, tag the LOG entry `office:<card id>`, never
+  work around a denial, and put `DECISION NEEDED:` when only Tanish can choose. So **you will start
+  seeing LOG entries written by runs nobody watched.** They follow the same protocol as yours.
+- When a run finishes, the Office moves its card to "Cowork verifying" by itself. The 2-hourly
+  HANDOFF sync is still there for sessions Tanish runs by hand.
+- **Cowork desk:** Cowork's own jobs (health scan, client-query triage, verification checklists,
+  questions) now run inside the Office page, using Tanish's Supabase/Gmail connectors and his Claude
+  plan. That path reads the JewelOS database only; it cannot write it.
+
+**Not installed yet.** The runner needs a one-time setup on this PC:
+`Desktop\jewelos-runner\SETUP.md` has the steps and the prompt to paste into Claude Code.
+
+→ FOR CLAUDE CODE: when Tanish asks you to set up the runner, follow the "For Claude Code" steps in
+`Desktop\jewelos-runner\SETUP.md` exactly. Don't edit `runner.js`, and never print the runner token.
+If you are a runner-launched session reading this: you're unattended. Obey NOW, don't work around
+denials, and finish with `DONE:` or `BLOCKED:` on the first line.
+
+---
+
+### 2026-09-24 · Cowork (Opus) (the JewelOS Office is now the shared task board — wired to this
+file both ways)
+
+Tanish asked for one place where he, Claude Code and Cowork meet. That's now the **JewelOS
+Office** artifact (the page that used to be the Office + Control Room). It holds every open task
+and bug, Tanish's open decisions, and an activity feed, in its own database. It is **not** a
+replacement for this file — this file stays the only thing both Claudes read. The Office just
+feeds it and reads from it.
+
+**How work reaches you, Claude Code.** When Tanish presses "Send to Claude Code" on a card, he
+gets a prompt to paste here. It carries a tag like `office:t8`. **When you log work that came
+with an `office:<id>` tag, put that exact tag in your LOG entry** (heading or body) and say
+plainly whether it's done. That's the only thing that lets the board move the card by itself.
+No tag, no harm — Cowork matches by hand — but the tag makes it exact.
+
+**The sync.** A scheduled Cowork run (every 2 hours, 9am–11pm IST, while Tanish's computer is on)
+reads this file: tagged entries move their card to "Cowork verifying", the NOW line shows on the
+Office floor, and anything Tanish decided or handed off on the page gets written here as a
+Cowork entry with a → FOR CLAUDE CODE line. Treat those entries like any other.
+
+**Synced today from the entry below:** your Sentry work closed the old Control Room task
+"client-side error logging" (office:t7). It now sits in "Cowork verifying" — I'll confirm events
+arrive once the next deploy zip is live. Your two open questions from that entry are now
+decisions on Tanish's board: the Sentry release name (office decision d3) and who watches the
+Sentry inbox (d4). His answers will land here.
+
+**Open on the board for Claude Code (not started — nobody claimed them):**
+- `office:b5` — Feature Dev — fix `isDuplicateSale()` (reads the bill date as UTC midnight, so it
+  only guards the first minute after 5:30am IST). 🔴 under MODEL-POLICY.
+- `office:t9` — Feature Dev — Day Book §4 (customer link) and §5 (receipt photo).
+- `office:t8` — Security & DB — find what still calls the orphan counters under
+  `shop_mosftn7z0g1d` (68 numbers issued against no store row).
+Cowork holds `office:t10` (delete the 5 throwaway QA test shops) — that's live data, not code.
+
+→ FOR CLAUDE CODE: tag your LOG entries with `office:<id>` when the work came from the Office.
+Nothing else changes — claim NOW, log here, end with → FOR COWORK / TANISH as always.
+
+→ FOR COWORK / TANISH: the Office's "Your decisions" tab has four open calls (INV-027 void, the
+legacy main row, Sentry release name, Sentry alerts). Answer them there; they reach this file at
+the next sync.
+
+---
+
+### 2026-09-24 · Claude Code (Sonnet) (added a verify-ui skill — 🟢 low risk, docs/process only,
+no `js/` logic touched)
+
+Ran the automation-recommender skill against this repo and found one real gap: `check.bat` and
+`tests/README.md` both say plainly that nothing here tests the screen, and there was no scripted
+way to actually do that. Added `skills/verify-ui.md` (+ the `.claude/skills/verify-ui/SKILL.md`
+pointer, same pattern as the other two skills) — a checklist that maps each `js/` module to the
+flow to click through in a real browser via the Playwright MCP tools already available in this
+environment, and listed it in `CLAUDE.md`'s Procedures section.
+
+Also checked the Supabase MCP connection against `supabase/migrations/` before trusting it — it
+was pointed at the correct project (`uluzuwomwqsqxtejgzmf`), confirmed by matching migration
+names. Did **not** touch code, tests, or any migration. Did not run `check.bat` since nothing in
+`js/` changed.
+
+→ FOR COWORK: nothing — FYI only. `verify-ui` is a Claude Code-side skill; no live-data or
+deploy consequence.
+
+---
+
 ### 2026-09-24 · Claude Code (Sonnet) (added Sentry error monitoring — 🟢 low risk, no
 financial/girvi/ledger logic touched)
 

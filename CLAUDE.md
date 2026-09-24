@@ -110,6 +110,8 @@ In `skills/`. Read the matching one before starting; they also exist under
 - `skills/jewelos-change.md` — adding or changing a feature
 - `skills/jewelos-debug.md` — something is broken; the five recurring bug families
 - `skills/jewelos-dev-rules.md` — the house rules in full
+- `skills/verify-ui.md` — actually clicking through a change in a browser via Playwright,
+  before handing back a build (fills the gap "check.bat" leaves — see below)
 
 ## Agent routing
 
