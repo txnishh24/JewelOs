@@ -703,8 +703,12 @@ function isDuplicateSale(custName, items){
   var recentCutoff = now - 60000; // 60 seconds
   return S.sales.some(function(s){
     // s.date is the user-picked bill date (UTC midnight), not when the bill
-    // was saved, so use createdAt. Older sales without it are skipped.
-    if(!s.createdAt || new Date(s.createdAt).getTime() < recentCutoff) return false;
+    // was saved, so use createdAt. Missing or unparseable is treated as "not
+    // recent" and skipped -- a malformed createdAt must not fall through as
+    // if it were fresh (NaN < recentCutoff is false, not true, so isNaN()
+    // has to be checked explicitly, not relied on to fail the comparison).
+    var createdTs = s.createdAt ? new Date(s.createdAt).getTime() : NaN;
+    if(isNaN(createdTs) || createdTs < recentCutoff) return false;
     if((s.customer||'').toLowerCase() !== (custName||'').toLowerCase()) return false;
     if((s.items||[]).length !== items.length) return false;
     return true;

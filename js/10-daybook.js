@@ -1121,10 +1121,13 @@ function dbSubmitEntry(){
   if(!_dbEntryCat){ toast('⚠ Choose a category'); return; }
   var amt = parseFloat((document.getElementById('db-entry-amt')||{}).value);
   var note = (document.getElementById('db-entry-note')||{}).value || '';
-  var partyName = (document.getElementById('db-entry-party')||{}).value || '';
+  var partyText = (document.getElementById('db-entry-party')||{}).value || '';
+  // Typed text with 7+ digits and nothing else is a phone number, not a
+  // name -- store it as one so it doesn't render as "👤 9876543210".
+  var partyIsPhone = normPhone(partyText).length >= 7 && !/[a-zA-Z]/.test(partyText);
   var party = _dbEntryParty
     ? {name:_dbEntryParty.name, phone:_dbEntryParty.phone, customerId:_dbEntryParty.id}
-    : {name:partyName, phone:''};
+    : (partyIsPhone ? {name:'', phone:partyText} : {name:partyText, phone:''});
   dbAddEntry(dbUiDate(), DB_CATS[_dbEntryCat].dir, amt, _dbEntryCat, note, function(err){
     if(err){ toast('⚠ Could not save: '+err.message); return; }
     document.getElementById('db-entry-modal').style.display = 'none';

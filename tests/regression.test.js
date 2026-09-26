@@ -2759,6 +2759,32 @@ test('dbGroupByParty groups a month\'s manual entries by customer, then by name+
   assert(g[1].totalOut === 1000 && g[1].entries.length === 2, 'free-text names differing only in case/space must group together: ' + JSON.stringify(g[1]));
 });
 
+test('dbSubmitEntry stores a typed phone number as party.phone, not party.name', function(){
+  var a = _dbHarness();
+  a.S.dayBook.opening = { date:'2026-09-01', amount:0, ts:'2026-09-01T00:00:00.000Z' };
+  a._dbDate = '2026-09-05';
+  a._dbEntryCat = 'rent';
+  a._els['db-entry-amt'] = { value:'500' };
+  a._els['db-entry-note'] = { value:'' };
+  a._els['db-entry-party'] = { value:'9876543210' };
+  a.dbSubmitEntry();
+  var p = a.S.dayBook.entries[0].party;
+  assert(p && p.phone === '9876543210' && !p.name, 'a typed phone number must be stored as phone, not name: ' + JSON.stringify(p));
+});
+
+test('dbSubmitEntry still stores typed free text as party.name, not phone', function(){
+  var a = _dbHarness();
+  a.S.dayBook.opening = { date:'2026-09-01', amount:0, ts:'2026-09-01T00:00:00.000Z' };
+  a._dbDate = '2026-09-05';
+  a._dbEntryCat = 'rent';
+  a._els['db-entry-amt'] = { value:'500' };
+  a._els['db-entry-note'] = { value:'' };
+  a._els['db-entry-party'] = { value:'MSEB' };
+  a.dbSubmitEntry();
+  var p = a.S.dayBook.entries[0].party;
+  assert(p && p.name === 'MSEB' && !p.phone, 'free text must still be stored as name, not phone: ' + JSON.stringify(p));
+});
+
 test('a party name is escaped in the Day view line list', function(){
   var a = _dbHarness();
   a.S.dayBook.opening = { date:'2026-09-01', amount:0, ts:'2026-09-01T00:00:00.000Z' };
@@ -2780,6 +2806,13 @@ test('isDuplicateSale flags a repeat bill saved seconds ago, even though its bil
   assert(a.isDuplicateSale('Walk-in', items) === false, 'a bill saved 2 minutes ago must not be flagged');
   delete a.S.sales[0].createdAt;
   assert(a.isDuplicateSale('Walk-in', items) === false, 'a legacy sale with no createdAt must not be flagged');
+});
+
+test('isDuplicateSale skips a sale whose createdAt is malformed instead of treating it as recent (NaN < cutoff is false, not true)', function(){
+  var a = require('./harness.js').loadApp();
+  var items = [{ pid:'p1', qty:1 }];
+  a.S.sales = [{ customer:'Walk-in', items:items, createdAt:'not-a-real-date' }];
+  assert(a.isDuplicateSale('Walk-in', items) === false, 'a malformed createdAt must be skipped, not treated as fresh');
 });
 
 Promise.all(asyncTests).then(function(){
