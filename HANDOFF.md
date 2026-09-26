@@ -55,6 +55,78 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-26 · Claude Code (Sonnet) (office:t8 — orphan `shop_mosftn7z0g1d` counters, investigation only, 🔴 security/DB, nothing fixed)
+
+**Confirmed first: nothing in the codebase hardcodes or special-cases that shop id.**
+`grep -rn "shop_mosftn7z0g1d"` across `js/`, `index.html`, `supabase/` matches nothing but
+this file. Whatever happened to it, the app treated it like any other shop.
+
+**The precondition that makes an orphan possible at all is server-side, not `js/`:**
+`resolveTenant()` in `supabase/functions/store-proxy/index.ts` (~line 144) authorizes a
+session purely against `auth_store.shops` — a shop that exists there (enough to sign in and
+pass every check) can call `increment_counter` with no reference anywhere to whether a
+`store` row exists. `increment_shop_counter()` (`supabase/migrations/002_atomic_transactions.sql:58`)
+just upserts `counters` by `shop_id` — no FK, no check against `store`. Meanwhile `store`
+rows are only ever created by `store_cas_write()`, called from store-proxy's PUT path —
+which only fires when the client actually calls `saveToCloud()`. So a shop that has signed
+up but never once had a `saveToCloud()` PUT succeed can burn `inv_no`/`girvi_no`/
+`purchase_no` values forever with zero `store` row. That gap is the real root cause; I
+didn't touch the SQL or the function, since this is a report, not a fix.
+
+**Three `js/` places that can burn a real, permanent counter number just by opening a
+screen — no save, no submit, required:**
+
+1. **`initSaleDate()`** (`js/02-ui-inactivity-modals.js:559`) — called from `renderTab()`
+   every time the Sales tab opens; fetches `getNextInvNo()` whenever `#s-invno` is empty.
+   Guarded (`if(!inv.value)`), so it only fires once per fresh page load (the panel's DOM
+   persists across tab switches — `switchTab()` only toggles a CSS class, never
+   re-renders). But **every fresh load that lands on Sales burns one `inv_no`**, sale or
+   no sale — including the onboarding checklist's "Record your first sale" button
+   (`js/06-inventory-stock.js:135`), which stays clickable across as many separate
+   sessions as it takes until `S.sales.length > 0`. This is the one I'd bet on for the
+   68 `inv_no` draws: a shop that opened the Sales tab, or clicked that checklist item,
+   many times across many reloads, and never once completed a sale.
+2. **`pbToggleForm()`** (`js/09-purchases.js:377`) — fetches a fresh `purchase_no` every
+   time the blank "+ Add Purchase Bill" form opens, **with no guard at all**. Open,
+   Cancel, reopen burns a second number; there's no way to hand an unused one back.
+3. **`openGirviRenewalModal()`** (`js/08-girvi-viewmode.js:917`) — same no-guard pattern,
+   for `girvi_no`, on every open of the Renew modal. (The renewal *save* path does roll
+   back cleanly on failure — "Foundation audit B2" — but a cancelled or abandoned open
+   still spent the number.)
+
+**A fourth thing, likely the actual mechanism behind the `girvi_no:10` draws on a shop with
+zero data:** creating a **new** girvi loan (`js/07-settings-plans.js`, ~line 723) fetches
+`getNextGrvNo()` right before `S.girvi.push(...)` and `saveToCloud(...)` — that part's fine,
+gated on submit. But unlike the sale-creation path (which the regression suite confirms
+rolls back sale+stock together on a failed save), **a failed `saveToCloud()` here does not
+roll back the new girvi record** — it just toasts "Saved locally but cloud sync failed —
+will retry" (`js/07-settings-plans.js:753`) and leaves the entry in local state. "Will
+retry" means *the next unrelated save carries it along*, not an actual retry loop —
+`saveToCloud()` (`js/01-sync-core.js:111`) has no retry logic of its own. If every save
+for a given shop fails for some other reason (auth/session edge case, `resolveTenant`
+returning `shop_gone`/`user_gone`, or a real network problem that's persistent for that
+one device), a girvi loan created there stays local-only, its `girvi_no` already spent,
+forever — matching exactly what "10 numbers, no store row" looks like. I can't confirm this
+from `js/` alone; it needs the DB side (whether `store` for this shop has *ever* had a
+successful write, and what store-proxy's logs say for its session) to go from "matches the
+shape of the bug" to "is the bug."
+
+**Not fixed, as asked — this was read-only.** If it's worth closing, the fixes are cheap and
+independent of each other: guard `pbToggleForm()`/`openGirviRenewalModal()` the same way
+`initSaleDate()` already is (don't refetch if a pending number is already held), and make
+girvi creation roll back on a failed save the same way sale creation and girvi renewal
+already do. None of that explains this *specific* shop without DB access to confirm it
+never had a successful save — that part is Cowork's side of the fence.
+
+→ FOR COWORK: office:t8 investigated, not fixed (see above). Worth checking from your side:
+does `store` for `shop_mosftn7z0g1d` show zero successful writes ever, and do store-proxy's
+logs show repeated `increment_counter` calls with no matching PUT for that shop? If yes,
+the no-rollback girvi-create bug above is the likely mechanism, and I'd want to fix it and
+add the two missing guards in the same batch — say so and I'll pick it up as its own card
+rather than bundling it into this one.
+
+---
+
 ### 2026-09-26 · Claude Code (Opus) (office:t9 — Day Book v2 §4 party link built; §5 receipt photos stopped at the §5.2 storage gate, 🔴)
 
 **§4 (built):** manual Day Book entries can now carry an optional `party: {name, phone, customerId}`.
@@ -186,9 +258,8 @@ Sentry inbox (d4). His answers will land here.
 **Open on the board for Claude Code (not started — nobody claimed them):**
 - `office:b5` — Feature Dev — fix `isDuplicateSale()` (reads the bill date as UTC midnight, so it
   only guards the first minute after 5:30am IST). 🔴 under MODEL-POLICY.
-- `office:t9` — Feature Dev — Day Book §4 (customer link) and §5 (receipt photo).
-- `office:t8` — Security & DB — find what still calls the orphan counters under
-  `shop_mosftn7z0g1d` (68 numbers issued against no store row).
+- ~~`office:t9`~~ — Day Book §4 done, §5 skipped — see 26 Sep entries below.
+- ~~`office:t8`~~ — investigated 26 Sep, see LOG entry below. Read-only, nothing fixed.
 Cowork holds `office:t10` (delete the 5 throwaway QA test shops) — that's live data, not code.
 
 → FOR CLAUDE CODE: tag your LOG entries with `office:<id>` when the work came from the Office.
