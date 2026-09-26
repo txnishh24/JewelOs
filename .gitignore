@@ -1,6 +1,15 @@
 # Installed by checks/package.json — reinstall with `npm install` in checks/
 checks/node_modules/
 
+# Installed by the root package.json — reinstall with `npm install`
+node_modules/
+
+# Playwright e2e suite (tests/e2e/) — output and secrets, never committed
+test-results/
+playwright-report/
+blob-report/
+.env.test
+
 # Build handoffs are zipped out of here, never kept in the tree
 *.zip
 

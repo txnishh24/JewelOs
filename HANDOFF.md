@@ -46,12 +46,122 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   to buy a domain (picked `jewelos.co`, still unregistered), verify it in Resend, and set the two
   Supabase secrets (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`) all at once when he actually deploys,
   not now. Not an oversight if it's still open next session — don't chase it early.
+- **What should "owner PIN gates Settings" (`tests/e2e/auth.spec.js`) actually test?** It's the
+  one e2e spec still red (9/10 passing, 27 Sep) and I did not guess a fix — see the 27 Sep entry
+  below for why its premise looks wrong (the real PIN screen is an app-wide inactivity/session
+  lock, not a Settings-specific gate) and what it would need to test instead.
 
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
 outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUntil` in
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-09-27 · Claude Code (Sonnet) (ran Cowork's new e2e suite for the first time — 9/10 passing, one real app bug fixed, one test flagged as wrongly premised)
+
+Picked up the 26 Sep hand-back: create `.env.test`, install, run the suite, report the real count.
+
+**Self-inflicted detour first, worth recording so it isn't repeated:** wrote `.env.test`
+with the password unquoted. `dotenv` treats `#` as a comment start in an unquoted value, so
+`E2E_SHOP_PASSWORD` silently truncated from 19 chars to 10 — the shop then rejected every
+login as "wrong password" until quoting the value fixed it. Those bad attempts (plus the
+suite's own deliberate wrong-password test) tripped the real `auth-gateway` server-side
+lockout ("Too many failed attempts, try again in 15 minutes") on the live test shop — not a
+client-side thing, waited it out rather than hammer it further. **Quote any value containing
+`#` in `.env.test` going forward.**
+
+**Real bugs found in the suite itself (not the app), all fixed:**
+- `fixtures/testShop.js` / `auth.spec.js`: the sign-in locator (`/^sign in/i`) matched both
+  the "Sign In" tab button and the real submit button — strict-mode click failures. Now
+  scoped to `.auth-btn` (the tab button isn't one).
+- `playwright.config.js`: ran at a ~1280×720 desktop viewport, but JewelOS's bottom nav
+  (`#bn-*`, everything `goToTab()` clicks) is `display:none` above 639px — the app shows a
+  separate desktop tab bar instead. Every `goToTab()` call was doomed at that viewport. Set
+  the chromium project's viewport to 393×851 (this suite explicitly stands in for phone
+  testing per its own README).
+- **The big one:** `showV18Changelog()` (`js/08-girvi-viewmode.js`) — the "What's New" modal —
+  fires 2s after every login, gated by a `localStorage` "seen" flag. Every Playwright context
+  starts with empty storage, so it fired on **every single test**, then sat full-screen
+  (z-index 2000) over everything until dismissed. This is what was blocking girvi's
+  `#gf-next-btn` and sale's `#mode-btn-custom` — Playwright's own error said as much
+  ("`<div id="v18-modal">` intercepts pointer events"), it just wasn't obvious which click
+  would eventually land on it. Added `dismissV18Modal()` to the shared `login()` helper.
+- Several strict-mode "resolved to N elements" failures once tests got further than before:
+  `auth.spec.js`'s logout test never clicked the app's own confirm modal (`saasLogout()`
+  routes through `safeConfirm`, not a native `confirm()`) — added the `#safe-confirm-ok`
+  click. `girvi.spec.js` and `sale.spec.js` had `getByText()` calls that matched a duplicate
+  or coincidentally-identical figure elsewhere on screen (principal line vs. outstanding,
+  gold-value line vs. item-total line, four girvi summary cards that can show the same
+  rupee figure, nine different places a pre-payment total legitimately repeats) — scoped
+  each to a specific element/card instead of a page-wide text search, or a real id
+  (`sale.spec.js`'s item-name field selector was matching a placeholder from an unrelated
+  Settings input; the real one is `#csi-name-0`).
+
+**One real app bug fixed, not just a test bug:** `invoice-date.spec.js` caught the exact
+documented UTC-vs-IST bug live — freezing the clock at 2026-09-27 00:30 IST (= 19:00 UTC the
+day before), the New Sale date field showed `2026-09-26`, a day behind. `js/02-ui-inactivity-
+modals.js` (`initSaleDate()` and `clearSale()`) was defaulting `#s-date` with
+`new Date().toISOString().split('T')[0]` — UTC, not local. Fixed both call sites to use
+`dbDayKey(new Date())`, the canonical local-day helper `js/10-daybook.js` already has for
+this exact reason (its own comment: "Never use toISOString().slice(0,10) for this"). Verified:
+the invoice-date spec now passes at that frozen instant.
+
+**Found but deliberately NOT touched — flagging, not fixing:** grepped for the same
+`toISOString().slice(0,10)` / `.split('T')[0]` pattern and found ~20 more call sites across
+`04-orders-detail.js`, `05-auth-login.js`, `06-inventory-stock.js`, `07-settings-plans.js`,
+`08-girvi-viewmode.js`, `09-purchases.js` — girvi loan start dates, ledger payment dates,
+purchase bill dates, CSV export filenames, "today"/"last month" comparisons in inventory,
+digest dates. Same bug class (wrong day in the same IST midnight window), but this was meant
+to be an e2e-suite run, not a codebase-wide date-handling pass — that's real scope, needs its
+own pass and probably a review given how much billing/dates logic it touches, not a
+drive-by fix bundled into this one.
+
+**Not fixed, flagged instead:** `auth.spec.js`'s "owner PIN gates Settings" test. Its premise
+doesn't match how the PIN screen actually works here — `#pin-screen` is `lockApp()`'s
+app-wide inactivity/session lock (`ssj_unlocked` in `js/04-orders-detail.js`, per-shop-scoped,
+re-triggered after ~3 min idle), not something that gates the *Settings tab* specifically for
+an already-logged-in owner. `skills/verify-ui.md` files PIN gating under **Orders**, and
+under `05-auth-login.js` as "staff PIN entry" at login/switch time — neither matches "clicking
+Settings should ask for a PIN". I did not invent new app behaviour to make the test pass. Added
+to WAITING ON TANISH above.
+
+**Final count: 9/10 e2e passing** (`owner PIN gates Settings` red, see above). Also ran, all
+clean: `node --check` on all eleven `js/*.js` files; `tests/regression.test.js` (214 passed);
+`tests/edge-functions.test.js` (25 passed); every `checks/*.js` AST script at its documented
+baseline; `backup-check` and `roundtrip` both clean.
+
+**Not verified:** a real phone — everything above is Chromium via Playwright, phone-sized
+viewport but not a real device. No visual review beyond Playwright's own screenshots/traces
+in `test-results/` (not committed — already gitignored). `.env.test` is filled in on this
+machine only (gitignored, not committed) with the credentials Tanish gave directly.
+
+→ FOR COWORK: e2e suite runs and mostly passes now (9/10) — the one red test needs your or
+Tanish's call on what "owner PIN gates Settings" should actually mean before anyone fixes it
+(see WAITING ON TANISH). Separately: the ~20 other `toISOString()`-as-local-date call sites
+listed above are real, live, same bug class as the one I fixed — worth a dedicated look
+before launch, not urgent tonight.
+
+---
+
+### 2026-09-26 · Cowork (Sonnet) (built a persisted Playwright e2e suite in `tests/e2e/` — login, sale, Girvi, Day Book, invoice-date regression)
+
+Tanish asked for e2e tests covering both core money flows (login/sale/Girvi loan/Girvi payment) and regression coverage for past bugs (Day Book auto-posting, invoice-date UTC bug, duplicate-bill guard). Built with the built-in browser (no `device_bash` in this session — could not run `npm install` or `npx playwright test` myself; see hand-back below).
+
+**New files:** `package.json` (test:e2e* scripts, `@playwright/test` + `dotenv` devDependencies), `playwright.config.js` (`timezoneId: 'Asia/Kolkata'`, `locale: 'en-IN'`, serial — `fullyParallel: false`/`workers: 1`, custom `webServer` running `tests/e2e/static-server.js`), `tests/e2e/static-server.js` (zero-dep static server, this app has no build step), `tests/e2e/fixtures/testShop.js`, `tests/e2e/auth.spec.js` (5 tests), `tests/e2e/sale.spec.js` (2 tests: cash + UPI), `tests/e2e/girvi.spec.js` (1 test: full 5-step wizard + a backdated Ledger payment), `tests/e2e/daybook.spec.js` (1 arithmetic test), `tests/e2e/invoice-date.spec.js` (1 test, deterministic via `page.clock.setFixedTime()` — deliberately not `.install()`, which would also freeze the app's own timers), `tests/e2e/README.md` (selector strategy, why one permanent shop, why serial).
+
+**Edited:** `CLAUDE.md`, `skills/verify-ui.md`, `tests/README.md`, `docs/TESTING-STRATEGY.md` (all reference the new suite), `.gitignore` (added `node_modules/`, `test-results/`, `playwright-report/`, `blob-report/`, `.env.test`).
+
+**Test shop (deliberate, not a shortcut — see `tests/e2e/README.md`):** one real, permanent shop on live Supabase, `mysticmedia2407+jewelos-e2e@gmail.com` / "E2E Test Shop (do not delete)", reused across runs rather than one-per-run, given this project's documented history of orphaned throwaway QA shops. Every record a test creates is tagged with a unique `E2E-<timestamp>` run marker instead of resetting the shop's data.
+
+**`.env.test` could not be created by me** — the device bridge refuses to write any `.env*`-pattern filename ("Writing to .env.test is not permitted via remote tools"), same category of restriction as the existing `.claude/` block. It does not exist on disk yet. Credentials are in Tanish's Cowork chat (not repeated here — this file is git-tracked); `tests/e2e/README.md` has the exact `.env.test` template to paste them into.
+
+**Live-DOM findings while building this (real, not guessed from HTML):** the "Powered by Netlify" badge still overlaps the bottom nav at narrow viewports — confirmed still live. Day Book auto-posting cash sales and the non-cash-sales-invisible-in-Day-Book issue — both confirmed **fixed** (the "Also today: ₹X across N sale(s)/payment(s)..." banner works). The UTC-vs-IST invoice-date bug's live status is unconfirmed by hand (hard to trigger manually near midnight) — `invoice-date.spec.js` is the deterministic regression check for it going forward.
+
+Not verified: the suite has never actually been run — I have no shell here. Every selector was confirmed against the live DOM via JS queries, not guessed, but "the specs are written correctly" and "the specs pass" are different claims until someone runs them.
+
+→ FOR CLAUDE CODE: create `.env.test` in the repo root using the template in `tests/e2e/README.md` (Tanish has the password/PIN), then run `npm install`, `npx playwright install chromium`, and `npx playwright test`. Report the real pass/fail count — if anything fails, check first whether it's a real regression or a selector that drifted in a later batch (see the README's selector-strategy section) before assuming the test is wrong. Fix real failures if the cause is obvious; flag anything that needs Tanish's judgment.
 
 ---
 

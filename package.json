@@ -1,0 +1,16 @@
+{
+  "name": "jewelos-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Playwright end-to-end tests for the JewelOS PWA (js/*.js stays ES5 — this file and tests/e2e/ are Node/Playwright tooling and are NOT part of the shipped client bundle, so modern JS is fine here).",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "dotenv": "^16.4.5"
+  }
+}

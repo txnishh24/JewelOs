@@ -98,8 +98,9 @@ script in `checks/`. Or run them individually from `checks/`.
 Compare against the previous build's output rather than reading hits as failures — most
 are documented false positives. `backup-check` and `roundtrip` must pass cleanly.
 
-Then say plainly what you could **not** verify. There is no browser automation and no
-UI test coverage. Logic is verifiable; DOM behaviour is not. Never let a build sound
+Then say plainly what you could **not** verify. `tests/e2e/` (`npm run test:e2e`) now
+covers login, sale, Girvi and Day Book — run it for changes touching those. Outside
+that list, logic is verifiable and DOM behaviour still isn't. Never let a build sound
 more tested than it is.
 
 ## Procedures
@@ -112,6 +113,10 @@ In `skills/`. Read the matching one before starting; they also exist under
 - `skills/jewelos-dev-rules.md` — the house rules in full
 - `skills/verify-ui.md` — actually clicking through a change in a browser via Playwright,
   before handing back a build (fills the gap "check.bat" leaves — see below)
+
+Persisted e2e coverage now also exists: `tests/e2e/` (Playwright, `npm run test:e2e`) —
+run it alongside `check.bat` for anything touching login, sale, Girvi, or Day Book;
+see `tests/e2e/README.md` before adding a spec (selector gotchas specific to this app).
 
 ## Agent routing
 

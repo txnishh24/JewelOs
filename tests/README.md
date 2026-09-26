@@ -53,3 +53,9 @@ works. That still has to be checked against the live project.
 Unlike the browser suite it needs one tool, `sucrase`, to read TypeScript. It
 finds a copy on its own if one is installed; otherwise it prints `SKIPPED`
 rather than failing.
+
+## Browser: `tests/e2e/`
+
+Both suites above load code directly — nothing here opens a screen. `tests/e2e/`
+(Playwright, `npm run test:e2e` from the repo root) does: login, sale, Girvi and
+Day Book so far, against a real permanent test shop. See `tests/e2e/README.md`.

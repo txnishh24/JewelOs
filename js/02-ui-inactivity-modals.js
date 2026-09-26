@@ -558,7 +558,7 @@ function delProd(id){
 // ─── SALES ───────────────────────────────────────────────────────────────
 function initSaleDate(){
   var d=document.getElementById('s-date');
-  if(!d.value) d.value=new Date().toISOString().split('T')[0];
+  if(!d.value) d.value=dbDayKey(new Date()); // local IST day, not toISOString()'s UTC day
   var inv=document.getElementById('s-invno');
   if(!inv.value){
     inv.value = 'INV-' + String(S.nextInvNo).padStart(3,'0'); // show immediately
@@ -1610,7 +1610,7 @@ function clearSale(){
   var cwrap=document.getElementById('custom-sale-items');if(cwrap)cwrap.innerHTML='';
   ['s-cust','s-phone','s-addr','s-notes'].forEach(function(id){document.getElementById(id).value='';});
   ['s-making','s-diamond','s-gst','s-disc','s-advance'].forEach(function(id){document.getElementById(id).value='0';});
-  document.getElementById('s-date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('s-date').value=dbDayKey(new Date()); // local IST day, not toISOString()'s UTC day
   document.getElementById('s-invno').value='INV-'+String(S.nextInvNo).padStart(3,'0');
   document.getElementById('cust-suggestions').style.display='none';
   // Clear old gold fields

@@ -10,6 +10,15 @@ closes that gap using the Playwright MCP tools (`mcp__plugin_playwright_playwrig
 already available in this environment — actually load and click the app instead of
 reading code and assuming it renders.
 
+This is the ad-hoc, exploratory version of that check — for the specific flow a
+change touches, right now, in this session. `tests/e2e/` (`npm run test:e2e`) is the
+persisted version: a real Playwright suite, re-run every time, covering login, sale,
+Girvi and Day Book. Run both when they overlap — the suite catches a regression on
+the NEXT change even if nobody thinks to walk that flow by hand again; this skill is
+still how you check the one flow you just touched, or anything the suite doesn't
+cover yet. See `tests/e2e/README.md`, especially its selector-strategy section, before
+adding a new persisted spec instead of writing another one-off manual pass here.
+
 ## When
 
 - Any change touching `js/` that isn't a pure backend/logic fix

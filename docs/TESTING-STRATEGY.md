@@ -7,15 +7,28 @@ This is not a "start from zero" plan — JewelOS already has a real, three-layer
 ## 1. What you already have, mapped to the pyramid
 
 ```
-        /   Manual: real phone    \    Not automated. Required before every ship.
+        /   Manual: real phone    \    Not automated. Still required before every ship.
        /------------------------- \
-      /  Integration: edge-fns.test \  20 tests, fake DB, Supabase functions
+      /  Browser: tests/e2e/        \  Playwright, added 26 Sep 2026 — login, sale, Girvi, Day Book
      /------------------------------ \
-    /   Unit: regression.test.js      \  66 tests, real js/*.js loaded in a VM
+    /  Integration: edge-fns.test     \  20 tests, fake DB, Supabase functions
    /---------------------------------- \
-  /  Static: checks/ (9 scripts)        \  Structural — catches silent breakage
+  /  Unit: regression.test.js           \  66 tests, real js/*.js loaded in a VM
  /---------------------------------------\
+/  Static: checks/ (9 scripts)            \  Structural — catches silent breakage
+--------------------------------------------
 ```
+
+**Browser layer — `tests/e2e/` (added 26 Sep 2026).** The gap section 2 below used to
+call "the biggest gap" — nothing opened a browser and clicked anything. Playwright,
+running against a real permanent test shop on live Supabase (not a fake DB, unlike
+the integration layer above it). Covers login/logout/owner-PIN, a cash sale's
+gold-value math end to end, a UPI sale, the full 5-step Girvi wizard plus a backdated
+Ledger payment, Day Book's Closing arithmetic, and a deterministic regression test for
+the midnight UTC-vs-IST invoice-date bug. See `tests/e2e/README.md` for what it does
+and doesn't cover, and its selector-strategy section before adding to it — this
+codebase's render-everything-up-front DOM has real gotchas for selector choice that
+aren't obvious from the HTML alone.
 
 **Static layer — `checks/*.js`.** Not tests in the usual sense: they read source and flag references to things that were never defined (`scope.js`, `handlers.js`, `css.js`, `ids.js`, `loadorder.js`), plus three narrower checks (`backup-check.js`, `roundtrip.js`, `making-basis.js`, `unquoted-args.js`). This layer exists because JewelOS is plain ES5 with no build step and no TypeScript — nothing else would catch a dead button or an undefined global before a customer hits it. Genuinely unusual to have this for a project this size, and it's already paid for itself (`unquoted-args.js` was built after it silently broke order payments).
 
@@ -28,7 +41,10 @@ This is not a "start from zero" plan — JewelOS already has a real, three-layer
 ## 2. What this setup does NOT tell you (by design, per its own README)
 
 - The SQL in `supabase/migrations/` — `edge-functions.test.js` tests function *code* against a fake DB, not the real migration running on the real project.
-- Anything visual, DOM, or touch-driven. No click simulation, no rendering.
+- Anything visual, DOM, or touch-driven that `tests/e2e/` doesn't cover yet (see its
+  README — Purchases, Orders, Customers, Reports/GST export, multi-user staff PIN
+  gating, and Close Day are all still untested at the DOM level, and no suite here
+  checks actual rendering/layout — only that the right data reaches the right element).
 - `razorpay-webhook` — not present in either suite at all.
 - Live Supabase state (RLS policies, advisors, storage buckets) — that's `get_advisors`/`pg_policies` queries run ad hoc, not a repeatable test.
 
@@ -47,7 +63,7 @@ None of this is a criticism of the existing suites — they're doing what they s
 | Backdated girvi payments | Simulated only (single-process), tests added 18 Sep | **Closed at the unit level — real-device entry still unverified. Correction: this was never a bug (see 4.3)** | See 4.3 |
 | `readonly` role write-blocking | Not explicitly named in the 20 edge-fn tests | **Possible gap** | See 4.4 |
 | Live RLS / anon-access posture | Ad hoc (`get_advisors`, `pg_policies`) | **Gap — not repeatable** | See 4.5 |
-| UI / visual / real phone | Manual only | Known, accepted gap | Keep manual; don't pretend otherwise |
+| UI / visual / real phone | Manual + `tests/e2e/` (login, sale, Girvi, Day Book) | Partially closed 26 Sep 2026 | Extend `tests/e2e/` to Purchases/Orders/Customers/Reports; real phone still required before ship |
 
 ## 4. Specific gaps, with example test cases
 
