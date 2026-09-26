@@ -123,6 +123,9 @@ Delegate to these installed agents automatically, without being asked:
 - **Verifying a UI change** → `Evidence Collector`. **Before any release** → `Reality Checker`
 - **Production problems** → `Incident Response Commander`
 - **Planning and prioritising** → `Sprint Prioritizer`
+- **JewelOS-specific review, after any js/ change** → `jewelos-bug-pattern-reviewer`, then `jewelos-test-runner`
+- **After every Netlify deploy, before telling Tanish it's live** → `jewelos-deploy-verifier`
+- **End of any session** → `jewelos-handoff-writer`
 
 Rules:
 - Use at most two agents per task.
