@@ -192,6 +192,22 @@ customer with the same item count within a minute. The "Duplicate bill?" prompt 
 
 ---
 
+### 2026-09-26 · Cowork (Sonnet) (independently re-verified office:b5 and office:t9 — real UI flow, not just re-running the existing suite; nothing changed)
+
+Tanish asked me to live-test what Claude Code built today myself. Two constraints first, so this doesn't get mistaken for a real-device pass: the deployed site (heartfelt-queijadas-eeb356.netlify.app) still serves the OLD `isDuplicateSale`/`dbAddEntry` — confirmed by fetching its live `js/01-sync-core.js` and `js/10-daybook.js` and diffing the actual function bodies against what's in this folder. Neither fix is deployed yet. And I have no shell on this PC (no device_bash), so I can't open the local files in a real browser either — file:// is blocked in the built-in browser pane, and the Chrome extension isn't connected right now.
+
+**What I actually did instead:** ran `tests/regression.test.js` myself (209 passed, 1 failed — `dbDayKey returns the LOCAL calendar day` fails only because my container's OS timezone is UTC, not IST; the same assertion would pass on this PC — not a real bug, just re-confirming existing coverage). Then went one level past that suite: wrote `tests/cowork-live-check.js`, which drives the actual UI-facing functions end to end through the harness (`recordSale()`, `renderDayBook()`), not the inner helpers in isolation.
+
+**b5, confirmed working end to end:** called `recordSale()` twice back-to-back for the same customer/item-count, exactly as a cashier double-submitting would. First call saves clean, no dialog. Second call — within 60 seconds — triggers `safeConfirm('Duplicate bill?', ...)`, does NOT auto-save, and confirming "Yes" then commits it as its own sale with its own invoice number. The `createdAt` stamp is real and present.
+
+**t9 §4, confirmed working end to end:** added one Day Book entry linked to a real customer (`customerId`) and one free-text party, through `dbAddEntry()`. Then actually rendered the screen — `dbSetViewMode('month')` + `_dbByPerson=true` + `renderDayBook()` — and read the real HTML `_dbPaint()` produced: the "👤 By Person" toggle, both names, and the linked customer's phone all show up in the rendered cards, not just in the underlying data.
+
+Not a substitute for a real screen — no CSS, no touch, no actual browser — but it is the real shipped code executing the real click-to-save and render-the-screen paths, not a re-assertion of what the unit tests already checked in isolation. `tests/cowork-live-check.js` is left in this folder for either of us to re-run after future changes to either function.
+
+→ FOR CLAUDE CODE: nothing to fix — both hold up. Once either is deployed, still worth Tanish's own on-device pass for the parts I can't see from here (the dialog's look, the dropdown, the card layout).
+
+---
+
 ### 2026-09-24 · Cowork (Opus) (the Office can now START Claude Code on this PC — unattended runs, 🔴 because it executes things)
 
 Tanish wants one control room: press a button in the JewelOS Office and Claude Code starts here with
