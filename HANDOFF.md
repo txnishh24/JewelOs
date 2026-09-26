@@ -278,6 +278,40 @@ customer with the same item count within a minute. The "Duplicate bill?" prompt 
 
 ---
 
+### 2026-09-26 · Cowork (Sonnet) (office:t10 done — all 7 throwaway QA shops deleted from the live database)
+
+Tanish confirmed. Deleted all seven, not just the five/six this file had been tracking — a DB search by name turned up two more (`Test Jewelers` and `Cowork QA Batch29`) that predated or postdated the tracked list:
+
+`shop_ms7vwta2bbjz` (Test Jewelers), `shop_mu5xrc2xqj8z` (Cowork QA Jewellers 2), `shop_mu6q1dziep8c` (Batch21), `shop_mu7flbicp91i` (Batch24), `shop_muac8xzqpxao` (Batch25), `shop_muaznh8nrfkw` (Batch27), `shop_muebyj034jv9` (Batch29).
+
+Checked each one first — all synthetic (`@example.com`/`@example.invalid` owner emails, single-digit sales/girvi/product counts, no real phone numbers or names). Deleted in one transaction across all four places a shop lives: its `store` row (by `rowKey`), its `counters` rows (by `shop_xxx` id), its entry in `auth_store` → shops, and its owner/staff entries in `auth_store` → users. Re-queried all four after commit — zero rows remain anywhere for any of the seven. Left `login_attempts` alone (it's a login audit log, not shop data, and doesn't reference anything that still needs cleaning up).
+
+→ FOR CLAUDE CODE: nothing on your side — this was DB-only, no code or file changes. If you keep a local list of QA shops to reuse for future test passes, these seven ids are gone and shouldn't be assumed to exist anymore.
+
+---
+
+### 2026-09-26 · Cowork (Sonnet) (office:t8 closed — DB-side check done, root cause narrowed, it's a dead shop)
+
+Ran the DB checks Claude Code's 26 Sep entry asked for.
+
+**Who it actually is:** `shop_mosftn7z0g1d` is `auth_store` → shops → "Sai Sri Jewellers", Mumbai, plan pro. Owner `tanishkatkojwala2407@gmail.com`, manager `rishikatkojwala@gmail.com` — both Tanish's own addresses. **This is his own test shop, not a customer.**
+
+**Confirmed: zero successful writes, ever.** No row in `public.store` for this id, full stop.
+
+**Confirmed: it's the only one.** Ran the full per-shop orphan/drift query across every shop in the database — every other shop (including `main` and the one real +11/+8 drift case from 18 Sep, already known and explained) has a normal store row with small, explainable drift. `shop_mosftn7z0g1d` is the sole `ORPHAN — no store row` result. This has not recurred anywhere since.
+
+**Confirmed: it's dead.** `login_attempts` shows exactly one test session — 5 logins between 2026-08-11 and 2026-08-12, both emails, nothing before or since (6+ weeks of silence).
+
+**On the two theories from the 26 Sep entry:**
+- `inv_no` moved from the login timestamp by **7 seconds** (login 08:29:02, counter touched 08:29:09) — that's opening the Sales tab right after signing in, matching the `initSaleDate()`-fires-on-open finding, not a failed save.
+- `girvi_no` reaching 10 is less easily waved away: I read `07-settings-plans.js`'s girvi-create path directly — `getNextGrvNo()` fires only at actual final-submit, after every form field is filled, not on wizard-open the way the renewal modal does. So 10 real submit attempts happened, all with no record surviving — either 10 genuine failed syncs in that one session (plausible — 11 Aug was still an active-hardening period per the security-review notes elsewhere in this file) or repeated retries against a submit that kept erroring. I can't tell which from the DB alone, and there's nothing left to query — no edge-function logs survive from 6 weeks back.
+
+**Verdict:** not an active risk — dead test shop, isolated, hasn't repeated once across 6 weeks and 13 other shops. The two cheap guards Claude Code already proposed (don't refetch `purchase_no`/`girvi_no` on modal open, roll back a girvi create the same way sale creation and girvi renewal already do) are still worth doing at some point since they'd stop this class of bug from recurring on a real shop, but nothing here says do it today.
+
+→ FOR CLAUDE CODE: office:t8 is closed from my side — root cause narrowed as far as the DB can tell, isolated to a dead 11 Aug test session, not spreading. Your call whether the two guard fixes are worth a batch of their own or just ride along with something else.
+
+---
+
 ### 2026-09-26 · Cowork (Sonnet) (independently re-verified office:b5 and office:t9 — real UI flow, not just re-running the existing suite; nothing changed)
 
 Tanish asked me to live-test what Claude Code built today myself. Two constraints first, so this doesn't get mistaken for a real-device pass: the deployed site (heartfelt-queijadas-eeb356.netlify.app) still serves the OLD `isDuplicateSale`/`dbAddEntry` — confirmed by fetching its live `js/01-sync-core.js` and `js/10-daybook.js` and diffing the actual function bodies against what's in this folder. Neither fix is deployed yet. And I have no shell on this PC (no device_bash), so I can't open the local files in a real browser either — file:// is blocked in the built-in browser pane, and the Chrome extension isn't connected right now.
