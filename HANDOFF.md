@@ -55,6 +55,54 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-26 · Claude Code (Sonnet) (two review passes on batch30's code, before it's confirmed live — one Sonnet, one Opus; 4 real findings, all fixed)
+
+**Batch30 was already zipped (see entry below) when this ran** — these fixes are NOT yet
+in that zip. A rebuild is needed before deploying, or the next batch should carry them.
+
+**Pass 1 (Sonnet, background code-review skill):** two subagents stalled (600s, no
+progress — a known flakiness with this multi-agent background pattern, not a code issue),
+but confirmed findings survived:
+1. `js/10-daybook.js` — typing a phone number into Day Book's "Link to a person" field
+   with no suggestion picked stored it as `party.name`, not `party.phone`.
+2. `js/01-sync-core.js` — `isDuplicateSale()`'s `createdAt` check relied on
+   `NaN < recentCutoff` failing to skip a bad timestamp. It doesn't — NaN comparisons are
+   always `false`, not `true` — so a malformed `createdAt` would fall through as if
+   recent instead of being skipped. Not reachable by any current caller (every path that
+   populates `S.sales` either writes a valid ISO string or none at all), but a real
+   latent defect. Both fixed, each with a regression test that fails on the prior code.
+
+**Pass 2 (Opus, `Code Reviewer` agent, full manual read of `git diff 9c7c311..HEAD` —
+batch29 through both of the above fixes):** confirmed both pass-1 fixes correct, confirmed
+the Day Book party link's escaping/cash-total/locked-day isolation, confirmed Sentry loads
+before app scripts with no CSP/service-worker interference. Two more real findings:
+3. The phone-detection fix above checked "no Latin letters" instead of "only phone-ish
+   characters" — a non-Latin name typed alongside a number (e.g. Devanagari "राम
+   9876543210") was swallowed whole into `party.phone`, dropping the name. Fixed: now
+   requires the whole string to be digits/spaces/+/-/parens.
+4. `tests/cowork-live-check.js` (Cowork's live-behavior check, 26 Sep) hardcoded its Day
+   Book entries to September dates but read Month view from the real wall-clock month —
+   would have quietly stopped proving anything every October onward, and `check.bat`
+   doesn't run this file, so nothing would have caught it. Pinned to the entries' own
+   month.
+
+**Also flagged, not fixed — needs a live check, not a code fix:** Sentry's session replay
+captures customer names/phones/amounts. Masking relies on the SDK's own defaults
+(`maskAllText`/`maskAllInputs`), which aren't overridden anywhere in this repo — that's
+correct if the defaults are on, which they should be, but it isn't verifiable by reading
+source. Worth confirming in the actual Sentry dashboard that a captured replay shows
+masked fields, not real customer data.
+
+Regression suite 214/214 (3 new tests this pass), `tests/cowork-live-check.js` re-run and
+passing, `check.bat` clean.
+
+→ FOR COWORK: batch30's zip (below) does not have these 4 fixes yet. Worth a rebuild
+before it goes live, or say if you'd rather ship batch30 as-is and fold these into
+batch31 — none of the 4 is severe enough to block the existing zip if it's already been
+handed to Tanish.
+
+---
+
 ### 2026-09-26 · Claude Code (Sonnet) (packaged batch30 deploy zip — carries the duplicate-bill fix, Day Book §4 party link, and Sentry monitoring)
 
 `node build-deploy-zip.js batch30`: 16 files, 294.3KB, every stored path uses "/", every
