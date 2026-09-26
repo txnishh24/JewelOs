@@ -1122,9 +1122,12 @@ function dbSubmitEntry(){
   var amt = parseFloat((document.getElementById('db-entry-amt')||{}).value);
   var note = (document.getElementById('db-entry-note')||{}).value || '';
   var partyText = (document.getElementById('db-entry-party')||{}).value || '';
-  // Typed text with 7+ digits and nothing else is a phone number, not a
-  // name -- store it as one so it doesn't render as "👤 9876543210".
-  var partyIsPhone = normPhone(partyText).length >= 7 && !/[a-zA-Z]/.test(partyText);
+  // Typed text made only of phone-ish characters (digits, spaces, +, -,
+  // parens) with 7+ real digits is a phone number, not a name -- store it
+  // as one so it doesn't render as "👤 9876543210". Checking for "no Latin
+  // letters" instead of "only phone characters" would let a non-Latin name
+  // typed alongside a number (e.g. Devanagari) through as a phone.
+  var partyIsPhone = /^[\d\s+()-]+$/.test(partyText.trim()) && normPhone(partyText).length >= 7;
   var party = _dbEntryParty
     ? {name:_dbEntryParty.name, phone:_dbEntryParty.phone, customerId:_dbEntryParty.id}
     : (partyIsPhone ? {name:'', phone:partyText} : {name:partyText, phone:''});

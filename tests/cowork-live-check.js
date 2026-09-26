@@ -103,6 +103,11 @@ console.log('\n=== t9: Day Book party link, rendered through the real screen pai
   // Drive the REAL screen: switch to Month view, turn on By Person, and
   // render through renderDayBook() -> _dbPaint() -> _dbPaintMonth(), exactly
   // what tapping the "📅 Month" then "👤 By Person" buttons does.
+  // Pinned to the entries' own month (September 2026) rather than trusting
+  // the wall clock -- Opus review, 26 Sep 2026: this check goes quietly
+  // blind from October onward otherwise, since Month view defaults to the
+  // real current month and neither entry would still be in range.
+  a._dbMonthYear = 2026; a._dbMonthMonth = 8;
   a.dbSetViewMode('month');
   a._dbByPerson = true;
   a.renderDayBook();

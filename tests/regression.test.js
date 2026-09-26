@@ -2785,6 +2785,19 @@ test('dbSubmitEntry still stores typed free text as party.name, not phone', func
   assert(p && p.name === 'MSEB' && !p.phone, 'free text must still be stored as name, not phone: ' + JSON.stringify(p));
 });
 
+test('dbSubmitEntry does not treat a non-Latin name typed alongside a phone number as phone-only', function(){
+  var a = _dbHarness();
+  a.S.dayBook.opening = { date:'2026-09-01', amount:0, ts:'2026-09-01T00:00:00.000Z' };
+  a._dbDate = '2026-09-05';
+  a._dbEntryCat = 'rent';
+  a._els['db-entry-amt'] = { value:'500' };
+  a._els['db-entry-note'] = { value:'' };
+  a._els['db-entry-party'] = { value:'राम 9876543210' }; // "Ram" in Devanagari + a phone
+  a.dbSubmitEntry();
+  var p = a.S.dayBook.entries[0].party;
+  assert(p && p.name === 'राम 9876543210' && !p.phone, 'checking for "no Latin letters" would wrongly call this phone-only; got ' + JSON.stringify(p));
+});
+
 test('a party name is escaped in the Day view line list', function(){
   var a = _dbHarness();
   a.S.dayBook.opening = { date:'2026-09-01', amount:0, ts:'2026-09-01T00:00:00.000Z' };
