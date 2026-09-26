@@ -33,11 +33,9 @@ Belt and braces: `git status` on arrival. Dirty tree means someone was mid-chang
 
 Neither Claude can decide these. Don't re-litigate them each session; just surface them.
 
-- **Day Book receipt photos (DAYBOOK-SPEC-v2 §5) — where do they live?** Raised 26 Sep. They can't
-  be stored inline like girvi photos, because they would fill the shop's single row in weeks (numbers
-  in the 26 Sep Claude Code entry). The options are (a) Supabase Storage with a reference in the
-  entry, which means backend work: a bucket plus a store-proxy upload action; or (b) drop photos for
-  now. §5 is not built until he picks.
+- ~~Day Book receipt photos (DAYBOOK-SPEC-v2 §5).~~ **Answered 26 Sep: skip for now.** Don't build
+  §5 and don't store inline photos. If it comes back, it needs Supabase Storage (numbers in the
+  26 Sep Claude Code entry), not the shop row.
 
 - ~~Demo mode.~~ **Answered 17 Sep, and built 18 Sep — nothing left here.** Keep sample data on
   first open, but make it obviously fake and one tap to clear. Clear-all was already one tap and
