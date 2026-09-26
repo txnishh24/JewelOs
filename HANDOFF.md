@@ -55,6 +55,24 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-26 · Claude Code (Sonnet) (packaged batch30 deploy zip — carries the duplicate-bill fix, Day Book §4 party link, and Sentry monitoring)
+
+`node build-deploy-zip.js batch30`: 16 files, 294.3KB, every stored path uses "/", every
+file byte-matches this folder. Full changelog in `docs/CHANGES-batch30.md`. Regression
+suite 210/210 immediately before building, `check.bat` clean otherwise. Both 🔴 items
+(the duplicate-bill fix and the Day Book party link) were also independently re-run
+through the real UI-facing functions by Cowork today — see the entry directly above —
+not just the unit tests.
+
+**Not verified beyond that:** nothing visual, on any device. Zip is at
+`~/Downloads/jewelos-batch30-DEPLOY.zip`, ready to drag to Netlify.
+
+→ FOR COWORK: batch30 zipped and ready. Once it's live, worth a real on-device pass on
+the two priority items in `docs/CHANGES-batch30.md`'s "After you deploy" section before
+calling it confirmed, same as batch29's pattern.
+
+---
+
 ### 2026-09-26 · Claude Code (Sonnet) (office:t8 — orphan `shop_mosftn7z0g1d` counters, investigation only, 🔴 security/DB, nothing fixed)
 
 **Confirmed first: nothing in the codebase hardcodes or special-cases that shop id.**
