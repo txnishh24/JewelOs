@@ -808,6 +808,7 @@ tr:hover td{background:var(--gold-bg);}
 .gl-entry-amt.credit{color:var(--success);}
 .gl-entry-amt.debit{color:var(--danger);}
 .gl-entry-meta{font-size:11px;color:var(--text3);margin-top:2px;}
+.db-party-tag{display:inline-block;margin-left:4px;padding:0 6px;border-radius:100px;background:var(--gold-bg);color:var(--gold-dark);font-size:10px;font-weight:600;}
 .gl-entry-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;text-transform:uppercase;letter-spacing:.04em;margin-top:4px;}
 .gl-entry-right{text-align:right;}
 .gl-entry-date{font-size:12px;font-weight:600;color:var(--ink3);}
@@ -2539,6 +2540,8 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
       <div id="db-entry-cat-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
       <div class="ge-fg" style="margin-bottom:10px;"><label>Amount (₹)</label><input id="db-entry-amt" type="number" placeholder="0" inputmode="numeric"/></div>
       <div class="ge-fg" style="margin-bottom:10px;"><label>Note (optional)</label><input id="db-entry-note" placeholder="e.g. Electricity bill Sept"/></div>
+      <div class="ge-fg" style="margin-bottom:10px;"><label>Link to a person (optional)</label><input id="db-entry-party" placeholder="Name or phone" autocomplete="off" oninput="dbPartyAutocomplete()"/></div>
+      <div id="db-party-suggestions" style="display:none;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-top:-6px;margin-bottom:10px;max-height:150px;overflow-y:auto;"></div>
       <button class="btn btn-gold" style="width:100%;" onclick="dbSubmitEntry()">Save Entry</button>
     </div>
   </div>

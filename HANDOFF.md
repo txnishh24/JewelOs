@@ -33,6 +33,12 @@ Belt and braces: `git status` on arrival. Dirty tree means someone was mid-chang
 
 Neither Claude can decide these. Don't re-litigate them each session; just surface them.
 
+- **Day Book receipt photos (DAYBOOK-SPEC-v2 §5) — where do they live?** Raised 26 Sep. They can't
+  be stored inline like girvi photos, because they would fill the shop's single row in weeks (numbers
+  in the 26 Sep Claude Code entry). The options are (a) Supabase Storage with a reference in the
+  entry, which means backend work: a bucket plus a store-proxy upload action; or (b) drop photos for
+  now. §5 is not built until he picks.
+
 - ~~Demo mode.~~ **Answered 17 Sep, and built 18 Sep — nothing left here.** Keep sample data on
   first open, but make it obviously fake and one tap to clear. Clear-all was already one tap and
   already complete; the data was reseeded as `Demo Customer 1`…`6` on 18 Sep. Ships in batch21.
@@ -48,6 +54,45 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-09-26 · Claude Code (Opus) (office:t9 — Day Book v2 §4 party link built; §5 receipt photos stopped at the §5.2 storage gate, 🔴)
+
+**§4 (built):** manual Day Book entries can now carry an optional `party: {name, phone, customerId}`.
+- **Add Entry form:** a new "Link to a person (optional)" field that suggests matches from
+  `S.customers` by name or phone. It follows the sale form's `custAutocomplete` pattern (the same
+  suggestion box and `jsAttrEsc`/`escHtml` escaping). Picking a customer stores its `customerId`.
+  Typing after a pick drops the link. Free text stores the name only. A blank field stores no
+  `party` key at all.
+- **Line list:** a small 👤 name tag shows next to linked entries.
+- **Month view:** a "👤 By Person" chip, styled like Girvi's By Customer, swaps the Days list for
+  one card per person. Cards are grouped by `customerId`, otherwise by normalised name and phone,
+  the same way `renderGirviByCustomer` groups unlinked rows. Each card shows paid out, received,
+  and the entries, which open that day when tapped. The toggle only lasts for the session, like
+  the Day/Month toggle.
+- `dbAddEntry` takes `party` as a new **last** argument (after `cb`), so existing callers are
+  unchanged. Per §7, `dbAutoLines`, `dbAutoTotals`, `dbDayView` and the sweep are not touched.
+
+**§5 (not built, by the spec's own rule):** §5.2 says to re-run the storage estimate with photos
+included before writing any code. Here it is. `gfCompressPhoto` produces about 25–50KB per photo.
+Two receipts a day comes to roughly 60–100KB/day, which is **~20–35MB a year**. The whole shop row
+has a practical ceiling of ~3MB (`saveToCloud` warns at 2.5MB, and girvi photos already stop at a
+2.2MB budget). A shop with 1MB of real data would fill the remaining headroom in about 2–3 weeks.
+After that, every photo gets refused, girvi photos are blocked too, and every save re-uploads all
+of it. That changes the storage-model assumption, so it's flagged under WAITING ON TANISH. Moving
+photos to Supabase Storage is the real fix (the girvi photo code comment already says so).
+
+**Verification:** 4 new regression tests cover: party stored/omitted, a fake customerId dropped,
+By-Person grouping (voided, unlinked and out-of-month entries excluded; case/space-insensitive
+names), and the party name escaped in the line list. The `roundtrip.js` fixture now includes a
+party, which survives export → wipe → restore. `check.bat`: 210 passed, 0 failed. Step 3 has no
+new hits compared with the last run. **Not verified on a screen:** the suggestion dropdown, the
+tag's look, and the By Person cards. I rendered them in Node only.
+
+→ FOR COWORK: move office:t9 to verifying for §4. On-device check: add an expense linked to a
+saved customer and another typed free-text, then open Month → 👤 By Person. §5 waits on Tanish's
+storage decision (WAITING ON TANISH).
 
 ---
 

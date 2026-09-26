@@ -20,7 +20,7 @@ const before = {
   dayBook: {
     opening: { date: '2026-09-01', amount: 5000, ts: '2026-09-01T04:00:00.000Z' },
     entries: [
-      { id: 'e1', date: '2026-09-05', dir: 'out', amount: 500, cat: 'rent', note: '', kind: 'manual', ts: '2026-09-05T06:00:00.000Z', by: 'Tanish', voided: false, voidReason: '' },
+      { id: 'e1', date: '2026-09-05', dir: 'out', amount: 500, cat: 'rent', note: '', party: { name: 'R. Kumar', phone: '9876543210', customerId: 1 }, kind: 'manual', ts: '2026-09-05T06:00:00.000Z', by: 'Tanish', voided: false, voidReason: '' },
       { id: 'e2', date: '2026-09-06', dir: 'in', amount: 2000, cat: 'adjust', note: 'Correction to 2026-09-01', kind: 'adjust', srcDate: '2026-09-01', ts: '2026-09-06T06:00:00.000Z', by: 'system', voided: false, voidReason: '' }
     ],
     closes: [

@@ -500,7 +500,20 @@ function dbSetOpening(dateKey, amount, cb){
   _dbCommit(snap, cb);
 }
 
-function dbAddEntry(dateKey, dir, amount, cat, note, cb){
+// Day Book v2 §4.2 — optional {name, phone, customerId} on a manual entry.
+// customerId only when it names a real S.customers row; blank → no party.
+function dbCleanParty(party){
+  if(!party) return null;
+  var name = (party.name||'').toString().trim(), phone = (party.phone||'').toString().trim();
+  if(!name && !phone) return null;
+  var p = {name:name, phone:phone};
+  var c = party.customerId && (S.customers||[]).find(function(x){ return x.id === party.customerId; });
+  if(c) p.customerId = c.id;
+  return p;
+}
+
+// party is last (after cb) so existing positional callers are unaffected.
+function dbAddEntry(dateKey, dir, amount, cat, note, cb, party){
   if(dir !== 'in' && dir !== 'out'){ if(cb) cb(new Error('invalid-dir')); return; }
   if(!(amount > 0)){ if(cb) cb(new Error('invalid-amount')); return; }
   if(!DB_CATS[cat] || cat === 'adjust'){ if(cb) cb(new Error('invalid-cat')); return; } // adjust is system-only
@@ -514,6 +527,8 @@ function dbAddEntry(dateKey, dir, amount, cat, note, cb){
     kind: 'manual', ts: new Date().toISOString(), by: _dbUserName(),
     voided: false, voidReason: ''
   };
+  var cleanParty = dbCleanParty(party);
+  if(cleanParty) entry.party = cleanParty;
   S.dayBook.entries.push(entry);
   saasActivityLog('daybook', (dir==='in'?'Cash in ':'Expense ')+fmt(entry.amount)+' '+DB_CATS[cat].label+' on '+dateKey);
   auditLog('create', 'daybook', entry.id, DB_CATS[cat].label+' '+entry.amount+' on '+dateKey);
@@ -713,6 +728,70 @@ function dbChangeMonth(dir){
 }
 function dbSetChartDays(n){ _dbChartDays = n; renderDayBook(); }
 
+// Day Book v2 §4.3 — "👤 By Person" in Month view, same shape as Girvi's
+// toggleGirviViewMode/renderGirviByCustomer. Session-only, like _dbViewMode.
+var _dbByPerson = false;
+function dbToggleByPerson(btn){
+  _dbByPerson = !_dbByPerson;
+  if(btn) btn.classList.toggle('active', _dbByPerson);
+  renderDayBook();
+}
+
+// Pure: live manual entries with a party in [fromKey, toKey], grouped by
+// customerId (else normalised name+phone, as Girvi does for unlinked rows).
+function dbGroupByParty(fromKey, toKey){
+  var groups = {};
+  (S.dayBook.entries||[]).forEach(function(e){
+    if(e.voided || e.kind !== 'manual' || !e.party || e.date < fromKey || e.date > toKey) return;
+    var key = e.party.customerId || ('p_'+normName(e.party.name)+'_'+normPhone(e.party.phone));
+    if(!groups[key]){
+      var c = e.party.customerId && (S.customers||[]).find(function(x){ return x.id === e.party.customerId; });
+      groups[key] = { custId:e.party.customerId||null, name:c ? c.name : e.party.name,
+                      phone:c ? c.phone : e.party.phone, entries:[], totalIn:0, totalOut:0 };
+    }
+    var g = groups[key];
+    g.entries.push(e);
+    if(e.dir === 'in')  g.totalIn  = dbRound(g.totalIn  + e.amount);
+    if(e.dir === 'out') g.totalOut = dbRound(g.totalOut + e.amount);
+  });
+  return Object.keys(groups).map(function(k){ return groups[k]; })
+    .sort(function(a,b){ return (b.totalIn+b.totalOut) - (a.totalIn+a.totalOut); });
+}
+
+function _dbPaintByPerson(fromKey, toKey){
+  var rows = dbGroupByParty(fromKey, toKey);
+  if(!rows.length){
+    return '<div class="card"><div style="text-align:center;color:var(--text3);padding:16px;font-size:13px;">No entries linked to a person this month.</div></div>';
+  }
+  return rows.map(function(grp){
+    var entriesHtml = grp.entries.slice().sort(function(a,b){ return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); })
+      .map(function(e){
+        var c = DB_CATS[e.cat] || {label:e.cat, icon:'', color:'var(--text3)'};
+        return '<div class="gl-entry" style="cursor:pointer;" onclick="dbGoDate(\''+jsAttrEsc(e.date)+'\')">'+
+          '<div class="gl-entry-left">'+
+            '<div class="gl-entry-amt '+(e.dir==='in'?'credit':'debit')+'">'+(e.dir==='in'?'+':'−')+fmt(e.amount)+'</div>'+
+            '<div class="gl-entry-meta"><span style="color:'+c.color+';">'+c.icon+'</span> '+escHtml(c.label)+(e.note?' • '+escHtml(e.note):'')+'</div>'+
+          '</div>'+
+          '<div class="gl-entry-right"><div style="font-size:12px;color:var(--ink3);">'+fmtDate(e.date)+'</div></div>'+
+        '</div>';
+      }).join('');
+    return '<div class="card">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'+
+        '<div>'+
+          '<div style="font-weight:700;font-size:15px;">👤 '+escHtml(grp.name||grp.phone||'Unknown')+'</div>'+
+          (grp.phone?'<div style="font-size:12px;color:var(--text3);margin-top:2px;">📞 '+escHtml(grp.phone)+'</div>':'')+
+        '</div>'+
+        '<div style="text-align:right;font-size:11px;color:var(--text3);">'+grp.entries.length+' entr'+(grp.entries.length===1?'y':'ies')+'</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:16px;flex-wrap:wrap;padding:8px 0;border-top:0.5px solid rgba(201,168,76,.14);border-bottom:0.5px solid rgba(201,168,76,.14);margin-bottom:6px;">'+
+        '<div><div style="font-size:10px;color:var(--text3);">Paid out</div><div style="font-weight:700;color:var(--danger);">'+fmt(grp.totalOut)+'</div></div>'+
+        '<div><div style="font-size:10px;color:var(--text3);">Received</div><div style="font-weight:700;color:var(--success);">'+fmt(grp.totalIn)+'</div></div>'+
+      '</div>'+
+      entriesHtml+
+    '</div>';
+  }).join('');
+}
+
 // Entry point from switchTab/renderTab. Always sweeps first (spec §6:
 // the sweep runs when the screen is opened, never from boot or a timer)
 // so the screen is never painted from a stale restatement baseline.
@@ -832,10 +911,11 @@ function _dbPaintDay(){
       var sourceTag = line.src ? ' • auto' : (line.kind==='manual' ? ' • manual' : '');
       var lineIcon = dbLineIcon(line);
       var iconBadge = '<span style="display:inline-block;width:16px;text-align:center;margin-right:5px;color:'+lineIcon.color+';">'+lineIcon.icon+'</span>';
+      var partyTag = line.party ? ' <span class="db-party-tag">👤 '+escHtml(line.party.name||line.party.phone)+'</span>' : '';
       html += '<div class="gl-entry"'+(line.voided?' style="opacity:.5;"':'')+'>'+
         '<div class="gl-entry-left">'+
           '<div class="gl-entry-amt '+(line.dir==='in'?'credit':'debit')+'">'+(line.dir==='in'?'+':'−')+fmt(line.amount)+(line.voided?' (voided)':'')+'</div>'+
-          '<div class="gl-entry-meta">'+iconBadge+escHtml(line.label||catLabel)+(line.note?' • '+escHtml(line.note):'')+(line.kind==='adjust'?' • system adjustment':sourceTag)+(line.voided?' • '+escHtml(line.voidReason||''):'')+'</div>'+
+          '<div class="gl-entry-meta">'+iconBadge+escHtml(line.label||catLabel)+(line.note?' • '+escHtml(line.note):'')+partyTag+(line.kind==='adjust'?' • system adjustment':sourceTag)+(line.voided?' • '+escHtml(line.voidReason||''):'')+'</div>'+
         '</div>'+
         '<div class="gl-entry-right">'+
           '<div style="font-size:12px;font-weight:600;color:var(--ink3);">'+fmt(running)+'</div>'+
@@ -896,7 +976,7 @@ function _dbPaintMonth(){
   var netCash = dbRound(totalIn - totalOut);
   var expenses = calcDayBookExpenses(year, month);
 
-  var html = '';
+  var html = '<div style="margin-bottom:10px;"><button class="girvi-search-chip'+(_dbByPerson?' active':'')+'" onclick="dbToggleByPerson(this)">👤 By Person</button></div>';
 
   html += '<div class="card" style="padding:0.85rem 1.1rem;">'+
     '<div style="display:flex;align-items:center;justify-content:space-between;">'+
@@ -951,6 +1031,8 @@ function _dbPaintMonth(){
     html += '<div class="card"><div class="card-title">Expense breakdown</div>'+dbExpenseBreakdownHtml(expenses.byCat)+'</div>';
   }
 
+  if(_dbByPerson) return html + _dbPaintByPerson(rangeStart, rangeEnd);
+
   html += '<div class="card"><div class="card-title">Days</div>';
   if(!trend.length){
     html += '<div style="text-align:center;color:var(--text3);padding:16px;font-size:13px;">No days in this range yet.</div>';
@@ -993,7 +1075,41 @@ function dbOpenEntryModal(){
   }
   var amtEl = document.getElementById('db-entry-amt'); if(amtEl) amtEl.value = '';
   var noteEl = document.getElementById('db-entry-note'); if(noteEl) noteEl.value = '';
+  var partyEl = document.getElementById('db-entry-party'); if(partyEl) partyEl.value = '';
+  var sugEl = document.getElementById('db-party-suggestions'); if(sugEl) sugEl.style.display = 'none';
+  _dbEntryParty = null;
   document.getElementById('db-entry-modal').style.display = 'block';
+}
+
+// §4.3 type-ahead — same inline pattern as the sale form's custAutocomplete(),
+// but against S.customers (name prefix or phone digits). Typing after a pick
+// drops the link, so a stale customerId never rides on an edited name.
+var _dbEntryParty = null; // the S.customers row picked, if any
+function dbPartyAutocomplete(){
+  _dbEntryParty = null;
+  var q = normName((document.getElementById('db-entry-party')||{}).value);
+  var box = document.getElementById('db-party-suggestions');
+  if(!box) return;
+  if(!q){ box.style.display='none'; return; }
+  var qd = normPhone(q);
+  var matches = (S.customers||[]).filter(function(c){
+    return normName(c.name).indexOf(q)===0 || (qd.length>=3 && normPhone(c.phone).indexOf(qd)>-1);
+  }).slice(0,5);
+  if(!matches.length){ box.style.display='none'; return; }
+  box.style.display='block';
+  box.innerHTML = matches.map(function(c){
+    return '<div style="padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);" onclick="dbFillParty(\''+jsAttrEsc(c.id)+'\')">'+
+      '<strong>'+escHtml(c.name)+'</strong>'+(c.phone?' &bull; '+escHtml(c.phone):'')+
+    '</div>';
+  }).join('');
+}
+
+function dbFillParty(custId){
+  var c = (S.customers||[]).find(function(x){ return x.id === custId; });
+  if(!c) return;
+  document.getElementById('db-entry-party').value = c.name || c.phone || '';
+  document.getElementById('db-party-suggestions').style.display = 'none';
+  _dbEntryParty = c;
 }
 
 function dbSetEntryCat(cat, el){
@@ -1005,12 +1121,16 @@ function dbSubmitEntry(){
   if(!_dbEntryCat){ toast('⚠ Choose a category'); return; }
   var amt = parseFloat((document.getElementById('db-entry-amt')||{}).value);
   var note = (document.getElementById('db-entry-note')||{}).value || '';
+  var partyName = (document.getElementById('db-entry-party')||{}).value || '';
+  var party = _dbEntryParty
+    ? {name:_dbEntryParty.name, phone:_dbEntryParty.phone, customerId:_dbEntryParty.id}
+    : {name:partyName, phone:''};
   dbAddEntry(dbUiDate(), DB_CATS[_dbEntryCat].dir, amt, _dbEntryCat, note, function(err){
     if(err){ toast('⚠ Could not save: '+err.message); return; }
     document.getElementById('db-entry-modal').style.display = 'none';
     toast('✓ Entry saved');
     renderDayBook();
-  });
+  }, party);
 }
 
 function dbOpenVoidModal(entryId){

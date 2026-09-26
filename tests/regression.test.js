@@ -2720,6 +2720,55 @@ test('_dbPaintMonth clips the trend/Days list to the Day Book opening date, not 
   assert(html.indexOf('Day Book started') !== -1, 'expected the started-on note when the range is clipped');
 });
 
+console.log('\nDay Book v2 — party link (§4):');
+
+test('dbAddEntry stores a linked party with its customerId, and no party field when left blank', function(){
+  var a = _dbHarness();
+  a.S.customers = [{ id:'c1', name:'Ramesh Landlord', phone:'9876543210' }];
+  a.dbAddEntry('2026-09-05','out',8000,'rent','',function(){}, { name:'Ramesh Landlord', phone:'9876543210', customerId:'c1' });
+  a.dbAddEntry('2026-09-05','out',50,'tea','',function(){}, { name:'  ', phone:'' });
+  a.dbAddEntry('2026-09-05','out',60,'tea','',function(){});
+  var e = a.S.dayBook.entries;
+  assert(e[0].party && e[0].party.customerId === 'c1' && e[0].party.name === 'Ramesh Landlord', 'linked party must be stored: ' + JSON.stringify(e[0].party));
+  assert(!('party' in e[1]) && !('party' in e[2]), 'a blank or missing party must not add a party field');
+});
+
+test('a free-text party keeps its name but never gets a customerId that is not a real customer', function(){
+  var a = _dbHarness();
+  a.S.customers = [];
+  a.dbAddEntry('2026-09-05','out',1200,'electricity','',function(){}, { name:'MSEB', phone:'', customerId:'ghost' });
+  var p = a.S.dayBook.entries[0].party;
+  assert(p.name === 'MSEB' && !('customerId' in p), 'unknown customerId must be dropped: ' + JSON.stringify(p));
+});
+
+test('dbGroupByParty groups a month\'s manual entries by customer, then by name+phone; skips voided, unlinked and out-of-range', function(){
+  var a = _dbHarness();
+  a.S.customers = [{ id:'c1', name:'Suresh Karigar', phone:'9000000001' }];
+  a.S.dayBook.entries = [
+    { id:'1', date:'2026-09-03', dir:'out', amount:500, cat:'salary', kind:'manual', voided:false, party:{ name:'Suresh', phone:'', customerId:'c1' } },
+    { id:'2', date:'2026-09-10', dir:'out', amount:700, cat:'salary', kind:'manual', voided:false, party:{ name:'Suresh K', phone:'', customerId:'c1' } },
+    { id:'3', date:'2026-09-11', dir:'out', amount:900, cat:'rent', kind:'manual', voided:false, party:{ name:'landlord ', phone:'' } },
+    { id:'4', date:'2026-09-12', dir:'out', amount:100, cat:'rent', kind:'manual', voided:false, party:{ name:'Landlord', phone:'' } },
+    { id:'5', date:'2026-09-12', dir:'out', amount:999, cat:'salary', kind:'manual', voided:true, party:{ name:'Suresh', phone:'', customerId:'c1' } },
+    { id:'6', date:'2026-09-12', dir:'out', amount:40, cat:'tea', kind:'manual', voided:false },
+    { id:'7', date:'2026-08-30', dir:'out', amount:500, cat:'salary', kind:'manual', voided:false, party:{ name:'Suresh', phone:'', customerId:'c1' } }
+  ];
+  var g = a.dbGroupByParty('2026-09-01', '2026-09-30');
+  assert(g.length === 2, 'expected 2 groups, got ' + g.length);
+  assert(g[0].name === 'Suresh Karigar' && g[0].totalOut === 1200 && g[0].entries.length === 2, 'customer group wrong: ' + JSON.stringify(g[0]));
+  assert(g[1].totalOut === 1000 && g[1].entries.length === 2, 'free-text names differing only in case/space must group together: ' + JSON.stringify(g[1]));
+});
+
+test('a party name is escaped in the Day view line list', function(){
+  var a = _dbHarness();
+  a.S.dayBook.opening = { date:'2026-09-01', amount:0, ts:'2026-09-01T00:00:00.000Z' };
+  a._dbDate = '2026-09-05';
+  a.dbAddEntry('2026-09-05','out',100,'misc','',function(){}, { name:'<img src=x onerror=alert(1)>', phone:'' });
+  var html = a._dbPaintDay();
+  assert(html.indexOf('<img src=x') === -1, 'party name must be escaped');
+  assert(html.indexOf('db-party-tag') !== -1, 'the party tag should render');
+});
+
 console.log('\nDuplicate bill guard:');
 test('isDuplicateSale flags a repeat bill saved seconds ago, even though its bill date is UTC midnight', function(){
   var a = require('./harness.js').loadApp();
