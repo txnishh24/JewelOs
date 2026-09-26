@@ -1224,6 +1224,7 @@ function buildSaleObj(){
     id: (typeof crypto.randomUUID==='function') ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)),
     invNo:document.getElementById('s-invno').value||'INV-'+String(S.nextInvNo).padStart(3,'0'),
     date:new Date(document.getElementById('s-date').value||new Date()).toISOString(),
+    createdAt:new Date().toISOString(),
     customer:document.getElementById('s-cust').value||'Walk-in',
     phone:document.getElementById('s-phone').value||'',
     addr:document.getElementById('s-addr').value||'',

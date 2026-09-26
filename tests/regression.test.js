@@ -2720,6 +2720,19 @@ test('_dbPaintMonth clips the trend/Days list to the Day Book opening date, not 
   assert(html.indexOf('Day Book started') !== -1, 'expected the started-on note when the range is clipped');
 });
 
+console.log('\nDuplicate bill guard:');
+test('isDuplicateSale flags a repeat bill saved seconds ago, even though its bill date is UTC midnight', function(){
+  var a = require('./harness.js').loadApp();
+  var today = new Date().toISOString().slice(0,10);
+  var items = [{ pid:'p1', qty:1 }];
+  a.S.sales = [{ customer:'Walk-in', items:items, date:new Date(today).toISOString(), createdAt:new Date(Date.now()-5000).toISOString() }];
+  assert(a.isDuplicateSale('walk-in', items) === true, 'a bill saved 5s ago must be flagged');
+  a.S.sales[0].createdAt = new Date(Date.now()-120000).toISOString();
+  assert(a.isDuplicateSale('Walk-in', items) === false, 'a bill saved 2 minutes ago must not be flagged');
+  delete a.S.sales[0].createdAt;
+  assert(a.isDuplicateSale('Walk-in', items) === false, 'a legacy sale with no createdAt must not be flagged');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

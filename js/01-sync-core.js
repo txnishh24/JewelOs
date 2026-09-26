@@ -702,8 +702,9 @@ function isDuplicateSale(custName, items){
   var now = Date.now();
   var recentCutoff = now - 60000; // 60 seconds
   return S.sales.some(function(s){
-    var sTime = new Date(s.date).getTime();
-    if(sTime < recentCutoff) return false;
+    // s.date is the user-picked bill date (UTC midnight), not when the bill
+    // was saved, so use createdAt. Older sales without it are skipped.
+    if(!s.createdAt || new Date(s.createdAt).getTime() < recentCutoff) return false;
     if((s.customer||'').toLowerCase() !== (custName||'').toLowerCase()) return false;
     if((s.items||[]).length !== items.length) return false;
     return true;

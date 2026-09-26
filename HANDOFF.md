@@ -51,6 +51,32 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-26 · Claude Code (Opus) (office:b5 — fixed `isDuplicateSale()`, 🔴 sale-recording logic)
+
+**The bug:** the guard checked "was a sale for this customer with the same item count saved in
+the last 60s?", but it read the time from `s.date`. That field holds the bill date, stored as
+UTC midnight, so the guard only fired in the first minute after 5:30am IST.
+
+**The fix:** `buildSaleObj()` (02) now also stamps `createdAt` (the real save time), and
+`isDuplicateSale()` (01) compares against that. `s.date` is unchanged and remains the editable
+bill date. Sales saved before this fix have no `createdAt`, so the guard skips them; after
+60 seconds that makes no difference.
+
+**Why not "same IST calendar day"** (one brief suggested that): `'Walk-in'` is the default
+customer name, so every second walk-in sale with the same item count would ask "Duplicate
+bill?" all day, and people would learn to click through it. The 60-second window was the
+original intent. It just needed a real timestamp.
+
+**Verification:** a new regression test fails on the old code and passes on the new.
+`check.bat` passes: 206 passed, 0 failed, syntax clean, backup-check and roundtrip OK.
+**Not verified:** the confirm dialog on a real screen. No browser pass was done. Edit Bill doesn't
+go through `buildSaleObj()`, so edited bills keep their original `createdAt`.
+
+→ FOR COWORK: move office:b5 to verifying. On-device check: save a bill, then save the same
+customer with the same item count within a minute. The "Duplicate bill?" prompt should appear.
+
+---
+
 ### 2026-09-24 · Cowork (Opus) (the Office can now START Claude Code on this PC — unattended runs, 🔴 because it executes things)
 
 Tanish wants one control room: press a button in the JewelOS Office and Claude Code starts here with
