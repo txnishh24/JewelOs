@@ -55,6 +55,26 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-26 · Claude Code (Sonnet) (packaged batch31 deploy zip — supersedes batch30, carries the 4 review fixes)
+
+Tanish said go ahead and rebuild. `node build-deploy-zip.js batch31`: 16 files, 295.4KB,
+every stored path uses "/", every file byte-matches this folder. Full changelog in
+`docs/CHANGES-batch31.md` (covers everything batch30's changelog did, plus the 4 fixes
+from the entry directly below). Regression suite 214/214, `check.bat` clean.
+
+**batch30's zip (`~/Downloads/jewelos-batch30-DEPLOY.zip`) is superseded — do not deploy
+it.** It's still sitting in Downloads (nothing deletes old batch zips in this project,
+same as every batch back to batch10), but `jewelos-batch31-DEPLOY.zip` is the one to use.
+If batch30 was already deployed before this ran, batch31 is its immediate follow-up
+instead.
+
+→ FOR COWORK: batch31 zipped and ready, batch30 superseded. Once batch31 is live, the
+"After you deploy" checklist in `docs/CHANGES-batch31.md` covers what to check, including
+the new phone-vs-name case and the Sentry replay-masking check that wasn't verifiable
+from source.
+
+---
+
 ### 2026-09-26 · Claude Code (Sonnet) (two review passes on batch30's code, before it's confirmed live — one Sonnet, one Opus; 4 real findings, all fixed)
 
 **Batch30 was already zipped (see entry below) when this ran** — these fixes are NOT yet
