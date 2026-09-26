@@ -137,3 +137,20 @@ Rules:
 - Skip agents for trivial edits.
 - Use `Agents Orchestrator` only for large multi-step features that have a written spec.
 - Follow `MODEL-POLICY.md` for model choice on every delegated task.
+
+**Standing rule (Tanish, 27 Sep 2026): don't ask him which agent to use — decide it yourself.**
+He does not track what any of these agents do or when they apply; that judgment call belongs
+to whichever side (Claude Code or Cowork) is doing the work, every time, without checking in
+first. The table above already is that decision, made in advance — treat a task that matches
+a row as pre-approved for that agent.
+
+Cowork-specific note: Cowork cannot invoke the four `jewelos-*` agents above by name — they
+only exist as files in this folder's `.claude/agents/`, which Cowork's own agent tool has no
+access to, and there is currently no supported way for Cowork to install a plugin that would
+add them (checked 27 Sep — no such tool or skill exists on this account; treat this as closed,
+not a to-do to keep re-raising). When Cowork's work matches one of those four specs (running
+the test suite, reviewing a diff for the five bug families, writing the HANDOFF entry,
+verifying a live deploy), it reads that file and follows its instructions directly instead of
+invoking it as a named agent. For its own research-heavy or multi-file work (competitive
+research, a live-site audit, searching across many files), Cowork uses its own available
+agent types (e.g. general-purpose, Explore) at its own discretion, same standing-rule logic.

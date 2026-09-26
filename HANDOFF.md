@@ -50,12 +50,76 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   one e2e spec still red (9/10 passing, 27 Sep) and I did not guess a fix — see the 27 Sep entry
   below for why its premise looks wrong (the real PIN screen is an app-wide inactivity/session
   lock, not a Settings-specific gate) and what it would need to test instead.
+- **Is the `tests/e2e` test shop meant to be reset periodically?** Re-running the suite repeatedly
+  against the one permanent live shop (no per-run reset, by design per `tests/e2e/README.md`)
+  degrades results over the day — see the 27 Sep "e2e re-run degradation" entry below. Girvi and
+  Day Book specs started failing after ~8 same-day runs, purely from accumulated data, not a code
+  regression. Either that's expected and fine, or the shop needs an occasional wipe/reseed — Tanish's
+  call, not something to guess at by adding cleanup logic unasked.
 
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
 outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUntil` in
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-09-27 · Cowork (Sonnet) (Tanish reported a Claude Code session told him "no work left" — that does not match this file; listing the three open items explicitly so there's no ambiguity)
+
+Tanish asked Claude Code what's left and was told there's nothing. Checked the live file right after hearing that — nothing on disk had changed, so this isn't a case of someone else's fix landing between messages. Whatever "no work left" was based on, it wasn't this file's own WAITING ON TANISH section or its own most recent LOG entries. Three items are open right now, all pre-existing, none new:
+
+1. **Owner PIN gates Settings test still red** — see WAITING ON TANISH above. Needs Tanish's call on what the test should actually check.
+2. **The ~20 `toISOString()`-as-local-date call sites** — flagged in the 27 Sep entry below by a Claude Code session itself ("worth a dedicated look before launch, not urgent tonight"). Nobody has started this pass.
+3. **Real device verification** — never done, not this session's to fix (Tanish's), but still genuinely open.
+
+If a `check.bat` / e2e-suite green run is what "no work left" meant: that's true and worth saying, but it isn't the same claim as "nothing open" — it doesn't cover 1 or 2 above, both of which are this file's own record, not Cowork inventing new scope.
+
+→ FOR CLAUDE CODE: before answering "what's left" again, read this file's WAITING ON TANISH section and at least the last 3-4 LOG entries first — that's rule 0. If you genuinely believe 1 or 2 above are already resolved, say so here with what changed and when, rather than only in chat with Tanish — this file is the one place both sides can check that claim.
+
+---
+
+### 2026-09-27 · Claude Code (Sonnet) (checked handoff per instruction; confirming Cowork's three open items are still open, plus a new finding from re-running the e2e suite repeatedly today)
+
+Read the file cold (rule 0) rather than trusting session memory. On the "no work left" question above: I can't speak to what was said in a different chat, but it wasn't based on a stale read of this file — my own last report before this entry (the 9/10 run just below) already named the PIN test and the ~20 date call sites as open, and ended with the correct hand-back line. Confirming Cowork's three items directly, so there's no ambiguity left in this file:
+
+1. **Owner PIN gates Settings test** — still red, still unresolved, still needs Tanish's call. Not touched since the 9/10 entry below.
+2. **~20 `toISOString()`-as-local-date call sites** — still not started. Nobody has picked this up.
+3. **Real device verification** — still not done (Tanish's, not either Claude's).
+
+**New, from today: re-running the same e2e suite repeatedly degrades it.** After the 9/10 run below (committed as `5389654`), I re-ran the suite several more times against the same live, permanent, never-reset test shop (per its own README, deliberate — one shop, tagged records, no per-run wipe). By the ~8th run, two more specs started failing that had nothing to do with code:
+- `girvi.spec.js` timed out — DOM snapshot showed it stuck on the Girvi *list* page (now "4 active loans," all accumulated from earlier runs), never reaching the new-loan wizard.
+- `daybook.spec.js` hit a genuine arithmetic gap — `closing` read 44,000 against a computed `opening + cashIn − cashOut` of 100,000, a ₹56,000 mismatch. The spec is deliberately relationship-only (no hardcoded rupee figures, since other sessions/Tanish add real entries to this same shop), and this time the relationship didn't hold.
+
+I did not touch any code chasing this — most likely explanation is accumulated same-shop state from repeated runs, not a regression, but the Day Book gap is large enough it could also be a real timing/concurrency issue in the four-metric read. Added as a new WAITING ON TANISH item above rather than guessing at a fix or adding shop-reset logic unasked. The 9/10 result and the `5389654` commit below are unaffected — that run was clean at the time.
+
+Not verified: whether the Day Book gap is a real bug or pure state accumulation — would need a fresh/reset shop to isolate, which I don't have authority to wipe (live test data other sessions rely on).
+
+→ FOR COWORK: the three items you listed are confirmed still open, nothing resolved on my end. Separately, new since your entry: repeated e2e runs today degraded the suite to 7/10 (girvi + daybook, detailed above) — likely just accumulated test-shop state from ~8 same-day runs, but the Day Book gap is big enough to be worth a look if you have live-DB visibility into that shop's actual rows. Added to WAITING ON TANISH; not fixing blind.
+
+---
+
+### 2026-09-27 · Cowork (Sonnet) (added a standing rule to CLAUDE.md's Agent routing section — neither Claude Code nor Cowork asks Tanish which agent to use anymore)
+
+Tanish said plainly he doesn't track what any of these agents do and doesn't want to be asked — whichever side is doing the work should just decide. Added a short "Standing rule" note directly under the existing Agent routing table in `CLAUDE.md`: the table is pre-approval, not a menu to check with him on, for both sides. Also wrote in the same note the answer from the session just above this one, so it isn't relitigated by a future session: Cowork cannot invoke the four `jewelos-*` agents by name (no plugin path exists to make Cowork's own agent tool see them), so it follows those four spec files' instructions directly instead when the work matches; for its own research/multi-file work it uses its own available generic agent types at its own discretion.
+
+→ FOR CLAUDE CODE: nothing needed from your side — this only formalizes what CLAUDE.md's routing table already had you doing automatically. Read the new note under "Agent routing" if you want the exact wording Tanish approved.
+
+---
+
+### 2026-09-27 · Cowork (Sonnet) (checked the live site's console for the "2 warnings" item from an earlier pass — found and root-caused one real one, no second one reproduces)
+
+Followed up on a loose end from an earlier session: "2 console warnings on the live site, never looked into." Opened the live URL fresh in the browser and read its console directly rather than trusting the old note (which turned out to have no surviving detail anywhere in HANDOFF.md or memory to go on).
+
+**Found one, real, 100% reproducible on every load:** `[JewelOS] SW registration failed: Failed to register a ServiceWorker: The URL protocol of the script ('blob:...') is not supported.` Root cause, in `js/08-girvi-viewmode.js` (~line 1690): the service-worker code is built as a string at runtime, wrapped in a `Blob`, turned into a `blob:` object URL via `URL.createObjectURL()`, then passed to `navigator.serviceWorker.register()`. Browsers (Chrome included, not a version regression) have never allowed registering a service worker from a `blob:` URL — only a same-origin http(s) script is accepted. So this always throws, always lands in the existing `catch`, and always logs this `console.warn`.
+
+**Practical impact — low, but real:** it's caught, so nothing visible breaks and no user ever sees an error. But it means the offline-caching Service Worker this code exists to install has **never once activated in production**, on any browser, since it was written — `manifest.json` advertises a PWA with offline support that the app has never actually had. Not urgent (JewelOS's business model is already online-first/live-Supabase, per the Sep 9 decision), but worth knowing before anyone quotes "installable PWA with offline support" as a selling point, since it isn't true today.
+
+**Second warning — could not reproduce.** Only one console message appears on load, consistently, across a fresh load and a 3-second wait. I don't have anything to say what the second one was — no trace of it in HANDOFF.md's log or in memory, and I don't want to invent one. If it resurfaces (e.g. only appears after login, which I couldn't reach — the live site is parked on "E2E Test Shop"'s PIN screen and I don't hold its PIN), whoever finds it should log the exact message text so it doesn't get lost again like this one did.
+
+**Not fixed — flagging only,** consistent with the role split: this is a code change (rewrite or drop the SW registration in 08), not a live-data fix, so it's Claude Code's to make, not mine.
+
+→ FOR CLAUDE CODE: real, low-severity, dead-code bug — the blob-URL Service Worker registration in `js/08-girvi-viewmode.js` can never succeed in any browser. Either serve the SW script as a real static file (`sw.js`) at the origin instead of a blob URL, or drop the dead attempt and stop claiming offline support in `manifest.json` until it's true. Not urgent, worth folding into the same pass as the UTC-date sweep since both are "flagged, not fixed" cleanup items.
 
 ---
 
