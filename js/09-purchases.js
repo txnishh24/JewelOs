@@ -507,7 +507,7 @@ function pbFillSupplierList(){
 }
 
 function pbClearForm(){
-  document.getElementById('pb-f-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('pb-f-date').value = dbDayKey(new Date());
   ['pb-f-supplier','pb-f-invno','pb-f-items','pb-f-grosswt','pb-f-netwt','pb-f-total','pb-f-paid',
    'pb-f-employee','pb-f-notes','pb-f-cgst','pb-f-sgst','pb-f-igst','pb-f-stonewt','pb-f-stoneamt',
    'pb-f-diamond','pb-f-hallmark','pb-f-duedate','pb-f-rate','pb-f-wastage'].forEach(function(id){
@@ -1461,7 +1461,7 @@ function pbExportCsv(){
   var blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
-  a.href = url; a.download = 'purchase-bills-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.href = url; a.download = 'purchase-bills-'+dbDayKey(new Date())+'.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }

@@ -193,7 +193,7 @@ function renderDash(){
 
   // Core financials
   var tgv       = stockGV(), tsv = stockSV();
-  var todayStr  = now.toISOString().slice(0,10);
+  var todayStr  = dbDayKey(now);
   var monthStr  = year+'-'+String(month+1).padStart(2,'0')+'-01';
   var cfMonth   = calcCashFlow(monthStr, todayStr);
   var totalPendingBal  = S.sales.reduce(function(s,x){return s+calcSaleTotals(x).bal;},0);
@@ -780,9 +780,9 @@ function loadDemoData(){
   document.getElementById('demo-banner').classList.add('visible');
   document.body.classList.add('demo-mode');
 
-  var today = new Date().toISOString().slice(0,10);
-  var lastMonth = new Date(Date.now()-30*86400000).toISOString().slice(0,10);
-  var twoMonth  = new Date(Date.now()-60*86400000).toISOString().slice(0,10);
+  var today = dbDayKey(new Date());
+  var lastMonth = dbDayKey(new Date(Date.now()-30*86400000));
+  var twoMonth  = dbDayKey(new Date(Date.now()-60*86400000));
 
   // Demo products
   var demoProducts = [
@@ -837,7 +837,7 @@ function loadDemoData(){
   // Demo orders
   var demoOrders = [
     {id:'demo-o1',ordNo:'ORD-D001',createdAt:lastMonth,customer:'Demo Customer 6',phone:'0000000006',
-     status:'making',priority:'normal',delivery:new Date(Date.now()+5*86400000).toISOString().slice(0,10),
+     status:'making',priority:'normal',delivery:dbDayKey(new Date(Date.now()+5*86400000)),
      items:[{desc:'Custom 22K Necklace',cat:'Necklaces',metal:'gold',purity:'22K',estWt:18,qty:1,making:250,makingType:'per_gram',note:'Sample note'}],
      quote:145000,advance:50000,notes:'Sample note',
      ledger:[{type:'advance',amount:50000,mode:'cash',ref:'',note:'Initial advance',date:lastMonth}]},
@@ -930,7 +930,7 @@ function waComputeVars(ruleId, record, shopName){
     v.customer_name = record.customer;
     v.girvi_number = record.grvNo;
     v.item_desc = record.item.desc||record.item.metal;
-    v.due_date = fmtDate(due.toISOString().slice(0,10));
+    v.due_date = fmtDate(dbDayKey(due));
     v.amount = Math.round(girviOutstanding(record)).toLocaleString('en-IN');
   } else if(ruleId==='payment_30d'){
     var t = calcSaleTotals(record);
@@ -1239,7 +1239,7 @@ function showDailyDigest(){
   var now    = new Date();
   var year   = now.getFullYear();
   var month  = now.getMonth();
-  var today  = now.toISOString().slice(0,10);
+  var today  = dbDayKey(now);
   var monthStr = year+'-'+String(month+1).padStart(2,'0')+'-01';
   var thisMonth  = calcMonthProfit(year, month);
   var cf         = calcCashFlow(monthStr, today);
@@ -1292,7 +1292,7 @@ function shareDigestWhatsApp(){
   var now   = new Date();
   var year  = now.getFullYear();
   var month = now.getMonth();
-  var today = now.toISOString().slice(0,10);
+  var today = dbDayKey(now);
   var thisMonth = calcMonthProfit(year, month);
   var pendingBal = S.sales.reduce(function(s,x){return s+calcSaleTotals(x).bal;},0);
   var activeGirvi= (S.girvi||[]).filter(function(g){return g.status!=='closed';});

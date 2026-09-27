@@ -113,7 +113,7 @@ function exportCSV(){
   var url  = URL.createObjectURL(blob);
   var a    = document.createElement('a');
   a.href   = url;
-  a.download= ((SAAS.shop?SAAS.shop.name:'JewelOS').replace(/\s+/g,'-'))+'-sales-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download= ((SAAS.shop?SAAS.shop.name:'JewelOS').replace(/\s+/g,'-'))+'-sales-'+dbDayKey(new Date())+'.csv';
   a.click();
   URL.revokeObjectURL(url);
   saasActivityLog('export','Sales CSV exported ('+S.sales.length+' rows)');
@@ -415,7 +415,7 @@ function openGirviForm(editId, prefill){
   var frt=document.getElementById('gf-financer-ratetype'); if(frt) frt.value='monthly';
   var risk=document.getElementById('gf-risk'); if(risk) risk.value='medium';
   // gf-metal / gf-purity removed — now managed per-item in GF_ITEMS array
-  document.getElementById('gf-start').value = new Date().toISOString().slice(0,10);
+  document.getElementById('gf-start').value = dbDayKey(new Date());
   var dm=document.getElementById('gf-disburse-mode'); if(dm) dm.value='Cash';
   // Disbursement mode is asked once, at creation, and never back-filled onto
   // an existing loan on edit -- see the Day Book HANDOFF entry, 20 Sep 2026.
@@ -607,9 +607,9 @@ function girviAutoCalc(){
 
   // Final preview (step 4)
   if(prevF){
-    var start = (document.getElementById('gf-start').value)||new Date().toISOString().slice(0,10);
+    var start = (document.getElementById('gf-start').value)||dbDayKey(new Date());
     var dueStr='';
-    if(dur){var d=new Date(start);d.setMonth(d.getMonth()+dur);dueStr=fmtDate(d.toISOString().slice(0,10));}
+    if(dur){var d=new Date(start);d.setMonth(d.getMonth()+dur);dueStr=fmtDate(dbDayKey(d));}
     var cust=(document.getElementById('gf-cust').value||'').trim();
     var _tw=GF_ITEMS.reduce(function(s,it){return s+(parseFloat(it.grossWt)||0)*(parseInt(it.qty)||1);},0);
     var _tm=GF_ITEMS.reduce(function(s,it){return s+gfItemMktVal(it);},0);
@@ -640,7 +640,7 @@ function updateGirviDueDate(){
   if(start && dur){
     var d = new Date(start);
     d.setMonth(d.getMonth()+dur);
-    el.textContent = fmtDate(d.toISOString().slice(0,10));
+    el.textContent = fmtDate(dbDayKey(d));
   } else {
     el.textContent = dur?'Set start date':'No fixed term';
   }
@@ -787,7 +787,7 @@ function renderGirviTodayActions(){
   if(!el) return;
   var girvi = (S.girvi||[]).filter(function(g){return !g._deleted;});
   var now   = new Date();
-  var today = now.toISOString().slice(0,10);
+  var today = dbDayKey(now);
   var actions = [];
 
   girvi.forEach(function(g){
@@ -1063,7 +1063,7 @@ function girviWhatsApp(gid){
       'Girvi No: *'+g.grvNo+'*\n'+
       'Item: '+_waItemDesc+'\n'+
       '*Outstanding: ₹'+Math.round(outstanding).toLocaleString('en-IN')+'*\n'+
-      (daysInfo.dueDate?'Due Date: '+fmtDate(daysInfo.dueDate.toISOString().slice(0,10))+'\n':'')+
+      (daysInfo.dueDate?'Due Date: '+fmtDate(dbDayKey(daysInfo.dueDate))+'\n':'')+
       '\nSamay par payment karein. Koi bhi sahayta ke liye hum available hain.\n\n'+
       '_'+shopName+'_';
   } else {
@@ -1228,7 +1228,7 @@ function openGirviDetail(gid){
       statusBanner='<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">'+
         '<span style="font-size:22px;">⏰</span>'+
         '<div><div style="font-weight:700;color:#f59e0b;font-size:14px;">'+(daysInfo.daysLeft===0?'Aaj Due Hai!':daysInfo.daysLeft+' Din Mein Due')+'</div>'+
-        '<div style="font-size:12px;color:var(--text3);">Due: '+fmtDate(daysInfo.dueDate.toISOString().slice(0,10))+'</div></div>'+
+        '<div style="font-size:12px;color:var(--text3);">Due: '+fmtDate(dbDayKey(daysInfo.dueDate))+'</div></div>'+
       '</div>';
     }
   }
@@ -1516,7 +1516,7 @@ function openGirviPayment(gid){
   if(typeof splitRows!=='undefined') splitRows=[];
   var _splitEl=document.getElementById('split-rows'); if(_splitEl) _splitEl.innerHTML='';
   document.getElementById('gd-body').innerHTML=html;
-  document.getElementById('pay-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('pay-date').value=dbDayKey(new Date());
   document.getElementById('girvi-detail-modal').style.display='block';
   setTimeout(function(){var el=document.getElementById('pay-amount');if(el)el.focus();},120);
 }

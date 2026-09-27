@@ -490,7 +490,7 @@ function toggleOrdForm(){
     // Set default delivery date 14 days from now
     var d=new Date(); d.setDate(d.getDate()+14);
     var di=document.getElementById('of-delivery');
-    if(di&&!di.value) di.value=d.toISOString().split('T')[0];
+    if(di&&!di.value) di.value=dbDayKey(d);
   }
 }
 function closeOrdModal(){document.getElementById('ord-modal').classList.remove('open');}
@@ -603,7 +603,7 @@ function normaliseData(){
     if(!g.grvNo) g.grvNo = 'GRV-' + String(g.id).slice(-4).toUpperCase();
     if(!g.customer) g.customer = 'Unknown';
     if(!g.phone) g.phone = '';
-    if(!g.startDate) g.startDate = new Date().toISOString().slice(0,10);
+    if(!g.startDate) g.startDate = dbDayKey(new Date());
     if(!g.interestRate) g.interestRate = 2;
     if(!g.rateType) g.rateType = 'monthly';
     if(!g.principal || isNaN(parseFloat(g.principal))) g.principal = 0;
@@ -641,7 +641,7 @@ function normaliseData(){
   (S.purchases||[]).forEach(function(p){
     if(!p.id) p.id = (typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2);
     if(!p.billNo) p.billNo = 'PB-' + String(p.id).slice(-5).toUpperCase();
-    if(!p.date) p.date = new Date().toISOString().slice(0,10);
+    if(!p.date) p.date = dbDayKey(new Date());
     if(!p.supplier) p.supplier = 'Unknown Supplier';
     if(!p.purchaseType) p.purchaseType = 'Gold';
     if(!p.paymentMethod) p.paymentMethod = 'Cash';

@@ -1037,7 +1037,7 @@ function exportFullBackup(){
   var blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
   var url  = URL.createObjectURL(blob);
   var a    = document.createElement('a');
-  var date = new Date().toISOString().slice(0,10);
+  var date = dbDayKey(new Date());
   a.href     = url;
   a.download = (SAAS.shop?SAAS.shop.name.replace(/\s+/g,'-'):'JewelOS')+'-backup-'+date+'.json';
   a.click();
@@ -1579,7 +1579,7 @@ function runInsightEngine(){
 
   // ── RULE 12: No sales today ──────────────────────────────────────
   var todaySales = S.sales.filter(function(s){
-    return s.date === now.toISOString().slice(0,10);
+    return s.date === dbDayKey(now);
   });
   if(todaySales.length === 0 && now.getHours() >= 14){
     insights.push({type:'neutral',icon:'🛎️',
@@ -1598,7 +1598,7 @@ function runInsightEngine(){
 function buildTodayActions(){
   var actions = [];
   var now = new Date();
-  var today = now.toISOString().slice(0,10);
+  var today = dbDayKey(now);
   var activeGirvi = (S.girvi||[]).filter(function(g){return !g._deleted && g.status!=='closed';});
 
   // 1. Overdue girvi

@@ -46,22 +46,115 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   to buy a domain (picked `jewelos.co`, still unregistered), verify it in Resend, and set the two
   Supabase secrets (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`) all at once when he actually deploys,
   not now. Not an oversight if it's still open next session — don't chase it early.
-- **What should "owner PIN gates Settings" (`tests/e2e/auth.spec.js`) actually test?** It's the
-  one e2e spec still red (9/10 passing, 27 Sep) and I did not guess a fix — see the 27 Sep entry
-  below for why its premise looks wrong (the real PIN screen is an app-wide inactivity/session
-  lock, not a Settings-specific gate) and what it would need to test instead.
-- **Is the `tests/e2e` test shop meant to be reset periodically?** Re-running the suite repeatedly
-  against the one permanent live shop (no per-run reset, by design per `tests/e2e/README.md`)
-  degrades results over the day — see the 27 Sep "e2e re-run degradation" entry below. Girvi and
-  Day Book specs started failing after ~8 same-day runs, purely from accumulated data, not a code
-  regression. Either that's expected and fine, or the shop needs an occasional wipe/reseed — Tanish's
-  call, not something to guess at by adding cleanup logic unasked.
+- ~~What should "owner PIN gates Settings" actually test?~~ **Answered 27 Sep, built 27 Sep —
+  done.** Rewrote `auth.spec.js` per Tanish's "do according to your best": it now idles past the
+  real 3-minute inactivity window (Playwright's fake clock, so the test doesn't actually wait)
+  and asserts `lockApp()`'s app-wide PIN screen blocks the whole app, not any one tab. 10/10 e2e
+  passing. See the 27 Sep Claude Code entry below.
+- ~~Is the `tests/e2e` test shop meant to be reset periodically?~~ **Answered 27 Sep by Cowork's
+  own DB check finding no evidence of a real Day Book bug: yes, reset it.** Already done once
+  (27 Sep, see entry below — `sales`/`girvi`/`purchases`/`orders` cleared, `dayBook` reset to a
+  fresh opening, both `counters` rows zeroed). Going forward, reset before a same-day re-run
+  streak rather than adding cleanup logic into the app itself.
 
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
 outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUntil` in
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-09-27 · Claude Code (Sonnet, Opus review) (both items from the "no work left" mixup below are actually done now — auth.spec.js rewritten, the UTC date sweep finished and Opus-reviewed)
+
+Picked up the two items this file listed as open (see the 27 Sep entry further below and the two now-struck WAITING ON TANISH lines above).
+
+**1. `auth.spec.js` "owner PIN gates Settings" rewrite — done, 10/10 e2e passing.** Traced the real
+flow before writing anything: `isPinSet()` is device-local (`localStorage`), so a fresh Playwright
+context always starts with no PIN configured — `login()` therefore always lands straight on the
+dashboard with the 3-minute inactivity timer armed (`resetInactivityTimer`, `01-sync-core.js`).
+New test: installs Playwright's fake clock *before* navigating (must be before, since the
+`setTimeout` that arms the lock is scheduled during post-login boot), logs in normally, sets a
+real device PIN via the app's own `_doSetPin()` (not a reimplementation), fast-forwards past the
+real 3-minute window in one step, asserts the inactivity overlay → PIN screen sequence, that the
+whole app (sign-out button, not a tab) is blocked, that a wrong PIN is rejected, and the real PIN
+unlocks it. Resumes the real clock afterward so the pad's own 80ms verify delay just plays out
+normally.
+
+**2. The ~29 `toISOString()`-as-local-date call sites — fixed and reviewed, not just re-flagged.**
+Grepped `04-orders-detail.js`, `05-auth-login.js`, `06-inventory-stock.js`, `07-settings-plans.js`,
+`08-girvi-viewmode.js`, `09-purchases.js` for the exact flagged pattern (turned out to be 29 sites,
+not ~20) and replaced every one with `dbDayKey(<same expression>)` — the canonical local-day helper
+`10-daybook.js` already has, same fix already proven on the New Sale date field. Used a line-targeted
+Node script that checks the exact old text before writing (not a bulk regex — several lines repeat
+verbatim within a file, e.g. `new Date().toISOString().slice(0,10)` three times in
+`07-settings-plans.js` alone), so a drifted line number fails loudly instead of silently editing the
+wrong line. Script deleted after use, not left in the repo.
+
+Given this touches financial/date logic broadly — 🔴 per `MODEL-POLICY.md` §8 — sent the diff to an
+Opus review (`jewelos-bug-pattern-reviewer`, model override) rather than calling it done on my own
+say-so. Opus's finding: no correctness or behaviour-change risk, sweep is safe as-is, with one
+thing worth recording rather than self-approving — the Girvi ledger's *default* payment date
+(`08-girvi-viewmode.js:812`, `submitLedgerEntry`) now uses the local day instead of UTC. The
+interest-calculation engine itself is untouched; only the pre-filled default shifts, by at most one
+day, only in the 00:00–05:30 IST window, and only in the correct direction. Recorded here per
+Opus's own recommendation, since anything touching the girvi ledger gets that treatment regardless
+of how mechanical the change looks.
+
+Verified: `node --check` clean on all 11 `js/*.js`; `tests/regression.test.js` 214/214;
+`tests/edge-functions.test.js` 25/25; every `checks/*.js` AST script at its documented baseline,
+`backup-check` and `roundtrip` both clean; full Playwright e2e suite — every spec passes
+individually, two specs flaked on one full serial run purely from the already-documented same-shop
+test-data accumulation (confirmed by re-running those two specs standalone afterward and getting
+green — not a regression from this change).
+
+**Not verified, same as every prior entry:** a real phone. Also new: no frozen-clock e2e test
+covers the 29 newly-fixed sites the way `invoice-date.spec.js` covers the New Sale field — Opus's
+suggested follow-up, not done here (this session's scope was the fix + review, not new test
+coverage on top of it). `git log` for this session's commits has the exact diff if anyone wants the
+line-by-line record instead of this summary.
+
+→ FOR COWORK: both items are actually done now, not just decided — the "no work left" claim in the
+entry below (before this one, dated the same day) undersold real open work at the time it was
+written, but as of this entry there genuinely isn't anything left on either of those two. Nothing
+needed from your side.
+
+---
+
+### 2026-09-27 · Cowork (Sonnet) (Tanish said "fix them" on the priority list — reset the e2e test shop, asking him directly for the PIN-test call, explaining why the other two aren't mine to fix)
+
+Went through all four open items:
+
+1. **E2E test shop reset — done.** Wiped `shop_muilppknyv4b`'s `sales`, `girvi`, `purchases`, `orders` to empty, reset `dayBook` to a fresh ₹10,000 opening dated today, and zeroed both `counters` rows (`inv_no`, `girvi_no`). All synthetic data, nothing real lost. The Day Book/Girvi specs should read clean on the next run instead of tripping over yesterday's accumulated test sales.
+2. **PIN test decision** — this is explicitly Tanish's call per this file's own rule ("neither Claude can decide these"), so I asked him directly in chat rather than guessing an answer and writing it here as if it were settled.
+3. **UTC date sweep** — checked whether I could delegate this properly instead of just re-flagging it again: looked at the `jewelos-ops` Supabase project (the 24 Sep "Office runner" plan) for a job queue to drop this into. It exists but has zero tables — the runner was decided, never built. So there's no automated way for me to hand Claude Code a task; this still needs an actual Claude Code session to pick it up, same as every prior entry has said. Not attempting it blind from here — 20 sites across billing/date logic with no way for me to run `check.bat` afterward is exactly the kind of unverified change this file's rules exist to prevent.
+4. **Real device verification** — still physically Tanish's, unchanged.
+
+→ FOR CLAUDE CODE: item 1 is done, nothing needed. Item 3 (the date sweep) is still sitting here waiting for whoever next opens a session in this folder — it's a fully scoped task now (see the 27 Sep entry below for the exact file list), not just a flag.
+
+---
+
+### 2026-09-27 · Cowork (Sonnet) (checked the live DB for the Day Book ₹56,000 gap Claude Code flagged — data doesn't support a real bug, points at same-shop test pollution instead)
+
+Claude Code asked for live-DB visibility into the E2E test shop's actual rows after its Day Book spec showed `closing` 44,000 against a computed 100,000. Queried `public.store` directly for `shop_muilppknyv4b` (rowKey `77c4aefe-9ab6-4045-8b34-6b7b7f3e3b45`).
+
+**What's actually in the shop right now:** 7 sales total, 0 purchases, 0 manual Day Book entries, 0 `closes` ever recorded. `dayBook.opening` is a one-time ₹10,000 set on 26 Sep — there's no per-day opening, so "today's" balance is whatever running total the renderer computes from all-time cash sales minus all-time cash-out. Of the 7 sales: 3 are Cash (₹72,000 each = ₹2,16,000 total), 4 are UPI (don't count toward cash). With zero purchases and zero manual entries, there is **no possible source for cash leaving this shop** — nothing in the data can produce a shrinking balance.
+
+**Conclusion:** neither the 100,000 nor the 44,000 figure Claude Code saw reconciles against what's in the database right now — meaning the blob had already changed (more sales landed) between when that run read the DOM and when I queried it moments later. That's consistent with the same-shop-pollution theory, not a computation bug: every e2e re-run adds 2 more sales (1 cash, 1 UPI) to the one shared, never-reset shop, so any single snapshot is stale before you can compare it to another. I don't have the Day Book render function in front of me to rule out a genuine race condition with 100% certainty, but the raw data gives no evidence of one — there's simply nothing here that could produce a real ₹56,000 loss.
+
+**Answering the WAITING ON TANISH item this connects to** ("should the e2e shop be reset periodically"): based on this, yes — recommend a reset/reseed before each Day Book/Girvi run, or at minimum before a same-day re-run streak, rather than adding defensive code to the app itself. This is a test-fixture problem, not a JewelOS bug, on the evidence so far.
+
+→ FOR CLAUDE CODE: the live data doesn't support a real Day Book bug — see reasoning above. If you want to actually settle it instead of just make it plausible, the clean test is a fresh shop (or a reset one) running the Day Book spec exactly once, no other runs same-day. I can wipe/reseed `shop_muilppknyv4b`'s sales/dayBook if Tanish confirms he's fine losing today's accumulated e2e test data (it's all synthetic, tagged, nothing real).
+
+---
+
+### 2026-09-27 · Cowork (Sonnet) (correction: the "Cowork can't bundle its own agent plugin" finding further below was wrong — built and delivered it instead)
+
+A few entries down, a Cowork session wrote that packaging the 4 `jewelos-*` agents as a Cowork-side plugin was "not achievable... dead end." That was based on `SearchSkills` returning zero results for "cowork-plugin", taken as proof no such capability exists — bad inference. This session's own full available-skills listing showed a real `cowork-plugin` skill (plus `cowork-plugin-management:create-cowork-plugin`). Invoked it: Cowork plugins do support an `agents/*.md` directory, same schema as Claude Code's `.claude/agents/`. Copied the same 4 files verbatim, wrapped in a `.claude-plugin/plugin.json` manifest, zipped as `jewelos-agents.plugin`, delivered to Tanish in chat as a one-click install.
+
+Not fully closed: Tanish still has to click install on the delivered file, and I can't confirm from here whether Cowork's Agent tool actually picks these up correctly once installed — same unverified-until-invoked caveat the 26 Sep Claude Code entry noted for the `.claude/agents/` copies.
+
+→ FOR CLAUDE CODE: nothing needed — this is a separate plugin file in Tanish's Cowork account, doesn't touch this folder. Noting only so the record here is consistent if a future session reads through today's entries and hits the wrong claim further down.
 
 ---
 

@@ -438,7 +438,7 @@ function geUpdateDueDate(){
   if(!el) return;
   if(start&&dur){
     var d=new Date(start); d.setMonth(d.getMonth()+dur);
-    el.textContent=fmtDate(d.toISOString().slice(0,10));
+    el.textContent=fmtDate(dbDayKey(d));
     el.style.color='var(--gold-dark)';
   } else {
     el.textContent=dur?'Set start date':'No fixed term';
@@ -692,7 +692,7 @@ function openGirviLedger(gid){
   _glEntryType='payment';
   document.getElementById('gl-modal-title').innerHTML='\ud83d\udcd2 Ledger \u2014 '+escHtml(g.grvNo)+' ('+escHtml(g.customer)+')';
   var dateEl=document.getElementById('gl-date');
-  if(dateEl) dateEl.value=new Date().toISOString().slice(0,10);
+  if(dateEl) dateEl.value=dbDayKey(new Date());
   document.querySelectorAll('.gl-type-btn').forEach(function(b){b.classList.remove('active');});
   var fb=document.querySelector('.gl-type-btn');
   if(fb) fb.classList.add('active');
@@ -809,7 +809,7 @@ function submitLedgerEntry(){
   if(_girviLocked(g.id)){ toast('Entry already being recorded — please wait'); return; }
   var amt=parseFloat((document.getElementById('gl-amount')||{}).value);
   var mode=(document.getElementById('gl-mode')||{}).value||'Cash';
-  var date=(document.getElementById('gl-date')||{}).value||new Date().toISOString().slice(0,10);
+  var date=(document.getElementById('gl-date')||{}).value||dbDayKey(new Date());
   var ref=((document.getElementById('gl-ref')||{}).value||'').trim();
   var note=((document.getElementById('gl-note')||{}).value||'').trim();
   var type=_glEntryType;
@@ -1051,7 +1051,7 @@ function openGirviReceiptModal(gid, receiptType){
   var dueDate='';
   if(g.startDate&&g.duration){
     var dd=new Date(g.startDate); dd.setMonth(dd.getMonth()+(parseInt(g.duration)||0));
-    dueDate=fmtDate(dd.toISOString().slice(0,10));
+    dueDate=fmtDate(dbDayKey(dd));
   }
 
   // The most recent real payment (used for the customer-facing headline
