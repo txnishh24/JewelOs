@@ -84,40 +84,63 @@ function saasSetSession(user, shop, sessionToken){
   SAAS.user = user;
   SAAS.shop = shop;
   SAAS.plan = 'pro'; // plans removed — every account is Pro
-  // Explicit token (fresh login/signup) wins; otherwise fall back to
-  // whatever this tab already cached (session-restore-on-reload path,
-  // which calls saasSetSession without a token argument).
+  // Explicit token (fresh login/signup) wins; otherwise this is the
+  // restore-on-reopen path, which reuses the token stored with the session.
   if(sessionToken){
     SAAS.sessionToken = sessionToken;
   } else {
-    try{ SAAS.sessionToken = sessionStorage.getItem(SESSION_TOKEN_KEY) || null; } catch(e){ SAAS.sessionToken = null; }
+    var stored = saasGetSession();
+    SAAS.sessionToken = (stored && stored.token) || null;
   }
 
   // FIX v18: use shop.rowKey (set at signup) or shop.id as fallback
   SHOP_ROW_KEY = shop.rowKey || shop.id || 'main';
   // Cache this device's own user+shop locally (NOT the whole platform's
-  // users table — auth-gateway never hands that back). Session restore on
-  // reload reads from here; sessionToken is kept in sessionStorage only
-  // (cleared on tab close) since it's a bearer credential, not a cache.
+  // users table — auth-gateway never hands that back). The token is stored
+  // with the session record and expires with it (Tanish, 29 Sep: option B —
+  // reopening the app within the token's life asks for the PIN, not the
+  // password). Sign-out and forced sign-out remove the whole record.
   try{
     saasSetUsers([user]); saasSetShops([shop]);
-    localStorage.setItem(AUTH_KEY, JSON.stringify({userId:user.id, shopId:shop.id, ts:Date.now()}));
-    if(sessionToken) sessionStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
+    // A temp-password session stays in memory only: closing the app during
+    // the forced reset must not reopen into the shop without the new password.
+    if(user.mustResetPassword){
+      localStorage.removeItem(AUTH_KEY);
+    } else if(sessionToken){
+      localStorage.setItem(AUTH_KEY, JSON.stringify({userId:user.id, shopId:shop.id, ts:Date.now(), token:sessionToken, exp:_sessionTokenExp(sessionToken)}));
+    }
   } catch(e){ console.warn('[JewelOS] Could not save session to localStorage'); }
   // paidUntil arrives on the shop record from auth-gateway, so the banner can
   // be drawn as soon as the session is set — on fresh login and on reload.
   if(typeof renderSubBanner === 'function') renderSubBanner();
 }
 
+// The token is "<base64url JSON payload>.<signature>"; the payload carries
+// the server's own expiry, so the device never outlives what auth-gateway
+// issued (SESSION_TTL_HOURS there is the one place the lifetime is set).
+function _sessionTokenExp(token){
+  try{
+    var b = String(token).split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
+    while(b.length % 4) b += '=';
+    var exp = JSON.parse(atob(b)).exp;
+    return typeof exp === 'number' ? exp : 0;
+  }catch(e){ return 0; }
+}
+
+// A session is only usable while its token is. A record with no token
+// (written by a build before 29 Sep) or a past exp is not a session.
 function saasGetSession(){
   try{
-    // Read from localStorage (persists across tab close)
     var s = JSON.parse(localStorage.getItem(AUTH_KEY)||'null');
-    if(!s) return null;
-    // Session timeout: 7 days — balance security vs convenience
-    if(Date.now() - s.ts > 7*24*60*60*1000) return null;
+    if(!s || !s.token || !(s.exp > Date.now())) return null;
     return s;
   }catch(e){ return null; }
+}
+
+// True when this device was signed in but the session ran out while the app
+// was closed — boot shows why instead of a bare login form.
+function _saasSessionExpired(){
+  try{ return !!localStorage.getItem(AUTH_KEY) && !saasGetSession(); }catch(e){ return false; }
 }
 
 // (showAuthStoreSetup removed — it walked the owner through creating an
@@ -134,7 +157,6 @@ function _clearDeviceSession(){
   try{ clearPinSession(); }catch(e){} // before SAAS.shop is nulled — its key is shop-scoped
   var keys = [AUTH_KEY, USERS_KEY, SHOPS_KEY, 'ssj_cache', 'ssj_last_save', 'ssj_last_cloud_load'];
   for(var i = 0; i < keys.length; i++){ try{ localStorage.removeItem(keys[i]); }catch(e){} }
-  try{ sessionStorage.removeItem(SESSION_TOKEN_KEY); }catch(e){}
   SAAS.sessionToken = null;
   SAAS.user = null; SAAS.shop = null;
 }
@@ -330,6 +352,7 @@ function submitPwdModal(){
         toast('\u2713 Password set — welcome to JewelOS!');
         saasActivityLog('account', 'Password changed (forced first-login reset)');
         if(SAAS.user) SAAS.user.mustResetPassword = false;
+        saasSetSession(SAAS.user, SAAS.shop, SAAS.sessionToken); // now safe to keep on the device
         hideAuthScreen();
         bootApp();
       } else {
@@ -1321,6 +1344,12 @@ window.onload = function(){
   if(!session){
     dismissLoader('no-session');
     clearTimeout(_safetyTimer);
+    if(_saasSessionExpired()){
+      // Same clean-up as a forced sign-out, minus the reload: nothing has
+      // been loaded into memory yet.
+      _clearDeviceSession();
+      try{ sessionStorage.setItem(SIGNOUT_NOTICE_KEY, 'Your login has expired — please sign in again.'); }catch(e){}
+    }
     try{ showAuthScreen(); }catch(e){}
     setTimeout(function(){ try{ saasLoadAuthFromCloud(function(){}); }catch(e){} }, 800);
     return;

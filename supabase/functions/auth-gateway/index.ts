@@ -53,7 +53,7 @@ const SESSION_SECRET = Deno.env.get("SESSION_SECRET")!;
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_WINDOW_MIN = 15;
-const SESSION_TTL_HOURS = 12;
+const SESSION_TTL_HOURS = 6; // Tanish, 29 Sep: token now survives app reopen on the device, so shorter life
 const RESET_CODE_TTL_MIN = 15;
 const RESET_MAX_REQUESTS_PER_HOUR = 3;
 const RESET_MAX_GUESSES = 5; // wrong guesses before a reset code is burned

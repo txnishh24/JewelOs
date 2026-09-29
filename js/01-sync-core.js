@@ -25,7 +25,7 @@ function _getShopRowKey(){
   }
   // Try to recover from stored session
   try{
-    // AUTH_KEY = 'jewelos_session', stores {userId, shopId, ts}
+    // AUTH_KEY = 'jewelos_session', stores {userId, shopId, ts, token, exp}
     var s = JSON.parse(localStorage.getItem(typeof AUTH_KEY!=='undefined'?AUTH_KEY:'jewelos_session')||'null');
     if(s && s.shopId) return s.shopId;
   }catch(e){}

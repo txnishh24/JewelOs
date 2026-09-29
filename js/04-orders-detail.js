@@ -1805,7 +1805,6 @@ var SHOP_ROW_KEY = 'main'; // default; overridden after auth
 
 // ── AUTH HELPERS ─────────────────────────────────────────────────────
 var AUTH_KEY   = 'jewelos_session';
-var SESSION_TOKEN_KEY = 'jewelos_session_token'; // sessionStorage only — bearer credential, not a cache
 var SIGNOUT_NOTICE_KEY = 'jewelos_signout_notice'; // sessionStorage — survives the sign-out reload, read once
 var SHOP_KEY   = 'jewelos_shop';
 var USERS_KEY  = 'jewelos_users';

@@ -1011,14 +1011,12 @@ function seedSignedInDevice(){
   app.localStorage.setItem('ssj_cache', '{"shopId":"shop_a","customers":[{"name":"Lakshmi","phone":"98xxxxxx01"}]}');
   app.localStorage.setItem('ssj_last_save', '1');
   app.localStorage.setItem('ssj_last_cloud_load', '1');
-  app.sessionStorage.setItem(app.SESSION_TOKEN_KEY, 'tok-123');
 }
 
 function assertDeviceCleared(){
   [app.AUTH_KEY, app.USERS_KEY, app.SHOPS_KEY, 'ssj_cache', 'ssj_last_save', 'ssj_last_cloud_load'].forEach(function(k){
     assert(app.localStorage.getItem(k) === null, k + ' should be removed from localStorage on sign-out');
   });
-  assert(app.sessionStorage.getItem(app.SESSION_TOKEN_KEY) === null, 'session token should be removed from sessionStorage');
   assert(app.SAAS.sessionToken === null, 'SAAS.sessionToken should be cleared');
   assert(app.SAAS.user === null && app.SAAS.shop === null, 'SAAS.user and SAAS.shop should be cleared');
 }
@@ -1102,6 +1100,62 @@ test('the sign-in screen shows why you were signed out, exactly once', function(
   withGlobals({ document: fakeDoc }, function(){ app.showAuthScreen(); });
   assert(els['auth-login-err'] && els['auth-login-err'].textContent === 'Your session has ended.', 'notice should be shown on the sign-in form');
   assert(app.sessionStorage.getItem(app.SIGNOUT_NOTICE_KEY) === null, 'notice should be consumed so it does not reappear');
+});
+
+// F1 (29 Sep, Tanish chose option B): the token must survive the app being
+// reopened, and expire with the session record, never outlive it.
+function fakeToken(exp){
+  return Buffer.from(JSON.stringify({ userId:'u1', shopId:'shop_a', exp:exp })).toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') + '.sig';
+}
+
+test('a fresh login stores the token and its server expiry with the session record', function(){
+  app.__resetStorage();
+  var exp = Date.now() + 6 * 3600000;
+  app.saasSetSession({ id:'u1', name:'Ravi' }, { id:'shop_a', name:'Shop A' }, fakeToken(exp));
+  var rec = JSON.parse(app.localStorage.getItem(app.AUTH_KEY));
+  assert(rec.token === fakeToken(exp), 'token should be stored with the session');
+  assert(rec.exp === exp, 'exp should be read from the token, got ' + rec.exp);
+});
+
+test('reopening the app (empty sessionStorage) restores the token from the session record', function(){
+  app.__resetStorage();
+  var tok = fakeToken(Date.now() + 3600000);
+  app.saasSetSession({ id:'u1' }, { id:'shop_a', name:'Shop A' }, tok);
+  app.SAAS.sessionToken = null; // new process: memory gone, sessionStorage empty
+  app.saasSetSession({ id:'u1' }, { id:'shop_a', name:'Shop A' });
+  assert(app.SAAS.sessionToken === tok, 'restore should reuse the stored token, got ' + app.SAAS.sessionToken);
+});
+
+test('an expired token, or a pre-29-Sep record with no token, is not a session', function(){
+  app.__resetStorage();
+  app.localStorage.setItem(app.AUTH_KEY, JSON.stringify({ userId:'u1', shopId:'shop_a', ts:Date.now(), token:'x.y', exp:Date.now() - 1 }));
+  assert(app.saasGetSession() === null, 'expired token should not count as signed in');
+  assert(app._saasSessionExpired() === true, 'boot should know to explain the expiry');
+  app.localStorage.setItem(app.AUTH_KEY, JSON.stringify({ userId:'u1', shopId:'shop_a', ts:Date.now() }));
+  assert(app.saasGetSession() === null, 'a record with no token should not count as signed in');
+  app.__resetStorage();
+  assert(app._saasSessionExpired() === false, 'a device never signed in is not "expired"');
+});
+
+test('a temp-password (forced reset) login is never kept on the device, and is kept once the new password is set', function(){
+  app.__resetStorage();
+  app.localStorage.setItem(app.AUTH_KEY, JSON.stringify({ userId:'old', shopId:'shop_a', token:fakeToken(Date.now() + 3600000), exp:Date.now() + 3600000 }));
+  var tok = fakeToken(Date.now() + 3600000);
+  app.saasSetSession({ id:'u2', mustResetPassword:true }, { id:'shop_a', name:'Shop A' }, tok);
+  assert(app.localStorage.getItem(app.AUTH_KEY) === null, 'closing the app mid-reset must not reopen into the shop (and must not resume a previous user)');
+  assert(app.SAAS.sessionToken === tok, 'the token still works in memory so the reset call can be made');
+  app.SAAS.user.mustResetPassword = false;
+  app.saasSetSession(app.SAAS.user, app.SAAS.shop, app.SAAS.sessionToken);
+  assert(JSON.parse(app.localStorage.getItem(app.AUTH_KEY)).token === tok, 'after the reset the session is kept');
+});
+
+test('no code path reads or writes the login token in sessionStorage any more', function(){
+  var fs = require('fs'), path = require('path');
+  ['04-orders-detail.js', '05-auth-login.js', '01-sync-core.js'].forEach(function(f){
+    var src = fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf-8');
+    assert(!/SESSION_TOKEN_KEY/.test(src), f + ' still references SESSION_TOKEN_KEY');
+  });
 });
 
 var HOSTILE = '<img src=x onerror=alert(1)>';

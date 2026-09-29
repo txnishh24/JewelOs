@@ -79,6 +79,7 @@ function buildSandbox(){
     // produce an object webcrypto actually accepts.
     crypto: nodeCrypto.webcrypto,
     TextEncoder: TextEncoder,
+    atob: function(s){ return Buffer.from(s, 'base64').toString('binary'); },
     Uint8Array: Uint8Array,
     fetch: function(){ return Promise.resolve({ ok:true, json: function(){ return Promise.resolve([]); } }); },
     toast: function(){}, // UI no-op in tests

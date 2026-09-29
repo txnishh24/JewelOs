@@ -1,25 +1,17 @@
-// F1 / R1 (HANDOFF.md, 29 Sep 2026): relaunching the app with no session
-// token. Reproduces what a real shop hit at 15:10-15:17 IST — thrown to the
-// login page shortly after every login.
+// F1 / R1 (HANDOFF.md, 29 Sep 2026): reopening the app.
 //
-// Mechanism (traced by stack capture, 29 Sep): the 12h bearer token lives in
-// sessionStorage (05-auth-login.js:105), which is empty in every new browsing
-// context — i.e. every time the installed PWA is relaunched from its icon or
-// the OS kills the backgrounded process. The 7-day login marker (AUTH_KEY)
-// and the PIN "last active" stamp live in localStorage and survive. So:
-//   - relaunch within INACTIVITY_MS of last use: isPinSessionActive() is true
-//     (04-orders-detail.js:752), proceedWithSession() calls doStartApp(),
-//     which paints the cached dashboard and calls loadFromCloud() with an
-//     empty x-session-token -> 401 -> saasForceLogout() -> login page.
-//   - relaunch after INACTIVITY_MS: PIN screen first; the user enters their
-//     PIN, then the same empty-token 401 throws them out anyway.
+// Before: the bearer token lived only in sessionStorage, which is empty on
+// every reopen of the installed PWA (and whenever Android kills it in the
+// background), while the login marker survived in localStorage. Every reopen
+// painted the cached dashboard, called store-proxy with an empty token, got
+// 401 and was thrown to login — what a real shop hit at 15:10-15:17 IST.
 //
-// These specs pin the part of F1 that does not depend on the token-storage
-// decision: with no token, the app must know it locally and go straight to
-// login — no dashboard flash, no PIN prompt it can't honour, no request it
-// knows will be refused.
+// Tanish chose option B (29 Sep): the token is kept with the session record
+// in localStorage for its server-issued life (6 h), so a reopen resumes —
+// through the PIN screen when idle past INACTIVITY_MS — and an expired
+// session goes straight to login with a reason, without asking store-proxy.
 const { test, expect } = require('@playwright/test');
-const { login } = require('./fixtures/testShop');
+const { login, shop } = require('./fixtures/testShop');
 
 function watchEmptyTokenRequests(page) {
   const hits = [];
@@ -31,39 +23,61 @@ function watchEmptyTokenRequests(page) {
   return hits;
 }
 
-async function relaunchWithoutToken(page, { idleBeyondPinWindow }) {
-  await page.evaluate((idle) => {
-    // New browsing context: sessionStorage is empty, localStorage survives.
+function watchStoreProxy(page) {
+  const hits = [];
+  page.on('request', (req) => { if (req.url().includes('/store-proxy')) hits.push(req.method()); });
+  return hits;
+}
+
+// Reopen: sessionStorage empty (new browsing context), localStorage survives.
+async function reopen(page, { idle = false, expired = false } = {}) {
+  await page.evaluate(({ idle, expired }) => {
     sessionStorage.clear();
-    if (idle) {
-      var shopId = JSON.parse(localStorage.getItem('jewelos_session')).shopId;
-      localStorage.setItem('ssj_last_active::' + shopId, String(Date.now() - 60 * 60 * 1000));
-    }
-  }, idleBeyondPinWindow);
+    var rec = JSON.parse(localStorage.getItem('jewelos_session'));
+    if (idle) localStorage.setItem('ssj_last_active::' + rec.shopId, String(Date.now() - 60 * 60 * 1000));
+    if (expired) { rec.exp = Date.now() - 1000; localStorage.setItem('jewelos_session', JSON.stringify(rec)); }
+  }, { idle, expired });
   await page.reload();
 }
 
-async function expectLoginWithNotice(page) {
-  await expect(page.locator('#auth-email')).toBeVisible({ timeout: 10000 });
-  await expect(page.locator('#auth-login-err')).toContainText(/sign in again/i, { timeout: 10000 });
-  await expect(page.getByRole('button', { name: /sign out/i })).not.toBeVisible();
-}
+const signOutBtn = (page) => page.getByRole('button', { name: /sign out/i }).first();
 
-test.describe('relaunch with no session token (F1 / R1)', () => {
-  test('recently active: goes to login without calling store-proxy on an empty token', async ({ page }) => {
+test.describe('reopening the app (F1 / R1)', () => {
+  test('recently active: resumes straight into the app with a working token', async ({ page }) => {
     await login(page);
     const emptyTokenCalls = watchEmptyTokenRequests(page);
-    await relaunchWithoutToken(page, { idleBeyondPinWindow: false });
-    await expectLoginWithNotice(page);
-    expect(emptyTokenCalls, 'store-proxy was called with an empty token').toEqual([]);
+    const loadOk = page.waitForResponse((r) => r.url().includes('/store-proxy') && r.request().method() === 'GET');
+    await reopen(page);
+    expect((await loadOk).status()).toBe(200);
+    await expect(signOutBtn(page)).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#auth-email')).not.toBeVisible();
+    expect(emptyTokenCalls).toEqual([]);
   });
 
-  test('idle past the PIN window: goes to login, not the PIN screen', async ({ page }) => {
+  test('idle past the PIN window: PIN screen, and the PIN gets you back in', async ({ page }) => {
     await login(page);
+    await page.evaluate((pin) => window._doSetPin(pin), shop.pin);
     const emptyTokenCalls = watchEmptyTokenRequests(page);
-    await relaunchWithoutToken(page, { idleBeyondPinWindow: true });
+    await reopen(page, { idle: true });
+    await expect(page.locator('#pin-screen')).toBeVisible({ timeout: 10000 });
+    for (const d of shop.pin) await page.locator('#pin-pad').getByText(d, { exact: true }).click();
     await expect(page.locator('#pin-screen')).toBeHidden({ timeout: 5000 });
-    await expectLoginWithNotice(page);
+    await expect(signOutBtn(page)).toBeVisible({ timeout: 10000 });
+    await page.waitForTimeout(2000); // let the post-unlock cloud load land
+    await expect(page.locator('#auth-email')).not.toBeVisible();
     expect(emptyTokenCalls).toEqual([]);
+  });
+
+  test('token expired while closed: login with a reason, no PIN, no store-proxy call', async ({ page }) => {
+    await login(page);
+    const calls = watchStoreProxy(page);
+    await reopen(page, { expired: true });
+    await expect(page.locator('#auth-email')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#auth-login-err')).toContainText(/expired.*sign in again/i);
+    await expect(page.locator('#pin-screen')).toBeHidden();
+    await expect(signOutBtn(page)).not.toBeVisible();
+    expect(calls).toEqual([]);
+    // The shop's cached copy goes with the session, same as a forced sign-out.
+    expect(await page.evaluate(() => localStorage.getItem('ssj_cache'))).toBeNull();
   });
 });
