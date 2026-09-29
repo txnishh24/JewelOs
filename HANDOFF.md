@@ -57,16 +57,57 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   fresh opening, both `counters` rows zeroed). Going forward, reset before a same-day re-run
   streak rather than adding cleanup logic into the app itself.
 
-- **F1 token storage (29 Sep, Claude Code/Opus) — blocks F1.** Keep the login token only until
-  the app is closed (today: every reopen = full email+password login), or keep it on the phone
-  for its 12 hours so a reopen lands on the PIN screen? Options and recommendation in the
-  29 Sep Claude Code entry below. Answer A, B or C.
+- ~~F1 token storage.~~ **Answered 29 Sep: B, but 6 hours instead of 12.** Built (`a9e314f`);
+  the 6 h needs the auth-gateway deploy — see the 29 Sep Claude Code "F1 built" entry.
 
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
 outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUntil` in
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-09-29 · Claude Code (Opus 5.5) (F1 built: token survives app reopen, 6 h server TTL — auth-gateway needs deploying; bill-draft part of F1 not started)
+
+**Tanish's answer:** option B, 6 hours. **Commits:** `a9e314f` (fix + tests), `42845e5` (regenerated `checks/globals.json`).
+
+**What changed.** The token now lives in the existing `jewelos_session` record in `localStorage`
+(`{userId, shopId, ts, token, exp}`), with `exp` read from the token itself, so the device can never
+outlive what the server issued; `SESSION_TOKEN_KEY` is gone. `saasGetSession()` only counts a record
+with a live token. On reopen: used in the last 3 min → straight in; idle → PIN → in; expired → login
+with "Your login has expired — please sign in again", no `store-proxy` call, device copy cleared
+exactly like a forced sign-out. `auth-gateway` `SESSION_TTL_HOURS` 12 → 6 (the only place the
+lifetime is set). A record written by an older build has no token → login with the same message.
+
+**Security review (AI-Generated Code Security Auditor) found one real hole this change opened, now
+fixed in the same commit:** invited staff on a temp password could close the app during the forced
+reset and reopen into the shop. Temp-password sessions are now never written to the device (and any
+older record is removed) until the new password is set. Also confirmed: the client-side `exp` is UX
+only — `store-proxy` and `auth-gateway` both re-verify signature and `exp`; no refresh path extends
+the 6 h. `jewelos-bug-pattern-reviewer`: clean (ES5, no stale refs).
+
+**Tests:** regression 219/219 (5 new session tests), edge functions 25/25, `backup-check`/`roundtrip`
+PASS, e2e **13/13** (full suite, incl. 3 new reopen specs replacing the red ones from `4c49539`). The
+e2e test shop was **not** reset first (needs the live DB).
+
+**Known, not fixed (in order of weight):**
+1. **Unsynced local saves are still lost** when the session ends (expiry at boot, or a 401 on save):
+   the device copy is cleared, and the next login's `loadFromCloud` replaces `S` wholesale anyway.
+   Not worse than before (every reopen lost them before), but 6 h makes it a daily morning event for
+   a shop that saved offline the night before. This is F1's "keep the bill as a shop-scoped draft"
+   item — next.
+2. `store-proxy` never checks `mustResetPassword` server-side (the client fix above covers the app,
+   not a hand-crafted request with the temp-password token). Small server change; 🔴, Opus.
+3. Changing a password does not revoke tokens on other devices — they now live up to 6 h across
+   restarts (before: until that tab closed). Needs a token version per user; post-launch (option C).
+4. `saasBootCheck()` (05) is dead code duplicating the real boot path — delete in a cleanup batch.
+
+**Not verified:** a real Android phone reopening the installed app; the live site (nothing
+deployed); the 6 h TTL (until auth-gateway is deployed, live tokens still last 12 h — the client
+simply follows whatever `exp` the server writes).
+
+→ FOR COWORK: deploy `supabase/functions/auth-gateway` from this folder (only change since the live version should be `SESSION_TTL_HOURS = 6`; diff it against the deployed source first), then confirm a fresh login token's `exp` is ~6 h out.
 
 ---
 
