@@ -57,11 +57,140 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   fresh opening, both `counters` rows zeroed). Going forward, reset before a same-day re-run
   streak rather than adding cleanup logic into the app itself.
 
+- **F1 token storage (29 Sep, Claude Code/Opus) — blocks F1.** Keep the login token only until
+  the app is closed (today: every reopen = full email+password login), or keep it on the phone
+  for its 12 hours so a reopen lands on the PIN screen? Options and recommendation in the
+  29 Sep Claude Code entry below. Answer A, B or C.
+
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
 outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUntil` in
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-09-29 · Claude Code (Opus 5.5) (F1 step 1: failing spec committed, root cause traced; stopped at the token-storage decision — no app code changed)
+
+**Root cause, proven by stack trace in a real browser (not a phone).** Every time the installed app
+is reopened from its icon, or Android kills it in the background, it starts with empty
+`sessionStorage`. The 12-hour login token lives only there (`05-auth-login.js:105`). The 7-day
+"logged in" marker and the PIN "last active" stamp live in `localStorage` and survive — the PIN
+stamp was moved there on purpose earlier (regression test "PIN session stays active … even if
+sessionStorage is cleared"), but the token was never moved with it. So on reopen:
+- **used in the last 3 min:** `isPinSessionActive()` says yes → `doStartApp()` paints the cached
+  dashboard and calls `store-proxy` with an empty token (`04-orders-detail.js:1279`) → 401 →
+  forced sign-out, about 0.3 s later.
+- **idle longer:** PIN screen first; the jeweller types the PIN; then the same 401 throws them out.
+
+**Correction to the 29 Sep audit:** the app does already land on the login page with "Your session
+has ended — please sign in again" — it is not silently stuck. The real harm is that *every reopen
+is a full sign-out*. That fits the 15:10–15:17 pattern (one device, 401 on a GET seconds-to-minutes
+after each login, then a fresh login) if the jeweller was switching apps — likely, not proven.
+
+**Spec (commit `4c49539`, `tests/e2e/session-restore.spec.js`):** 2 tests, both RED as intended —
+(1) reopen within 3 min calls `store-proxy` with an empty token; (2) reopen after idle shows the PIN
+screen instead of login. Regression 214/214. Full e2e suite not re-run (no app code changed).
+
+**The decision (security, so Tanish's — HANDOFF rule).**
+- **A. Keep the token only until the app closes.** Fix only the mess: with no token, go straight
+  to login — no dashboard flash, no pointless PIN, no refused request. Jewellers type email and
+  password **every time they reopen the app.** Safest; what happens today, just cleaner.
+- **B. Keep the token on the phone (`localStorage`) for its existing 12 hours, expiring with the
+  7-day marker.** Reopen within 12 h → PIN screen (after idle) or straight in; after 12 h → login
+  with a clear message. Sign-out and forced sign-out already wipe device storage, so the token goes
+  too. Risk added: someone holding the unlocked phone, or malicious script on the page, can use the
+  token for up to 12 h. But that same phone already holds the full shop copy (`ssj_cache`) in
+  `localStorage`, and a malicious script can already call `store-proxy` from the open tab — so the
+  real new exposure is small. **Tanish's 5-minute-PIN instruction (18:24) only works with B**: a PIN
+  cannot bring back a token that is gone (Cowork's question 1).
+- **C. B plus a server-side revocable refresh token** (new auth-gateway endpoint, token table,
+  rotation). Most secure; several days of work, 🔴 server change. After launch.
+
+**Recommendation: B now, C after launch.** A keeps today's complaint ("thrown out every time").
+
+**Also found (part of F1, independent of the decision):** a forced sign-out wipes `ssj_cache`, so a
+bill saved locally but refused by the server with 401 is deleted along with it — that is the
+"save 401 discards the bill" item; it needs the shop-scoped draft Cowork described.
+
+**Not verified:** a real phone; that the real jeweller's 401s were reopens; the full e2e suite.
+
+→ FOR COWORK: ask Tanish "A, B or C?" (entry above, plain words: B = reopening the app within 12 hours asks for the PIN instead of the password) and write his answer under WAITING ON TANISH.
+
+---
+
+### 2026-09-29 · Cowork (Sonnet) (Tanish said "go" at 19:19 IST on the P0 list — F1 to F4 are now approved launch blockers, in this order; nothing built by Cowork)
+
+**Approved by Tanish, in order.** Details and file:line references are in the entry below this one (audit of 29 Sep). This entry only sets the order and the rules.
+1. **F1 — session restore (R1).** On relaunch with no token, go to login with a clear message instead of PIN, dashboard, silent 401; store the token's expiry next to the 7-day local marker and expire both together; on a save 401 keep the bill as a shop-scoped draft instead of discarding it. Start with the failing Playwright spec from the hand-back below. **If the fix means storing the token in `localStorage`, that is a security decision: Opus writes the trade-off in your entry and Tanish decides; do not choose it silently.**
+2. **F3 — invoice numbers (R4, R5).** Allocate at commit, blank `#s-invno` after each sale (`clearSale`, 02:1614), refuse a number already in `S.sales`, show "offline number" instead of the silent local fallback (01:531-535), and fix `convertToSale`'s forced local number (04:375). GST-series work: Opus plans. Spec: two consecutive sales plus one on a second browser must give three distinct numbers.
+3. **F4 — failed money saves (R6, R7).** Route Girvi create/edit/close/default/archive/recover and order create through `_girviCommit` / `_orderCommit`; message "Not saved — tap to retry" and keep the wizard open; reset `_pendingOrderConversion` in `clearSale()` and when leaving the Sale tab. Opus plans.
+4. **F2 — missing keys (R2, R3).** Load `auditLog`, `activityLog`, `waRules` in `loadFromCloud`; add `stockMovements` to the save payload and the load; add a regression test that round-trips every saved key. Sonnet.
+
+**Rules for all four.** One fix per commit. Failing spec first, then the fix, then `check.bat` plus `npm run test:e2e` (reset the e2e test shop first, as on 27 Sep). Do **not** touch the Girvi interest engine (`girviLedgerState`); F4 changes save paths only. ES5 only, `escHtml` / `jsAttrEsc`, byte-exact edits near `\uXXXX`. Write a HANDOFF entry per fix saying what you could not verify. Tanish drags the deploy zip himself; do not say "live" until `jewelos-deploy-verifier` (or a Cowork check) has confirmed it.
+
+**Not approved yet, do not start:** F5 (mobile pass and the 5-minute PIN lock, which depends on F1's design), F6-now, the `store_history` table, price page, and everything in P2/P3.
+
+→ FOR CLAUDE CODE: start F1 with the failing Playwright spec (log in, clear `sessionStorage`, reload, assert the app does not reach the dashboard and the first `store-proxy` request carries an empty `x-session-token` and gets 401), then Opus-plan F1; work F3, F4, F2 after it in that order.
+
+---
+
+### 2026-09-29 · Cowork (Sonnet; Opus for the code audit) (full-app test report, module scorecard, UI/UX report, workflow, ~45-platform market comparison and per-platform fixes — read-only, no code changed)
+
+**Worst finding.** The 29 Sep forced sign-out is reproduced in code (sandbox with a stubbed network, not on a phone). `saasSetSession` (`js/05-auth-login.js:83-106`) stores the 12-hour token only in `sessionStorage`, while the app treats a 7-day `localStorage` marker as a valid login (`saasGetSession`, 05:108-117). After the OS closes the app, `proceedWithSession` restores the session with no token, the first `loadFromCloud` sends an empty `x-session-token`, `store-proxy` returns 401, and `saasForceLogout` sends the user to the login page (01:55-61 load, 01:213-221 save). Same for any tab open past 12 h. This is a strong hypothesis for the 15:10-15:17 IST 401s, not proven; nobody has watched it on a device.
+
+**Tested (all offline, read-only):** `node --check` 11 modules pass; regression 214/214; edge-function tests 25/25 (with a `typescript` shim because `sucrase` was not installed in the copy); AST metrics; four sandbox repros; headless Chromium at 375x667. The e2e fixtures, `check.bat` and `checks/*.js` were not in the staged copy, so Playwright and the static checks were **not re-run**; the 10/10 (29 Sep 13:37) is Claude Code's result. The copy was staged at 13:07 IST; later commits are not reflected.
+
+**Best module:** `10-daybook.js` (spec, derived cash lines, one rollback helper, 80 of 214 regression tests). **Worst:** `07-settings-plans.js`, which is really the Girvi screens (`openGirviDetail` 289 lines, 156 unescaped values, 15 of 16 HANDOFF entries are fixes, 2 real tests). `01-sync-core.js` is worst on correctness (2/10).
+
+**Launch blockers, in order (each verified by running the code in the sandbox unless marked):**
+1. **R1 / F1** session restore + a save 401 must not discard the bill (above). Token storage is a security decision: Opus plans it.
+2. **R2 + R3 / F2** `loadFromCloud` (01:69-89) never reads `auditLog`, `activityLog`, `waRules`, and `stockMovements` is not in the save payload (01:146-171); any fresh device overwrites the first three. Small, Sonnet. Add a test that round-trips every saved key.
+3. **R4 + R5 / F3** duplicate invoice numbers: `clearSale` (02:1614) pre-fills `INV-<local S.nextInvNo>`, so `initSaleDate` never asks the atomic counter again after the first sale in a session; counter failures silently fall back to local (01:531-535); `convertToSale` forces the local number (04:375). Allocate at commit, blank the field after each sale, refuse a number already in `S.sales`. Numbering is GST-series work: Opus plans.
+4. **R6 + R7 / F4** Girvi create/edit (07:691-693, 07:747-755), close/default/archive/recover (04:1553-1596) and order create (03:1474-1480) save with no rollback; the loan says "will retry" and nothing retries, and the next 15-second refresh removes it with its photos. Also `_pendingOrderConversion` (04:380) is only cleared by a successful linked sale, so an abandoned "Convert to sale" links the next unrelated sale (reproduced). Use the existing `_girviCommit` / `_orderCommit` helpers.
+
+**Then F5 (UI, Sonnet):** error toast measured 715 px wide on a 375 px screen (`01:602-606`, `index.html:521`); bottom nav 413 px (Settings clipped); phone placeholder "+91 XXXXX XXXXX" is rejected by the 10-digit rule (`02:1300-1306`); USD/AED currency options that do nothing; the 5-minute PIN lock Tanish asked for (currently `INACTIVITY_MS` is 3 minutes).
+
+**Also found, lower:** the dead wrappers `deleteProduct`, `saveSale`, `saveGirviEntry` in 05 (functions do not exist or load later), so "staff cannot delete products" and "log every sale" do nothing; ES5 violations in `03-billing-numbers.js` (123, 1496-1499) and `05-auth-login.js` (599 `async function`) that would break whole files on a true ES5 browser; `skills/jewelos-dev-rules.md` still says there is no browser automation (stale). Full 15-risk register with file and line references is in the report.
+
+**Market (about 45 platforms, three research passes, vendor pages read through a summarising tool — "not stated" is not "absent"):** almost nobody offers a real rojmel (closest: SthirApp day-book, GoldBook, Ornexa, Prime); nobody read combines Girvi + e-invoice + offline; live gold rate is inconsistently stated; Tally export is stated only by SwarnApp, JewellPlus Siddhi, JewelSteps; only SthirApp and Akrut publish INR prices. Closest rival on price and Girvi: SthirApp (Combo Rs 18,000 year 1 + Rs 7,500/yr AMC, offline-first). Fix list F1-F18 and a per-platform answer are in the report; the ones to build after launch, once five shops say they would pay: F7 Girvi notices and statutory forms (verify with a lender or lawyer), F8 live rate, F9 Tally export, F12 repair tickets.
+
+**Playwright comparison:** the 10 passing tests cover login (5), Day Book (1), one Girvi loan (1), invoice date (1), cash and UPI sale in Custom mode (2). No e2e covers reopen-with-no-token, stock-mode sale, invoice uniqueness, failed saves, order conversion, restore, GSTR-1/CSV, roles, or 375 px layout. The 10 specs to add first are listed in the report, in order; specs 1-6 should fail today and turn green as F1-F4 land.
+
+**Not verified:** live site vs built files (deploy-verifier still not completed), real phone, `RESEND_API_KEY`, whether `razorpay-webhook` is still deployed. **Office:** paused, nothing read or written. **Nothing in `js/` or `supabase/` was changed.**
+
+→ FOR CLAUDE CODE: write a failing Playwright spec first for R1 (log in, clear `sessionStorage`, reload, assert the app does not reach the dashboard and the first `store-proxy` request carries an empty `x-session-token` and gets 401); that answers the open "401 shortly after login" item and gives F1 (Opus plan, including the 5-minute PIN lock) something to turn green.
+
+---
+
+### 2026-09-29 · Cowork (Sonnet) (Tanish's instruction, 18:24 IST: 5-minute inactivity lock with PIN, not the login page — relayed, nothing built)
+
+**Tanish's words, relayed:** if there is no activity for 5 minutes, lock the screen and make the user enter the PIN — do not throw them straight to the login page.
+
+**What is in the code today (read only, not changed, not run).** `js/01-sync-core.js:1899` sets `INACTIVITY_MS = 3 * 60 * 1000`; `resetInactivityTimer()` arms `showInactivityLock`, and `isPinSessionActive()` gates it. Separately, both a `401` on load (~line 55) and a `401` on save (~line 213) call `saasForceLogout(...)`, which drops the user on the login page, and the save version tells them to "redo" the change. The e2e PIN test in `tests/e2e/auth.spec.js` fast-forwards the *3-minute* window, so it needs the new number too.
+
+**Things Claude Code should settle before building, not after:**
+1. A PIN unlocks the screen on this device; it does not by itself give the app a new server session token. If the token is what is dead (the `401` case), a PIN alone cannot make saves work again. Decide what the PIN screen does in that case — silent re-auth needs some stored credential or refresh mechanism, which is a security decision, not a UI tweak.
+2. `isPinSet()` is device-local (`localStorage`). What should a device with no PIN set do after 5 minutes: force setting a PIN, or fall back to the login page?
+3. This is auth/session handling, so 🔴 under `MODEL-POLICY.md` §8: Opus plans it, Sonnet builds it. It is also separate from the earlier hand-back in the RED entry below (why a fresh login gets a `401` seconds later); do that investigation first, because this change could hide the same fault instead of fixing it.
+
+→ FOR CLAUDE CODE: after the `401`-right-after-login investigation, plan (Opus) then build (Sonnet) a 5-minute inactivity lock that lands on the PIN screen instead of the login page, and answer questions 1 and 2 above in the entry you write back.
+
+---
+
+### 2026-09-29 · Cowork (Sonnet) (RED — the one outside jeweller came back today and was thrown out three times in 7 minutes; 2 invoice numbers issued, nothing saved)
+
+**What the database and the function logs show (times IST, 29 Sep).** `srisaijewellers83@gmail.com` (shop `3720af09`, matched by timestamp earlier) logged in 4 times, all successful: 15:10:00, 15:11:01, 15:16:11, 15:17:06. This is their second distinct day, so they did come back. In the same 7 minutes `store-proxy` returned **401 on a GET three times** (15:10:36, 15:15:30, 15:16:52), each followed by a fresh login. All 4 logins and all 3 rejections came from **one IP and one user agent**, so this is one device fighting itself, not two devices.
+
+Two `POST store-proxy` calls returned 200 (15:10:15 and 15:17:21). The shop's `inv_no` counter went from 1 to 3, last touched 15:17:21, so those two POSTs are almost certainly the two invoice numbers being issued. The saved shop data still says `nextInvNo` 1 and 0 sales; its last save is 27 Sep 21:14. **No `PUT` (the save call) reached the server at all today**, and after 15:17:21 there was no request of any kind up to about 18:15. So two new invoice numbers were issued and nothing was ever saved.
+
+**What I read in the code.** `store-proxy/index.ts` returns 401 in two cases: the `x-session-token` is missing, badly signed or past `exp`; or `resolveTenant` returns `user_gone` (the user id is not in `auth_store` `users`, or its `shopId` no longer matches). The same session got 200 on GETs seconds earlier, so the token was valid at login. I could not tell from here which 401 branch fired or why.
+
+**Not known:** why a GET a few seconds to a few minutes after a successful login gets 401; whether the 3 lost sessions interrupted an invoice in progress (the first 401 came 21 s after the first invoice number was issued, which fits, but that is inference); and whether the same happened on 27 Sep (4 logins that evening; the function logs only reach back 24 h). This is not proven data loss: it is a real user hitting repeated forced sign-outs on a launch week, and giving up.
+
+**Not the Office:** Tanish paused the Office today, so this is logged here only.
+
+→ FOR CLAUDE CODE: find why `GET store-proxy` returns 401 shortly after a successful login (3 times in 7 minutes for one device on 29 Sep, 15:10–15:17 IST); start with which of the two 401 branches fires and whether the client in `js/01-sync-core.js` sends a stale token after a re-login. Nothing else.
 
 ---
 
