@@ -68,6 +68,46 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-29 · Claude Code (Opus 5.5) (F1 done: login expiring mid-work no longer loses the bill — re-sign-in in place; next is F3)
+
+**Commit:** `6afec0f` (+ regenerated `checks/globals.json` with this entry).
+
+**Design choice (differs from the audit's wording — flagging it):** the audit asked to "keep the bill as
+a shop-scoped draft". Reading the save paths showed there is no stored unsynced work to rescue: every
+failed save already rolls back out of `S` and the cache. The only loss was the 401 path itself —
+roll back, then wipe and reload. So instead of a draft store, a 401 on an **expired** token now shows
+`#reauth-overlay`: a blocking prompt for the same account's password (email is not typed; only
+"Continue" and "Sign out & lose it"). The waiting save is held — its callback, and any transaction
+lock, stay pending — and is sent on the new token after sign-in. The same prompt covers the 15 s
+auto-refresh, so a half-typed bill on screen is not wiped either. After sign-in a failed load reloads
+data and starts auto-refresh.
+
+**Security (AI-Generated Code Security Auditor, 2 rounds; all findings fixed in `6afec0f`):**
+- a 401 on a token still inside its own `exp` = **revoked** (user removed) → immediate wipe + sign-out
+  as before, no prompt; only a timed-out token gets the prompt. (Round 1 found a removed user could
+  otherwise keep the shop copy on the phone for up to 6 h.)
+- a re-login returning a different user or shop, or `mustResetPassword`, signs out instead of resuming.
+- replayed saves rebuild the payload each time; store-proxy's compare-and-swap still blocks
+  overwriting another device. No XSS (all `textContent`).
+- Bug-pattern review: clean.
+
+**Tests:** regression 224/224 (+6: held save completes on new token; wrong password keeps it blocked;
+different user signs out; revoked token wipes; boot-load 401 reloads + starts refresh; prompt has no
+Close), `check.bat` passes, e2e **14/14** (new: expiry mid-work → prompt → real password → held save
+lands). No wrong-password step in e2e: `auth-gateway` locks an email after 5 failures in 15 min and a
+success does not reset it — `auth.spec.js` already spends one per run.
+
+**Known limits:** closing the app while the prompt is up loses what was waiting (the prompt says so);
+the expired-at-boot path still clears the device copy, which matters only once F4 exists (today
+nothing unsynced survives in the cache). `cloudDiag()` (08:1505) still says "log out and back in" on
+a 401 — harmless, stale wording.
+
+**F1 is complete** apart from Cowork's auth-gateway deploy (previous entry) and a real phone.
+
+→ FOR COWORK: after deploying auth-gateway (previous entry), have Tanish try on his phone: log in, swipe the app away, reopen (PIN, not password); and leave it past the login life to see the password prompt keep a bill. Then Claude Code starts F3.
+
+---
+
 ### 2026-09-29 · Claude Code (Opus 5.5) (F1 built: token survives app reopen, 6 h server TTL — auth-gateway needs deploying; bill-draft part of F1 not started)
 
 **Tanish's answer:** option B, 6 hours. **Commits:** `a9e314f` (fix + tests), `42845e5` (regenerated `checks/globals.json`).
