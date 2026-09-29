@@ -2871,6 +2871,19 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
     </div>
   </div>
 </div>
+<!-- Login expired mid-work: sign in again in place, pending saves wait (js/05-auth-login.js saasRequireReauth). No Cancel: the only other way out is Sign out. -->
+<div id="reauth-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.85);z-index:10002;align-items:center;justify-content:center;padding:1.5rem;backdrop-filter:blur(3px);">
+  <div style="background:var(--surface);border-radius:20px;width:100%;max-width:380px;padding:1.5rem;box-shadow:0 12px 60px rgba(0,0,0,.4);border:0.5px solid var(--border2);">
+    <div style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--ink);">&#128274; Your login has expired</div>
+    <div id="reauth-msg" style="font-size:13px;color:var(--text2);margin-bottom:1rem;line-height:1.6;">Enter your password to continue. What you were saving is kept and saves as soon as you are back in &mdash; don't close the app until then.</div>
+    <input type="password" id="reauth-password" autocomplete="current-password" placeholder="Password" onkeydown="if(event.key==='Enter')saasReauthSubmit()" style="width:100%;margin-bottom:.4rem;"/>
+    <div id="reauth-err" style="color:#c0392b;font-size:13px;min-height:18px;margin-bottom:.8rem;"></div>
+    <div style="display:flex;gap:8px;">
+      <button id="reauth-signout" onclick="saasReauthSignOut()" style="flex:1;padding:11px;border-radius:11px;border:0.5px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Sign out &amp; lose it</button>
+      <button id="reauth-submit" class="btn-gold" onclick="saasReauthSubmit()" style="flex:2;padding:11px;border-radius:11px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Continue</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <!-- PERSISTENT SAVE ERROR BANNER -->

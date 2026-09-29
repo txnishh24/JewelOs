@@ -68,6 +68,27 @@ test.describe('reopening the app (F1 / R1)', () => {
     expect(emptyTokenCalls).toEqual([]);
   });
 
+  test('login expires mid-work: a save waits for the password, then goes through', async ({ page }) => {
+    await login(page);
+    // Simulate the 6 h running out while the app is open: the server now
+    // rejects the token this tab holds.
+    await page.evaluate(() => { SAAS.sessionToken = 'expired.token'; });
+    const saved = page.evaluate(() => new Promise((r) => saveToCloud((e) => r(e ? e.message : 'saved'))));
+
+    const overlay = page.locator('#reauth-overlay');
+    await expect(overlay).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#auth-email')).not.toBeVisible(); // not thrown out to login
+    // No wrong-password step here: auth-gateway locks an email after 5 failed
+    // logins in 15 min (success does not reset it) and auth.spec.js already
+    // spends one per run. The wrong-password path is covered in
+    // tests/regression.test.js against a fake server.
+    await page.locator('#reauth-password').fill(shop.password);
+    await page.locator('#reauth-submit').click();
+    await expect(overlay).toBeHidden({ timeout: 15000 });
+    expect(await saved).toBe('saved');
+    await expect(signOutBtn(page)).toBeVisible();
+  });
+
   test('token expired while closed: login with a reason, no PIN, no store-proxy call', async ({ page }) => {
     await login(page);
     const calls = watchStoreProxy(page);

@@ -190,6 +190,80 @@ function saasForceLogout(message){
   _reloadToSignIn();
 }
 
+// ── RE-SIGN-IN IN PLACE (F1, 29 Sep) ─────────────────────────────────
+// store-proxy said 401 mid-work (the 6 h token ran out, or this user was
+// removed). Signing out here used to wipe the device and reload, so a bill
+// being saved — or just typed — was lost. Instead: block the app, ask for
+// this same account's password, and replay the waiting saves on a fresh
+// token. A removed user's password no longer works, so their only way out
+// is Sign out — still no Cancel into the shop.
+var _reauthPending = false;
+var _reauthWaiters = [];
+
+function saasReauthPending(){ return _reauthPending; }
+
+function saasRequireReauth(onResumed){
+  // Refused before its own expiry = revoked (user removed from the shop),
+  // not timed out: wipe the device as before, no password prompt.
+  if(!_reauthPending && _sessionTokenExp(SAAS.sessionToken) > Date.now()){
+    saasForceLogout('Your session has ended — please sign in again.');
+    return;
+  }
+  if(onResumed) _reauthWaiters.push(onResumed);
+  if(_reauthPending) return;
+  _reauthPending = true;
+  setSyncStatus('err', 'Sign in to save');
+  var ov = document.getElementById('reauth-overlay');
+  if(!ov || !SAAS.user || !SAAS.user.email){
+    saasForceLogout('Your session has ended — please sign in again.');
+    return;
+  }
+  document.getElementById('reauth-password').value = '';
+  document.getElementById('reauth-err').textContent = '';
+  document.getElementById('reauth-submit').disabled = false;
+  ov.style.display = 'flex';
+  setTimeout(function(){ var el = document.getElementById('reauth-password'); if(el) el.focus(); }, 80);
+}
+
+function saasReauthSubmit(){
+  var pw = document.getElementById('reauth-password').value || '';
+  var errEl = document.getElementById('reauth-err');
+  var btn = document.getElementById('reauth-submit');
+  if(!pw){ errEl.textContent = 'Enter your password'; return; }
+  if(!_checkLoginRateLimit(errEl)) return;
+  errEl.textContent = '⏳ Checking...';
+  btn.disabled = true;
+  authGatewayCall('login', {email: SAAS.user.email, password: pw}).then(function(res){
+    btn.disabled = false;
+    _loginAttempts = 0;
+    // Must be the same person in the same shop, still allowed in as-is.
+    if(!res.user || !res.shop || res.user.id !== SAAS.user.id || res.shop.id !== SAAS.shop.id || res.user.mustResetPassword){
+      saasForceLogout('Please sign in again.');
+      return;
+    }
+    saasSetSession(res.user, res.shop, res.sessionToken);
+    document.getElementById('reauth-overlay').style.display = 'none';
+    _reauthPending = false;
+    var waiters = _reauthWaiters; _reauthWaiters = [];
+    for(var i = 0; i < waiters.length; i++){ try{ waiters[i](); }catch(e){ console.error('[JewelOS] resume after sign-in failed:', e); } }
+    if(!waiters.length) setSyncStatus('ok', 'Live');
+  }).catch(function(err){
+    btn.disabled = false;
+    if(err.status === 401){
+      _recordLoginFailure(errEl);
+      if(!(Date.now() < _loginLockedUntil)) errEl.textContent = 'Incorrect password.';
+    } else if(err.status === 429){
+      errEl.textContent = (err.data && err.data.error) || 'Too many attempts. Try again later.';
+    } else {
+      errEl.textContent = '⚠ Could not reach the server. Check your internet and try again.';
+    }
+  });
+}
+
+function saasReauthSignOut(){
+  saasForceLogout('Signed out. Anything that was waiting to save was not saved.');
+}
+
 // ── FORGOT PASSWORD ──────────────────────────────────────────────────
 // Two-step flow against auth-gateway: request a 6-digit emailed code,
 // then submit it with a new password. auth-gateway never confirms

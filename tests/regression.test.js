@@ -1033,7 +1033,7 @@ test('a session the server rejects signs out with no confirm, reloads, and leave
   assert(app.sessionStorage.getItem(app.SIGNOUT_NOTICE_KEY) === 'Your session has ended.', 'the reason should survive the reload');
 });
 
-test('both store-proxy 401 handlers (load and save) use the forced sign-out, not the cancellable one', function(){
+test('both store-proxy 401 handlers (load and save) ask for the password in place, never the cancellable sign-out', function(){
   var fs = require('fs'), path = require('path');
   var src = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf-8');
   var blocks = src.split('status === 401').slice(1).map(function(b){
@@ -1042,8 +1042,127 @@ test('both store-proxy 401 handlers (load and save) use the forced sign-out, not
   });
   assert(blocks.length >= 2, 'expected the load and save 401 handlers');
   blocks.forEach(function(b, i){
-    assert(/saasForceLogout\(/.test(b), '401 handler #' + (i + 1) + ' should call saasForceLogout');
+    assert(/saasRequireReauth\(/.test(b), '401 handler #' + (i + 1) + ' should call saasRequireReauth');
     assert(!/saasLogout\(/.test(b), '401 handler #' + (i + 1) + ' must not call the cancellable saasLogout');
+  });
+  var html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf-8');
+  var ov = html.slice(html.indexOf('id="reauth-overlay"'), html.indexOf('<div class="toast" id="toast">'));
+  var buttons = ov.match(/onclick="[^"]*"/g) || [];
+  assert(buttons.length === 2 && /saasReauthSignOut/.test(buttons[0] + buttons[1]) && /saasReauthSubmit/.test(buttons[0] + buttons[1]),
+    'the password prompt must offer only Continue and Sign out — no way to close it back into the shop; got ' + buttons.join(' '));
+});
+
+// F1 (29 Sep): a 401 on save used to roll the bill back and wipe the device.
+// Now the save waits for the password and goes through on the new token.
+function flush(){ return new Promise(function(r){ setImmediate(r); }); }
+function flushAll(n){ var p = Promise.resolve(); for(var i = 0; i < (n || 8); i++) p = p.then(flush); return p; }
+function reauthApp(loginResult){
+  var a = loadApp();
+  var newTok = fakeToken(Date.now() + 6 * 3600000);
+  a.SAAS.user = { id:'u1', email:'o@shop.in', name:'Owner' };
+  a.SAAS.shop = { id:'shop1', name:'Test Shop' };
+  a.SAAS.sessionToken = 'dead';
+  a.puts = [];
+  a.fetch = function(url, opts){
+    var h = (opts && opts.headers) || {};
+    function resp(status, body){ return Promise.resolve({ status:status, ok:status < 300, json:function(){ return Promise.resolve(body); } }); }
+    if(String(url).indexOf('/auth-gateway/login') !== -1){
+      return loginResult === 'wrong'
+        ? resp(401, { error:'Invalid email or password' })
+        : resp(200, { sessionToken:newTok, user:{ id: loginResult === 'other' ? 'u9' : 'u1', email:'o@shop.in' }, shop:{ id:'shop1', name:'Test Shop' } });
+    }
+    if(String(url).indexOf('/store-proxy') !== -1 && opts.method === 'PUT'){
+      a.puts.push(h['x-session-token']);
+      return h['x-session-token'] === newTok ? resp(200, { ok:true, data:{ _v:2 } }) : resp(401, { error:'Session expired' });
+    }
+    return resp(200, {});
+  };
+  a.newTok = newTok;
+  return a;
+}
+
+testAsync('a save refused with 401 is held (not rolled back, not signed out) and goes through after the password', function(){
+  var a = reauthApp('ok'), result = 'pending', reloads = 0;
+  a.location = { reload: function(){ reloads++; } };
+  a.S.sales.push({ id:777, invNo:'INV-777' });
+  a.saveToCloud(function(err){ result = err ? err.message : 'saved'; });
+  return flushAll().then(function(){
+    assert(result === 'pending', 'the caller must not be told to roll back yet, got ' + result);
+    assert(a.saasReauthPending() === true, 'should be waiting for the password');
+    assert(a.document.getElementById('reauth-overlay').style.display === 'flex', 'the password prompt should be showing');
+    assert(reloads === 0 && a.localStorage.getItem('ssj_cache') !== null, 'must not sign out or wipe the device');
+    a.document.getElementById('reauth-password').value = 'right-password';
+    a.saasReauthSubmit();
+    return flushAll(16);
+  }).then(function(){
+    assert(result === 'saved', 'the held save should complete after sign-in, got ' + result);
+    assert(a.puts.length === 2 && a.puts[1] === a.newTok, 'the retry should use the new token, puts: ' + JSON.stringify(a.puts));
+    assert(a.saasReauthPending() === false, 'prompt should be closed');
+    assert(JSON.parse(a.localStorage.getItem(a.AUTH_KEY)).token === a.newTok, 'new token should be kept for the next reopen');
+  });
+});
+
+testAsync('a wrong password (or a removed user) keeps the prompt up and never reaches the shop', function(){
+  var a = reauthApp('wrong'), result = 'pending';
+  a.saveToCloud(function(err){ result = err ? err.message : 'saved'; });
+  return flushAll().then(function(){
+    a.document.getElementById('reauth-password').value = 'nope';
+    a.saasReauthSubmit();
+    return flushAll(16);
+  }).then(function(){
+    assert(a.saasReauthPending() === true, 'must still be blocked');
+    assert(/Incorrect password/.test(a.document.getElementById('reauth-err').textContent), 'should say the password was wrong');
+    assert(result === 'pending' && a.puts.length === 1, 'nothing may be sent without a valid sign-in');
+  });
+});
+
+testAsync('a 401 on a token that has NOT expired (user removed) wipes the device, no password prompt', function(){
+  var a = reauthApp('ok'), reloads = 0;
+  a.location = { reload: function(){ reloads++; } };
+  a.SAAS.sessionToken = fakeToken(Date.now() + 3600000); // still inside its life, server refuses anyway
+  a.saveToCloud(function(){});
+  return flushAll().then(function(){
+    assert(reloads === 1, 'a revoked session must be signed out, got ' + reloads + ' reload(s)');
+    assert(a.saasReauthPending() === false, 'no password prompt for a revoked session');
+    assert(a.localStorage.getItem('ssj_cache') === null, 'the shop copy must not stay on a removed user\'s phone');
+  });
+});
+
+testAsync('after signing in again from a failed boot load, data reloads and auto-refresh starts', function(){
+  var a = reauthApp('ok'), refreshStarted = 0, gets = 0;
+  var baseFetch = a.fetch;
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && (!opts.method || opts.method === 'GET')){
+      gets++;
+      var ok = opts.headers['x-session-token'] === a.newTok;
+      return Promise.resolve({ status: ok ? 200 : 401, ok: ok, json:function(){ return Promise.resolve(ok ? { data:{ _v:5, sales:[{ id:1 }] } } : { error:'x' }); } });
+    }
+    return baseFetch(url, opts);
+  };
+  a.startAutoRefresh = function(){ refreshStarted++; };
+  a.loadFromCloud(function(){});
+  return flushAll().then(function(){
+    a.document.getElementById('reauth-password').value = 'pw';
+    a.saasReauthSubmit();
+    return flushAll(16);
+  }).then(function(){
+    assert(gets === 2, 'expected a reload after sign-in, GETs: ' + gets);
+    assert(a._loadedVersion === 5, 'the version must be known so the next save is not a false conflict, got ' + a._loadedVersion);
+    assert(refreshStarted === 1, 'auto-refresh should start after sign-in');
+  });
+});
+
+testAsync('signing in again as a different user signs out instead of resuming', function(){
+  var a = reauthApp('other'), reloads = 0;
+  a.location = { reload: function(){ reloads++; } };
+  a.saveToCloud(function(){});
+  return flushAll().then(function(){
+    a.document.getElementById('reauth-password').value = 'pw';
+    a.saasReauthSubmit();
+    return flushAll(16);
+  }).then(function(){
+    assert(reloads === 1 && a.localStorage.getItem(a.AUTH_KEY) === null, 'a different account must not inherit the pending work');
+    assert(a.puts.length === 1, 'the held save must not be sent under another account');
   });
 });
 

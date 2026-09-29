@@ -37,6 +37,8 @@ function _getShopRowKey(){
 }
 
 function loadFromCloud(callback){
+  // Waiting for the user to sign in again — the token is known dead.
+  if(saasReauthPending()){ if(callback) callback(new Error('unauthenticated')); return; }
   setSyncStatus('syncing','Syncing...');
   var done = false;
   var shopKey = _getShopRowKey();
@@ -51,13 +53,23 @@ function loadFromCloud(callback){
   .then(function(r){
     // store-proxy v5 authenticates the session token, not a shop key —
     // a 401 means the session is gone/expired, not a network problem.
-    // Surface it as "sign in again" instead of a generic sync failure.
+    // Ask for the password in place (not the cancellable saasLogout(): a
+    // user removed from the shop gets this 401 too and must not get back in).
     if(r.status === 401){
-      clearTimeout(timer); done = true;
-      setSyncStatus('err','Session expired');
-      // Forced, not the confirm-first saasLogout(): this 401 is also what a
-      // user removed from the shop gets, and they must not be able to cancel.
-      if(typeof saasForceLogout === 'function') saasForceLogout('Your session has ended — please sign in again.');
+      clearTimeout(timer);
+      var alreadyAnswered = done; done = true;
+      // After sign-in: fresh data and a running auto-refresh, even when this
+      // was the boot load (which never started auto-refresh).
+      saasRequireReauth(function(){
+        loadFromCloud(function(err){
+          if(err) return;
+          saveCache();
+          var activeTab = document.querySelector('.panel.active');
+          if(activeTab) renderTab(activeTab.id.replace('panel-',''));
+          startAutoRefresh();
+        });
+      });
+      if(callback && !alreadyAnswered) callback(new Error('unauthenticated'));
       throw new Error('unauthenticated');
     }
     if(!r.ok) throw new Error('HTTP ' + r.status);
@@ -110,6 +122,11 @@ function loadFromCloud(callback){
 //   4. Prefer:return=representation so we detect empty response (no rows matched)
 function saveToCloud(callback){
   if(isSaving){ setTimeout(function(){ saveToCloud(callback); }, 400); return; }
+  if(saasReauthPending()){
+    saveCache();
+    saasRequireReauth(function(){ saveToCloud(callback); });
+    return;
+  }
   isSaving = true;
   _isSavingSetAt = Date.now();
 
@@ -208,15 +225,13 @@ function saveToCloud(callback){
         _done_ok(res.body);
         return;
       }
-      // Session expired or revoked — don't retry, don't silently drop
-      // the save. Tell the user and send them back to sign in.
+      // Session expired or revoked — don't drop the save and don't roll it
+      // back: hold it (the caller's callback stays pending) until the user
+      // signs in again, then send it on the new token. See loadFromCloud's
+      // 401 above for why this is not the cancellable saasLogout().
       if(res.status === 401){
         isSaving = false; _isSavingSetAt = 0;
-        setSyncStatus('err','Session expired');
-        // Callback first so a transactional save can roll back, then sign out
-        // without a confirm (see loadFromCloud's 401 above for why).
-        if(callback) callback(new Error('unauthenticated'));
-        if(typeof saasForceLogout === 'function') saasForceLogout('Your session ended before your last change was saved — please sign in again and redo it.');
+        saasRequireReauth(function(){ saveToCloud(callback); });
         return;
       }
       // A 403 means the account is authenticated but not allowed to
