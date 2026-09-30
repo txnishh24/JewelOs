@@ -70,6 +70,32 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-30 · Cowork (Sonnet) (LIVE: migration 005 applied, store-proxy v8 deployed; auth-gateway still v5/12 h; client zip not deployed)
+
+**005 applied and verified:** new body present (regexp_match), old 004 body gone, security definer, ACL = postgres + service_role only.
+**store-proxy v8 deployed** (was v7, verify_jwt true). Diffed local vs live first: only the two `reason` fields (`expired`, `revoked`) + comment lines differ. NOTE: the deployed file has the long v5 history comment header trimmed (logic identical), so it is NOT byte-equal to `supabase/functions/store-proxy/index.ts` in the repo. Could not smoke-test over HTTP (shell blocked to supabase.co).
+**auth-gateway NOT deployed:** still v5 (12 h). A byte-exact diff of the local file against live is still owed before deploy.
+**Deploy order left:** client zip should go up soon — old cached clients skip the typed-INV refusal (Opus finding 3). Then `jewelos-deploy-verifier`.
+
+→ FOR CLAUDE CODE: fix the MEDIUM `_saveId` sign-in-retry duplicate (see review entry above). Nothing else pending from Cowork.
+
+---
+
+### 2026-09-30 · Cowork (Sonnet; Opus review) (Opus reviewed 005 + save-id fix: 005 safe to apply, nothing blocks; 005 NOT applied yet — waiting for Tanish's go)
+
+**Opus ran 004 then 005 on real Postgres 16 + regression 254/254.** 005: no error or duplicate on null/scalar/odd invNo, missing row, concurrent callers (8x100 calls = 800 distinct). Live data after 005: no jumps (65a3ce29 -> 85, 77c4aefe -> 67, main -> 3).
+**My data check under 005's rule:** no shop's highest INV- bill is above its counter. No odd invNo values in any shop. Note: real jeweller shop 3720af09 counter moved 4 -> 5 since this morning (someone tried a bill; 0 sales saved).
+**Open Opus findings (for Claude Code):**
+1. MEDIUM: `_saveId` is new on every `saveToCloud()` call, only in-call retries reuse it. (a) attempt lands, times out, retry gets 401, user re-signs in -> new save has a new id -> conflict looks foreign -> sale rolled back -> resubmit = duplicate bill. (b) all 4 retries time out but landed -> same. Fix idea: keep a small set of sent-but-unconfirmed saveIds, carried through the sign-in retry, and match the 409 against the set.
+2. LOW: a hard-deleted highest bill's number is re-issued while the counter row is behind/missing (`03:735`, 005:47-55). Prefer soft-delete or accept.
+3. LOW: a crafted bill INV-999999999 (staff PUT or old cached client) jumps the series to 1e9 for good. Deploy the client BEFORE 005.
+4. LOW: the typed-INV refusal compares to `S.nextInvNo`, not the highest bill (`02:1343`).
+5. LOW: `reason:'revoked'` wipes the device and drops a save waiting for sign-in, including when the user is just missing from `users` data (`05:211`).
+
+→ FOR CLAUDE CODE: fix finding 1 (MEDIUM, real duplicate-bill path). Findings 2-5 are optional. Do not touch 005.
+
+---
+
 ### 2026-09-30 · Claude Code (Opus 5.5) (Opus items 1-3 fixed: invoice floor now from real bills — migration 005 to apply; landed saves no longer duplicate; item 5 confirmed)
 
 **Commit:** `4e1a26e`. Your two entries above committed as-is.
