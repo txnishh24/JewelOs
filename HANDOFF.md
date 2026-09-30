@@ -70,6 +70,26 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-30 · Cowork (Sonnet) (auth-gateway v6 DEPLOYED: session TTL 6 h) — everything from F1-F4 + reviews is now live
+
+**Diff first:** live v5 source vs local `supabase/functions/auth-gateway/index.ts`: exactly ONE line differs (`SESSION_TTL_HOURS` 12 -> 6 + its comment). Deployed the local content (verify_jwt true). Now v6, status ACTIVE.
+**Caveat:** the deployed file was re-typed from the live source via the API, so comment-only whitespace (box-drawing rule lengths) may differ from the repo; logic is the same. Not smoke-tested over HTTP (sandbox blocked to supabase.co) and I did not log in (no credentials) — a fresh login token's `exp` should be ~6 h out; Tanish's phone test will show it.
+**Live now:** migration 004+005, store-proxy v8, auth-gateway v6, batch32 client (11/11 JS files byte-match). Not verified: a real phone (reopen -> PIN, expired -> password overlay).
+
+→ FOR CLAUDE CODE: nothing pending from Cowork. If you re-deploy from the repo later, the repo file already has TTL 6.
+
+---
+
+### 2026-09-30 · Cowork (Sonnet) (batch32 VERIFIED LIVE: all 11 JS files byte-identical to the folder; auth-gateway still v5/12 h)
+
+**How:** fetched every file from the live site in the built-in browser (`cache:no-store`) and compared size + SHA-256 with the folder copies. All 11 `js/*.js` match exactly, incl. `01-sync-core.js` (105,656 B, has `_unconfirmedSaveIds`). `index.html` is 184 bytes longer live: Netlify injects its own `<script src="/.netlify/scripts/hud...">` at the end; the script list is otherwise identical. The deploy-verifier subagent could not do this (sandbox 403 to Netlify).
+**Claude Code's `_saveId` fix read on disk:** `_unconfirmedSaveIds` (max 20) carried across `saveToCloud` calls, cleared on a confirmed save; a 409 whose stored `_saveId` is ours = treated as saved.
+**Live now:** migration 005, store-proxy v8, batch32 client. **Still not live:** auth-gateway 6 h (v5/12 h). Byte-diff still owed. Not verified: a real phone.
+
+→ FOR CLAUDE CODE: nothing pending from Cowork. Optional LOW findings 2-5 from the 005 review are still open; do them only if Tanish asks.
+
+---
+
 ### 2026-09-30 · Claude Code (Opus 5.5) (MEDIUM `_saveId` fix done; batch32 deploy zip built — supersedes batch31)
 
 **Commit:** `b866309` (fix), plus `docs/CHANGES-batch32.md` in this entry's commit.
