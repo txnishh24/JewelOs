@@ -90,8 +90,7 @@ function calcCategoryPerf(){
     var isThis = new Date(s.date) >= thisMonthStart;
     var isLast = new Date(s.date) >= lastMonthStart && new Date(s.date) <= lastMonthEnd;
     (s.items||[]).forEach(function(i){
-      var p = S.products.find(function(x){return x.id===i.pid;});
-      var cat = (p&&p.cat)||i.cat||'Other';
+      var cat = saleItemCat(i);
       if(!cats[cat]) cats[cat]={rev:0,units:0,prevRev:0,profit:0};
       var itemRev = getItemRate(i)*(parseFloat(i.weight)||0)*(i.qty||1);
       var itemProfit = calcItemProfit(i).profit;
@@ -521,7 +520,7 @@ function renderReportsIntelligence(){
   var catData = {};
   monthSales.forEach(function(s){
     s.items.forEach(function(i){
-      var cat = i.category || i.cat || 'Other';
+      var cat = saleItemCat(i); // same rule as the other category tables
       var rev = getItemRate(i) * (parseFloat(i.weight)||0) * (i.qty||1) + itemMakingAmount(i) + (i.diamond||0);
       if(!catData[cat]) catData[cat] = {rev:0, units:0};
       catData[cat].rev   += rev;

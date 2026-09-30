@@ -1415,7 +1415,15 @@ function _commitSaleTransactionNow(sale, ctx){
     }).filter(Boolean) : [];
 
   if(typeof addPaymentRecord==='function' && (sale.nowPaying&&sale.nowPaying.amount>0)){
-    addPaymentRecord(sale, sale.nowPaying.amount, sale.nowPaying.mode, 'Initial payment');
+    // QA 30 Sep: Cash 1,00,000 + UPI 50,000 showed as one "Cash 1,50,000" --
+    // the total under the first row's mode. One record per split row instead.
+    // (Day Book never reads paymentHistory, so this can't double-count cash.)
+    var _splits = (sale.splitPayments||[]).filter(function(r){ return (parseFloat(r.amount)||0) > 0; });
+    if(_splits.length > 1){
+      _splits.forEach(function(r){ addPaymentRecord(sale, parseFloat(r.amount)||0, r.mode, 'Initial payment'); });
+    } else {
+      addPaymentRecord(sale, sale.nowPaying.amount, sale.nowPaying.mode, 'Initial payment');
+    }
   }
   // Foundation audit B4: if this sale is completing an order conversion
   // (convertToSale prefilled this form), link the order to it NOW, in

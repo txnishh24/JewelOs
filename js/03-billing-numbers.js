@@ -1042,6 +1042,13 @@ function _doGSTR1Export(sales, label){
   toast('\u2705 GSTR-1 CSV exported — ' + sales.length + ' invoices');
 }
 
+// One rule for an item's category everywhere in Reports (QA 30 Sep: the same
+// ring showed as "Rings" in one section and "Other" in another). A stock
+// sale's line carries only pid, so the product's category comes first.
+function saleItemCat(i){
+  var p = i && i.pid ? (S.products||[]).find(function(x){ return x.id===i.pid; }) : null;
+  return (p&&p.cat) || (i&&(i.cat||i.category)) || 'Other';
+}
 function renderReports(){
   // Populate GSTR-1 month buttons
   (function(){
@@ -1170,8 +1177,38 @@ function renderReports(){
   });});
   var tp=document.getElementById('top-prods');
   if(tp) tp.innerHTML=Object.entries(pm).sort(function(a,b){return b[1].rev-a[1].rev;}).slice(0,8)
-    .map(function(e){return '<tr><td>'+e[0]+'</td><td>'+e[1].u+'</td><td style="font-weight:700">'+fmtW(e[1].w)+'</td><td style="font-weight:700;color:var(--gold-dark);">'+fmt(Math.round(e[1].rev))+'</td></tr>';}).join('')
+    .map(function(e){return '<tr><td>'+escHtml(e[0])+'</td><td>'+e[1].u+'</td><td style="font-weight:700">'+fmtW(e[1].w)+'</td><td style="font-weight:700;color:var(--gold-dark);">'+fmt(Math.round(e[1].rev))+'</td></tr>';}).join('')
     ||'<tr><td colspan="4"><div class="empty">No sales this month</div></td></tr>';
+
+  // ── By category (QA 30 Sep: #cat-perf had no renderer at all -- empty) ──
+  var cm={};
+  monthSales.forEach(function(s){ (s.items||[]).forEach(function(i){
+    var c=saleItemCat(i), q=i.qty||1;
+    if(!cm[c]) cm[c]={u:0,w:0};
+    cm[c].u+=q; cm[c].w+=(parseFloat(i.weight)||0)*q;
+  });});
+  var cpEl=document.getElementById('cat-perf');
+  if(cpEl) cpEl.innerHTML=Object.entries(cm).sort(function(a,b){return b[1].w-a[1].w;})
+    .map(function(e){return '<tr><td>'+escHtml(e[0])+'</td><td>'+e[1].u+'</td><td style="font-weight:700">'+fmtW(e[1].w)+'</td></tr>';}).join('')
+    ||'<tr><td colspan="3"><div class="empty">No sales this month</div></td></tr>';
+
+  // ── Sales in <month> (QA 30 Sep: #sales-hist had no renderer either) ──
+  var shEl=document.getElementById('sales-hist');
+  if(shEl) shEl.innerHTML=monthSales.slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);})
+    .map(function(s){
+      var t=calcSaleTotals(s), q=0, w=0;
+      (s.items||[]).forEach(function(i){ var n=i.qty||1; q+=n; w+=(parseFloat(i.weight)||0)*n; });
+      var modes=(s.splitPayments&&s.splitPayments.length)
+        ? s.splitPayments.filter(function(r){return (parseFloat(r.amount)||0)>0;}).map(function(r){return r.mode;})
+        : [(s.nowPaying&&s.nowPaying.mode)||s.payment||''];
+      var seen={}; modes=modes.filter(function(m){ if(!m||seen[m]) return false; seen[m]=1; return true; });
+      return '<tr><td style="font-weight:600">'+escHtml(s.invNo||'')+'</td><td>'+fmtDate(s.date)+'</td><td>'+escHtml(s.customer||'Walk-in')+'</td>'+
+        '<td>'+q+'</td><td>'+fmtW(w)+'</td><td>'+escHtml(modes.join(' + ')||'\u2014')+'</td>'+
+        '<td style="font-weight:700;color:var(--gold-dark);">'+fmt(t.grand)+'</td>'+
+        '<td style="color:'+(t.bal>0?'var(--danger)':'var(--success)')+'">'+(t.bal>0?fmt(t.bal):'\u2713')+'</td>'+
+        '<td><button class="btn btn-sm" onclick="showSaleInvoice(\''+jsAttrEsc(s.id)+'\')">View</button></td></tr>';
+    }).join('')
+    ||'<tr><td colspan="9"><div class="empty">No sales this month</div></td></tr>';
 
   // ── Top customers this month ──
   var custMap3={};

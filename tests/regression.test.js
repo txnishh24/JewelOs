@@ -1567,6 +1567,54 @@ test('P0 item 2: shop setup refuses an invalid GSTIN or phone', function(){
   assert(calls === 1, 'valid details should save');
 });
 
+test('P0 item 4: a split payment is recorded as one history row per mode, not one merged "Cash" row', function(){
+  var a = _freshSaleHarness();
+  a.addPaymentRecord = require('./harness.js').loadApp().addPaymentRecord; // the real one
+  a.saveToCloud = function(cb){ cb(null); };
+  var s = _sale('1');
+  s.nowPaying = { amount:150000, mode:'Cash' };
+  s.splitPayments = [{ amount:100000, mode:'Cash' }, { amount:50000, mode:'UPI' }];
+  a._commitSaleTransaction(s);
+  var h = a.S.sales[0].paymentHistory || [];
+  assert(h.length === 2 && h[0].mode === 'Cash' && h[0].amount === 100000 && h[1].mode === 'UPI' && h[1].amount === 50000,
+    'expected Cash 100000 + UPI 50000, got ' + JSON.stringify(h.map(function(p){ return p.mode + ' ' + p.amount; })));
+});
+
+test('P0 item 4: a single payment is still one row', function(){
+  var a = _freshSaleHarness();
+  a.addPaymentRecord = require('./harness.js').loadApp().addPaymentRecord;
+  a.saveToCloud = function(cb){ cb(null); };
+  var s = _sale('1');
+  s.nowPaying = { amount:5000, mode:'UPI' };
+  s.splitPayments = [{ amount:5000, mode:'UPI' }];
+  a._commitSaleTransaction(s);
+  var h = a.S.sales[0].paymentHistory || [];
+  assert(h.length === 1 && h[0].mode === 'UPI' && h[0].amount === 5000, 'got ' + JSON.stringify(h));
+});
+
+test('P0 item 5: Reports fills "By category" and "Sales in <month>" (both were always empty)', function(){
+  var a = require('./harness.js').loadApp();
+  var now = new Date();
+  a.S.products = [{ id:'p1', name:'Ring', cat:'Rings', metal:'gold', purity:'22K', weight:10, qty:0, status:'sold' }];
+  a.S.sales = [{ id:'s1', invNo:'INV-001', date:now.toISOString(), customer:'Asha <b>', items:[{ pid:'p1', name:'Ring', metal:'gold', purity:'22K', weight:10, qty:1, rate:7000 }],
+    splitPayments:[{ amount:50000, mode:'Cash' }, { amount:20000, mode:'UPI' }], gst:0, discount:0 }];
+  a.repYear = now.getFullYear(); a.repMonth = now.getMonth();
+  try { a.renderReports(); } catch(e) { /* other report cards may need DOM the fake lacks; the two tables render first */ }
+  var cat = a.document.getElementById('cat-perf').innerHTML, hist = a.document.getElementById('sales-hist').innerHTML;
+  assert(/Rings/.test(cat) && !/Other/.test(cat), 'By category should say Rings, got: ' + cat);
+  assert(/INV-001/.test(hist) && /Cash \+ UPI/.test(hist), 'Sales table should list INV-001 paid Cash + UPI, got: ' + hist);
+  assert(hist.indexOf('<b>') === -1, 'the customer name must be escaped');
+});
+
+test('P0 item 5: every category table uses the product category for a stock sale', function(){
+  var a = require('./harness.js').loadApp();
+  a.S.products = [{ id:'p1', cat:'Rings' }];
+  assert(a.saleItemCat({ pid:'p1' }) === 'Rings', 'stock line -> product category');
+  assert(a.saleItemCat({ cat:'Chains' }) === 'Chains' && a.saleItemCat({}) === 'Other', 'custom line -> its own cat, else Other');
+  var src = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', '06-inventory-stock.js'), 'utf8');
+  assert(src.indexOf("i.category || i.cat || 'Other'") === -1, 'the "Other"-only category rule is still in use');
+});
+
 test('girvi item description is escaped on the loan card', function(){
   var html = app.girviLoanCardHTML({ id:'g1', grvNo:'GRV-1', customer:'C', phone:'9', status:'active',
     items:[{ desc:HOSTILE, type:'Ring', metal:'gold', purity:'22K', weight:2, qty:1 }], amount:1000, rate:2,
