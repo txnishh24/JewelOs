@@ -93,6 +93,9 @@ function stockSV(){return S.products.filter(function(p){return p.metal==='silver
 
 // ─── TABS ─────────────────────────────────────────────────────────────────
 function renderTab(tab){
+  // F4: leaving the Sale tab abandons an order conversion, so the next,
+  // unrelated sale can't be billed against that order.
+  if(tab!=='sales') _pendingOrderConversion = null;
   // Re-checked on every screen change so the state stays honest across a
   // session left open overnight, and the warn banner returns the next day.
   if(typeof renderSubBanner === 'function') renderSubBanner();
@@ -1330,7 +1333,7 @@ function recordSale(){
     if(!ok)return;
   }
   if(sale.invNo && invNoInUse(sale.invNo)){
-    toast('⚠ Invoice '+sale.invNo+' already exists. Clear the Invoice No. box to get the next number.');
+    toast('\u26a0 Invoice '+sale.invNo+' already exists. Clear the Invoice No. box to get the next number.');
     return;
   }
   // Duplicate bill guard — catches a second, separate click after the
@@ -1360,8 +1363,8 @@ function _commitSaleTransaction(sale){
     if(err){
       _saleSubmitLock = false;
       toast(err.message === 'counter-behind'
-        ? '⚠ Could not get a free invoice number. Please contact JewelOS support.'
-        : '⚠ Could not get an invoice number. Check your internet and try again.');
+        ? '\u26a0 Could not get a free invoice number. Please contact JewelOS support.'
+        : '\u26a0 Could not get an invoice number. Check your internet and try again.');
       return;
     }
     sale.invNo = invNo;
@@ -1418,7 +1421,7 @@ function _commitSaleTransactionNow(sale, ctx){
   // pre-commit value so a failed save can restore it exactly, not just -1.
   var _prevNextInvNo = S.nextInvNo;
   var _usedInvNo = parseInt((sale.invNo||'').replace(/\D/g,''),10);
-  // F3: max(), never "+1 anyway" — S.nextInvNo is the server counter's floor
+  // F3: max(), never "+1 anyway" -- S.nextInvNo is the server counter's floor
   // (migration 004), so any extra bump becomes a skipped GST number.
   if(!isNaN(_usedInvNo)) S.nextInvNo = Math.max(S.nextInvNo, _usedInvNo+1);
   if(ctx.mode!=='custom'){
@@ -1625,6 +1628,7 @@ function refreshCustomItemDisplay(i,item){
 }
 
 function clearSale(){
+  _pendingOrderConversion = null; // F4: a cleared form is no longer that order's bill
   UI.saleItems=[{pid:'',qty:1,blackBeads:0,diamondWt:0,otherWt:0}];
   customSaleItems=[{name:'',metal:'gold',purity:'22K',grossWt:0,blackBeads:0,diamond:0,making:0,stoneCharges:0}];
   var cwrap=document.getElementById('custom-sale-items');if(cwrap)cwrap.innerHTML='';

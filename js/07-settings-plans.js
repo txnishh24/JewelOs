@@ -668,6 +668,11 @@ function saveGirviEntry(){
     var idx=(S.girvi||[]).findIndex(function(x){return x.id===GF_EDIT_ID;});
     if(idx===-1){toast('Not found');return;}
     var g=S.girvi[idx];
+    if(_girviLocked(g.id)){toast('Already saving, please wait');return;}
+    // F4: snapshot the loan and the customer list (linkGirviToCustomer can
+    // change or create a customer) so a failed save undoes both.
+    var _gSnap=_girviSnapshot(g.id), _custSnap=JSON.stringify(S.customers||[]);
+    _girviLock(g.id);
     if(!g.ledger)g.ledger=[];
     g.ledger.push({type:'edit',note:'Entry edited',ts:new Date().toISOString()});
     g.customer=cust; g.phone=phone; g.risk=document.getElementById('gf-risk').value;
@@ -686,13 +691,23 @@ function saveGirviEntry(){
     g.notes=(document.getElementById('gf-notes').value||'').trim();
     g.status=girviComputeStatus(g);
     linkGirviToCustomer(g);
-    closeGirviModal();
-    if(typeof saasActivityLog==='function') saasActivityLog('girvi','Girvi updated: '+(g.grvNo||'')+' \u20b9'+principal);
-    saveToCloud(function(err){
-      if(!err){renderGirvi();renderDash();toast('\u2705 Girvi updated!');}
+    // F4: the wizard stays open until the cloud has it; a failed save rolls
+    // back and says "tap to retry" instead of pretending to be saved.
+    _girviCommit(g.id, {snapshot:_gSnap, failMsg:SAVE_RETRY_MSG,
+      restore:function(){ S.customers=JSON.parse(_custSnap); }}, function(err){
+      renderGirvi();renderDash();
+      if(err) return;
+      closeGirviModal();
+      if(typeof saasActivityLog==='function') saasActivityLog('girvi','Girvi updated: '+(g.grvNo||'')+' \u20b9'+principal);
+      toast('\u2705 Girvi updated!');
     });
     return;
   }
+
+  // F4: one new loan at a time -- the wizard now stays open on a failed save,
+  // so a quick second tap must not start a second loan.
+  if(_girviLocked('__new')){toast('Already saving, please wait');return;}
+  _girviLock('__new');
 
   // ── CREATE PATH: build a brand-new record and push it. ──────────────────
   var _grvFormData = {
@@ -732,6 +747,7 @@ function saveGirviEntry(){
     _grvFormData._seq  = usedNum;
     if(usedNum>=S.nextGirviId) S.nextGirviId=usedNum+1;
     if(!S.girvi) S.girvi=[];
+    var _custSnap=JSON.stringify(S.customers||[]); // F4: undo the customer link + photos on failure
     S.girvi.push(_grvFormData);
     var _gCust = linkGirviToCustomer(_grvFormData);
     // Ornament photos from step 3 live on the customer's profile, each tagged
@@ -744,13 +760,19 @@ function saveGirviEntry(){
                                     girviId:_grvFormData.id, grvNo:grvNo});
       });
       _grvFormData.photoCount = GF_PHOTOS.length;
-      GF_PHOTOS = [];
     }
-    closeGirviModal();
-    if(typeof saasActivityLog==='function') saasActivityLog('girvi','Girvi created: '+grvNo+' \u20b9'+principal);
-    saveToCloud(function(err){
-      if(!err){renderGirvi();renderDash();toast('\u2705 Girvi created! '+grvNo);}
-      else{toast('\u26a0 Saved locally but cloud sync failed — will retry');renderGirvi();renderDash();}
+    // F4: was "Saved locally -- will retry": nothing retried, and the next
+    // refresh deleted the loan and its photos. Now a failed save removes the
+    // loan and the customer changes, keeps the wizard (and GF_PHOTOS) as
+    // typed, and asks for a retry. A retry gets a fresh GRV number (a gap).
+    _girviCommit('__new', {snapshot:null, newIds:[_grvFormData.id], failMsg:SAVE_RETRY_MSG,
+      restore:function(){ S.customers=JSON.parse(_custSnap); }}, function(err){
+      renderGirvi();renderDash();
+      if(err) return;
+      GF_PHOTOS = [];
+      closeGirviModal();
+      if(typeof saasActivityLog==='function') saasActivityLog('girvi','Girvi created: '+grvNo+' \u20b9'+principal);
+      toast('\u2705 Girvi created! '+grvNo);
     });
   });
 }

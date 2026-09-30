@@ -9,9 +9,10 @@
 // left in the list, the jeweller is told "Not saved — tap to retry", and
 // tapping save again once the connection is back creates it exactly once.
 //
-// How the failure is simulated: every store-proxy POST that is a SAVE is
-// aborted; the number counter (increment_counter) is let through, as it
-// would be on a flaky connection that drops the larger request.
+// How the failure is simulated: every store-proxy PUT (a save) is aborted;
+// loads (GET) and the number counter (POST increment_counter) go through, as
+// on a flaky connection that drops the larger request. saveToCloud retries
+// for ~22 s (2 + 5 + 15 s) before it reports the failure, hence the waits.
 
 const { test, expect } = require('@playwright/test');
 const { login, goToTab, runId } = require('./fixtures/testShop');
@@ -19,13 +20,14 @@ const { login, goToTab, runId } = require('./fixtures/testShop');
 async function blockSaves(page) {
   await page.route('**/functions/v1/store-proxy', (route) => {
     const req = route.request();
-    if (req.method() === 'POST' && !(req.postData() || '').includes('increment_counter')) return route.abort();
+    if (req.method() === 'PUT') return route.abort();
     return route.continue();
   });
 }
 
 test.describe('failed saves (F4)', () => {
   test('a Girvi loan whose save fails stays in the open wizard, then saves once on retry', async ({ page }) => {
+    test.setTimeout(120 * 1000);
     const id = runId();
     const customerName = 'E2E F4 Girvi ' + id;
 
@@ -47,20 +49,21 @@ test.describe('failed saves (F4)', () => {
     await blockSaves(page);
     await page.locator('#gf-next-btn').click();
 
-    await expect(page.getByText(/not saved.*tap to retry/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/not saved.*tap to retry/i)).toBeVisible({ timeout: 40000 });
     await expect(page.locator('#girvi-modal')).toBeVisible();
     const afterFail = await page.evaluate((c) => S.girvi.filter((g) => g.customer === c).length, customerName);
     expect(afterFail, 'a loan that did not save must not be in the shop data').toBe(0);
 
     await page.unroute('**/functions/v1/store-proxy');
     await page.locator('#gf-next-btn').click();
-    await expect(page.locator('.girvi-card', { hasText: customerName })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.girvi-card', { hasText: customerName })).toBeVisible({ timeout: 40000 });
     await expect(page.locator('#girvi-modal')).toBeHidden();
     const afterRetry = await page.evaluate((c) => S.girvi.filter((g) => g.customer === c).length, customerName);
     expect(afterRetry, 'retry must create the loan exactly once').toBe(1);
   });
 
   test('an order whose save fails stays in the open form, then saves once on retry', async ({ page }) => {
+    test.setTimeout(120 * 1000);
     const id = runId();
     const customerName = 'E2E F4 Order ' + id;
 
@@ -75,7 +78,7 @@ test.describe('failed saves (F4)', () => {
     await blockSaves(page);
     await page.getByRole('button', { name: /save & sync order/i }).click();
 
-    await expect(page.getByText(/not saved.*tap to retry/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/not saved.*tap to retry/i)).toBeVisible({ timeout: 40000 });
     await expect(page.locator('#ord-form')).toBeVisible();
     const afterFail = await page.evaluate((c) => S.orders.filter((o) => o.customer === c).length, customerName);
     expect(afterFail, 'an order that did not save must not be in the shop data').toBe(0);

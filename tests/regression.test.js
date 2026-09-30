@@ -3110,6 +3110,81 @@ test('the sale form, a cleared form and Convert to Sale never pre-fill a local i
   assert(!/'INV-'\s*\+\s*String\(S\.nextInvNo\)/.test(src), 'found a local INV- number built from S.nextInvNo — numbers must come from allocInvNo()');
 });
 
+console.log('\nF4 — failed money saves roll back, never look saved (30 Sep):');
+
+function _girviHarness(){
+  var a = require('./harness.js').loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-0001', status:'active', principal:1000, interestRate:2,
+    rateType:'monthly', duration:3, startDate:'2026-01-01', ledger:[], payments:[] }];
+  a.safeConfirm = function(t, m, ok){ ok(); };
+  a.closeGirviDetail = function(){}; a.renderGirvi = function(){}; a.renderDash = function(){};
+  return a;
+}
+
+test('a failed Girvi close, default, archive or recover leaves the loan exactly as it was', function(){
+  ['closeGirviManual','markGirviDefault','deleteGirviEntry','recoverGirviEntry'].forEach(function(fn){
+    var a = _girviHarness();
+    if(fn === 'recoverGirviEntry') a.S.girvi[0]._deleted = true;
+    var before = JSON.stringify(a.S.girvi[0]);
+    a.saveToCloud = function(cb){ cb(new Error('network down')); };
+    a[fn]('g1');
+    assert(JSON.stringify(a.S.girvi[0]) === before, fn + ': loan changed after a failed save: ' + JSON.stringify(a.S.girvi[0]));
+    assert(!a._girviLocked('g1'), fn + ': the loan must be unlocked for a retry');
+  });
+});
+
+test('a successful Girvi close still closes the loan', function(){
+  var a = _girviHarness();
+  a.saveToCloud = function(cb){ cb(null); };
+  a.closeGirviManual('g1');
+  assert(a.S.girvi[0].status === 'closed', 'expected closed, got ' + a.S.girvi[0].status);
+});
+
+test('a second close tap while the first is saving is ignored', function(){
+  var a = _girviHarness();
+  var saves = 0;
+  a.saveToCloud = function(){ saves++; }; // never answers
+  a.closeGirviManual('g1');
+  a.closeGirviManual('g1');
+  assert(saves === 1, 'expected one save, got ' + saves);
+});
+
+test('_orderCommit on failure removes a brand-new order and runs the extra restore', function(){
+  var a = require('./harness.js').loadApp();
+  a.S.orders = [{ id:'o-old' }, { id:'o-new' }];
+  a.S.nextOrdId = 8;
+  a.saveToCloud = function(cb){ cb(new Error('network down')); };
+  var msg = '';
+  a.toast = function(m){ msg = m; };
+  a._orderCommit('__new', { snapshot:null, newIds:['o-new'], failMsg:a.SAVE_RETRY_MSG,
+    restore:function(){ a.S.nextOrdId = 7; } });
+  assert(a.S.orders.length === 1 && a.S.orders[0].id === 'o-old', 'new order must be removed, got ' + JSON.stringify(a.S.orders));
+  assert(a.S.nextOrdId === 7, 'order number must be given back, got ' + a.S.nextOrdId);
+  assert(/tap to retry/i.test(msg), 'expected the retry message, got ' + msg);
+});
+
+test('_girviCommit runs the extra restore (customer record) before caching', function(){
+  var a = require('./harness.js').loadApp();
+  a.S.customers = [{ id:'c1', ornamentPhotos:[{ id:'p1' }] }];
+  a.saveToCloud = function(cb){ cb(new Error('network down')); };
+  var cachedPhotos = -1;
+  a.saveCache = function(){ cachedPhotos = a.S.customers[0].ornamentPhotos.length; };
+  a._girviCommit('__new', { snapshot:null, newIds:[], restore:function(){ a.S.customers = [{ id:'c1', ornamentPhotos:[] }]; } });
+  assert(cachedPhotos === 0, 'the cache must be written after the customer restore, saw ' + cachedPhotos + ' photo(s)');
+});
+
+test('leaving the Sale tab or clearing the form abandons a pending order conversion', function(){
+  var a = require('./harness.js').loadApp();
+  a._pendingOrderConversion = 'o1';
+  try { a.renderTab('orders'); } catch(e) { /* render stubs may throw after the reset; only the reset matters */ }
+  assert(a._pendingOrderConversion === null, 'leaving Sale must clear it, got ' + a._pendingOrderConversion);
+  a._pendingOrderConversion = 'o1';
+  try { a.renderTab('sales'); } catch(e) {}
+  assert(a._pendingOrderConversion === 'o1', 'staying on Sale must keep it');
+  try { a.clearSale(); } catch(e) {}
+  assert(a._pendingOrderConversion === null, 'Clear must clear it, got ' + a._pendingOrderConversion);
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

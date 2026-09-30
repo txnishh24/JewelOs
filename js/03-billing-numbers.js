@@ -1432,6 +1432,10 @@ function saveOrder(){
   var validItems=ordItems.filter(function(x){return x.desc.trim();});
   if(!validItems.length){toast('Enter at least one item description');return;}
   if(!delivery){toast('Select delivery date');return;}
+  // F4: one new order at a time -- the form stays open on a failed save.
+  if(_orderLocked('__new')){toast('Already saving, please wait');return;}
+  _orderLock('__new');
+  var _prevNextOrdId=S.nextOrdId;
   if(!S.orders)S.orders=[];
   var now=new Date().toISOString();
   var advAmt=parseFloat((document.getElementById('of-adv-amt')||{value:0}).value)||0;
@@ -1472,12 +1476,16 @@ function saveOrder(){
     statusHistory:[{status:'new',date:now,note:'Order created'}]
   };
   S.orders.push(ord);
-  saveToCloud(function(err){
-    if(!err){
-      ordItems=[{desc:'',cat:'Rings',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''}];
-      toggleOrdForm(); renderOrders();
-      toast('&#10003; '+ord.ordNo+' saved!');
-    }
+  // F4: was a bare save -- a failure left the order on screen until the next
+  // refresh silently removed it. Now it is removed at once (and the order
+  // number given back), the form stays filled in, and the jeweller retries.
+  _orderCommit('__new', {snapshot:null, newIds:[ord.id], failMsg:SAVE_RETRY_MSG,
+    restore:function(){ S.nextOrdId=_prevNextOrdId; }}, function(err){
+    renderOrders();
+    if(err) return;
+    ordItems=[{desc:'',cat:'Rings',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''}];
+    toggleOrdForm();
+    toast('\u2713 '+ord.ordNo+' saved!');
   });
 }
 

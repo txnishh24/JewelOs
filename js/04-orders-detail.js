@@ -1546,11 +1546,12 @@ function girviRiskBadge(r){
     ? 'Outstanding \u20b9'+Math.round(outstanding).toLocaleString('en-IN')+' still pending. Force-close anyway?'
     : 'Release item and close Girvi '+g.grvNo+'?';
   safeConfirm('Close '+g.grvNo+'?', closeMsg, function(){
+    if(_girviLocked(g.id)){toast('Already saving, please wait');return;} var _snap=_girviSnapshot(g.id); _girviLock(g.id); // F4: rollback + lock
     g.status='closed'; g.closedAt=new Date().toISOString();
     if(!g.ledger)g.ledger=[];
     g.ledger.push({type:'closed',note:'Manually closed',ts:new Date().toISOString()});
     closeGirviDetail();
-    saveToCloud(function(err){if(!err){renderGirvi();renderDash();toast('Girvi '+g.grvNo+' closed');}});
+    _girviCommit(g.id, {snapshot:_snap}, function(err){renderGirvi();renderDash();if(!err){toast('Girvi '+g.grvNo+' closed');}});
   }, outstanding>1);
   return;
 }
@@ -1558,11 +1559,12 @@ function girviRiskBadge(r){
 function markGirviDefault(gid){
   var g=(S.girvi||[]).find(function(x){return x.id===gid;});if(!g)return;
   safeConfirm('Mark as defaulted?','Mark Girvi '+g.grvNo+' as DEFAULTED? This changes its status permanently.',function(){
+    if(_girviLocked(g.id)){toast('Already saving, please wait');return;} var _snap=_girviSnapshot(g.id); _girviLock(g.id); // F4: rollback + lock
     g.status='defaulted';
     if(!g.ledger)g.ledger=[];
     g.ledger.push({type:'defaulted',note:'Marked as defaulted',ts:new Date().toISOString()});
     closeGirviDetail();
-    saveToCloud(function(err){if(!err){renderGirvi();renderDash();toast('Girvi '+g.grvNo+' marked defaulted');}});
+    _girviCommit(g.id, {snapshot:_snap}, function(err){renderGirvi();renderDash();if(!err){toast('Girvi '+g.grvNo+' marked defaulted');}});
   },true);
   return;
 }
@@ -1576,6 +1578,7 @@ function deleteGirviEntry(gid){
   // action, so the confirm button matches the amber Archive trigger instead
   // of the red used for actually-destructive confirms.
   safeConfirm('Archive '+g.grvNo+'?','This will archive (soft-delete) the record. It can be recovered from the Archived tab.',function(){
+    if(_girviLocked(g.id)){toast('Already saving, please wait');return;} var _snap=_girviSnapshot(g.id); _girviLock(g.id); // F4: rollback + lock
     g._deleted=true;
     g._deletedAt=new Date().toISOString();
     g._deletedBy=currentUser;
@@ -1583,17 +1586,18 @@ function deleteGirviEntry(gid){
     g.ledger.push({type:'deleted',note:'Archived by '+currentUser,ts:new Date().toISOString(),user:currentUser});
     if(typeof auditLog==='function') auditLog('delete','girvi',g.id,'Archived by '+currentUser);
     closeGirviDetail();
-    saveToCloud(function(err){if(!err){renderGirvi();renderDash();toast('📦 Girvi '+g.grvNo+' archived');}});
+    _girviCommit(g.id, {snapshot:_snap}, function(err){renderGirvi();renderDash();if(!err){toast('\ud83d\udce6 Girvi '+g.grvNo+' archived');}});
   });
 }
 
 function recoverGirviEntry(gid){
   var g=(S.girvi||[]).find(function(x){return x.id===gid;});if(!g)return;
   var currentUser=(typeof SAAS!=='undefined'&&SAAS.user)?(SAAS.user.name||SAAS.user.email||'User'):'User';
+  if(_girviLocked(g.id)){toast('Already saving, please wait');return;} var _snap=_girviSnapshot(g.id); _girviLock(g.id); // F4: rollback + lock
   delete g._deleted; delete g._deletedAt; delete g._deletedBy;
   if(!g.ledger)g.ledger=[];
   g.ledger.push({type:'edit',note:'Recovered from archive by '+currentUser,ts:new Date().toISOString(),user:currentUser});
-  saveToCloud(function(err){if(!err){renderGirvi();toast('✅ Girvi '+g.grvNo+' recovered');}});
+  _girviCommit(g.id, {snapshot:_snap}, function(err){renderGirvi();renderDash();if(!err){toast('\u2705 Girvi '+g.grvNo+' recovered');}});
 }
 
 // ═══ END GIRVI MODULE ═══
