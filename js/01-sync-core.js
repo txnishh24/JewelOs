@@ -174,7 +174,15 @@ function saveToCloud(callback){
     return;
   }
   var shopKey = _getShopRowKey();
+  // Cowork's Opus review 30 Sep: a save that timed out (or lost its answer)
+  // may still have landed; its retry then hits a version conflict. The
+  // conflict reply carries the stored data, so this id tells "my own earlier
+  // attempt landed" (a success) from another device's save (a real conflict)
+  // -- otherwise the sale is rolled back here, reappears on reload, and a
+  // resubmit makes a duplicate bill.
+  var saveId = Date.now().toString(36) + Math.random().toString(36).slice(2);
   var dataPayload = {
+    _saveId:     saveId,
     products:    S.products,
     sales:       S.sales,
     orders:      S.orders    || [],
@@ -276,6 +284,11 @@ function saveToCloud(callback){
         setSyncStatus('err','Not allowed');
         toast('\u26a0 ' + ((res.body && res.body.message) || 'Your account cannot save changes.'));
         if(callback) callback(new Error('forbidden'));
+        return;
+      }
+      if(res.body && res.body.conflict && res.body.data && res.body.data._saveId === saveId){
+        console.warn('[JewelOS] save conflict was our own earlier attempt -- it landed');
+        _done_ok(res.body);
         return;
       }
       if(res.body && res.body.conflict){
@@ -614,9 +627,16 @@ function getNextCounter(counterName, callback){
 }
 
 // F3 (30 Sep): true if this shop already has a sale with this invoice number.
+// "INV-40", "inv-040" and " INV-0040 " are the same invoice (Cowork review
+// 30 Sep) -- the same rule migration 005 uses to read the highest bill.
+function _invKey(v){
+  var s = String(v||'').trim().toUpperCase();
+  var m = /^INV-0*(\d+)$/.exec(s);
+  return m ? 'INV#' + m[1] : s;
+}
 function invNoInUse(invNo){
-  var n = String(invNo||'').trim().toUpperCase();
-  return !!n && (S.sales||[]).some(function(s){ return String(s.invNo||'').trim().toUpperCase() === n; });
+  var n = _invKey(invNo);
+  return !!n && (S.sales||[]).some(function(s){ return _invKey(s.invNo) === n; });
 }
 
 // F3 (30 Sep): invoice numbers come ONLY from the server's atomic counter,

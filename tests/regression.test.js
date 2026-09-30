@@ -1197,6 +1197,43 @@ testAsync('a save on a stalled connection gives up after its retries instead of 
   });
 });
 
+// Opus review item 3 (30 Sep): a save whose answer was lost may have landed.
+function landedApp(conflictSaveId){
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  a.setTimeout = function(f, ms){ if(ms < 60000) f(); return 1; }; // retries run at once; the 60 s timeout never fires
+  a.clearTimeout = function(){};
+  var puts = 0;
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      puts++;
+      var sent = JSON.parse(opts.body).data;
+      if(puts === 1) return Promise.reject(new Error('connection dropped after the server saved'));
+      var current = Object.assign({}, sent, { _v:9, _saveId: conflictSaveId === 'mine' ? sent._saveId : 'other-device' });
+      return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ ok:false, conflict:true, data:current }); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ _v:9 } }); } });
+  };
+  return a;
+}
+
+testAsync('a retry that conflicts with its OWN earlier attempt counts as saved, not rolled back', function(){
+  var a = landedApp('mine'), result = 'pending';
+  a.saveToCloud(function(err){ result = err ? err.message : 'saved'; });
+  return flushAll(16).then(function(){
+    assert(result === 'saved', 'the save landed the first time, so the caller must hear success, got ' + result);
+    assert(a._loadedVersion === 9, 'the version must follow the landed save, got ' + a._loadedVersion);
+  });
+});
+
+testAsync('a retry that conflicts with ANOTHER device is still a real conflict', function(){
+  var a = landedApp('other'), result = 'pending';
+  a.saveToCloud(function(err){ result = err ? err.message : 'saved'; });
+  return flushAll(16).then(function(){
+    assert(result === 'version-conflict', 'expected version-conflict, got ' + result);
+  });
+});
+
 testAsync('after signing in again from a failed boot load, data reloads and auto-refresh starts', function(){
   var a = reauthApp('ok'), refreshStarted = 0, gets = 0;
   var baseFetch = a.fetch;
@@ -3185,6 +3222,38 @@ test('a typed invoice number never moves the shop series (FY-style, pasted phone
     assert(a.S.sales.length === 1 && a.S.sales[0].invNo === typed, typed + ': the typed number should be kept on the bill as typed');
     assert(a.S.nextInvNo === 31, typed + ': the series must stay at 31, got ' + a.S.nextInvNo);
   });
+});
+
+test('a typed INV- number far above the series is refused; one within reach is kept', function(){
+  function tryTyped(typed){
+    var a = _freshSaleHarness(), saves = 0;
+    a.saveToCloud = function(cb){ saves++; cb(null); };
+    a.S.nextInvNo = 31;
+    var _orig = a.document.getElementById;
+    a.document.getElementById = function(id){ return id === 's-cust' ? { style:{}, value:'Test Customer' } : _orig(id); };
+    a.buildSaleObj = function(){ var s = _sale('X'); s.invNo = typed; return s; };
+    a.recordSale();
+    return saves;
+  }
+  assert(tryTyped('INV-3000') === 0, 'INV-3000 when the series is at 31 is a typo and must be refused');
+  assert(tryTyped('inv-99999999999') === 0, 'a huge typed INV- number must be refused');
+  assert(tryTyped('INV-040') === 1, 'INV-040 is within reach and should save');
+  assert(tryTyped('2025-26/001') === 1, 'a non-INV format is kept as typed (it never moves the series)');
+});
+
+test('INV-40, inv-040 and " INV-0040 " are the same invoice when checking for duplicates', function(){
+  var a = require('./harness.js').loadApp();
+  a.S.sales = [{ invNo:'INV-040' }];
+  assert(a.invNoInUse('INV-40') && a.invNoInUse('inv-040') && a.invNoInUse(' INV-0040 '), 'all three should match INV-040');
+  assert(!a.invNoInUse('INV-400') && !a.invNoInUse('INV-4'), 'different numbers must not match');
+});
+
+test('an exception on the TYPED-number path also releases the lock', function(){
+  var a = _freshSaleHarness();
+  a.saveToCloud = function(){ throw new Error('boom'); };
+  var s = _sale('1'); s.invNo = 'INV-500';
+  a._commitSaleTransaction(s);
+  assert(a._saleSubmitLock === false && a.S.sales.length === 0, 'lock released and no unsaved sale left');
 });
 
 test('an exception inside the sale commit releases the lock and leaves no unsaved sale behind', function(){

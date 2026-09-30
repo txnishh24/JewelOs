@@ -1336,6 +1336,14 @@ function recordSale(){
     toast('\u26a0 Invoice '+sale.invNo+' already exists. Clear the Invoice No. box to get the next number.');
     return;
   }
+  // A typed number in the counter's own format far above the series would,
+  // as a real bill, move the server's floor (migration 005) -- a typo like
+  // INV-3000 for INV-030 would jump every later invoice. Refuse it.
+  var _typedNo = /^\s*INV-0*(\d+)\s*$/i.exec(sale.invNo||'');
+  if(_typedNo && parseInt(_typedNo[1],10) > (S.nextInvNo||1) + 1000){
+    toast('\u26a0 Invoice '+sale.invNo+' is far ahead of your series. Check for a typo, or clear the Invoice No. box to get the next number.');
+    return;
+  }
   // Duplicate bill guard — catches a second, separate click after the
   // first sale already finished (different scenario from the in-flight
   // lock above, which catches a click while the first is still saving)
@@ -1357,7 +1365,19 @@ function recordSale(){
 // flight must not change what this sale deducts or which order it bills.
 function _commitSaleTransaction(sale){
   var ctx = { items: UI.saleItems.slice(), mode: UI.saleMode, order: _pendingOrderConversion };
-  if(sale.invNo){ _commitSaleTransactionNow(sale, ctx); return; }
+  // Cowork review 30 Sep: an exception in the commit must not leave the
+  // submit lock set (every Record tap refused) or an unsaved sale in S --
+  // on the typed-number path as well as the server-number one.
+  function run(){
+    try { _commitSaleTransactionNow(sale, ctx); }
+    catch(e){
+      _saleSubmitLock = false;
+      S.sales = S.sales.filter(function(s){ return s.id !== sale.id; });
+      console.error('[JewelOS] sale commit threw:', e);
+      toast('\u26a0 Sale not recorded. Please try again.');
+    }
+  }
+  if(sale.invNo){ run(); return; }
   _saleSubmitLock = true;
   allocInvNo(function(err, invNo){
     if(err){
@@ -1369,15 +1389,7 @@ function _commitSaleTransaction(sale){
     }
     sale.invNo = invNo;
     ctx.issuedNo = parseInt(invNo.slice(4), 10); // only server-issued numbers move the series (below)
-    // Cowork review 30 Sep: an exception in the commit must not leave the
-    // submit lock set (every Record tap refused) or an unsaved sale in S.
-    try { _commitSaleTransactionNow(sale, ctx); }
-    catch(e){
-      _saleSubmitLock = false;
-      S.sales = S.sales.filter(function(s){ return s.id !== sale.id; });
-      console.error('[JewelOS] sale commit threw:', e);
-      toast('\u26a0 Sale not recorded. Please try again.');
-    }
+    run();
   });
 }
 

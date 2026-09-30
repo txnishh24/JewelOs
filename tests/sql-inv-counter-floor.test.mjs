@@ -1,4 +1,5 @@
-// Runs supabase/migrations/004 against real Postgres (PGlite, in-process WASM).
+// Runs the invoice counter (002 table, then 004, then 005 — the order production
+// sees) against real Postgres (PGlite, in-process WASM).
 // Not in npm deps on purpose — one-off: npm i --no-save @electric-sql/pglite@0.2 && node tests/sql-inv-counter-floor.test.mjs
 import { PGlite } from '@electric-sql/pglite';
 import fs from 'fs';
@@ -7,38 +8,49 @@ const db = new PGlite();
 const R = fileURLToPath(new URL('../supabase/migrations/', import.meta.url));
 await db.exec(`create role anon; create role authenticated; create role service_role;
   create table public.store (id text primary key, data jsonb, updated_at timestamptz default now());`);
-// 002's counters table + old function, then 004 on top — as the live DB will see it
 const m2 = fs.readFileSync(R+'002_atomic_transactions.sql','utf8');
 await db.exec(m2.slice(m2.indexOf('-- ── COUNTERS TABLE'), m2.indexOf('-- ── TRUE ATOMIC COMPARE-AND-SWAP')));
 await db.exec(fs.readFileSync(R+'004_inv_counter_floor.sql','utf8'));
+await db.exec(fs.readFileSync(R+'005_inv_counter_floor_from_bills.sql','utf8'));
 const inc = async (s,c) => (await db.query('select increment_shop_counter($1,$2) v',[s,c])).rows[0].v;
 const ok = (c,m) => { if(!c){ console.log('FAIL', m); process.exitCode=1; } else console.log('ok  ', m); };
-// shop A: counter at 30, blob says next free is 34
-await db.query(`insert into counters values ('A_inv_no','A','inv_no',30,now())`);
-await db.query(`insert into store (id,data) values ('A','{"nextInvNo":34}')`);
-ok(await inc('A','inv_no')===34, 'counter behind the blob jumps to the next free number (34)');
-ok(await inc('A','inv_no')===35, 'then carries on from there (35)');
-// blob behind counter: no effect
-await db.query(`update store set data='{"nextInvNo":3}' where id='A'`);
-ok(await inc('A','inv_no')===36, 'a lower floor never pulls the counter back (36)');
-// brand new shop, no counter row, blob at 12
-await db.query(`insert into store (id,data) values ('B','{"nextInvNo":12}')`);
-ok(await inc('B','inv_no')===12, 'first-ever call for a shop starts at its next free number (12)');
-// no store row / no nextInvNo / string value
-ok(await inc('C','inv_no')===1, 'no saved data: starts at 1 as before');
-await db.query(`insert into store (id,data) values ('D','{"nextInvNo":"99"}')`);
-ok(await inc('D','inv_no')===1, 'a non-number nextInvNo is ignored');
-await db.query(`insert into store (id,data) values ('E','{"nextInvNo":1e12}')`);
-ok(await inc('E','inv_no')===1, 'a huge nextInvNo on a new counter is ignored (starts at 1), no overflow');
-ok(await inc('E','inv_no')===2, 'and the next call adds 1 (no "integer out of range", no jump)');
-// Cowork review 30 Sep: a typed FY-style number stripped to digits, or a crafted PUT.
-await db.query(`insert into counters values ('F_inv_no','F','inv_no',30,now())`);
-await db.query(`insert into store (id,data) values ('F','{"nextInvNo":202526002}')`);
-ok(await inc('F','inv_no')===31, 'an FY-style floor (202526002) is ignored: 30 -> 31, not a jump');
-await db.query(`insert into counters values ('G_inv_no','G','inv_no',30,now())`);
-await db.query(`insert into store (id,data) values ('G','{"nextInvNo":9876543211}')`);
-ok(await inc('G','inv_no')===31, 'a phone-number floor past the integer limit is ignored, no error');
-ok(await inc('G','inv_no')===32, 'and every later sale adds 1 — the bad floor never causes a jump');
-// other counters untouched by the floor
-await db.query(`update store set data='{"nextInvNo":500,"nextGirviId":500}' where id='A'`);
-ok(await inc('A','girvi_no')===1, 'girvi_no ignores the invoice floor');
+const shop = async (id, data, counter) => {
+  await db.query('insert into store (id,data) values ($1,$2)', [id, JSON.stringify(data)]);
+  if (counter != null) await db.query(`insert into counters values ($1,$1,'inv_no',$2,now())`.replace('$1,$1', `$1 || '_inv_no', $1`), [id, counter]);
+};
+const bills = (...nos) => nos.map((n) => ({ invNo: n }));
+
+await shop('A', { sales: bills('INV-031','INV-032','INV-033'), nextInvNo: 34 }, 30);
+ok(await inc('A','inv_no')===34, 'counter behind the real bills catches up (30 -> 34)');
+ok(await inc('A','inv_no')===35, 'then carries on (35)');
+
+// Opus item 1: a bad saved nextInvNo is no longer read at all.
+await shop('B', { sales: bills('INV-031'), nextInvNo: 1500 }, 499);
+ok(await inc('B','inv_no')===500, 'a bad nextInvNo (1500) near the counter causes no jump: 499 -> 500');
+ok(await inc('B','inv_no')===501, 'and never later either (501)');
+
+// Opus item 2: honest lag > 1000, and >1000 bills with no counter row.
+await shop('C', { sales: bills('INV-2500') }, 30);
+ok(await inc('C','inv_no')===2501, 'a lag of ~2500 catches up in one step (2501), no refused sales');
+await shop('D', { sales: Array.from({length: 1500}, (_, i) => ({ invNo: 'INV-' + String(i+1).padStart(3,'0') })) });
+ok(await inc('D','inv_no')===1501, 'a restored shop with 1500 bills and no counter row starts at 1501');
+
+// Only the INV-<digits> format counts; typed numbers move nothing.
+await shop('E', { sales: bills('2025-26/001','9876543210','A/15', null, 'INV-12') , nextInvNo: 202526002 }, 30);
+ok(await inc('E','inv_no')===31, 'FY-style, phone-number and other typed numbers are ignored: 30 -> 31');
+await shop('F', { sales: bills(' inv-0040 ') }, 10);
+ok(await inc('F','inv_no')===41, 'case, spaces and leading zeros are ignored: " inv-0040 " -> 41');
+await shop('G', { sales: bills('INV-99999999999') }, 30);
+ok(await inc('G','inv_no')===31, 'a bill number over 9 digits is ignored — no overflow');
+
+// Shapes that must not break.
+ok(await inc('H','inv_no')===1, 'no saved shop at all: starts at 1');
+await shop('I', { sales: 'oops' }, 5);
+ok(await inc('I','inv_no')===6, 'a sales field that is not a list is ignored (5 -> 6)');
+await shop('J', {}, null);
+ok(await inc('J','inv_no')===1, 'a shop with no sales starts at 1');
+ok(await inc('J','inv_no')===2, 'then 2');
+
+// Other counters untouched.
+await shop('K', { sales: bills('INV-900') }, null);
+ok(await inc('K','girvi_no')===1, 'girvi_no ignores invoice bills');
