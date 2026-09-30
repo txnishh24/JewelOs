@@ -956,6 +956,15 @@ function removeSI(i){UI.saleItems.splice(i,1);renderSaleItems();}
 var payStatus = 'full';
 
 var ogMode = 'direct'; // 'direct' | 'calc'
+// Old gold by weight: the jeweller's own deduction % (melting/wastage) comes
+// off the rate x weight value. Blank = 0 (Tanish 1 Oct, QA item 9).
+function ogDeductPct(){
+  var d = parseFloat((document.getElementById('s-oldgold-ded')||{value:''}).value)||0;
+  return Math.min(100, Math.max(0, d));
+}
+function ogCalcValue(wt, pur){
+  return (wt>0 && pur) ? getRate('gold',pur) * wt * (1 - ogDeductPct()/100) : 0;
+}
 function setOgMode(mode){
   ogMode = mode;
   var btnDirect = document.getElementById('og-mode-direct');
@@ -971,6 +980,7 @@ function setOgMode(mode){
     var wtEl=document.getElementById('s-oldgold-wt'); if(wtEl) wtEl.value='';
     var purEl=document.getElementById('s-oldgold-purity'); if(purEl) purEl.value='';
     var valEl=document.getElementById('s-oldgold-val'); if(valEl){valEl.value='';valEl._manualEdit=false;}
+    var dedEl=document.getElementById('s-oldgold-ded'); if(dedEl) dedEl.value='';
   } else {
     var dEl=document.getElementById('s-oldgold-direct'); if(dEl) dEl.value='';
   }
@@ -1033,7 +1043,7 @@ function updateSum(){
   mc+=(parseFloat(document.getElementById('s-making').value)||0);
   dc+=(parseFloat(document.getElementById('s-diamond').value)||0);
   var sub=gv+mc+dc;
-  var gstPct=parseFloat(document.getElementById('s-gst').value)||0;
+  var gstPct=_saleFormBillType==='gst'?(parseFloat(document.getElementById('s-gst').value)||0):0;
   var disc=parseFloat(document.getElementById('s-disc').value)||0;
   // Must match calcSaleTotals(): GST is charged on the value net of any
   // discount recorded at time of sale, not on the pre-discount subtotal —
@@ -1060,14 +1070,15 @@ function updateSum(){
     ogWt  = parseFloat((document.getElementById('s-oldgold-wt')||{value:0}).value)||0;
     ogPur = (document.getElementById('s-oldgold-purity')||{value:''}).value;
     var ogValOverride = parseFloat((document.getElementById('s-oldgold-val')||{value:''}).value)||0;
-    ogVal = ogValOverride>0 ? ogValOverride : (ogWt>0&&ogPur ? getRate('gold',ogPur)*ogWt : 0);
+    ogVal = ogValOverride>0 ? ogValOverride : ogCalcValue(ogWt, ogPur);
     // Auto-fill calculated value field
     var ogDisp = document.getElementById('s-oldgold-display');
     var ogValEl = document.getElementById('s-oldgold-val');
     if(ogWt>0&&ogPur&&!(ogValEl&&ogValEl._manualEdit)){
-      var autoV = Math.round(getRate('gold',ogPur)*ogWt);
+      var autoV = Math.round(ogCalcValue(ogWt, ogPur));
       if(ogValEl) ogValEl.value = autoV||'';
-      if(ogDisp){ ogDisp.style.display='block'; ogDisp.textContent='Auto: '+fmtW(ogWt)+' × '+fmt(getRate('gold',ogPur))+'/g = '+fmt(autoV); }
+      var ogDed = ogDeductPct();
+      if(ogDisp){ ogDisp.style.display='block'; ogDisp.textContent='Auto: '+fmtW(ogWt)+' × '+fmt(getRate('gold',ogPur))+'/g'+(ogDed>0?' − '+ogDed+'%':'')+' = '+fmt(autoV); }
     } else {
       if(ogDisp) ogDisp.style.display='none';
     }
@@ -1196,7 +1207,8 @@ function buildSaleObj(){
   mc+=(parseFloat(document.getElementById('s-making').value)||0);
   dc+=(parseFloat(document.getElementById('s-diamond').value)||0);
   var sub=gv+mc+dc;
-  var gstPct=parseFloat(document.getElementById('s-gst').value)||0;
+  // A Memo Bill never carries GST, whatever is left in the GST % box (Tanish 1 Oct).
+  var gstPct=_saleFormBillType==='gst'?(parseFloat(document.getElementById('s-gst').value)||0):0;
   var disc=parseFloat(document.getElementById('s-disc').value)||0;
   // Must match calcSaleTotals(): GST on the discount-adjusted taxable
   // value. This is the actual value locked onto the sale record below
@@ -1205,14 +1217,15 @@ function buildSaleObj(){
   var taxable=Math.max(0,sub-disc);
   var grand=Math.max(0,taxable+taxable*gstPct/100);
   // Collect all payment fields
-  var ogWtB=0,ogPurB='',ogValB=0;
+  var ogWtB=0,ogPurB='',ogValB=0,ogDedB=0;
   if(ogMode==='direct'){
     ogValB = parseFloat((document.getElementById('s-oldgold-direct')||{value:0}).value)||0;
   } else {
     ogWtB   = parseFloat((document.getElementById('s-oldgold-wt')||{value:0}).value)||0;
     ogPurB  = (document.getElementById('s-oldgold-purity')||{value:''}).value;
     var ogValOvB= parseFloat((document.getElementById('s-oldgold-val')||{value:''}).value)||0;
-    ogValB  = ogValOvB>0 ? ogValOvB : (ogWtB>0&&ogPurB ? getRate('gold',ogPurB)*ogWtB : 0);
+    ogValB  = ogValOvB>0 ? ogValOvB : ogCalcValue(ogWtB, ogPurB);
+    ogDedB  = ogDeductPct();
   }
   var prevAdvB= Math.max(0,parseFloat((document.getElementById('s-prev-advance')||{value:0}).value)||0);
   var prevAdvModeB = (document.getElementById('s-prev-advance-mode')||{value:'Cash'}).value;
@@ -1242,7 +1255,7 @@ function buildSaleObj(){
     advance:advForRecord,
     payStatus:payStatus,
     payment:nowPayModeB,
-    oldGold:{weight:ogWtB,purity:ogPurB,value:ogValB},
+    oldGold:{weight:ogWtB,purity:ogPurB,value:ogValB,deductPct:ogDedB},
     prevAdvance:{amount:prevAdvB,mode:prevAdvModeB},
     nowPaying:{amount:nowPayB,mode:nowPayModeB},
     splitPayments:splitPaymentsB,
@@ -1691,6 +1704,7 @@ function clearSale(){
   var ogWE=document.getElementById('s-oldgold-wt');if(ogWE)ogWE.value='';
   var ogVE=document.getElementById('s-oldgold-val');if(ogVE){ogVE.value='';ogVE._manualEdit=false;}
   var ogPE=document.getElementById('s-oldgold-purity');if(ogPE)ogPE.value='';
+  var ogDedE=document.getElementById('s-oldgold-ded');if(ogDedE)ogDedE.value='';
   var ogDD=document.getElementById('s-oldgold-display');if(ogDD)ogDD.style.display='none';
   var ogPA=document.getElementById('s-prev-advance');if(ogPA)ogPA.value='0';
   // UI resets
@@ -1701,7 +1715,7 @@ function clearSale(){
   if(typeof initSplitPayments==='function') initSplitPayments();
   setSaleMode('stock');
   setPayStatus('pending');
-  setSaleFormBillType('gst');
+  setSaleFormBillType(shopCanChargeGST() ? 'gst' : 'memo');
   renderSaleItems();
 }
 
@@ -1712,7 +1726,15 @@ var CURRENT_SALE_FOR_PDF = null;
 var _billType = 'gst'; // 'gst' | 'memo'
 var _saleFormBillType = 'gst'; // bill type selected on the sales form
 
+// Only a shop with a valid GSTIN may charge GST or print a Tax Invoice. Every
+// other bill is a Memo Bill with no GST at all (Tanish 1 Oct).
+function shopCanChargeGST(){ return isValidGSTIN(SAAS && SAAS.shop && SAAS.shop.gstin); }
+
 function setSaleFormBillType(type){
+  if(type === 'gst' && !shopCanChargeGST()){
+    type = 'memo';
+    if(_saleFormBillType === 'memo') toast('Add a valid GSTIN in Settings → Shop to make GST bills');
+  }
   _saleFormBillType = type;
   _billType = type; // keep invoice preview in sync
   var gstBtn  = document.getElementById('sform-btype-gst');
@@ -1742,6 +1764,7 @@ function setSaleFormBillType(type){
 }
 
 function setBillType(type){
+  if(type === 'gst' && !shopCanChargeGST() && !(CURRENT_SALE_FOR_PDF && (parseFloat(CURRENT_SALE_FOR_PDF.gst)||0) > 0)) type = 'memo';
   _billType = type;
   var gstBtn  = document.getElementById('btype-gst');
   var memoBtn = document.getElementById('btype-memo');
@@ -1767,7 +1790,9 @@ function setBillType(type){
 
 function buildInvoiceHTML(sale, billType){
   if(!billType) billType = _billType || 'gst';
-  var isGST  = (billType === 'gst');
+  // GST lines print only for a shop that may charge GST -- or for a sale that
+  // actually charged it, so an old bill's total still adds up on reprint.
+  var isGST  = (billType === 'gst') && (shopCanChargeGST() || (parseFloat(sale.gst)||0) > 0);
 
   // ── Shop details from SAAS (dynamic — never hardcoded) ──────────────
   var shop     = (SAAS && SAAS.shop) || {};
@@ -1847,7 +1872,7 @@ function buildInvoiceHTML(sale, billType){
 
   // ── Header label ────────────────────────────────────────────────────
   // QA 30 Sep: only a shop with a valid GSTIN may title the bill "Tax Invoice".
-  var _taxInvoice = isGST && isValidGSTIN(shop.gstin);
+  var _taxInvoice = isGST && shopCanChargeGST();
   var invoiceLabel = _taxInvoice ? 'Tax Invoice' : 'Memo Bill';
   var invoiceColor = _taxInvoice ? '#1a5fd4' : '#8a6a1f';
 
@@ -2001,7 +2026,7 @@ function buildInvoiceHTML(sale, billType){
       gstTotalsBlock+
       '<div class="tgrand"><span class="tgl">Grand Total</span><span class="tgv">'+fmt(t.grand)+'</span></div>'+
       ((sale.oldGold&&sale.oldGold.value>0)?
-        '<div class="tsettle"><span style="color:#6c757d;">&#9851; Old Gold'+(sale.oldGold.purity?' ('+sale.oldGold.purity+')':'')+'</span><span class="tv cr">&minus; '+fmt(sale.oldGold.value)+'</span></div>':'')+
+        '<div class="tsettle"><span style="color:#6c757d;">&#9851; Old Gold'+(sale.oldGold.purity?' ('+sale.oldGold.purity+')':'')+(sale.oldGold.deductPct>0?' less '+sale.oldGold.deductPct+'%':'')+'</span><span class="tv cr">&minus; '+fmt(sale.oldGold.value)+'</span></div>':'')+
       ((sale.prevAdvance&&sale.prevAdvance.amount>0)?
         '<div class="tsettle"><span style="color:#6c757d;">&#10003; Advance ('+sale.prevAdvance.mode+')</span><span class="tv cr">&minus; '+fmt(sale.prevAdvance.amount)+'</span></div>':'')+
       ((sale.splitPayments&&sale.splitPayments.length>0)?
@@ -2032,7 +2057,7 @@ function buildInvoiceHTML(sale, billType){
       '<div class="tx">Goods once sold will not be exchanged without original bill &middot; Exchange value subject to gold rates at time of exchange &middot; All disputes subject to local jurisdiction &middot; Computer generated invoice.</div></div>'+
     /* Footer */
     '<div class="ftr"><div class="ft">'+shopName+'</div>'+
-      (shopCity ? '<div class="fp">'+shopCity+(shopGSTIN&&isGST?' &ensp;&middot;&ensp; GSTIN: '+shopGSTIN:'')+'</div>' : '')+
+      (shopCity ? '<div class="fp">'+shopCity+(shopGSTIN&&_taxInvoice?' &ensp;&middot;&ensp; GSTIN: '+shopGSTIN:'')+'</div>' : '')+
       '<div class="seal">'+invoiceLabel+'</div>'+
     '</div>'+
     '</div></div></body></html>';

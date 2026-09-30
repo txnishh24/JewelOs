@@ -730,18 +730,24 @@ function fmt(n){
 // every bill printed as its time (QA 30 Sep). Blank -> now.
 // GSTIN format (QA 30 Sep: "INVALID123" was accepted and printed on a "TAX
 // INVOICE"): 2-digit state code, PAN (5 letters, 4 digits, 1 letter), entity
-// number, the fixed "Z", one check character. Format only -- no checksum.
+// number, the fixed "Z", one check character. The check character is the
+// GSTN mod-36 checksum of the first 14 (Cowork 1 Oct: a wrong one passed).
 function isValidGSTIN(v){
-  return /^[0-3][0-9][A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(String(v||'').trim().toUpperCase());
+  var g = String(v||'').trim().toUpperCase();
+  if(!/^[0-3][0-9][A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(g)) return false;
+  var C = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ', sum = 0;
+  for(var i=0;i<14;i++){ var p = C.indexOf(g.charAt(i)) * (i%2 ? 2 : 1); sum += Math.floor(p/36) + p%36; }
+  return C.charAt((36 - sum%36) % 36) === g.charAt(14);
 }
 // A phone as its 10 digits, accepting "+91 ..." or a leading 0 (the rule the
-// sale form uses). '' when blank, null when it isn't a 10-digit number.
+// sale form uses). '' when blank, null when it isn't an Indian mobile: 10
+// digits starting 6-9, not one digit repeated (Cowork 1 Oct).
 function normPhone10(v){
   var d = String(v||'').replace(/\D/g,'');
   if(!d) return '';
   if(d.length===12 && d.slice(0,2)==='91') d = d.slice(2);
   else if(d.length===11 && d.charAt(0)==='0') d = d.slice(1);
-  return d.length===10 ? d : null;
+  return (/^[6-9]\d{9}$/.test(d) && !/^(\d)\1{9}$/.test(d)) ? d : null;
 }
 function billDateISO(dayKey){
   var now = new Date();
@@ -1114,7 +1120,9 @@ function saveEditBill(){
   sale.splitPayments=savedSplits;
   if(savedSplits.length>0) sale.payment=savedSplits.map(function(s){return s.mode;}).join('+');
   if(prevAdvSave>0) sale.prevAdvance={amount:prevAdvSave,mode:(sale.prevAdvance&&sale.prevAdvance.mode)||'Cash'};
-  if(og>0) sale.oldGold={weight:sale.oldGold?sale.oldGold.weight:0, purity:sale.oldGold?sale.oldGold.purity:'', value:og};
+  // The deduction % describes the old value; a retyped value no longer matches it.
+  if(og>0) sale.oldGold={weight:sale.oldGold?sale.oldGold.weight:0, purity:sale.oldGold?sale.oldGold.purity:'', value:og,
+    deductPct:(sale.oldGold&&sale.oldGold.value===og)?(sale.oldGold.deductPct||0):0};
   // Recalculate and re-lock
   sale.lastEditedAt = new Date().toISOString();
   var t=calcSaleTotals(sale);

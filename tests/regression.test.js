@@ -1524,7 +1524,7 @@ test('a sale made at 00:30 IST counts as that day, not the previous one (dashboa
 });
 
 test('P0 item 2: GSTIN format check accepts a real-shaped GSTIN and rejects junk', function(){
-  assert(app.isValidGSTIN('27ABCDE1234F1Z5') && app.isValidGSTIN(' 29aaacr5055k1z7 '), 'well-formed GSTINs should pass');
+  assert(app.isValidGSTIN('27ABCDE1234F1Z0') && app.isValidGSTIN(' 29aaacr5055k1z3 '), 'well-formed GSTINs should pass');
   ['INVALID123', '27ABCDE1234F1Y5', '27ABCDE1234F1Z', '99ABCDE1234F1Z5', ''].forEach(function(g){
     assert(!app.isValidGSTIN(g), g + ' should be rejected');
   });
@@ -1541,12 +1541,78 @@ test('P0 item 2: the bill says "Tax Invoice" only when the shop GSTIN is valid',
   var saved = app.SAAS.shop;
   app.SAAS.shop = { name:'S', gstin:'INVALID123' };
   var bad = app.buildInvoiceHTML(sale, 'gst');
-  app.SAAS.shop = { name:'S', gstin:'27ABCDE1234F1Z5' };
+  app.SAAS.shop = { name:'S', gstin:'27ABCDE1234F1Z0' };
   var good = app.buildInvoiceHTML(sale, 'gst');
   app.SAAS.shop = saved;
   assert(bad.indexOf('Tax Invoice') === -1 && bad.indexOf('Memo Bill') !== -1, 'an invalid GSTIN must not print "Tax Invoice"');
   assert(bad.indexOf('INVALID123') === -1, 'the invalid GSTIN must not be printed');
-  assert(good.indexOf('Tax Invoice') !== -1 && good.indexOf('27ABCDE1234F1Z5') !== -1, 'a valid GSTIN prints a Tax Invoice with the GSTIN');
+  assert(good.indexOf('Tax Invoice') !== -1 && good.indexOf('27ABCDE1234F1Z0') !== -1, 'a valid GSTIN prints a Tax Invoice with the GSTIN');
+});
+
+test('batch36: GSTIN check digit is verified (Cowork 1 Oct)', function(){
+  assert(app.isValidGSTIN('27AAPFU0939F1ZV') && app.isValidGSTIN('29AAGCB7383J1Z4'), 'real GSTINs pass');
+  assert(!app.isValidGSTIN('27AAPFU0939F1ZX'), 'a wrong check digit is rejected');
+});
+
+test('batch36: phone must be an Indian mobile (starts 6-9, not all one digit)', function(){
+  ['0000000000', '5876543210', '9999999999', '1234567890'].forEach(function(v){
+    assert(app.normPhone10(v) === null, v + ' should be rejected');
+  });
+  assert(app.normPhone10('+91 98765 43210') === '9876543210' && app.normPhone10('6000012345') === '6000012345', 'real mobiles pass');
+});
+
+test('batch36: a Memo Bill carries no GST anywhere (Tanish 1 Oct)', function(){
+  var sale = { id:'s1', invNo:'INV-1', date:new Date().toISOString(), customer:'C', phone:'9876543210',
+    items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:0, discount:0 };
+  var saved = app.SAAS.shop;
+  [ '', 'INVALID123' ].forEach(function(g){
+    app.SAAS.shop = { name:'S', city:'Pune', gstin:g };
+    // a no/invalid-GSTIN shop asking for a GST bill still gets a memo
+    var h = app.buildInvoiceHTML(sale, 'gst').replace(/<style[\s\S]*?<\/style>/g, '');
+    assert(h.indexOf('Memo Bill') !== -1 && h.indexOf('Tax Invoice') === -1, 'memo heading for gstin=' + g);
+    assert(h.indexOf('GSTIN') === -1, 'no GSTIN label or value for gstin=' + g);
+    assert(h.indexOf('<th>HSN</th>') === -1 && h.indexOf('<th>GST</th>') === -1 && h.indexOf('>7113<') === -1, 'no HSN/GST columns for gstin=' + g);
+  });
+  app.SAAS.shop = saved;
+});
+
+test('batch36: a shop without a valid GSTIN cannot save GST onto a sale', function(){
+  var a = require('./harness.js').loadApp();
+  a.SAAS.shop = { name:'S', gstin:'' };
+  a.setSaleFormBillType('gst');
+  assert(a._saleFormBillType === 'memo', 'GST bill falls back to memo without a valid GSTIN');
+  a.SAAS.shop = { name:'S', gstin:'27AAPFU0939F1ZV' };
+  a.setSaleFormBillType('gst');
+  assert(a._saleFormBillType === 'gst', 'a valid GSTIN may choose a GST bill');
+  var src = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', '02-ui-inactivity-modals.js'), 'utf8');
+  assert((src.match(/var gstPct=_saleFormBillType==='gst'\?/g)||[]).length === 2, 'both the live total and the saved sale read GST % only on a GST bill');
+});
+
+test('batch36: an old sale that charged GST still shows its GST on reprint, whatever the GSTIN now', function(){
+  var sale = { id:'s1', invNo:'INV-1', date:new Date().toISOString(), customer:'C', phone:'9876543210',
+    items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:3, discount:0, billType:'gst' };
+  var saved = app.SAAS.shop;
+  app.SAAS.shop = { name:'S', city:'Pune', gstin:'27ABCDE1234F1Z5' }; // passed the old check, fails the new one
+  var h = app.buildInvoiceHTML(sale, 'gst').replace(/<style[\s\S]*?<\/style>/g, '');
+  app.SAAS.shop = saved;
+  assert(h.indexOf('<th>GST</th>') !== -1, 'the GST that was charged is still itemised, so the total adds up');
+  assert(h.indexOf('Tax Invoice') === -1 && h.indexOf('27ABCDE1234F1Z5') === -1, 'but it is not called a Tax Invoice and the bad GSTIN is not printed');
+});
+
+test('batch36 item 9: old-gold deduction % comes off the weight x rate value; blank = none', function(){
+  var a = require('./harness.js').loadApp(), ded = { value:'' };
+  a.getRate = function(){ return 7000; };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){ return id === 's-oldgold-ded' ? ded : _o(id); };
+  assert(a.ogCalcValue(10, '22K') === 70000, 'blank deduction keeps the full value');
+  ded.value = '8';
+  assert(Math.round(a.ogCalcValue(10, '22K')) === 64400, '8% off 70,000 is 64,400');
+  ded.value = '250';
+  assert(a.ogCalcValue(10, '22K') === 0, 'deduction is capped at 100%');
+  var sale = { id:'s1', invNo:'INV-1', date:new Date().toISOString(), customer:'C', phone:'9876543210',
+    items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:0, discount:0,
+    oldGold:{ weight:10, purity:'22K', value:64400, deductPct:8 } };
+  assert(a.buildInvoiceHTML(sale, 'memo').indexOf('less 8%') !== -1, 'the bill shows the deduction');
 });
 
 test('P0 item 2: shop setup refuses an invalid GSTIN or phone', function(){

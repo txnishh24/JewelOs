@@ -1276,7 +1276,7 @@ function doStartApp(){
 
   if(typeof initSplitPayments==='function') try{initSplitPayments();}catch(e){}
   if(typeof initInactivityWatcher==='function') try{initInactivityWatcher();}catch(e){}
-  try{setSaleFormBillType('gst');}catch(e){}
+  try{setSaleFormBillType(shopCanChargeGST() ? 'gst' : 'memo');}catch(e){}
   try{updateHeaderUI();}catch(e){}
 
   if(cached){

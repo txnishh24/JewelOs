@@ -1805,7 +1805,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 
         <!-- MODE B: Weight + purity calculation -->
         <div id="og-calc-row" style="display:none;">
-          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
+          <div class="form-grid" style="grid-template-columns:1fr 1fr;">
             <div class="fg">
               <label>Old gold weight (g)</label>
               <div class="isuf"><input id="s-oldgold-wt" type="text" inputmode="decimal" placeholder="0.000" oninput="updateSum()"/><span class="suf">g</span></div>
@@ -1819,6 +1819,10 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
                 <option value="18K">18K</option>
                 <option value="14K">14K</option>
               </select>
+            </div>
+            <div class="fg">
+              <label>Deduction %</label>
+              <div class="isuf"><input id="s-oldgold-ded" type="text" inputmode="decimal" placeholder="0" oninput="updateSum()"/><span class="suf">%</span></div>
             </div>
             <div class="fg">
               <label>Calculated value (&#8377;)</label>
