@@ -1129,6 +1129,55 @@ testAsync('a 401 on a token that has NOT expired (user removed) wipes the device
   });
 });
 
+// Cowork review 30 Sep: the phone's clock decided "revoked vs expired". A
+// slow clock thinks an expired token is still live, and the phone was wiped.
+// store-proxy now sends the reason; the phone trusts it over its clock.
+function reasonApp(reason){
+  var a = reauthApp('ok');
+  var base = a.fetch;
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts.method === 'PUT'){
+      return Promise.resolve({ status:401, ok:false, json:function(){ return Promise.resolve({ error:'unauthenticated', reason:reason }); } });
+    }
+    return base(url, opts);
+  };
+  return a;
+}
+
+testAsync('server says "expired" but the slow phone clock says the token is live: password prompt, no wipe', function(){
+  var a = reasonApp('expired'), reloads = 0;
+  a.location = { reload: function(){ reloads++; } };
+  a.SAAS.sessionToken = fakeToken(Date.now() + 3600000); // phone clock: an hour left
+  a.saveToCloud(function(){});
+  return flushAll().then(function(){
+    assert(reloads === 0 && a.localStorage.getItem('ssj_cache') !== null, 'must not wipe the phone');
+    assert(a.saasReauthPending() === true, 'should ask for the password');
+  });
+});
+
+testAsync('server says "revoked" even though the phone clock says expired: the device is wiped', function(){
+  var a = reasonApp('revoked'), reloads = 0;
+  a.location = { reload: function(){ reloads++; } };
+  a.SAAS.sessionToken = fakeToken(Date.now() - 3600000); // phone clock: already expired
+  a.saveToCloud(function(){});
+  return flushAll().then(function(){
+    assert(reloads === 1, 'a removed user must be signed out, got ' + reloads + ' reload(s)');
+    assert(a.localStorage.getItem('ssj_cache') === null, 'the shop copy must not stay on a removed user\'s phone');
+  });
+});
+
+testAsync('the load path passes the server reason too ("expired" on a live-looking token: prompt, no wipe)', function(){
+  var a = reauthApp('ok'), reloads = 0;
+  a.location = { reload: function(){ reloads++; } };
+  a.SAAS.sessionToken = fakeToken(Date.now() + 3600000);
+  a.fetch = function(){ return Promise.resolve({ status:401, ok:false, json:function(){ return Promise.resolve({ error:'unauthenticated', reason:'expired' }); } }); };
+  a.loadFromCloud(function(){});
+  return flushAll().then(function(){
+    assert(reloads === 0, 'must not wipe the phone on the load path either');
+    assert(a.saasReauthPending() === true, 'should ask for the password');
+  });
+});
+
 testAsync('after signing in again from a failed boot load, data reloads and auto-refresh starts', function(){
   var a = reauthApp('ok'), refreshStarted = 0, gets = 0;
   var baseFetch = a.fetch;

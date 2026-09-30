@@ -58,19 +58,23 @@ function loadFromCloud(callback){
     if(r.status === 401){
       clearTimeout(timer);
       var alreadyAnswered = done; done = true;
-      // After sign-in: fresh data and a running auto-refresh, even when this
-      // was the boot load (which never started auto-refresh).
-      saasRequireReauth(function(){
-        loadFromCloud(function(err){
-          if(err) return;
-          saveCache();
-          var activeTab = document.querySelector('.panel.active');
-          if(activeTab) renderTab(activeTab.id.replace('panel-',''));
-          startAutoRefresh();
-        });
+      // Read the server's reason (expired vs revoked) first -- Cowork review
+      // 30 Sep: guessing from this phone's clock wiped a slow-clock phone.
+      return r.json().catch(function(){ return {}; }).then(function(b){
+        // After sign-in: fresh data and a running auto-refresh, even when this
+        // was the boot load (which never started auto-refresh).
+        saasRequireReauth(function(){
+          loadFromCloud(function(err){
+            if(err) return;
+            saveCache();
+            var activeTab = document.querySelector('.panel.active');
+            if(activeTab) renderTab(activeTab.id.replace('panel-',''));
+            startAutoRefresh();
+          });
+        }, b && b.reason);
+        if(callback && !alreadyAnswered) callback(new Error('unauthenticated'));
+        throw new Error('unauthenticated');
       });
-      if(callback && !alreadyAnswered) callback(new Error('unauthenticated'));
-      throw new Error('unauthenticated');
     }
     if(!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
@@ -244,7 +248,7 @@ function saveToCloud(callback){
       // 401 above for why this is not the cancellable saasLogout().
       if(res.status === 401){
         isSaving = false; _isSavingSetAt = 0;
-        saasRequireReauth(function(){ saveToCloud(callback); });
+        saasRequireReauth(function(){ saveToCloud(callback); }, res.body && res.body.reason);
         return;
       }
       // A 403 means the account is authenticated but not allowed to

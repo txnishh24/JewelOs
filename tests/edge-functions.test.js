@@ -192,12 +192,17 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     eq((await sp(staffTok, 'POST', { action: 'increment_counter', counter: 'inv_no' })).status, 200, 'POST');
   });
   await test('a garbage token is rejected with 401', async function () { eq((await sp('abc.def', 'GET')).status, 401, 'status'); });
+  await test('a token that fails verification says reason "expired" (sign in again, no wipe)', async function () {
+    eq((await sp('abc.def', 'GET')).body.reason, 'expired', 'reason');
+  });
 
   // ---- store-proxy: finding 3
   await test('a REMOVED staff member is cut off immediately (401 on read)', async function () {
     var rm = await call(auth, 'remove-staff', { sessionToken: ownerTok, staffUserId: staffLogin.body.user.id });
     eq(rm.status, 200, 'remove-staff');
-    eq((await sp(staffTok, 'GET')).status, 401, 'GET after removal');
+    var r = await sp(staffTok, 'GET');
+    eq(r.status, 401, 'GET after removal');
+    eq(r.body.reason, 'revoked', 'a removed user is told "revoked", so the phone wipes whatever its clock says');
   });
   await test('a REMOVED staff member cannot save or take counters (401)', async function () {
     eq((await sp(staffTok, 'PUT', { data: { wiped: true }, expectedVersion: await ver() })).status, 401, 'PUT after removal (attempted wipe)');

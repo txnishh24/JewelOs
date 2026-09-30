@@ -202,10 +202,13 @@ var _reauthWaiters = [];
 
 function saasReauthPending(){ return _reauthPending; }
 
-function saasRequireReauth(onResumed){
-  // Refused before its own expiry = revoked (user removed from the shop),
-  // not timed out: wipe the device as before, no password prompt.
-  if(!_reauthPending && _sessionTokenExp(SAAS.sessionToken) > Date.now()){
+function saasRequireReauth(onResumed, reason){
+  // Revoked (user removed from the shop), not timed out: wipe the device as
+  // before, no password prompt. store-proxy now says which ('revoked' /
+  // 'expired'); only a server without that field (before its redeploy) falls
+  // back to this phone's clock, which a slow clock gets wrong (Cowork, 30 Sep).
+  var revoked = reason ? reason === 'revoked' : _sessionTokenExp(SAAS.sessionToken) > Date.now();
+  if(!_reauthPending && revoked){
     saasForceLogout('Your session has ended — please sign in again.');
     return;
   }

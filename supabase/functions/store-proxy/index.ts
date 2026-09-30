@@ -174,8 +174,12 @@ Deno.serve(async (req) => {
   }
 
   const session = await verifySession(req.headers.get("x-session-token"));
+  // reason (30 Sep): the client used to guess "expired vs removed" from the
+  // phone's clock and wiped a slow-clock phone. "expired" covers any token
+  // that fails verification (timed out, bad signature): signing in again is
+  // the right answer, and it grants nothing without the password.
   if (!session) {
-    return json({ error: "unauthenticated", message: "Please sign in again." }, 401, origin);
+    return json({ error: "unauthenticated", reason: "expired", message: "Please sign in again." }, 401, origin);
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -189,7 +193,7 @@ Deno.serve(async (req) => {
     // expired — sign in again" path (js/01-sync-core.js), where the login
     // itself will now fail.
     return tenant.reason === "user_gone"
-      ? json({ error: "unauthenticated", message: "Please sign in again." }, 401, origin)
+      ? json({ error: "unauthenticated", reason: "revoked", message: "Please sign in again." }, 401, origin)
       : json({ error: "invalid_tenant", message: "Shop not found for this session." }, 403, origin);
   }
   const shopKey = tenant.rowKey;
