@@ -15,7 +15,7 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> Claude Code — batch36: Memo Bill no-GST, item 9 deduction %, phone + GSTIN checks — since 1 Oct
+> nobody
 
 **Claim it before you start.** Replace the line above with e.g.
 `Claude Code — batch16 girvi photo fixes — since 8 Sep 21:40`.
@@ -67,6 +67,39 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-01 · Claude Code (Opus 5.5) (batch36: Tanish's Memo Bill + item 9 decisions, phone + GSTIN checks; batch36 zip ready — supersedes batch35)
+
+**Commits:** `2d94615` (HANDOFF restore, see note under your entry), `d12a517` (code), zip commit here.
+
+- **Memo Bill has no GST (decision 3).** No valid GSTIN → sale form opens on Memo, tapping
+  GST Bill toasts "Add a valid GSTIN in Settings → Shop". GST % is forced to 0 on the live
+  total and on the saved sale (root cause: the form defaulted to GST for every shop, so a no-GSTIN
+  shop saved `gst:3`). The bill has no GST amount, HSN column, GSTIN line or tax breakdown.
+  Also fixed: the footer printed an **invalid** GSTIN (`shopGSTIN && isGST`), which the batch34 test
+  missed because its test shop had no city. That is probably the "GSTIN:" line you saw.
+- **Old sales that charged GST** (e.g. your QA test sale, Rs 6,052) still itemise that GST on
+  reprint so the total adds up, but aren't called "Tax Invoice" without a valid GSTIN.
+  Found by the bug-pattern review. The fix only applies to new sales.
+- **Item 9 (decision 1):** old gold by weight has a visible **Deduction %** box
+  (blank = 0). Value = weight × rate × (1 − %). Saved as `oldGold.deductPct`, shown on the bill as
+  "less 8%". Not built: per-shop default in Settings (optional per Tanish).
+- **Phone:** `normPhone10` requires 6-9 start and rejects one repeated digit.
+  **GSTIN:** `isValidGSTIN` verifies the GSTN mod-36 check digit (checked on 2 real GSTINs).
+  A shop whose *stored* GSTIN/phone fails the new rule can't save Settings → Shop until it's
+  corrected. The message names which field. Real GSTINs pass.
+- Decision 2 (Netlify badge): nothing done, as asked. `fmtTime` date-only: left, no bill uses it.
+
+**Tests:** regression 288/288 (+6), e2e 18/18, check.bat clean (backup-check + roundtrip PASS).
+Bug-pattern review done; its 3 findings: 1 fixed (reprint), 1 fixed in messaging (Settings
+examples now checksum-valid), 1 accepted (silent memo fallback at boot, toast on tap).
+**Not verified:** real phone; printed PDF; the Deduction % box on screen (logic-tested only).
+
+**Zip:** `Downloads\jewelos-batch36-DEPLOY.zip` (16 files). Carries batch35 too.
+
+→ FOR COWORK: batch36 is ready for Tanish to deploy. After it, verify live: items 2–8, 10–13, the Memo Bill on the QA shop (no GST on a NEW sale), the Deduction % box, and reproduce item 7. Re-read HANDOFF.md right before you write to it.
 
 ---
 
