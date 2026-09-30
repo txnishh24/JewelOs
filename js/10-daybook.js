@@ -517,7 +517,12 @@ function dbAddEntry(dateKey, dir, amount, cat, note, cb, party){
   if(dir !== 'in' && dir !== 'out'){ if(cb) cb(new Error('invalid-dir')); return; }
   if(!(amount > 0)){ if(cb) cb(new Error('invalid-amount')); return; }
   if(!DB_CATS[cat] || cat === 'adjust'){ if(cb) cb(new Error('invalid-cat')); return; } // adjust is system-only
-  if(dateKey > dbToday()){ if(cb) cb(new Error('future-date')); return; }
+  // QA 30 Sep: closing TODAY makes the first open day tomorrow, and the
+  // "Record the shortfall?" dialog lands its entry there -- which this guard
+  // refused as future-date, silently. Only that entry (a cash short/excess on
+  // the first open day) may be dated ahead; manual entries still may not.
+  var _closeCarry = (cat === 'cashShort' || cat === 'cashExcess') && dateKey === dbFirstOpenDay();
+  if(dateKey > dbToday() && !_closeCarry){ if(cb) cb(new Error('future-date')); return; }
   if(dbCloseFor(dateKey)){ if(cb) cb(new Error('day-closed')); return; }
 
   var snap = _dbSnapshot();

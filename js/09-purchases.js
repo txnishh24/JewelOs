@@ -590,6 +590,9 @@ function pbRecalcForm(){
   var paidEl = document.getElementById('pb-f-paid');
   var paidTyped = paidEl && paidEl.value.trim() !== '';
   var paid = paidTyped ? (parseFloat(paidEl.value) || 0) : total;
+  // QA 30 Sep: the empty box said "0" while a blank SAVES as fully paid --
+  // and the Day Book then posts the whole total as cash out. Say it plainly.
+  if(paidEl) paidEl.placeholder = total > 0 ? 'Blank = fully paid (' + total + ')' : '0';
   var gstAmt = 0;
   if(cfg.gst){
     var c = parseFloat(document.getElementById('pb-f-cgst').value)||0;

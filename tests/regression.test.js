@@ -2773,6 +2773,21 @@ test('a manual entry cannot be added to a closed day', function(){
   });
 });
 
+test('QA P1 item 8: after closing today, "Record the shortfall" lands on tomorrow instead of failing future-date', function(){
+  var a = _dbHarness();
+  var today = a.dbToday();
+  a.S.dayBook.closes = [_dbCloseFixture(today)];
+  var tomorrow = a.dbFirstOpenDay();
+  assert(tomorrow > today, 'setup: first open day should be tomorrow');
+  var got = 'pending';
+  a.dbAddEntry(tomorrow, 'out', 500, 'cashShort', 'From closing ' + today, function(err){ got = err ? err.message : 'ok'; });
+  assert(got === 'ok', 'the shortfall entry should be recorded, got ' + got);
+  assert(a.S.dayBook.entries.some(function(e){ return e.cat === 'cashShort' && e.date === tomorrow && e.amount === 500; }), 'entry not stored');
+  var manual = 'pending';
+  a.dbAddEntry(tomorrow, 'out', 500, 'rent', '', function(err){ manual = err ? err.message : 'ok'; });
+  assert(manual === 'future-date', 'a manual future-dated entry must still be refused, got ' + manual);
+});
+
 test('dbSetOpening refuses once any close exists', function(){
   var a = _dbHarness();
   a.S.dayBook.closes = [_dbCloseFixture('2026-09-01')];
