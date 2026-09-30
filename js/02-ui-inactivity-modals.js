@@ -1340,7 +1340,9 @@ function recordSale(){
   // as a real bill, move the server's floor (migration 005) -- a typo like
   // INV-3000 for INV-030 would jump every later invoice. Refuse it.
   var _typedNo = /^\s*INV-0*(\d+)\s*$/i.exec(sale.invNo||'');
-  if(_typedNo && parseInt(_typedNo[1],10) > (S.nextInvNo||1) + 1000){
+  // Compared with the highest real bill, as the server's floor is (Opus
+  // review of 005): S.nextInvNo can be stale in either direction.
+  if(_typedNo && parseInt(_typedNo[1],10) > maxInvBillNo() + 1000){
     toast('\u26a0 Invoice '+sale.invNo+' is far ahead of your series. Check for a typo, or clear the Invoice No. box to get the next number.');
     return;
   }

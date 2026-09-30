@@ -733,6 +733,8 @@ function deleteSale(saleId){
       p.status='available';
     });
     S.sales=S.sales.filter(function(x){return x.id!==saleId;});
+    // Its invoice number stays used: never re-issued or re-typed (GST).
+    if(sale.invNo){ if(!Array.isArray(S.voidedInvNos)) S.voidedInvNos=[]; S.voidedInvNos.push(sale.invNo); }
     saveToCloud(function(err){
       if(!err){
         toast('Bill deleted & stock restored');

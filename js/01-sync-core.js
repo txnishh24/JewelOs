@@ -103,6 +103,7 @@ function loadFromCloud(callback){
     if(Array.isArray(record.activityLog))    S.activityLog    = record.activityLog;
     if(Array.isArray(record.waRules))        S.waRules        = record.waRules;
     if(Array.isArray(record.stockMovements)) S.stockMovements = record.stockMovements;
+    if(Array.isArray(record.voidedInvNos))   S.voidedInvNos   = record.voidedInvNos;
     if(record.purchaseCfg && typeof record.purchaseCfg === 'object') S.purchaseCfg = Object.assign({}, S.purchaseCfg, record.purchaseCfg);
     if(record.dayBook && typeof record.dayBook === 'object') S.dayBook = record.dayBook;
     if(record.rates && typeof record.rates === 'object') S.rates = record.rates;
@@ -206,6 +207,8 @@ function saveToCloud(callback){
     // F2: the stock history lived only on the phone that wrote it (capped at
     // 5000 entries in logStockMovement, so the blob can't grow unbounded).
     stockMovements: S.stockMovements || [],
+    // Invoice numbers of deleted bills: never issued or accepted again (GST).
+    voidedInvNos: S.voidedInvNos || [],
     purchaseCfg: S.purchaseCfg || {},
     dayBook:     S.dayBook     || null,
     rates:       S.rates,
@@ -658,9 +661,23 @@ function _invKey(v){
   var m = /^INV-0*(\d+)$/.exec(s);
   return m ? 'INV#' + m[1] : s;
 }
+// Highest INV-<digits> number on a bill in this shop -- the same rule
+// migration 005 uses server-side for the counter's floor.
+function maxInvBillNo(){
+  var max = 0;
+  (S.sales||[]).forEach(function(s){
+    var m = /^INV#(\d{1,9})$/.exec(_invKey(s.invNo));
+    if(m && +m[1] > max) max = +m[1];
+  });
+  return max;
+}
+
+// A deleted bill's number counts as used too (S.voidedInvNos, kept by
+// deleteSale): a cancelled GST invoice number must never be issued again.
 function invNoInUse(invNo){
   var n = _invKey(invNo);
-  return !!n && (S.sales||[]).some(function(s){ return _invKey(s.invNo) === n; });
+  return !!n && ((S.sales||[]).some(function(s){ return _invKey(s.invNo) === n; }) ||
+                 (S.voidedInvNos||[]).some(function(v){ return _invKey(v) === n; }));
 }
 
 // F3 (30 Sep): invoice numbers come ONLY from the server's atomic counter,

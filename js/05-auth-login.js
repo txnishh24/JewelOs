@@ -209,6 +209,15 @@ function saasRequireReauth(onResumed, reason){
   // back to this phone's clock, which a slow clock gets wrong (Cowork, 30 Sep).
   var revoked = reason ? reason === 'revoked' : _sessionTokenExp(SAAS.sessionToken) > Date.now();
   if(!_reauthPending && revoked){
+    // Opus review of 005 (30 Sep): the wipe drops anything not yet saved --
+    // right for a removed user (the shop data must leave their phone), but it
+    // was silent behind a generic message. Say what happened, and log it so a
+    // user record that went missing by mistake shows up in monitoring.
+    if(reason === 'revoked'){
+      console.error('[JewelOS] session revoked by server: user no longer in this shop');
+      saasForceLogout('This account no longer has access to this shop, so changes not yet saved on this phone could not be kept. Ask the shop owner, then sign in again.');
+      return;
+    }
     saasForceLogout('Your session has ended — please sign in again.');
     return;
   }
@@ -1122,6 +1131,7 @@ function exportFullBackup(){
       waRules:    S.waRules||null,
       dayBook:    S.dayBook||null,
       stockMovements:   S.stockMovements||[],
+      voidedInvNos:     S.voidedInvNos||[],
       activityLog:      (S.activityLog||[]).slice(0,100),
       auditLog:         (S.auditLog||[]).slice(0,100),
       purchaseAuditLog: (S.purchaseAuditLog||[]).slice(0,100),
@@ -1179,6 +1189,7 @@ function processBackupFile(input){
         if(d.waRules)    S.waRules     = d.waRules;
         if(d.dayBook)    S.dayBook     = d.dayBook;
         if(d.stockMovements)   S.stockMovements   = d.stockMovements;
+        if(d.voidedInvNos)     S.voidedInvNos     = d.voidedInvNos;
         if(d.activityLog)      S.activityLog      = d.activityLog;
         if(d.auditLog)         S.auditLog         = d.auditLog;
         if(d.purchaseAuditLog) S.purchaseAuditLog = d.purchaseAuditLog;

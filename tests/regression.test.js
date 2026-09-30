@@ -1166,6 +1166,16 @@ testAsync('server says "revoked" even though the phone clock says expired: the d
   });
 });
 
+testAsync('a server-confirmed "revoked" tells the user their unsaved changes could not be kept', function(){
+  var a = reasonApp('revoked');
+  a.location = { reload: function(){} };
+  a.saveToCloud(function(){});
+  return flushAll().then(function(){
+    var notice = a.sessionStorage.getItem(a.SIGNOUT_NOTICE_KEY) || '';
+    assert(/no longer has access/.test(notice) && /could not be kept/.test(notice), 'expected the explicit removed-user message, got: ' + notice);
+  });
+});
+
 testAsync('the load path passes the server reason too ("expired" on a live-looking token: prompt, no wipe)', function(){
   var a = reauthApp('ok'), reloads = 0;
   a.location = { reload: function(){ reloads++; } };
@@ -3299,6 +3309,35 @@ test('INV-40, inv-040 and " INV-0040 " are the same invoice when checking for du
   assert(!a.invNoInUse('INV-400') && !a.invNoInUse('INV-4'), 'different numbers must not match');
 });
 
+test('the typed-number guard uses the highest real bill, not a stale saved "next number"', function(){
+  var a = _freshSaleHarness(), saves = 0;
+  a.saveToCloud = function(cb){ saves++; cb(null); };
+  a.S.sales = [{ id:'b1', invNo:'INV-030' }];
+  a.S.nextInvNo = 202526002; // polluted by an older app's typed number
+  var _orig = a.document.getElementById;
+  a.document.getElementById = function(id){ return id === 's-cust' ? { style:{}, value:'Test Customer' } : _orig(id); };
+  a.buildSaleObj = function(){ var s = _sale('X'); s.invNo = 'INV-5000'; return s; };
+  a.recordSale();
+  assert(saves === 0, 'INV-5000 is far above the highest bill (INV-030) and must be refused');
+});
+
+test('a deleted bill\'s invoice number is never issued or accepted again', function(){
+  var a = _freshSaleHarness();
+  a.isManager = function(){ return true; };
+  a.safeConfirm = function(t, m, ok){ ok(); };
+  a.saveToCloud = function(cb){ cb(null); };
+  a.showCustHistory = function(){}; a.closeCustModal = function(){}; a.renderCustomers = function(){};
+  a.S.sales = [{ id:'s9', invNo:'INV-009', customer:'C', items:[] }];
+  a.deleteSale('s9');
+  assert(a.S.sales.length === 0, 'the bill should be gone');
+  assert(a.invNoInUse('INV-009') && a.invNoInUse('inv-9'), 'INV-009 must still count as used after deletion');
+  var val = 9;
+  a.getNextCounter = function(name, cb){ cb(null, val++); }; // a lagging counter offers the deleted number first
+  var s = _sale('1'); s.invNo = '';
+  a._commitSaleTransaction(s);
+  assert(a.S.sales[0] && a.S.sales[0].invNo === 'INV-010', 'the deleted INV-009 must be skipped, got ' + (a.S.sales[0] && a.S.sales[0].invNo));
+});
+
 test('an exception on the TYPED-number path also releases the lock', function(){
   var a = _freshSaleHarness();
   a.saveToCloud = function(){ throw new Error('boom'); };
@@ -3416,7 +3455,7 @@ testAsync('every key saveToCloud sends comes back on a fresh device via loadFrom
   var a = loadApp();
   a.SAAS.sessionToken = 'tok';
   ['products','sales','orders','girvi','customers','purchases','suppliers','purchaseAuditLog',
-   'auditLog','activityLog','waRules','stockMovements'].forEach(function(k){ a.S[k] = [{ id:'rt-' + k }]; });
+   'auditLog','activityLog','waRules','stockMovements','voidedInvNos'].forEach(function(k){ a.S[k] = [{ id:'rt-' + k }]; });
   var sent = null;
   a.fetch = function(url, opts){
     if(opts && opts.method === 'PUT'){
@@ -3449,7 +3488,7 @@ test('every key the cloud save sends also survives the on-phone cache (saveCache
   var a = loadApp();
   a.SAAS.shop = { id:'shop1' };
   ['products','sales','orders','girvi','customers','purchases','suppliers','purchaseAuditLog',
-   'auditLog','activityLog','waRules','stockMovements'].forEach(function(k){ a.S[k] = [{ id:'c-' + k }]; });
+   'auditLog','activityLog','waRules','stockMovements','voidedInvNos'].forEach(function(k){ a.S[k] = [{ id:'c-' + k }]; });
   a.saveCache();
   var b = loadApp();
   b.SAAS.shop = { id:'shop1' };

@@ -1,4 +1,4 @@
-// Runs the invoice counter (002 table, then 004, then 005 — the order production
+// Runs the invoice counter (002 table, then 004, 005, 006 — the order production
 // sees) against real Postgres (PGlite, in-process WASM).
 // Not in npm deps on purpose — one-off: npm i --no-save @electric-sql/pglite@0.2 && node tests/sql-inv-counter-floor.test.mjs
 import { PGlite } from '@electric-sql/pglite';
@@ -12,6 +12,7 @@ const m2 = fs.readFileSync(R+'002_atomic_transactions.sql','utf8');
 await db.exec(m2.slice(m2.indexOf('-- ── COUNTERS TABLE'), m2.indexOf('-- ── TRUE ATOMIC COMPARE-AND-SWAP')));
 await db.exec(fs.readFileSync(R+'004_inv_counter_floor.sql','utf8'));
 await db.exec(fs.readFileSync(R+'005_inv_counter_floor_from_bills.sql','utf8'));
+await db.exec(fs.readFileSync(R+'006_inv_counter_floor_bill_cap.sql','utf8'));
 const inc = async (s,c) => (await db.query('select increment_shop_counter($1,$2) v',[s,c])).rows[0].v;
 const ok = (c,m) => { if(!c){ console.log('FAIL', m); process.exitCode=1; } else console.log('ok  ', m); };
 const shop = async (id, data, counter) => {
@@ -31,7 +32,10 @@ ok(await inc('B','inv_no')===501, 'and never later either (501)');
 
 // Opus item 2: honest lag > 1000, and >1000 bills with no counter row.
 await shop('C', { sales: bills('INV-2500') }, 30);
-ok(await inc('C','inv_no')===2501, 'a lag of ~2500 catches up in one step (2501), no refused sales');
+// 006: with a counter row, a bill >1000 above it is ignored (the app skips it if the counter ever reaches it).
+ok(await inc('C','inv_no')===31, '006: one bill ~2500 above a live counter is ignored (30 -> 31)');
+await shop('C2', { sales: bills('INV-031','INV-999999999') }, 30);
+ok(await inc('C2','inv_no')===32, '006: a crafted INV-999999999 bill cannot jump the series (-> 32, after the real INV-031)');
 await shop('D', { sales: Array.from({length: 1500}, (_, i) => ({ invNo: 'INV-' + String(i+1).padStart(3,'0') })) });
 ok(await inc('D','inv_no')===1501, 'a restored shop with 1500 bills and no counter row starts at 1501');
 
