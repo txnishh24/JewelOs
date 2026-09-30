@@ -50,14 +50,19 @@ function orderProfitEst(o){
   // Estimated profit = quote - metal cost estimate
   // Metal cost = weight * rate for each item
   if(!o.items || !o.quote) return 0;
+  // QA 30 Sep: with no estimated weight the metal cost was 0, so "Est. profit"
+  // showed the whole quote. Use the order weight when there is no estimate,
+  // and give no estimate at all (0 -- the cards hide it) when neither is set.
+  function _w(it){ return parseFloat(it.estWt)||parseFloat(it.orderWt)||0; }
+  if(!(o.items||[]).some(function(it){ return _w(it) > 0; })) return 0;
   var metalCost = (o.items||[]).reduce(function(s,it){
     var rate = getRate(it.metal||'gold', it.purity||'22K');
-    return s + rate * (parseFloat(it.estWt)||0) * (parseInt(it.qty)||1);
+    return s + rate * _w(it) * (parseInt(it.qty)||1);
   },0);
   var mcCost = (o.items||[]).reduce(function(s,it){
     var mc = parseFloat(it.making)||0;
     var qty = parseInt(it.qty)||1;
-    return s + (it.makingType==='per_gram' ? mc*(parseFloat(it.estWt)||0)*qty : mc*qty);
+    return s + (it.makingType==='per_gram' ? mc*_w(it)*qty : mc*qty);
   },0);
   return (parseFloat(o.quote)||0) - metalCost - mcCost;
 }

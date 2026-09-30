@@ -1668,6 +1668,39 @@ test('QA P1 item 10: Girvi step 2 refuses a net weight above the gross weight', 
   assert(/Net weight cannot be more than gross/.test(msg) && a.GF_STEP === 2, 'should stay on step 2 with the message, got "' + msg + '" at step ' + a.GF_STEP);
 });
 
+function _orderFormApp(vals){
+  var a = require('./harness.js').loadApp(), saves = 0, confirms = [], msg = '';
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){ if(id in vals) return { value:vals[id], checked:false }; return _o(id); };
+  a.ordItems = [{ desc:'Ring', cat:'Rings', metal:'gold', purity:'22K', orderWt:5, estWt:5, making:0, makingType:'flat', qty:1, note:'' }];
+  a.saveToCloud = function(cb){ saves++; cb(null); };
+  a.safeConfirm = function(t, m, ok){ confirms.push({ t:t, ok:ok }); };
+  a.toast = function(m){ msg = m; };
+  a.toggleOrdForm = function(){}; a.renderOrders = function(){};
+  return { a:a, saves:function(){ return saves; }, confirms:confirms, msg:function(){ return msg; } };
+}
+
+test('QA P1 item 11: an order advance above the quote is refused', function(){
+  var t = _orderFormApp({ 'oi-desc-0':'Ring', 'of-cust':'Asha', 'of-delivery':'2099-01-01', 'of-quote':'100000', 'of-adv-amt':'150000' });
+  t.a.saveOrder();
+  assert(t.saves() === 0 && /more than the quote/.test(t.msg()), 'expected a refusal, got saves=' + t.saves() + ' msg=' + t.msg());
+});
+
+test('QA P1 item 11: a past delivery date asks first; confirming saves', function(){
+  var t = _orderFormApp({ 'oi-desc-0':'Ring', 'of-cust':'Asha', 'of-delivery':'2020-01-01', 'of-quote':'100000', 'of-adv-amt':'10000' });
+  t.a.saveOrder();
+  assert(t.saves() === 0 && t.confirms.length === 1 && /in the past/.test(t.confirms[0].t), 'should ask before saving');
+  t.confirms[0].ok();
+  assert(t.saves() === 1, 'confirming should save');
+});
+
+test('QA P1 item 11: order profit estimate is not the whole quote when no estimated weight is set', function(){
+  var a = require('./harness.js').loadApp();
+  var r = a.getRate('gold','22K');
+  assert(a.orderProfitEst({ quote:100000, items:[{ metal:'gold', purity:'22K', qty:1, making:0 }] }) === 0, 'no weight at all -> no estimate (0), not 1,00,000');
+  assert(a.orderProfitEst({ quote:100000, items:[{ metal:'gold', purity:'22K', orderWt:5, qty:1, making:0 }] }) === 100000 - 5*r, 'order weight used when no estimate');
+});
+
 test('girvi item description is escaped on the loan card', function(){
   var html = app.girviLoanCardHTML({ id:'g1', grvNo:'GRV-1', customer:'C', phone:'9', status:'active',
     items:[{ desc:HOSTILE, type:'Ring', metal:'gold', purity:'22K', weight:2, qty:1 }], amount:1000, rate:2,

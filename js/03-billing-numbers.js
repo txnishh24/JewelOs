@@ -1454,7 +1454,7 @@ function ordCustAuto(){
 }
 
 // ── SAVE ORDER ────────────────────────────────────────────────────────────
-function saveOrder(){
+function saveOrder(_pastDateOk){
   ordItems.forEach(function(item,i){
     var dEl=document.getElementById('oi-desc-'+i); if(dEl)item.desc=dEl.value.trim();
     var cEl=document.getElementById('oi-cat-'+i); if(cEl)item.cat=cEl.value;
@@ -1473,6 +1473,15 @@ function saveOrder(){
   var validItems=ordItems.filter(function(x){return x.desc.trim();});
   if(!validItems.length){toast('Enter at least one item description');return;}
   if(!delivery){toast('Select delivery date');return;}
+  // QA 30 Sep: an advance of 1,50,000 on a 1,00,000 quote saved as "Fully paid"
+  // and the extra 50,000 vanished; a delivery 4 weeks in the past was accepted.
+  var _q=parseFloat((document.getElementById('of-quote')||{value:0}).value)||0;
+  var _adv=parseFloat((document.getElementById('of-adv-amt')||{value:0}).value)||0;
+  if(_q>0 && _adv>_q){toast('Advance ('+fmt(_adv)+') is more than the quote ('+fmt(_q)+'). Check both amounts.');return;}
+  if(!_pastDateOk && delivery < dbDayKey(new Date())){
+    safeConfirm('Delivery date is in the past', 'The delivery date '+fmtDate(delivery)+' has already passed. Save this order anyway (for example, an older order being entered now)?', function(){ saveOrder(true); });
+    return;
+  }
   // F4: one new order at a time -- the form stays open on a failed save.
   if(_orderLocked('__new')){toast('Already saving, please wait');return;}
   _orderLock('__new');
