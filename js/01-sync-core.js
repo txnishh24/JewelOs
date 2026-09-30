@@ -132,6 +132,9 @@ function loadFromCloud(callback){
 //   2. PATCH returning empty [] means row doesn't exist → INSERT via upsert
 //   3. isSaving is always reset, even when r.ok check throws inside .then()
 //   4. Prefer:return=representation so we detect empty response (no rows matched)
+// Save ids sent but never confirmed by a success (see the conflict check in
+// saveToCloud). Cleared by any confirmed save; at most 20 kept.
+var _unconfirmedSaveIds = [];
 function saveToCloud(callback){
   if(isSaving){ setTimeout(function(){ saveToCloud(callback); }, 400); return; }
   if(saasReauthPending()){
@@ -181,6 +184,8 @@ function saveToCloud(callback){
   // -- otherwise the sale is rolled back here, reappears on reload, and a
   // resubmit makes a duplicate bill.
   var saveId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  _unconfirmedSaveIds.push(saveId);
+  if(_unconfirmedSaveIds.length > 20) _unconfirmedSaveIds.shift();
   var dataPayload = {
     _saveId:     saveId,
     products:    S.products,
@@ -219,6 +224,7 @@ function saveToCloud(callback){
   var SAVE_TIMEOUT_MS = 60000;
 
   function _done_ok(row){
+    _unconfirmedSaveIds = []; // the cloud now holds a save we know about
     isSaving = false;
     _isSavingSetAt = 0;
     if(row && row.data && typeof row.data._v === 'number') _loadedVersion = row.data._v;
@@ -289,6 +295,24 @@ function saveToCloud(callback){
       if(res.body && res.body.conflict && res.body.data && res.body.data._saveId === saveId){
         console.warn('[JewelOS] save conflict was our own earlier attempt -- it landed');
         _done_ok(res.body);
+        return;
+      }
+      // Opus review 30 Sep: the earlier save may belong to a PREVIOUS call --
+      // re-sent after signing in again, or resubmitted after every retry
+      // timed out while the first attempt had in fact landed. The cloud
+      // holds that landed version: load it, report success (so the form
+      // clears instead of inviting a re-entry), and say what happened.
+      if(res.body && res.body.conflict && res.body.data && _unconfirmedSaveIds.indexOf(res.body.data._saveId) !== -1){
+        console.warn('[JewelOS] save conflict was an earlier save of ours that landed');
+        isSaving = false; _isSavingSetAt = 0;
+        _unconfirmedSaveIds = [];
+        loadFromCloud(function(){
+          normaliseData(); saveCache(); try{ renderDash(); }catch(e){}
+          setSyncStatus('ok', 'Saved');
+          dismissSaveError();
+          if(callback) callback(null);
+          toast('\u2139 An earlier save had gone through after all. Showing it now \u2014 check the list before entering anything again.');
+        });
         return;
       }
       if(res.body && res.body.conflict){

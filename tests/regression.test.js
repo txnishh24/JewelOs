@@ -1234,6 +1234,57 @@ testAsync('a retry that conflicts with ANOTHER device is still a real conflict',
   });
 });
 
+// Opus review of 005, 30 Sep (MEDIUM): the landed save can belong to an
+// EARLIER saveToCloud call -- every retry timed out (or a 401 re-sent it
+// after sign-in), so the first call reported failure, yet it had landed.
+function earlierLandedApp(storedIdFrom){
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  a.setTimeout = function(f, ms){ if([2000,5000,15000].indexOf(ms) !== -1) f(); return 1; }; // only the save retry delays
+  a.clearTimeout = function(){};
+  var firstId = null, gets = 0, call = 1;
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      var sent = JSON.parse(opts.body).data;
+      if(call === 1){ firstId = firstId || sent._saveId; return Promise.reject(new Error('answer lost')); }
+      var stored = Object.assign({}, sent, { _v:12, _saveId: storedIdFrom === 'first' ? firstId : 'other-device' });
+      return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ ok:false, conflict:true, data:stored }); } });
+    }
+    gets++;
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ _v:12, sales:[{ id:'landed' }] } }); } });
+  };
+  a.nextCall = function(){ call = 2; };
+  a.gets = function(){ return gets; };
+  return a;
+}
+
+testAsync('a resubmit that conflicts with an EARLIER call\'s landed save: reloads, reports saved, no duplicate', function(){
+  var a = earlierLandedApp('first'), first = 'pending', second = 'pending';
+  a.saveToCloud(function(err){ first = err ? err.message : 'saved'; });
+  return flushAll(16).then(function(){
+    assert(first !== 'saved' && first !== 'pending', 'the first call should have reported a failure, got ' + first);
+    a.nextCall();
+    a.saveToCloud(function(err){ second = err ? err.message : 'saved'; });
+    return flushAll(16);
+  }).then(function(){
+    assert(second === 'saved', 'the resubmit must be told it is saved (so the form clears), got ' + second);
+    assert(a.gets() === 1, 'the landed version must be loaded from the cloud, GETs: ' + a.gets());
+    assert(a.S.sales.length === 1 && a.S.sales[0].id === 'landed', 'S must now show what actually landed');
+  });
+});
+
+testAsync('a conflict with an unknown save id is still a real conflict, even after an earlier failure', function(){
+  var a = earlierLandedApp('other'), second = 'pending';
+  a.saveToCloud(function(){});
+  return flushAll(16).then(function(){
+    a.nextCall();
+    a.saveToCloud(function(err){ second = err ? err.message : 'saved'; });
+    return flushAll(16);
+  }).then(function(){
+    assert(second === 'version-conflict', 'expected version-conflict, got ' + second);
+  });
+});
+
 testAsync('after signing in again from a failed boot load, data reloads and auto-refresh starts', function(){
   var a = reauthApp('ok'), refreshStarted = 0, gets = 0;
   var baseFetch = a.fetch;
