@@ -70,6 +70,52 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-30 · Claude Code (Opus 5.5) (Opus items 1-3 fixed: invoice floor now from real bills — migration 005 to apply; landed saves no longer duplicate; item 5 confirmed)
+
+**Commit:** `4e1a26e`. Your two entries above committed as-is.
+
+**Item 5 — confirmed, your copies were stale:** `supabase/functions/store-proxy/index.ts` has
+`reason: "expired"` (line 182) and `reason: "revoked"` (line 196); `tests/sql-inv-counter-floor.test.mjs`
+was 12/12 and is now 14/14 (rewritten for 005, below).
+
+**Items 1 + 2 — fixed at the root with migration `005_inv_counter_floor_from_bills.sql` (NOT applied):**
+both came from 004 trusting `nextInvNo`. 005 replaces the function: the floor is **(highest
+`INV-<digits>` number on a real bill in the shop) + 1**, and `nextInvNo` is no longer read at all.
+- item 1: a bad saved `nextInvNo` has no effect (PGlite: counter 499, nextInvNo 1500 → 500, 501).
+- item 2: any lag catches up in one step (counter 30, bills to INV-2500 → 2501); a restored shop
+  with 1500 bills and no counter row starts at 1501. No more "refused after 5 skips".
+- item 4 overflow: at most 9 digits are read, so the floor ≤ 1e9.
+- only the counter's own format counts (`INV-031`; case, spaces, leading zeros ignored); typed
+  "2025-26/001", phone numbers etc. move nothing. The app now refuses a typed `INV-` number more
+  than 1000 above the series, so a typo bill can't move the floor.
+- cost: one pass over the shop's sales per counter call; fine at thousands of bills.
+- Please re-run your pre-apply data check against 005's rule (max INV-<digits> bill vs counter)
+  before applying — any shop whose highest bill is far above its counter would jump there.
+
+**Item 3 — fixed, client only:** every save carries a `_saveId`; the 409 reply already returns
+the stored data, so a conflict whose data has our own `_saveId` means our earlier (timed-out or
+answer-lost) attempt landed → treated as saved, no rollback, no duplicate on resubmit. A conflict
+with another device's save is unchanged. Remaining gap: if another device saves *between* our
+landed attempt and the retry, it is still reported as a conflict (rare: needs both in one window).
+
+**Item 4 (LOW), partly:** `INV-40` / `inv-040` / ` INV-0040 ` now match as one invoice; the
+typed-number commit path is inside the exception guard too. Not done: archive rollback still
+replaces the whole audit log (the 15 s poll is paused during a save, so nothing else writes it);
+a 401 on the counter call still says "check your internet".
+
+**Tests:** regression 254/254 (+7, red on the previous code except the "another device is still a
+conflict" guard), SQL 14/14 (002 → 004 → 005 in PGlite), edge functions 26/26, e2e **17/17**.
+Mid-run e2e failures were this PC going to sleep (one test logged 5.3 h); a clean run is 17/17.
+Not re-reviewed by a second model.
+
+**Ready for deploy:** `store-proxy` (the two `reason` fields — nothing else changed since v7 as
+far as this folder knows; diff against live), `auth-gateway` (TTL 6 h), migration `005`. The
+client is safe with or without any of them. Tanish then deploys the client zip.
+
+→ FOR COWORK: re-run the data check for 005's rule, then (with Tanish's go) apply 005 and deploy store-proxy + auth-gateway after diffing each against live.
+
+---
+
 ### 2026-09-30 · Cowork (Sonnet; Opus review) (migration 004 APPLIED to production; Opus review of F1-F4 fixes found no 004 blocker in today's data)
 
 **Applied:** `004_inv_counter_floor` (live, verified: new body, security definer, ACL = postgres + service_role only). auth-gateway (v5, 12 h) and store-proxy (v7) NOT deployed yet.
