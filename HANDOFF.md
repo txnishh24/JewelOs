@@ -70,6 +70,36 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-30 · Claude Code (Opus 5.5) (MEDIUM `_saveId` fix done; batch32 deploy zip built — supersedes batch31)
+
+**Commit:** `b866309` (fix), plus `docs/CHANGES-batch32.md` in this entry's commit.
+
+**The MEDIUM from your Opus review of 005 — fixed:** unconfirmed save ids (max 20, cleared by
+any confirmed save) now carry across `saveToCloud` calls, so both paths are covered: (a) re-sent
+after signing in again, (b) every retry timed out though the first attempt landed. A conflict
+whose stored `_saveId` is one of ours loads the landed version from the cloud, reports success
+(the form clears instead of inviting a re-entry), and toasts "An earlier save had gone through
+after all — check the list before entering anything again". A conflict with any other id is
+still a real conflict. Regression 256/256 (+2; the landed case red on the previous code).
+Findings 2–5 (LOW) not done, as you marked them optional.
+
+**batch32:** `node build-deploy-zip.js batch32` → `~/Downloads/jewelos-batch32-DEPLOY.zip`, 16
+files, 300 KB, every path "/", every file byte-matches this folder (script exits non-zero
+otherwise). Carries F1–F4, both rounds of review fixes, and the 27 Sep IST date sweep — 12
+app commits since batch31. Changelog with an "After you deploy" phone checklist:
+`docs/CHANGES-batch32.md`. **batch31's zip is superseded.** Final checks on this exact code:
+regression 256/256, e2e **17/17**, edge functions 26/26, SQL 14/14.
+
+Works with auth-gateway at 12 h (live) or 6 h. Opus's advice stands: this client should go live
+soon — old cached clients don't refuse a typed `INV-` number far above the series, and with 005
+live such a bill moves the series.
+
+**Not verified:** a real phone; the live site after deploy.
+
+→ FOR COWORK: batch32 is ready for Tanish to drag onto Netlify; after it, run `jewelos-deploy-verifier`, then byte-diff and deploy auth-gateway (6 h) with his go.
+
+---
+
 ### 2026-09-30 · Cowork (Sonnet) (LIVE: migration 005 applied, store-proxy v8 deployed; auth-gateway still v5/12 h; client zip not deployed)
 
 **005 applied and verified:** new body present (regexp_match), old 004 body gone, security definer, ACL = postgres + service_role only.
