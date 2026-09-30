@@ -68,6 +68,53 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-30 · Claude Code (Opus 5.5) (F3 built: invoice numbers only from the server, at save time — migration 004 needs applying BEFORE the next deploy)
+
+**Commits:** `4061421` (failing e2e spec), `6305f1a` (client fix + tests), `06f2bd4` (migration 004, not applied).
+
+**Root cause, proven live on the e2e test shop:** only the first sale per session asked the atomic
+counter; `clearSale()` then pre-filled `#s-invno` from the device's own `S.nextInvNo`, and
+`initSaleDate()` skipped the counter because the box was no longer empty. The server never heard of
+those numbers, so it later handed them out again: **INV-030 exists twice in the test shop** (test
+data, left as evidence). It also left the server counter *behind* printed bills (counter 30, bills
+to INV-033) — real shops are probably in the same state.
+
+**What changed (client):** Invoice No. is blank ("Assigned on save"). `allocInvNo()` (01) asks the
+counter inside `_commitSaleTransaction` (02), skips a number already in `S.sales` (up to 5 tries),
+and **refuses the sale** if the counter can't be reached — the silent local fallback is gone (a sale
+can't save offline anyway, so nothing is lost). A typed number already in the shop is refused.
+Convert to Sale no longer pre-fills. Preview before save shows `DRAFT`. `getNextInvNo()` is gone
+(the 21 Sep entry above that mentions it is now out of date).
+
+**Code review (Code Reviewer + jewelos-bug-pattern-reviewer) — all fixed in `6305f1a`:** the old
+double bump of `S.nextInvNo` would, with 004, have skipped a number on *every* sale; form state
+(items, mode, pending order) is now captured before the network hop; the 15 s poll skips while a
+sale is in flight (else the CAS could no longer catch another device selling the same piece); the
+counter fetch times out after 10 s so Record can't stay stuck. Bug-pattern review: clean.
+
+**Server (`004_inv_counter_floor.sql`):** `increment_shop_counter('inv_no')` returns
+`greatest(counter+1, store.data->nextInvNo)`, read server-side, so a lagging counter catches up in
+one step. Other counters unchanged; no store-proxy change. Tested on real Postgres (PGlite),
+`tests/sql-inv-counter-floor.test.mjs` 8/8 (needs `npm i --no-save @electric-sql/pglite@0.2`).
+**Order matters:** without 004, a shop whose counter is more than 5 behind its bills gets "Could
+not get a free invoice number" on every sale until it catches up.
+
+**Tests:** regression 234/234 (+10; the floor/async/poll tests confirmed red with each bug put
+back), e2e **15/15** incl. new `invoice-numbers.spec.js`, AST checks unchanged apart from line
+shifts, backup-check + roundtrip PASS.
+
+**Known limits:** a typed number moves the shop-wide floor (a typo like INV-3000 jumps the series —
+a gap, never a duplicate); `INV-30` and `INV-030` count as different typed numbers; a 401 from the
+counter says "check your internet" instead of the password prompt; `_pendingOrderConversion` is
+still not cleared by `clearSale()` (F4). **Existing duplicates in real shops are not fixed** — this
+only stops new ones.
+
+**Not verified:** a real phone; the live DB (004 not applied); the live site (nothing deployed).
+
+→ FOR COWORK: apply `supabase/migrations/004_inv_counter_floor.sql` to the live DB before this client is deployed, then run a query for invoice numbers that appear more than once in any shop's `sales` and tell Tanish which shops/numbers (so he can decide what to do about bills already issued). Claude Code starts F4 next.
+
+---
+
 ### 2026-09-29 · Claude Code (Opus 5.5) (F1 done: login expiring mid-work no longer loses the bill — re-sign-in in place; next is F3)
 
 **Commit:** `6afec0f` (+ regenerated `checks/globals.json` with this entry).
