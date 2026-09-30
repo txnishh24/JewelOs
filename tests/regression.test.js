@@ -3185,6 +3185,61 @@ test('leaving the Sale tab or clearing the form abandons a pending order convers
   assert(a._pendingOrderConversion === null, 'Clear must clear it, got ' + a._pendingOrderConversion);
 });
 
+console.log('\nF2 — every saved key survives cloud save -> fresh device load (30 Sep):');
+
+// A key that is saved but not loaded is wiped by the next device's first
+// save (audit R2: auditLog, activityLog, waRules); a key that is never saved
+// exists only on one phone (R3: stockMovements). This test is generic: any
+// key added to the save payload later without a matching load fails here.
+testAsync('every key saveToCloud sends comes back on a fresh device via loadFromCloud', function(){
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  ['products','sales','orders','girvi','customers','purchases','suppliers','purchaseAuditLog',
+   'auditLog','activityLog','waRules','stockMovements'].forEach(function(k){ a.S[k] = [{ id:'rt-' + k }]; });
+  var sent = null;
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      sent = JSON.parse(opts.body).data;
+      return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ ok:true, data:Object.assign({ _v:1 }, sent) }); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  a.saveToCloud(function(){});
+  return flushAll().then(function(){
+    assert(sent, 'saveToCloud never sent anything');
+    assert(Array.isArray(sent.stockMovements) && sent.stockMovements.length === 1, 'stockMovements must be in the save payload, got ' + JSON.stringify(sent.stockMovements));
+    var b = loadApp();
+    b.SAAS.sessionToken = 'tok';
+    b.fetch = function(){ return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:Object.assign({ _v:1 }, sent) }); } }); };
+    b.loadFromCloud(function(){});
+    return flushAll().then(function(){
+      var lost = Object.keys(sent).filter(function(k){
+        var v = sent[k];
+        if(Array.isArray(v)) return !Array.isArray(b.S[k]) || !v.every(function(x, i){ return b.S[k][i] && b.S[k][i].id === x.id; });
+        if(typeof v === 'number') return b.S[k] !== v;
+        return false; // objects (rates, purchaseCfg, dayBook) are merged/normalised on load
+      });
+      assert(lost.length === 0, 'saved but not loaded on a fresh device: ' + lost.join(', '));
+    });
+  });
+});
+
+test('every key the cloud save sends also survives the on-phone cache (saveCache -> reopen -> loadCache)', function(){
+  var a = loadApp();
+  a.SAAS.shop = { id:'shop1' };
+  ['products','sales','orders','girvi','customers','purchases','suppliers','purchaseAuditLog',
+   'auditLog','activityLog','waRules','stockMovements'].forEach(function(k){ a.S[k] = [{ id:'c-' + k }]; });
+  a.saveCache();
+  var b = loadApp();
+  b.SAAS.shop = { id:'shop1' };
+  b.localStorage.setItem('ssj_cache', a.localStorage.getItem('ssj_cache'));
+  assert(b.loadCache() === true, 'the cache should load for the same shop');
+  var lost = Object.keys(a.S).filter(function(k){
+    return Array.isArray(a.S[k]) && a.S[k].length && !(Array.isArray(b.S[k]) && b.S[k][0] && b.S[k][0].id === a.S[k][0].id);
+  });
+  assert(lost.length === 0, 'lost when the app is reopened from cache: ' + lost.join(', '));
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

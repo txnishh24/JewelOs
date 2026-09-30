@@ -861,6 +861,7 @@ function loadDemoData(){
 function clearDemoData(){
   safeConfirm('Clear ALL data?','This cannot be undone. All products, sales, orders and girvi records will be permanently deleted.',function(){
     S.products=[]; S.sales=[]; S.orders=[]; S.girvi=[];
+    S.stockMovements=[]; // F2: now synced -- demo stock history must not reach other phones
     S.nextId=1; S.nextSaleId=1; S.nextInvNo=1; S.nextOrdId=1; S.nextGirviId=1;
     DEMO_ACTIVE=false;
     document.getElementById('demo-banner').classList.remove('visible');

@@ -91,6 +91,14 @@ function loadFromCloud(callback){
     if(Array.isArray(record.purchases))  S.purchases   = record.purchases;
     if(Array.isArray(record.suppliers))  S.suppliers   = record.suppliers;
     if(Array.isArray(record.purchaseAuditLog)) S.purchaseAuditLog = record.purchaseAuditLog;
+    // F2: these were saved but never read back, so a fresh device started
+    // empty and its first save wiped them for the whole shop. A blob without
+    // the key (stockMovements before F2) keeps this device's copy, which the
+    // next save then uploads.
+    if(Array.isArray(record.auditLog))       S.auditLog       = record.auditLog;
+    if(Array.isArray(record.activityLog))    S.activityLog    = record.activityLog;
+    if(Array.isArray(record.waRules))        S.waRules        = record.waRules;
+    if(Array.isArray(record.stockMovements)) S.stockMovements = record.stockMovements;
     if(record.purchaseCfg && typeof record.purchaseCfg === 'object') S.purchaseCfg = Object.assign({}, S.purchaseCfg, record.purchaseCfg);
     if(record.dayBook && typeof record.dayBook === 'object') S.dayBook = record.dayBook;
     if(record.rates && typeof record.rates === 'object') S.rates = record.rates;
@@ -137,7 +145,9 @@ function saveToCloud(callback){
     try{
       var approxSize = JSON.stringify({
         products:S.products, sales:S.sales, girvi:S.girvi||[],
-        orders:S.orders||[], customers:S.customers||[]
+        orders:S.orders||[], customers:S.customers||[],
+        // F2: these are synced too now; the 5000-entry stock history is large
+        stockMovements:S.stockMovements||[], auditLog:S.auditLog||[], activityLog:S.activityLog||[]
       }).length;
       if(approxSize > 2500000 && !window._blobWarnedAt){ // 2.5MB threshold
         window._blobWarnedAt = Date.now();
@@ -176,6 +186,9 @@ function saveToCloud(callback){
     auditLog:    S.auditLog    || [],
     activityLog: S.activityLog || [],
     waRules:     S.waRules     || [],
+    // F2: the stock history lived only on the phone that wrote it (capped at
+    // 5000 entries in logStockMovement, so the blob can't grow unbounded).
+    stockMovements: S.stockMovements || [],
     purchaseCfg: S.purchaseCfg || {},
     dayBook:     S.dayBook     || null,
     rates:       S.rates,

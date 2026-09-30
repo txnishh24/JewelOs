@@ -509,6 +509,7 @@ function saveCache(){
       products:S.products,sales:S.sales,orders:S.orders||[],girvi:S.girvi||[],customers:S.customers||[],
       purchases:S.purchases||[],suppliers:S.suppliers||[],purchaseAuditLog:S.purchaseAuditLog||[],purchaseCfg:S.purchaseCfg||{},rates:S.rates,
       auditLog:S.auditLog||[],activityLog:S.activityLog||[],waRules:S.waRules||[],dayBook:S.dayBook||null,
+      stockMovements:S.stockMovements||[], // F2: was never cached, so stock history vanished on every reopen
       nextId:S.nextId||1,nextSaleId:S.nextSaleId||1,nextInvNo:S.nextInvNo||1,nextOrdId:S.nextOrdId||1,nextGirviId:S.nextGirviId||1,
       nextPurchaseId:S.nextPurchaseId||1,nextPurchaseBillNo:S.nextPurchaseBillNo||1
     }));
@@ -637,6 +638,7 @@ function normaliseData(){
   if(!Array.isArray(S.auditLog)) S.auditLog = [];
   if(!Array.isArray(S.activityLog)) S.activityLog = [];
   if(!Array.isArray(S.waRules)) S.waRules = [];
+  if(!Array.isArray(S.stockMovements)) S.stockMovements = []; // F2
   if(!S.purchaseCfg) S.purchaseCfg = {gst:true, goldRate:false, stone:false, hallmark:false, credit:false, timeline:false};
   (S.purchases||[]).forEach(function(p){
     if(!p.id) p.id = (typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2);
@@ -706,6 +708,7 @@ function loadCache(){
     if(Array.isArray(r.auditLog)) S.auditLog=r.auditLog;
     if(Array.isArray(r.activityLog)) S.activityLog=r.activityLog;
     if(Array.isArray(r.waRules)) S.waRules=r.waRules;
+    if(Array.isArray(r.stockMovements)) S.stockMovements=r.stockMovements; // F2
     if(r.purchaseCfg && typeof r.purchaseCfg==='object') S.purchaseCfg=Object.assign({}, S.purchaseCfg, r.purchaseCfg);
     if(r.dayBook && typeof r.dayBook==='object') S.dayBook=r.dayBook;
     if(r.nextPurchaseId&&r.nextPurchaseId>1) S.nextPurchaseId=r.nextPurchaseId;

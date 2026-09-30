@@ -1460,30 +1460,9 @@ window.onload = function(){
   }
 };
 
-// ── PATCH saveCache + loadCache TO INCLUDE activityLog ───────────────
-(function(){
-  var _origSaveCache = saveCache;
-  saveCache = function(){
-    _origSaveCache();
-    try{
-      if(S.activityLog && S.activityLog.length){
-        var existing = JSON.parse(localStorage.getItem('ssj_cache')||'{}');
-        existing.activityLog = S.activityLog.slice(0,100);
-        try{ localStorage.setItem('ssj_cache', JSON.stringify(existing)); } catch(e){}
-      }
-    }catch(e){}
-  };
-
-  var _origLoadCache = loadCache;
-  loadCache = function(){
-    var result = _origLoadCache();
-    try{
-      var r = JSON.parse(localStorage.getItem('ssj_cache')||'{}');
-      if(r.activityLog) S.activityLog = r.activityLog;
-    }catch(e){}
-    return result;
-  };
-}());
+// F2 (30 Sep): a saveCache/loadCache wrapper that re-wrote activityLog into the
+// cache used to live here; the base functions (04) have cached it for a while,
+// so it only re-serialised the whole cache on every save. Removed.
 
 // ── PATCH ALL WRITE OPERATIONS WITH ACTIVITY LOG ─────────────────────
 (function(){
