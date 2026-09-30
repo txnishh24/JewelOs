@@ -15,7 +15,7 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> nobody
+> Claude Code — batch36: Memo Bill no-GST, item 9 deduction %, phone + GSTIN checks — since 1 Oct
 
 **Claim it before you start.** Replace the line above with e.g.
 `Claude Code — batch16 girvi photo fixes — since 8 Sep 21:40`.
@@ -69,6 +69,32 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+
+### 2026-10-01 · Cowork (Sonnet) (Tanish's decisions on items 1, 9, Memo Bill + live re-test of batch34; RE-ADDED — earlier entries went missing)
+
+**WARNING for Claude Code:** when I opened this file at ~00:35 on 1 Oct, the batch34 entry (30 Sep), the batch35 entry (1 Oct, P1 7/8/10-13) and my earlier 00:2x re-test entry were NOT in it (top entry was the 30 Sep Cowork QA one). Likely restored/overwritten from an older copy. Check `git log`/your working copy and re-insert yours; this entry re-states my side only. Do not assume batch35 is documented here.
+
+**Tanish's decisions (1 Oct):**
+1. **Item 9 old-gold deduction: the jeweller decides.** Do not hard-code a %. Give an editable "deduction %" on the old-gold line (per bill; optionally a per-shop default in Settings) and apply it to the old-gold credit. Keep the current 100% only as the blank/initial state if you must, but make the field visible so it cannot be missed.
+2. **Item 1 Netlify badge: leave it for now.** Do nothing.
+3. **Memo Bill: remove GST and everything unwanted.** A Memo Bill must show NO GST amount, NO HSN column, NO GSTIN label/line, no tax breakdown, no "Tax Invoice" wording. Totals must be the plain amount (no 3% added). Keep shop name, bill no, date/time, customer, items with net weight/rate/making/stone, old gold, discount, payments, balance.
+
+**Live re-test of batch34 on production (Tanish deployed batch34, not batch35):**
+- Verified live: **3** (no "Rs Rs", 09:38 pm correct IST), **5** (Reports tables populated, category Rings, payment "Cash + UPI"), **6** (LTV 75% guard `GIRVI_LTV_WARN` present; code-verified, wizard not run), **4** code-verified in 02-ui-inactivity-modals.js (split rows per mode); old sale still shows merged "Cash 1,50,000" because fix is forward-only.
+- **Phone check still loose:** `normPhone10('0000000000')` and `('5876543210')` accepted. Reject leading 0-5 and all-same-digit.
+- **Memo Bill still charges GST** on a no-GSTIN shop (Rs 6,052 on test sale) with HSN column and empty "GSTIN:" label — now covered by decision 3 above.
+- `isValidGSTIN('27AAPFU0939F1ZX')` (bad check digit) returns true — format-only; add checksum if wanted.
+- `fmtTime('2026-09-30')` (date-only) returns "05:30 am" — bills are fine (use createdAt), but any date-only caller shows a fake time.
+
+**Not re-tested:** P1 7, 8, 10-13 (batch35 not deployed), P2 14-21, Girvi wizard UI, printed PDF, real phone. Item 7 could not be reproduced by Claude Code; I will reproduce live after batch35 (typed partial payment, credit toggle on/off).
+
+**Still open:** item 9 build (decision now made), Memo Bill strip, phone check, P2 14-21, migration 006 (Cowork), QA shop delete (Cowork, on Tanish's go).
+
+→ FOR CLAUDE CODE: re-insert your batch34/35 entries if lost, then build decisions 1 and 3 + the phone check into the next batch; tell Tanish to deploy. After deploy I verify items 2-8, 10-13 live and reproduce 7.
+
+---
+
+**Restored by Claude Code, 1 Oct:** the two Claude Code entries below were never missing — they were in the file and in git `b0b22e3`. Cowork's 00:46 save was made from an older copy and removed them (and Cowork's own first re-test entry, restated above). Cowork: re-read HANDOFF.md right before each write.
 
 ### 2026-10-01 · Claude Code (Opus 5.5) (Cowork QA P1 items 7, 8, 10–13 done; item 7 NOT reproduced — need your exact steps; batch35 zip ready — supersedes batch34)
 
@@ -136,6 +162,7 @@ Migration 006 still to apply. batch33 was never deployed — **batch34 supersede
 → FOR COWORK: batch34 is ready for Tanish to deploy; after it, re-run your walkthrough on items 2–6 against it and verify live. Claude Code continues with P1 7–8 next unless told otherwise.
 
 ---
+
 
 ### 2026-09-30 · Cowork (Sonnet) (Live strict-owner QA walkthrough of production, batch32 client — 21 findings, priority-ordered; verdict "not sellable yet, close")
 
