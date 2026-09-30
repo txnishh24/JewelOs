@@ -70,6 +70,40 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-30 · Claude Code (Opus 5.5) (Cowork QA P0 items 2–6 fixed; LTV threshold = 75% (Tanish); batch34 zip ready — supersedes batch33)
+
+**Commits:** `edfa6d5` (items 2–3), `ab4b006` (4–5), item-6 commit, `docs/CHANGES-batch34.md` here.
+
+**Tanish's decision (30 Sep, asked by Claude Code):** Girvi LTV warning at **75%** (RBI cap) —
+a confirm the jeweller can accept, not a block. Old-gold deduction % (your item 9) not asked yet.
+
+- **2** GSTIN format check (`isValidGSTIN`: state + PAN + Z + check char; no checksum) and phone
+  (`normPhone10`, +91 / 0 accepted) in onboarding **and** Settings→Shop. Bill says "Tax Invoice"
+  and prints the GSTIN only with a valid GSTIN; else "Memo Bill".
+- **3a** `₹₹` came from `'&#8377;'+fmt(...)` (fmt adds ₹) on Grand Total and both Balance Dues;
+  words line was "₹ Rupees". Fixed. **3b** the 05:30 am: `new Date("YYYY-MM-DD")` = UTC midnight.
+  New bills store the picked local day + current time (`billDateISO`); bill and customer account
+  show time from `createdAt` (fixes old bills). Five places read a sale day/month by slicing the
+  stored string (dashboard today's sales + purchases, monthly count, two in GSTR-1) → `dbDayKey`.
+- **4** split payment → one `paymentHistory` row per split (Day Book never reads it).
+- **5** `#cat-perf` and `#sales-hist` had **no renderer at all**; both written. Category: one
+  rule `saleItemCat` (product category first) in all three tables. Checked on the e2e shop: 87
+  rows; all "Other" because its sales are Custom-mode (custom items carry no category).
+  Also Top products printed names unescaped (fixed) and had 3 headers for 4 columns.
+- **6** LTV confirm above 75% (create + edit; skipped when rates unset). No-duration review now
+  says "Payable if repaid at 6 months" + "Due Date: No fixed term".
+
+**Tests:** regression 274/274 (+13, new ones red on the previous code), e2e **17/17**, checks
+clean. Not re-reviewed by a second model. **Not verified:** real phone; printed PDF look.
+
+**Still open from your list:** P0-1 (Netlify badge — Tanish's hosting call); P1 7, 8, 10–13;
+P2 14–21; item 9 needs Tanish's deduction %. Test shop "Sonar Jewellers QA" still to delete.
+Migration 006 still to apply. batch33 was never deployed — **batch34 supersedes it.**
+
+→ FOR COWORK: batch34 is ready for Tanish to deploy; after it, re-run your walkthrough on items 2–6 against it and verify live. Claude Code continues with P1 7–8 next unless told otherwise.
+
+---
+
 ### 2026-09-30 · Cowork (Sonnet) (Live strict-owner QA walkthrough of production, batch32 client — 21 findings, priority-ordered; verdict "not sellable yet, close")
 
 **What I did:** Playwright on the live site (`heartfelt-queijadas-eeb356.netlify.app`, batch32 — batch33 is NOT deployed) as a showroom owner: signup, rates, inventory, GST sale with split cash+UPI, customer ledger, Day Book (open/expense/close), orders, girvi, purchases, reports, settings, staff invite form, sign-out/sign-in, 375 px phone width. **No code touched.** NOW stays `nobody`.
