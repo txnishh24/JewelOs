@@ -44,6 +44,9 @@ var CATS=['All','Rings','Necklaces / Haar','Earrings','Jhumkas','Bangles','Kanka
 var CCLS={Rings:'bg-purple','Necklaces / Haar':'bg-gold',Earrings:'bg-blue',Jhumkas:'bg-blue',Bangles:'bg-green',Kankanalu:'bg-green',Bracelets:'bg-info','Anklets / Payal':'bg-purple',Pendants:'bg-gold',Chains:'bg-gold',Mangalsutras:'bg-red','Maang Tikka':'bg-amber','Nose Ring / Nath':'bg-amber','Armlet / Bajuband':'bg-silver','Waist Belt / Kamarbandh':'bg-silver',Jadau:'bg-gold',Other:'bg-silver'};
 
 // ─── STATE ────────────────────────────────────────────────────────────────
+// ?dev=1 shows the developer-only Settings cards (index.html .dev-only).
+try{ if(/[?&]dev=1(&|$)/.test(location.search)) document.documentElement.classList.add('dev'); }catch(e){}
+
 var S = {
   products:[], sales:[], orders:[], girvi:[], customers:[],
   purchases:[], suppliers:[], purchaseAuditLog:[],

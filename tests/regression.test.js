@@ -1701,6 +1701,15 @@ test('QA P1 item 11: order profit estimate is not the whole quote when no estima
   assert(a.orderProfitEst({ quote:100000, items:[{ metal:'gold', purity:'22K', orderWt:5, qty:1, making:0 }] }) === 100000 - 5*r, 'order weight used when no estimate');
 });
 
+test('QA P1 items 12-13: developer cards are hidden by default; no "Free forever" or phantom WhatsApp setup', function(){
+  var html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
+  assert(/<div class="card dev-only"[^>]*>\s*<div class="card-title">&#9729; Cloud Setup/.test(html), 'Cloud/SQL Setup card must be dev-only');
+  assert(/<div class="card dev-only">\s*<div class="card-title">🔧 Developer Tools/.test(html), 'Developer Tools card must be dev-only');
+  assert(/\.dev-only\{display:none!important;\}/.test(html), 'dev-only must be hidden by default');
+  assert(html.indexOf('Free forever') === -1, '"Free forever" contradicts the paid plan');
+  assert(html.indexOf('WhatsApp Business API setup') === -1, 'points at a setup screen that does not exist');
+});
+
 test('girvi item description is escaped on the loan card', function(){
   var html = app.girviLoanCardHTML({ id:'g1', grvNo:'GRV-1', customer:'C', phone:'9', status:'active',
     items:[{ desc:HOSTILE, type:'Ring', metal:'gold', purity:'22K', weight:2, qty:1 }], amount:1000, rate:2,
