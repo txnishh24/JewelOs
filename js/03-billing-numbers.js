@@ -125,7 +125,7 @@ function shareWhatsApp(){
   if(t.bal>0) msg += '*Balance Due: ' + fmt(t.bal) + '*' + nl;
   else msg += '\u2705 Fully Settled' + nl;
   msg += '--------------------------------' + nl;
-  msg += 'Payment Mode: ' + s.payment + nl;
+  msg += 'Payment Mode: ' + salePayModes(s) + nl;
   msg += nl + 'Thank you for shopping at '+((SAAS&&SAAS.shop&&SAAS.shop.name)||'our shop')+'!';
   var phone = (s.phone||'').replace(/[^0-9]/g,'');
   var waUrl = phone
@@ -552,7 +552,7 @@ function showCustHistory(encKey){
       '<div>'+
         '<div style="font-weight:700;font-size:13px;">'+s.invNo+'</div>'+
         '<div style="font-size:12px;color:var(--text3);">'+fmtDate(s.date)+' at '+fmtTime(s.createdAt||s.date)+'</div>'+
-        '<div style="font-size:12px;color:var(--text3);">'+s.payment+'</div>'+
+        '<div style="font-size:12px;color:var(--text3);">'+escHtml(salePayModes(s))+'</div>'+
         (s.paidAt?'<div style="font-size:11px;color:var(--success);margin-top:2px;">&#10003; Paid on '+fmtDate(s.paidAt)+'</div>':'')+
         (s.refundStatus==='full'?'<div style="font-size:10px;font-weight:700;color:#fff;background:#dc2626;border-radius:4px;padding:1px 7px;margin-top:3px;display:inline-block;">&#128260; REFUNDED</div>':'')+
         (s.refundStatus==='partial'?'<div style="font-size:10px;font-weight:700;color:#fff;background:#d97706;border-radius:4px;padding:1px 7px;margin-top:3px;display:inline-block;">&#128260; PART REFUND</div>':'')+
@@ -913,7 +913,7 @@ function exportMonthCSV(){
     var t=calcSaleTotals(s);
     rows.push([s.invNo,fmtDate(s.date),s.customer,s.phone||'',
       s.items.map(function(i){return i.name;}).join('; '),
-      fmtW(wt),s.payment,t.grand,t.bal]);
+      fmtW(wt),salePayModes(s),t.grand,t.bal]);
   });
   var csv=rows.map(function(r){
     return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');
@@ -1047,6 +1047,16 @@ function _doGSTR1Export(sales, label){
 // One rule for an item's category everywhere in Reports (QA 30 Sep: the same
 // ring showed as "Rings" in one section and "Other" in another). A stock
 // sale's line carries only pid, so the product's category comes first.
+// How a sale was paid, e.g. "Cash + UPI" for a split payment. Cowork 1 Oct:
+// the bill, its chip and the customer account said only "Cash" (the first
+// split row) while Reports said "Cash + UPI". One rule, from Reports.
+function salePayModes(s){
+  var modes=(s.splitPayments&&s.splitPayments.length)
+    ? s.splitPayments.filter(function(r){return (parseFloat(r.amount)||0)>0;}).map(function(r){return r.mode;})
+    : [(s.nowPaying&&s.nowPaying.mode)||s.payment||''];
+  var seen={}; modes=modes.filter(function(m){ if(!m||seen[m]) return false; seen[m]=1; return true; });
+  return modes.join(' + ');
+}
 function saleItemCat(i){
   var p = i && i.pid ? (S.products||[]).find(function(x){ return x.id===i.pid; }) : null;
   return (p&&p.cat) || (i&&(i.cat||i.category)) || 'Other';
@@ -1200,12 +1210,9 @@ function renderReports(){
     .map(function(s){
       var t=calcSaleTotals(s), q=0, w=0;
       (s.items||[]).forEach(function(i){ var n=i.qty||1; q+=n; w+=(parseFloat(i.weight)||0)*n; });
-      var modes=(s.splitPayments&&s.splitPayments.length)
-        ? s.splitPayments.filter(function(r){return (parseFloat(r.amount)||0)>0;}).map(function(r){return r.mode;})
-        : [(s.nowPaying&&s.nowPaying.mode)||s.payment||''];
-      var seen={}; modes=modes.filter(function(m){ if(!m||seen[m]) return false; seen[m]=1; return true; });
+      var modes=salePayModes(s);
       return '<tr><td style="font-weight:600">'+escHtml(s.invNo||'')+'</td><td>'+fmtDate(s.date)+'</td><td>'+escHtml(s.customer||'Walk-in')+'</td>'+
-        '<td>'+q+'</td><td>'+fmtW(w)+'</td><td>'+escHtml(modes.join(' + ')||'\u2014')+'</td>'+
+        '<td>'+q+'</td><td>'+fmtW(w)+'</td><td>'+escHtml(modes||'\u2014')+'</td>'+
         '<td style="font-weight:700;color:var(--gold-dark);">'+fmt(t.grand)+'</td>'+
         '<td style="color:'+(t.bal>0?'var(--danger)':'var(--success)')+'">'+(t.bal>0?fmt(t.bal):'\u2713')+'</td>'+
         '<td><button class="btn btn-sm" onclick="showSaleInvoice(\''+jsAttrEsc(s.id)+'\')">View</button></td></tr>';

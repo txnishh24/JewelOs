@@ -655,12 +655,19 @@ function normaliseData(){
     p.grossWt      = parseFloat(p.grossWt)      || 0;
     p.netWt        = parseFloat(p.netWt)        || 0;
     p.totalItems   = parseInt(p.totalItems)     || 0;
-    // Supplier credit toggle: when disabled, every purchase is treated as fully paid
-    if(!S.purchaseCfg.credit){
-      p.amountPaid = p.totalAmount;
+    // QA item 7 (reproduced live by Cowork, 1 Oct): this loop used to set
+    // amountPaid = totalAmount whenever "Supplier Credit Tracking" was off
+    // (the default), on every load -- so a typed partial payment became
+    // "fully paid" and the Day Book booked the whole bill as cash out.
+    // pbRecalc() already dropped that rule; use it, the one payment rule.
+    // Repair: a bill hit by that overwrite still has the true totalPaid
+    // (= amountPaid at entry + later supplier payments), now BELOW amountPaid,
+    // which nothing else can produce. Restore amountPaid from it.
+    var _later = (p.supplierPayments||[]).reduce(function(s,x){ return s + (x.type==='reversal' ? -x.amount : x.amount); }, 0);
+    if(typeof p.totalPaid === 'number' && p.totalPaid < p.amountPaid){
+      p.amountPaid = Math.max(0, Math.round((p.totalPaid - _later) * 100) / 100);
     }
-    p.pendingAmount = Math.max(0, Math.round((p.totalAmount - p.amountPaid) * 100) / 100);
-    p.paymentStatus = p.pendingAmount <= 0 ? 'Paid' : (p.amountPaid > 0 ? 'Partial' : 'Unpaid');
+    pbRecalc(p);
     if(p.deleted == null) p.deleted = false;
   });
   if(!S.nextPurchaseId || S.nextPurchaseId < 1) S.nextPurchaseId = (S.purchases||[]).length + 1;

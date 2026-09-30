@@ -234,11 +234,15 @@ function renderDash(){
   }
 
   // ── 3. BUSINESS SNAPSHOT (the 4 numbers before any decision) ────
-  var lowStockCats = {};
+  // QA P2-19: "Low Stock Alerts" (categories with <=2 pieces) went red for
+  // one ring -- most jewellery is one-off, so a low count is normal. It also
+  // read p.category, which products don't have (the field is p.cat). Now a
+  // plain count of what is in stock.
+  var stockCats = {}, stockPieces = 0;
   S.products.filter(function(p){return p.status!=='sold';}).forEach(function(p){
-    var k=p.category||'Other'; lowStockCats[k]=(lowStockCats[k]||0)+1;
+    stockCats[p.cat||'Other'] = 1; stockPieces += (p.qty==null ? 1 : (parseInt(p.qty,10)||0));
   });
-  var lowStockCount = Object.keys(lowStockCats).filter(function(k){return lowStockCats[k]<=2;}).length;
+  var stockCatCount = Object.keys(stockCats).length;
 
   var snapEl2 = document.getElementById('dash-business-snapshot');
   if(snapEl2){
@@ -246,7 +250,7 @@ function renderDash(){
       fsnCard('Inventory Value', fmt(tgv+tsv), 'gold + silver stock', null, '', 'var(--gold-dark)')+
       fsnCard('Outstanding Payments', fmt(totalPendingBal), getSalesDueSoon(30).length+' overdue 30d+', null, '', '#ef4444')+
       fsnCard('Pending Girvi', fmt(activeGirviTotal), activeGirviList.length+' active loan(s)', null, '', '#f59e0b')+
-      fsnCard('Low Stock Alerts', lowStockCount, lowStockCount?'categories with ≤2 pieces':'all categories healthy', null, '', lowStockCount?'#ef4444':'#22c55e');
+      fsnCard('Pieces in Stock', stockPieces, stockCatCount+' categor'+(stockCatCount===1?'y':'ies'), null, '', 'var(--gold-dark)');
   }
 
   // ── A. TODAY'S ACTIONS ──────────────────────────────────────────
@@ -295,6 +299,7 @@ function renderDash(){
           '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Cash Out (old gold)</span><span style="font-weight:700;color:#ef4444;">'+fmt(cfMonth.cashOut)+'</span></div>'+
           '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Girvi Lent</span><span style="font-weight:700;color:#f59e0b;">'+fmt(cfMonth.girviOut)+'</span></div>'+
           '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Girvi Collected</span><span style="font-weight:700;color:#22c55e;">'+fmt(cfMonth.girviIn)+'</span></div>'+
+          (cfMonth.expenses>0?'<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Expenses</span><span style="font-weight:700;color:#ef4444;">'+fmt(cfMonth.expenses)+'</span></div>':'')+
           '<div style="border-top:0.5px solid var(--border);padding-top:6px;display:flex;justify-content:space-between;font-size:14px;">'+
             '<span style="font-weight:700;">Net Cash</span>'+
             '<span style="font-weight:800;color:'+(cfMonth.netCash>=0?'#22c55e':'#ef4444')+';">'+fmt(cfMonth.netCash)+'</span>'+
@@ -1345,13 +1350,16 @@ function calcCLV(custName, phone){
   var fin   = calcCustomerFinancials(custName, phone);
   var sales = S.sales.filter(function(s){return s.customer===custName&&(!phone||s.phone===phone);});
   if(!sales.length) return null;
-  var first = new Date(sales[0].date);
-  var last  = new Date(sales[sales.length-1].date);
-  var daySpan = Math.max(1, (last-first)/86400000);
-  var monthSpan = Math.max(1, daySpan/30);
+  var times = sales.map(function(s){ return new Date(s.date).getTime(); }).filter(isFinite);
+  var daySpan = times.length ? (Math.max.apply(null,times) - Math.min.apply(null,times))/86400000 : 0;
   var avgOrderVal  = fin.totalPurchased / sales.length;
-  var purchaseFreq = sales.length / Math.max(1, monthSpan); // per month
-  var projectedLTV = avgOrderVal * purchaseFreq * 24; // 24-month projection
+  // QA P2-17: one bill was read as "buys every month" and projected x24
+  // (Rs 49.9 lakh from one Rs 2 lakh bill). Project only from 2+ bills at
+  // least a month apart; otherwise the figure is simply what they have spent.
+  var projected    = sales.length >= 2 && daySpan >= 30;
+  var intervalDays = projected ? daySpan / (sales.length - 1) : 0;
+  var purchaseFreq = projected ? 30 / intervalDays : 0; // per month
+  var projectedLTV = projected ? avgOrderVal * purchaseFreq * 24 : fin.totalPurchased; // 24-month projection
   var tags = getCustomerTags(custName, phone, sales);
   return {
     name:        custName,
@@ -1360,6 +1368,8 @@ function calcCLV(custName, phone){
     orders:      sales.length,
     avgOrder:    avgOrderVal,
     freqPerMonth:purchaseFreq,
+    intervalDays:intervalDays,
+    projected:   projected,
     projectedLTV:projectedLTV,
     pending:     fin.totalCredit,
     exposure:    fin.totalExposure,
@@ -1386,14 +1396,14 @@ function renderSettingsAnalytics(){
           '<div style="flex-shrink:0;width:22px;text-align:center;font-weight:800;font-size:12px;color:var(--text3);">'+(i+1)+'</div>'+
           '<div style="flex:1;min-width:0;">'+
             '<div style="font-weight:600;font-size:13px;">'+escHtml(c.name)+' '+tagHtml+'</div>'+
-            '<div style="font-size:10px;color:var(--text3);">'+c.orders+' orders &bull; '+fmt(Math.round(c.avgOrder))+'/order &bull; '+(c.freqPerMonth*30).toFixed(0)+'d avg interval</div>'+
+            '<div style="font-size:10px;color:var(--text3);">'+c.orders+' orders &bull; '+fmt(Math.round(c.avgOrder))+'/order'+(c.projected?' &bull; every '+Math.round(c.intervalDays)+'d on average':'')+'</div>'+
             '<div class="clv-bar-track" style="margin-top:4px;">'+
               '<div class="clv-bar-fill" style="width:'+Math.round(c.projectedLTV/maxCLV*100)+'%;background:var(--gold);"></div>'+
             '</div>'+
           '</div>'+
           '<div style="text-align:right;flex-shrink:0;margin-left:10px;">'+
             '<div style="font-weight:700;font-size:14px;color:var(--gold-dark);">'+fmt(Math.round(c.projectedLTV))+'</div>'+
-            '<div style="font-size:9px;color:var(--text3);">24-mo CLV</div>'+
+            '<div style="font-size:9px;color:var(--text3);">'+(c.projected?'24-mo CLV':'spent so far')+'</div>'+
             (c.pending>0?'<div style="font-size:10px;color:#ef4444;">Due: '+fmt(c.pending)+'</div>':'')+
           '</div>'+
         '</div>';
@@ -1451,8 +1461,7 @@ function renderSettingsAnalytics(){
       var sales3=S.sales.filter(function(s){var d=new Date(s.date);return d.getFullYear()===yy&&d.getMonth()===mm;});
       sales3.forEach(function(s){
         (s.items||[]).forEach(function(i){
-          var p=S.products.find(function(x){return x.id===i.pid;});
-          var cat=(p&&p.cat)||i.cat||'Other';
+          var cat=saleItemCat(i); // the one category rule the Reports tables use
           if(!cats3[cat]) cats3[cat]=[0,0,0];
           cats3[cat][2-mi]+=getItemRate(i)*(parseFloat(i.weight)||0)*(i.qty||1);
         });
@@ -1470,10 +1479,12 @@ function renderSettingsAnalytics(){
           var prev=e[1][1]||0,curr=e[1][2]||0;
           var trend=prev>0?((curr-prev)/prev*100):0;
           var tColor=trend>=0?'#22c55e':'#ef4444';
+          // QA P2-17: Rs 0 -> Rs 1,89,720 read "▲0%". No base month = no percentage.
+          var tText=prev>0 ? (trend>=0?'▲':'▼')+Math.abs(Math.round(trend))+'%' : (curr>0?'New':'—');
           return '<tr>'+
-            '<td style="padding:5px 4px;font-weight:600;">'+e[0]+'</td>'+
+            '<td style="padding:5px 4px;font-weight:600;">'+escHtml(e[0])+'</td>'+
             e[1].map(function(v){return '<td style="text-align:right;padding:5px 4px;font-size:11px;">'+fmt(Math.round(v))+'</td>';}).join('')+
-            '<td style="text-align:right;padding:5px 4px;font-size:11px;color:'+tColor+';font-weight:700;">'+(trend>=0?'▲':'▼')+Math.abs(Math.round(trend))+'%</td>'+
+            '<td style="text-align:right;padding:5px 4px;font-size:11px;color:'+tColor+';font-weight:700;">'+tText+'</td>'+
           '</tr>';
         }).join('')+
         '</tbody></table></div>';

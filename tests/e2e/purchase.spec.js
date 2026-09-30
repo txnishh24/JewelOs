@@ -32,5 +32,18 @@ test.describe('purchase', () => {
     expect(result.total, 'bill total').toBe(50000);
     expect(result.paid, 'amount paid stored on the bill').toBe(20000);
     expect(result.out, 'Day Book lines for this bill').toEqual(['out 20000']);
+
+    // Item 7 as Cowork reproduced it live (1 Oct): the save was right, but the
+    // next load's clean-up overwrote Amount Paid with the total. Check again
+    // after a reload, which runs that clean-up.
+    await expect(page.getByText('Purchase bill saved')).toBeVisible({ timeout: 15000 }); // shown once the cloud save succeeds
+    await page.reload();
+    await expect.poll(() => page.evaluate((s) => (typeof S !== 'undefined' && S.purchases || []).filter((b) => b.supplier === s).length, supplier), { timeout: 20000 }).toBe(1);
+    const after = await page.evaluate((s) => {
+      const bill = S.purchases.find((b) => b.supplier === s);
+      const lines = dbAutoLines(dbDayKey(bill.date)).filter((l) => l.src === 'purchase' && l.srcId === bill.id);
+      return { paid: bill.amountPaid, pending: bill.pendingAmount, status: bill.paymentStatus, out: lines.map((l) => (l.nonCash ? 'noncash ' : '') + l.dir + ' ' + l.amount) };
+    }, supplier);
+    expect(after, 'the same bill after a reload').toEqual({ paid: 20000, pending: 30000, status: 'Partial', out: ['out 20000'] });
   });
 });

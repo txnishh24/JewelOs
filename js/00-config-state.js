@@ -22,7 +22,11 @@ function shopScopedKey(base){
   return base + '::' + shop;
 }
 
-var AUTO_REFRESH_MS = 15000;
+// QA P2-21: 15 s pulled the whole shop ~120 times in 30 minutes of use --
+// heavy on old phones and mobile data. Saves are version-checked, and
+// returning to the app reloads anyway (08-girvi-viewmode.js), so 60 s only
+// delays seeing another phone's change by up to a minute.
+var AUTO_REFRESH_MS = 60000;
 var refreshTimer = null;
 var isSaving = false;
 var _isSavingSetAt = 0;

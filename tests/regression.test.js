@@ -1615,6 +1615,88 @@ test('batch36 item 9: old-gold deduction % comes off the weight x rate value; bl
   assert(a.buildInvoiceHTML(sale, 'memo').indexOf('less 8%') !== -1, 'the bill shows the deduction');
 });
 
+test('batch37 P2-14: a bill total is locked in whole rupees, as printed', function(){
+  var src = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', '02-ui-inactivity-modals.js'), 'utf8');
+  assert(src.indexOf('var grand=Math.round(Math.max(0,taxable+taxable*gstPct/100));') !== -1, 'the saved lockedGrand is rounded');
+  assert(src.indexOf('var grand=Math.round(Math.max(0,taxable+gstAmt));') !== -1, 'the live form total is rounded the same way');
+  var s1 = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');
+  assert(s1.indexOf('sale.lockedGrand=Math.round(t.grand);') !== -1, 'an edited bill re-locks in whole rupees');
+});
+
+test('batch37 P2-16: Day Book refusals are words, not codes', function(){
+  var a = require('./harness.js').loadApp();
+  assert(a.dbErrText(new Error('future-date')) === 'the date is in the future', 'future-date is explained');
+  assert(a.dbErrText(new Error('something-odd')).indexOf('connection') !== -1, 'an unknown failure asks to check the connection');
+  var src = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', '10-daybook.js'), 'utf8');
+  assert(!/toast\([^)]*err2?\.message/.test(src), 'no Day Book toast prints err.message');
+  var codes = (src.match(/new Error\('([a-z-]+)'\)/g)||[]).map(function(m){ return m.slice(11,-2); });
+  codes.forEach(function(c){ assert(a.DB_ERR_TEXT[c], c + ' has plain words'); });
+});
+
+test('batch37 P2-17: one bill is not projected into a 24-month CLV', function(){
+  var a = require('./harness.js').loadApp();
+  a.S.sales = [{ id:'s1', invNo:'INV-1', date:'2026-09-30T16:00:00.000Z', customer:'Asha', phone:'9876543210',
+    items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:0, discount:0, lockedGrand:207772, advance:207772, payStatus:'full' }];
+  var c = a.calcCLV('Asha', '9876543210');
+  assert(c.projected === false && Math.round(c.projectedLTV) === Math.round(c.totalSpend), 'one bill shows what was spent, not x24 (got ' + Math.round(c.projectedLTV) + ')');
+  a.S.sales.push({ id:'s2', invNo:'INV-2', date:'2026-06-30T16:00:00.000Z', customer:'Asha', phone:'9876543210',
+    items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:0, discount:0, lockedGrand:100000, advance:100000, payStatus:'full' });
+  var c2 = a.calcCLV('Asha', '9876543210');
+  assert(c2.projected === true && Math.round(c2.intervalDays) === 92, 'two bills 92 days apart: interval 92d (got ' + c2.intervalDays + ')');
+});
+
+test('batch37 P2-18: Net Cash subtracts Day Book expenses, like the P&L', function(){
+  var a = require('./harness.js').loadApp();
+  a.S.sales = []; a.S.girvi = [];
+  a.S.dayBook = { entries:[
+    { id:'e1', date:'2026-09-15', dir:'out', amount:500, cat:'rent' },
+    { id:'e2', date:'2026-09-16', dir:'out', amount:900, cat:'rent', voided:true },
+    { id:'e3', date:'2026-08-31', dir:'out', amount:700, cat:'rent' }
+  ], closes:[], opening:{} };
+  var cf = a.calcCashFlow('2026-09-01', '2026-09-30');
+  assert(cf.expenses === 500 && cf.netCash === -500, 'only September\'s live expense counts (got expenses ' + cf.expenses + ', net ' + cf.netCash + ')');
+});
+
+test('batch37 item 7: a partial purchase payment survives a reload, and damaged bills are repaired', function(){
+  var a = require('./harness.js').loadApp();
+  a.S.purchaseCfg = { gst:true, goldRate:false, stone:false, hallmark:false, credit:false, timeline:false }; // the default
+  a.S.purchases = [
+    // saved correctly by the form: typed 15,000 of 40,000
+    { id:'p1', billNo:'PB-1', date:'2026-10-01', supplier:'S', totalAmount:40000, amountPaid:15000, totalPaid:15000 },
+    // already damaged by the old load loop: amountPaid forced to the total, totalPaid kept
+    { id:'p2', billNo:'PB-2', date:'2026-09-30', supplier:'S', totalAmount:50000, amountPaid:50000, totalPaid:20000 },
+    // damaged, with a later supplier payment of 5,000 on top of 20,000 at entry
+    { id:'p3', billNo:'PB-3', date:'2026-09-30', supplier:'S', totalAmount:50000, amountPaid:50000, totalPaid:25000,
+      supplierPayments:[{ id:'sp1', amount:5000, date:'2026-10-01T10:00:00.000Z' }] },
+    // genuinely fully paid: untouched
+    { id:'p4', billNo:'PB-4', date:'2026-09-30', supplier:'S', totalAmount:30000, amountPaid:30000, totalPaid:30000 }
+  ];
+  a.normaliseData();
+  var p = function(id){ return a.S.purchases.filter(function(x){ return x.id===id; })[0]; };
+  assert(p('p1').amountPaid === 15000 && p('p1').pendingAmount === 25000 && p('p1').paymentStatus === 'Partial', 'typed 15,000 stays 15,000 after a load (got ' + p('p1').amountPaid + ')');
+  assert(p('p2').amountPaid === 20000 && p('p2').pendingAmount === 30000, 'damaged bill restored to 20,000 paid (got ' + p('p2').amountPaid + ')');
+  assert(p('p3').amountPaid === 20000 && p('p3').totalPaid === 25000 && p('p3').pendingAmount === 25000, 'later payment kept out of the at-entry amount (got ' + p('p3').amountPaid + ')');
+  assert(p('p4').amountPaid === 30000 && p('p4').paymentStatus === 'Paid', 'a fully paid bill is untouched');
+  a.normaliseData();
+  assert(p('p2').amountPaid === 20000, 'running the load again changes nothing');
+});
+
+test('batch37: a split-paid bill says "Cash + UPI", not just "Cash"', function(){
+  var sale = { id:'s1', invNo:'INV-1', date:new Date().toISOString(), customer:'C', phone:'9876543210',
+    items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:0, discount:0,
+    payment:'Cash', nowPaying:{ amount:55200, mode:'Cash' },
+    splitPayments:[{ amount:30000, mode:'Cash' }, { amount:25200, mode:'UPI' }, { amount:0, mode:'Card' }] };
+  assert(app.salePayModes(sale) === 'Cash + UPI', 'modes joined, zero rows dropped (got ' + app.salePayModes(sale) + ')');
+  assert(app.salePayModes({ payment:'UPI' }) === 'UPI', 'an old single-mode sale keeps its mode');
+  var h = app.buildInvoiceHTML(sale, 'memo');
+  assert(h.indexOf('<span class="chip cp">Cash + UPI</span>') !== -1, 'the bill chip shows both modes');
+});
+
+test('batch37 P2-21: background refresh is once a minute, not every 15 s', function(){
+  var a = require('./harness.js').loadApp();
+  assert(a.AUTO_REFRESH_MS === 60000, 'AUTO_REFRESH_MS is 60 s');
+});
+
 test('P0 item 2: shop setup refuses an invalid GSTIN or phone', function(){
   var a = require('./harness.js').loadApp(), calls = 0;
   a.SAAS.shop = { id:'shop1' };

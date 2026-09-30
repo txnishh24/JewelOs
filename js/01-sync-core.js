@@ -1126,7 +1126,7 @@ function saveEditBill(){
   // Recalculate and re-lock
   sale.lastEditedAt = new Date().toISOString();
   var t=calcSaleTotals(sale);
-  sale.lockedGrand=t.grand;
+  sale.lockedGrand=Math.round(t.grand);
   if(t.bal<=0) sale.payStatus='full';
   saveToCloud(function(err){
     if(!err){
@@ -1375,8 +1375,19 @@ function calcCashFlow(fromDate, toDate){
     });
   });
 
-  var netCash = cashIn + girviIn - girviOut; // old-gold trade-in excluded — not a real cash movement
+  // Day Book expenses (rent, salary...) are real cash out. QA P2-18: Net Cash
+  // left them out while the P&L subtracted them. Same "expense" group rule
+  // as calcDayBookExpenses; entries are dated by day key.
+  var expenses = 0, fromKey = dbDayKey(from), toKey = dbDayKey(to);
+  (S.dayBook && S.dayBook.entries || []).forEach(function(e){
+    if(e.voided || !DB_CATS[e.cat] || DB_CATS[e.cat].group !== 'expense') return;
+    if(e.date < fromKey || e.date > toKey) return;
+    expenses = dbRound(expenses + e.amount);
+  });
+
+  var netCash = cashIn + girviIn - girviOut - expenses; // old-gold trade-in excluded — not a real cash movement
   return {
+    expenses: expenses,
     cashIn:   cashIn,
     cashOut:  cashOut,
     credit:   credit,
@@ -1550,7 +1561,7 @@ function openSalePaymentModal(saleId){
     '<h3 style="margin:0 0 14px;font-size:16px;">Record Payment \u2014 '+escHtml(sale.invNo)+'</h3>'+
     '<div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Balance due: <b style="color:var(--danger);">'+fmt(t.bal)+'</b></div>'+
     '<div style="display:grid;gap:9px;">'+
-      '<input id="spay-amount" type="number" step="0.01" placeholder="Amount" value="'+t.bal+'" style="width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border2);background:var(--surface);font-size:13px;font-family:inherit;">'+
+      '<input id="spay-amount" type="number" step="0.01" placeholder="Amount" value="'+(Math.round(t.bal*100)/100)+'" style="width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border2);background:var(--surface);font-size:13px;font-family:inherit;">'+
       '<select id="spay-mode" style="width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border2);background:var(--surface);font-size:13px;font-family:inherit;">'+
         '<option>Cash</option><option>UPI</option><option>Card</option><option>Bank Transfer</option><option>Cheque</option><option>Other</option>'+
       '</select>'+
@@ -1560,6 +1571,13 @@ function openSalePaymentModal(saleId){
       '<button class="btn btn-sm" style="flex:1;background:var(--surf2);border:1px solid var(--border2);" onclick="document.getElementById(\'spay-modal\').style.display=\'none\'">Cancel</button>'+
       '<button class="btn btn-sm btn-success" style="flex:1;" onclick="submitSalePayment(\''+saleId+'\')">Record Payment</button>'+
     '</div>';
+}
+
+// Redraws the customer's account popup if it is open (QA P2-15: it kept
+// the old balance until closed and reopened). Same key Mark as Paid uses.
+function refreshOpenCustHistory(sale){
+  var m=document.getElementById('cust-modal');
+  if(m && m.classList.contains('open')) showCustHistory(encodeURIComponent((sale.customer||'Walk-in')+(sale.phone?'_'+sale.phone:'')));
 }
 
 function submitSalePayment(saleId){
@@ -1583,7 +1601,7 @@ function submitSalePayment(saleId){
     saveToCloud(function(err){
       _salePaymentSubmitLock[saleId]=false;
       if(!err){
-        renderCustomers(); renderTab('sales');
+        renderCustomers(); renderTab('sales'); refreshOpenCustHistory(sale);
         toast('\u2713 '+fmt(amount)+' payment recorded');
       } else {
         sale.extraPayments=_snap;
@@ -1619,7 +1637,7 @@ function reverseSalePayment(saleId, paymentId){
     sale.extraPayments.push({id:(typeof crypto.randomUUID==='function')?crypto.randomUUID():'REV-'+Date.now(),type:'reversal',amount:pay.amount,mode:pay.mode,ref:'Reversal of '+paymentId,date:new Date().toISOString(),reversedPayment:paymentId,by:(SAAS&&SAAS.user?(SAAS.user.name||SAAS.user.email):'staff')});
     saveToCloud(function(err){
       _salePaymentSubmitLock[saleId]=false;
-      if(!err){ renderCustomers(); renderTab('sales'); toast('\u2718 Payment reversed'); }
+      if(!err){ renderCustomers(); renderTab('sales'); refreshOpenCustHistory(sale); toast('\u2718 Payment reversed'); }
       else{
         sale.extraPayments=_snap;
         saveCache();

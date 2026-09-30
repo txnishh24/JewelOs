@@ -1050,7 +1050,7 @@ function updateSum(){
   // otherwise this live preview disagrees with the actual saved invoice.
   var taxable=Math.max(0,sub-disc);
   var gstAmt=taxable*gstPct/100;
-  var grand=Math.max(0,taxable+gstAmt);
+  var grand=Math.round(Math.max(0,taxable+gstAmt)); // whole rupees, as the bill prints it
 
   document.getElementById('ss-gv').textContent=fmt(gv);
   document.getElementById('ss-mc').textContent=fmt(mc);
@@ -1215,7 +1215,9 @@ function buildSaleObj(){
   // (lockedGrand) — getting this right here is what matters; the fallback
   // formula in calcSaleTotals() never runs once lockedGrand is set.
   var taxable=Math.max(0,sub-disc);
-  var grand=Math.max(0,taxable+taxable*gstPct/100);
+  // Whole rupees, as the bill prints it (QA P2-14: 3% GST left 207771.6000000006
+  // in the ledger and the payment box while the bill said Rs 2,07,772).
+  var grand=Math.round(Math.max(0,taxable+taxable*gstPct/100));
   // Collect all payment fields
   var ogWtB=0,ogPurB='',ogValB=0,ogDedB=0;
   if(ogMode==='direct'){
@@ -2005,7 +2007,7 @@ function buildInvoiceHTML(sale, billType){
         (sale.addr?'<div class="idet">'+escHtml(sale.addr)+'</div>':'')+
       '</div>'+
       '<div class="ib blue"><div class="il2">Payment Info</div>'+
-        '<div class="iname">'+escHtml(sale.payment)+'</div>'+
+        '<div class="iname">'+escHtml(salePayModes(sale))+'</div>'+
         '<div class="idet">Date: '+fmtDate(sale.date)+'</div>'+
         (sale.notes?'<div class="idet">Occasion: '+escHtml(sale.notes)+'</div>':'')+
       '</div>'+
@@ -2043,7 +2045,7 @@ function buildInvoiceHTML(sale, billType){
     '<div class="wb"><div class="wbl">Amount in Words</div><div class="wbt">'+amtWords+' Only</div></div>'+
     /* Status chips */
     '<div class="chips">'+
-      '<span class="chip cp">'+sale.payment+'</span>'+
+      '<span class="chip cp">'+escHtml(salePayModes(sale))+'</span>'+
       (t.bal>0?'<span class="chip ce">Balance Due: '+fmt(t.bal)+'</span>':'<span class="chip cp">&#10003; Payment Complete</span>')+
     '</div>'+
     /* Signature section */

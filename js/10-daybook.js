@@ -487,6 +487,30 @@ function _dbCommit(snapshot, cb){
   });
 }
 
+// Day Book refusals as words a jeweller can act on, not codes (QA P2-16:
+// toasts read "Could not record: future-date"). Unknown = a failed save.
+var DB_ERR_TEXT = {
+  'already-closed':'this day is already closed',
+  'already-voided':'this entry is already cancelled',
+  'before-latest-close':'a later day is already closed',
+  'cannot-void-adjustment':'automatic adjustments cannot be cancelled',
+  'correction-window-passed':'a closed day can only be corrected on the day it was closed',
+  'day-closed':'that day is closed',
+  'future-date':'the date is in the future',
+  'invalid-amount':'enter a valid amount',
+  'invalid-cat':'choose a category',
+  'invalid-counted':'enter the cash you counted',
+  'invalid-dir':'choose money in or money out',
+  'not-found':'the entry was not found (it may have changed on another phone)',
+  'not-latest-close':'only the most recently closed day can be corrected',
+  'opening-locked':'the opening balance cannot change after a day has been closed',
+  'reason-required':'please give a reason'
+};
+function dbErrText(err){
+  var m = err && err.message;
+  return DB_ERR_TEXT[m] || 'check your connection and try again';
+}
+
 // Refuses once any close exists — the opening anchor is meant to be set
 // once, before the book has any history. A later correction is a manual
 // entry or, if wrong at the root, a job for whoever administers the shop.
@@ -1061,7 +1085,7 @@ function dbSubmitOpening(){
   var amt = parseFloat((document.getElementById('db-opening-amt')||{}).value);
   if(!(amt >= 0)){ toast('⚠ Enter a valid amount'); return; }
   dbSetOpening(dbUiDate(), amt, function(err){
-    if(err){ toast('⚠ Could not save: '+err.message); return; }
+    if(err){ toast('⚠ Could not save: '+dbErrText(err)); return; }
     toast('✓ Day Book started');
     renderDayBook();
   });
@@ -1137,7 +1161,7 @@ function dbSubmitEntry(){
     ? {name:_dbEntryParty.name, phone:_dbEntryParty.phone, customerId:_dbEntryParty.id}
     : (partyIsPhone ? {name:'', phone:partyText} : {name:partyText, phone:''});
   dbAddEntry(dbUiDate(), DB_CATS[_dbEntryCat].dir, amt, _dbEntryCat, note, function(err){
-    if(err){ toast('⚠ Could not save: '+err.message); return; }
+    if(err){ toast('⚠ Could not save: '+dbErrText(err)); return; }
     document.getElementById('db-entry-modal').style.display = 'none';
     toast('✓ Entry saved');
     renderDayBook();
@@ -1154,7 +1178,7 @@ function dbSubmitVoid(){
   var reason = (document.getElementById('db-void-reason')||{}).value || '';
   if(!reason.trim()){ toast('⚠ Enter a reason'); return; }
   dbVoidEntry(_dbVoidTargetId, reason, function(err){
-    if(err){ toast('⚠ Could not void: '+err.message); return; }
+    if(err){ toast('⚠ Could not void: '+dbErrText(err)); return; }
     document.getElementById('db-void-modal').style.display = 'none';
     toast('✓ Entry voided');
     renderDayBook();
@@ -1176,7 +1200,7 @@ function dbSubmitClose(){
   var dateKey = dbUiDate();
   safeConfirm('Close '+fmtDate(dateKey)+'?', 'Once closed, this day\'s figures are locked. A later correction to a bill dated today shows up as an adjustment on a future day, not a rewrite of this one.', function(){
     dbCloseDay(dateKey, counted, function(err, res){
-      if(err){ toast('⚠ Could not close: '+err.message); return; }
+      if(err){ toast('⚠ Could not close: '+dbErrText(err)); return; }
       document.getElementById('db-close-modal').style.display = 'none';
       toast('✓ Day closed');
       renderDayBook();
@@ -1187,7 +1211,7 @@ function dbSubmitClose(){
           'Counted cash was '+fmt(Math.abs(res.diff))+' '+(res.diff<0?'short':'more')+' than the book. Add this as an entry on '+fmtDate(landDate)+'?',
           function(){
             dbAddEntry(landDate, res.diff<0?'out':'in', Math.abs(res.diff), res.diff<0?'cashShort':'cashExcess', 'From closing '+dateKey, function(err2){
-              if(err2){ toast('⚠ Could not record: '+err2.message); return; }
+              if(err2){ toast('⚠ Could not record: '+dbErrText(err2)); return; }
               toast('✓ Recorded');
               renderDayBook();
             });
@@ -1209,7 +1233,7 @@ function dbSubmitCorrect(){
   var reason = (document.getElementById('db-correct-reason')||{}).value || '';
   if(!(counted >= 0)){ toast('⚠ Enter a valid amount'); return; }
   dbCorrectCount(dbUiDate(), counted, reason, function(err){
-    if(err){ toast('⚠ Could not correct: '+err.message); return; }
+    if(err){ toast('⚠ Could not correct: '+dbErrText(err)); return; }
     document.getElementById('db-correct-modal').style.display = 'none';
     toast('✓ Count corrected');
     renderDayBook();
