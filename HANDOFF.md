@@ -70,6 +70,31 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-30 · Cowork (Sonnet; Opus review) (migration 004 APPLIED to production; Opus review of F1-F4 fixes found no 004 blocker in today's data)
+
+**Applied:** `004_inv_counter_floor` (live, verified: new body, security definer, ACL = postgres + service_role only). auth-gateway (v5, 12 h) and store-proxy (v7) NOT deployed yet.
+**Pre-apply data check (all shops):** counter vs blob nextInvNo vs highest bill — largest gap is 3 (shop `main`: counter 2, nextInvNo 5). No shop is near the 1000 limit.
+**Opus findings (open, for Claude Code):**
+1. HIGH in theory: a bad saved floor (>1000 ahead) is ignored now but never goes away (`Math.max`, `04:701` backup restore). When the counter comes within 1000 of it, one sale jumps ~1000 (PGlite: 31..500, then 1500). Fix idea: let the client/server reset a floor that is >1000 ahead of the counter (e.g. sale commit sets nextInvNo to issued+1 when it is wildly above, and backup restore must not import nextInvNo).
+2. HIGH in theory: honest lag >1000 (or >1000 bills, no counter row) makes the floor ignored and the client refuses sales after 5 skips.
+3. MEDIUM: a save that timed out but landed -> retry conflict -> sale rolled back, reload shows it, form still filled -> resubmit makes a duplicate bill (custom-mode sale, new girvi loan). `isDuplicateSale` window (60 s) has passed.
+4. LOW: `004` `counters.val + c_max_jump` overflows above 2147482647; typed invoice number path (`02:1359`) skips the try/catch so the lock can stick; `invNoInUse` is exact-text ('INV-40' vs 'INV-040'); archive rollback (`04:1591`) replaces the whole auditLog; `01:587` 401 on the counter call says 'check your internet'.
+5. Opus could not find `reason` in the uploaded `store-proxy/index.ts` (dated 29 Sep) and the uploaded SQL test file was the old 8-test version, which FAILS the capped-at-2147483647 case. Cowork staged only some files, so this may be my stale copy — Claude Code please confirm the current store-proxy has the `reason` fields and `tests/sql-inv-counter-floor.test.mjs` is 12/12.
+
+→ FOR CLAUDE CODE: fix items 1-3 (Opus review), confirm item 5, then say when store-proxy and auth-gateway are ready. Cowork deploys those two after diffing against live, then Tanish deploys the client zip.
+
+---
+
+### 2026-09-30 · Cowork (Sonnet) (re-checked Claude Code's fixes: all present in code; nothing deployed yet — waiting for Tanish's go on 004 + auth-gateway + store-proxy)
+
+**Read on disk, not just the entry:** typed invoice numbers no longer move `S.nextInvNo` (`02:1425-1435`, only `ctx.issuedNo`); 004 ignores a floor >1000 ahead and caps the read at 1e9 (rewritten clamp is better than my `least()` suggestion — agreed); `05:210` trusts `reason` from store-proxy; `01:211` 60 s save timeout; `04:1589` restores the audit log on failed archive.
+**Live (read-only):** 004 still NOT applied; auth-gateway still v5 (12 h); store-proxy still v7. Nothing deployed by me.
+**Not verified by me:** the test counts (249/249, 12/12, 17/17) — I did not re-run them. No second-model review of these last fixes; numbering is high-risk, so one is still owed.
+
+→ FOR CLAUDE CODE: nothing new to build. Hold. When Tanish says go, Cowork applies 004, then diffs and deploys auth-gateway and store-proxy.
+
+---
+
 ### 2026-09-30 · Claude Code (Opus 5.5) (Cowork's F1–F4 review: all findings fixed — 004 is ready to apply; store-proxy now also needs a deploy)
 
 **Commits:** `dd4829c` (HIGH), `f326005` (MEDIUM 1), `c924284` (MEDIUM 2 + LOW). Cowork's entry
