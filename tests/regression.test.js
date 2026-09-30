@@ -3001,6 +3001,115 @@ test('isDuplicateSale skips a sale whose createdAt is malformed instead of treat
   assert(a.isDuplicateSale('Walk-in', items) === false, 'a malformed createdAt must be skipped, not treated as fresh');
 });
 
+console.log('\nF3 — invoice numbers assigned at save, never repeated (30 Sep):');
+
+test('a sale with a blank invoice number gets it from the server counter at save time', function(){
+  var a = _freshSaleHarness();
+  a.saveToCloud = function(cb){ cb(null); };
+  a.getNextCounter = function(name, cb){ cb(null, 31); };
+  var sale = _sale('1'); sale.invNo = '';
+  a._commitSaleTransaction(sale);
+  assert(a.S.sales.length === 1 && a.S.sales[0].invNo === 'INV-031', 'expected INV-031, got ' + JSON.stringify(a.S.sales.map(function(s){return s.invNo;})));
+});
+
+test('a server number already used in this shop is skipped, not reused', function(){
+  var a = _freshSaleHarness();
+  a.S.sales = [{ id:'old', invNo:'INV-030' }];
+  a.saveToCloud = function(cb){ cb(null); };
+  var val = 30;
+  a.getNextCounter = function(name, cb){ cb(null, val++); };
+  var sale = _sale('1'); sale.invNo = '';
+  a._commitSaleTransaction(sale);
+  assert(a.S.sales[1] && a.S.sales[1].invNo === 'INV-031', 'expected the used INV-030 skipped for INV-031, got ' + JSON.stringify(a.S.sales.map(function(s){return s.invNo;})));
+});
+
+test('if the counter cannot be reached the sale is refused — no local-number fallback', function(){
+  var a = _freshSaleHarness();
+  var saves = 0;
+  a.saveToCloud = function(cb){ saves++; cb(null); };
+  a.getNextCounter = function(name, cb){ cb(null, null); };
+  var sale = _sale('1'); sale.invNo = '';
+  a._commitSaleTransaction(sale);
+  assert(saves === 0 && a.S.sales.length === 0, 'expected no save and no sale, got saves=' + saves + ' sales=' + a.S.sales.length);
+  assert(a._saleSubmitLock === false, 'the submit lock must be released so the jeweller can retry');
+});
+
+test('a counter stuck on used numbers gives up after a few tries instead of looping', function(){
+  var a = _freshSaleHarness();
+  a.S.sales = [{ id:'old', invNo:'INV-007' }];
+  var calls = 0;
+  a.getNextCounter = function(name, cb){ calls++; cb(null, 7); };
+  a.saveToCloud = function(cb){ cb(null); };
+  var sale = _sale('1'); sale.invNo = '';
+  a._commitSaleTransaction(sale);
+  assert(calls === a.INV_ALLOC_TRIES && a.S.sales.length === 1, 'expected ' + a.INV_ALLOC_TRIES + ' tries and no new sale, got calls=' + calls + ' sales=' + a.S.sales.length);
+});
+
+test('invNoInUse ignores case and spaces, and never matches a blank number', function(){
+  var a = require('./harness.js').loadApp();
+  a.S.sales = [{ invNo:'INV-030' }, { invNo:'' }];
+  assert(a.invNoInUse(' inv-030 ') === true, 'a typed " inv-030 " is the same invoice as INV-030');
+  assert(a.invNoInUse('INV-031') === false, 'an unused number is free');
+  assert(a.invNoInUse('') === false, 'a blank number is never "in use"');
+});
+
+test('consecutive sales get N and N+1 under the server floor (migration 004) — no skipped numbers', function(){
+  var a = _freshSaleHarness();
+  a.saveToCloud = function(cb){ cb(null); };
+  a.S.nextInvNo = 31;
+  var counter = 30; // mirrors 004: greatest(counter+1, blob nextInvNo)
+  a.getNextCounter = function(name, cb){ counter = Math.max(counter + 1, a.S.nextInvNo); cb(null, counter); };
+  [1,2,3].forEach(function(i){ var s = _sale(String(i)); s.invNo = ''; a._commitSaleTransaction(s); });
+  var got = a.S.sales.map(function(s){ return s.invNo; }).join(',');
+  assert(got === 'INV-031,INV-032,INV-033', 'expected INV-031,INV-032,INV-033, got ' + got);
+});
+
+test('recordSale refuses a typed invoice number already used in this shop', function(){
+  var a = _freshSaleHarness();
+  var saves = 0;
+  a.saveToCloud = function(cb){ saves++; cb(null); };
+  a.S.sales = [{ id:'old', invNo:'INV-030' }];
+  var _orig = a.document.getElementById;
+  a.document.getElementById = function(id){ return id === 's-cust' ? { style:{}, value:'Test Customer' } : _orig(id); };
+  a.buildSaleObj = function(){ var s = _sale('X'); s.invNo = 'inv-030'; return s; };
+  a.recordSale();
+  assert(saves === 0 && a.S.sales.length === 1, 'a used typed number must be refused, got saves=' + saves + ' sales=' + a.S.sales.length);
+});
+
+test('clearing the form while the invoice number is being fetched does not change what the sale deducts', function(){
+  var a = _freshSaleHarness();
+  a.saveToCloud = function(cb){ cb(null); };
+  a.UI.saleMode = 'stock';
+  var pending = null;
+  a.getNextCounter = function(name, cb){ pending = cb; }; // number still in flight
+  var s = _sale('1'); s.invNo = '';
+  a._commitSaleTransaction(s);
+  a.UI.saleItems = [{ pid:'', qty:1 }]; // user taps Clear mid-fetch
+  pending(null, 40);
+  assert(a.S.sales.length === 1 && a.S.products[0].qty === 2, 'expected the sale saved with its ring deducted (qty 2), got sales=' + a.S.sales.length + ' qty=' + a.S.products[0].qty);
+});
+
+test('the 15 s background refresh skips while a sale is fetching its invoice number', function(){
+  var a = _freshSaleHarness();
+  var tick = null, loads = 0;
+  a.setInterval = function(f){ tick = f; return 1; };
+  a.isPinSessionActive = function(){ return true; };
+  a.loadFromCloud = function(){ loads++; };
+  a.getNextCounter = function(){}; // never answers — the sale stays in flight
+  var s = _sale('1'); s.invNo = '';
+  a._commitSaleTransaction(s);
+  a.startAutoRefresh();
+  assert(typeof tick === 'function', 'startAutoRefresh should register its poll');
+  tick();
+  assert(loads === 0, 'the poll must not reload the shop mid-sale, got ' + loads + ' load(s)');
+});
+
+test('the sale form, a cleared form and Convert to Sale never pre-fill a local invoice number', function(){
+  var src = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', '02-ui-inactivity-modals.js'), 'utf8') +
+            require('fs').readFileSync(require('path').join(__dirname, '..', 'js', '04-orders-detail.js'), 'utf8');
+  assert(!/'INV-'\s*\+\s*String\(S\.nextInvNo\)/.test(src), 'found a local INV- number built from S.nextInvNo — numbers must come from allocInvNo()');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

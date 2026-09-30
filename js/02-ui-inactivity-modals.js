@@ -559,15 +559,7 @@ function delProd(id){
 function initSaleDate(){
   var d=document.getElementById('s-date');
   if(!d.value) d.value=dbDayKey(new Date()); // local IST day, not toISOString()'s UTC day
-  var inv=document.getElementById('s-invno');
-  if(!inv.value){
-    inv.value = 'INV-' + String(S.nextInvNo).padStart(3,'0'); // show immediately
-    // Then try atomic counter (may update it if counter table exists)
-    getNextInvNo(function(invNo){
-      var invEl = document.getElementById('s-invno');
-      if(invEl && (!invEl.value || invEl.value === inv.value)) invEl.value = invNo;
-    });
-  }
+  // Invoice No. stays blank: the number is assigned at save time (allocInvNo).
 }
 
 function custAutocomplete(){
@@ -1222,7 +1214,7 @@ function buildSaleObj(){
   var advForRecord = totalCollB >= grand ? grand : totalCollB;
   return{
     id: (typeof crypto.randomUUID==='function') ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)),
-    invNo:document.getElementById('s-invno').value||'INV-'+String(S.nextInvNo).padStart(3,'0'),
+    invNo:(document.getElementById('s-invno').value||'').trim(), // blank = assign at save
     date:new Date(document.getElementById('s-date').value||new Date()).toISOString(),
     createdAt:new Date().toISOString(),
     customer:document.getElementById('s-cust').value||'Walk-in',
@@ -1337,6 +1329,10 @@ function recordSale(){
     });
     if(!ok)return;
   }
+  if(sale.invNo && invNoInUse(sale.invNo)){
+    toast('⚠ Invoice '+sale.invNo+' already exists. Clear the Invoice No. box to get the next number.');
+    return;
+  }
   // Duplicate bill guard — catches a second, separate click after the
   // first sale already finished (different scenario from the in-flight
   // lock above, which catches a click while the first is still saving)
@@ -1351,12 +1347,34 @@ function recordSale(){
   _commitSaleTransaction(sale);
 }
 
+// F3: a blank invoice number is fetched from the server counter here, at
+// save time, holding the submit lock so a double-tap can't fetch two.
+// The form state the commit needs is captured HERE, before the network hop:
+// a Clear, a row removed, or another order's Convert while the number is in
+// flight must not change what this sale deducts or which order it bills.
 function _commitSaleTransaction(sale){
+  var ctx = { items: UI.saleItems.slice(), mode: UI.saleMode, order: _pendingOrderConversion };
+  if(sale.invNo){ _commitSaleTransactionNow(sale, ctx); return; }
   _saleSubmitLock = true;
-  var saleItemsForStock = UI.saleItems.slice(); // snapshot for rollback
+  allocInvNo(function(err, invNo){
+    if(err){
+      _saleSubmitLock = false;
+      toast(err.message === 'counter-behind'
+        ? '⚠ Could not get a free invoice number. Please contact JewelOS support.'
+        : '⚠ Could not get an invoice number. Check your internet and try again.');
+      return;
+    }
+    sale.invNo = invNo;
+    _commitSaleTransactionNow(sale, ctx);
+  });
+}
+
+function _commitSaleTransactionNow(sale, ctx){
+  _saleSubmitLock = true;
+  var saleItemsForStock = ctx.items; // snapshot for rollback
   // Snapshot exactly what deductSoldStock will touch, so a failed save
   // can restore precisely these products to their pre-sale state.
-  var stockSnapshot = (UI.saleMode!=='custom') ? saleItemsForStock
+  var stockSnapshot = (ctx.mode!=='custom') ? saleItemsForStock
     .filter(function(x){return x.pid;})
     .map(function(item){
       var p=S.products.find(function(x){return x.id==item.pid;});
@@ -1372,8 +1390,8 @@ function _commitSaleTransaction(sale){
   // SAME cloud save as the sale itself — never before the sale exists,
   // and rolled back together if the save fails.
   var linkedOrder = null, linkedOrderSnap = null;
-  if(_pendingOrderConversion){
-    linkedOrder = (S.orders||[]).find(function(x){return x.id===_pendingOrderConversion;});
+  if(ctx.order){
+    linkedOrder = (S.orders||[]).find(function(x){return x.id===ctx.order;});
     if(linkedOrder && !linkedOrder.billedSaleId){
       linkedOrderSnap = JSON.parse(JSON.stringify(linkedOrder));
       linkedOrder.status='delivered';
@@ -1392,7 +1410,7 @@ function _commitSaleTransaction(sale){
   S.sales.push(sale);
   S.nextSaleId++;
   // Forward-sync, not a blind increment: sale.invNo may already be a
-  // higher, atomically-fetched number (initSaleDate() -> getNextInvNo())
+  // higher, atomically-fetched number (_commitSaleTransaction() -> allocInvNo())
   // than whatever S.nextInvNo currently holds, or — on the local-fallback
   // path — exactly equal to it. A blind S.nextInvNo++ here left the local
   // counter trailing behind numbers already handed out, which is how two
@@ -1400,8 +1418,10 @@ function _commitSaleTransaction(sale){
   // pre-commit value so a failed save can restore it exactly, not just -1.
   var _prevNextInvNo = S.nextInvNo;
   var _usedInvNo = parseInt((sale.invNo||'').replace(/\D/g,''),10);
-  S.nextInvNo = (_usedInvNo>=S.nextInvNo) ? _usedInvNo+1 : S.nextInvNo+1;
-  if(UI.saleMode!=='custom'){
+  // F3: max(), never "+1 anyway" — S.nextInvNo is the server counter's floor
+  // (migration 004), so any extra bump becomes a skipped GST number.
+  if(!isNaN(_usedInvNo)) S.nextInvNo = Math.max(S.nextInvNo, _usedInvNo+1);
+  if(ctx.mode!=='custom'){
     deductSoldStock(saleItemsForStock, sale);
   }
 
@@ -1409,7 +1429,7 @@ function _commitSaleTransaction(sale){
     _saleSubmitLock = false;
     if(!err){
       upsertCustomer(sale.customer, sale.phone, { addr: sale.addr||'', gstin: sale.custGSTIN||'' });
-      if(linkedOrder){ _pendingOrderConversion=null; if(typeof renderOrders==='function') renderOrders(); }
+      if(linkedOrder){ if(_pendingOrderConversion===ctx.order) _pendingOrderConversion=null; if(typeof renderOrders==='function') renderOrders(); }
       clearSale();
       renderDash();
       toast('\u2705 Sale recorded! Invoice: '+sale.invNo);
@@ -1611,7 +1631,7 @@ function clearSale(){
   ['s-cust','s-phone','s-addr','s-notes'].forEach(function(id){document.getElementById(id).value='';});
   ['s-making','s-diamond','s-gst','s-disc','s-advance'].forEach(function(id){document.getElementById(id).value='0';});
   document.getElementById('s-date').value=dbDayKey(new Date()); // local IST day, not toISOString()'s UTC day
-  document.getElementById('s-invno').value='INV-'+String(S.nextInvNo).padStart(3,'0');
+  document.getElementById('s-invno').value=''; // assigned at save time
   document.getElementById('cust-suggestions').style.display='none';
   // Clear old gold fields
   var ogDE=document.getElementById('s-oldgold-direct');if(ogDE)ogDE.value='';

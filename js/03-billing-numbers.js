@@ -22,6 +22,7 @@ function previewInvoice(){
     if(!hasItem){toast('Add at least one item with weight');return;}
   }
   CURRENT_SALE_FOR_PDF = buildSaleObj();
+  if(!CURRENT_SALE_FOR_PDF.invNo) CURRENT_SALE_FOR_PDF.invNo = 'DRAFT'; // real number is assigned at save
   var bt = _saleFormBillType || 'gst';
   openInvoiceModal(buildInvoiceHTML(CURRENT_SALE_FOR_PDF, bt), bt);
 }

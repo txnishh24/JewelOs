@@ -459,6 +459,10 @@ function startAutoRefresh(){
     // that window; the dialog can safely stay open indefinitely otherwise.
     var confirmOverlay = document.getElementById('safe-confirm-overlay');
     if(confirmOverlay && confirmOverlay.style.display === 'flex') return;
+    // F3: same window while a sale fetches its invoice number — a poll here
+    // would refresh _loadedVersion under a stock check already made, and the
+    // CAS could no longer catch another device selling the same piece.
+    if(typeof _saleSubmitLock !== 'undefined' && _saleSubmitLock) return;
     if(!isSaving && isPinSessionActive()){
       loadFromCloud(function(err){
         if(!err){
@@ -532,6 +536,12 @@ function _getDataVersion(record){
 function getNextCounter(counterName, callback){
   // counterName: 'inv_no' | 'girvi_no' | 'ord_no' | 'prod_no' | 'purchase_no'
   var shopKey = _getShopRowKey();
+  // F3: a sale now waits on this call holding its submit lock, so a stalled
+  // connection must not hang forever — give up after 10 s (local fallback signal).
+  var done = false;
+  var _cb = callback;
+  callback = function(err, val){ if(done) return; done = true; clearTimeout(timer); _cb(err, val); };
+  var timer = setTimeout(function(){ console.warn('[JewelOS] getNextCounter timed out'); callback(null, null); }, 10000);
   fetch(SB_FUNCTIONS + '/store-proxy', {
     method: 'POST',
     headers: Object.assign({}, SB_HEADERS, { 'x-session-token': (typeof SAAS!=='undefined' && SAAS.sessionToken) || '' }),
@@ -552,17 +562,30 @@ function getNextCounter(counterName, callback){
   });
 }
 
-// Wrap invoice number generation to use atomic counter when available
-function getNextInvNo(callback){
+// F3 (30 Sep): true if this shop already has a sale with this invoice number.
+function invNoInUse(invNo){
+  var n = String(invNo||'').trim().toUpperCase();
+  return !!n && (S.sales||[]).some(function(s){ return String(s.invNo||'').trim().toUpperCase() === n; });
+}
+
+// F3 (30 Sep): invoice numbers come ONLY from the server's atomic counter,
+// asked at save time — never from this device's S.nextInvNo, which other
+// devices can't see (that is how INV-030 was issued twice). A number already
+// used in this shop is skipped and the counter asked again; if the counter
+// can't be reached, callback(err) and the sale is refused — no local guess,
+// so a GST series never gets a duplicate. Gaps (a number fetched, then the
+// save fails) are possible and acceptable; duplicates are not.
+var INV_ALLOC_TRIES = 5; // ponytail: skips at most 5 used numbers; a counter further behind needs the server floor (F3 step 3)
+function allocInvNo(callback, _tries){
+  var tries = _tries || 0;
   getNextCounter('inv_no', function(err, val){
-    if(val !== null){
-      // Sync local counter so it doesn't go backwards
-      if(val >= S.nextInvNo) S.nextInvNo = val + 1;
-      callback('INV-' + String(val).padStart(3,'0'));
-    } else {
-      // Fallback to local
-      callback('INV-' + String(S.nextInvNo).padStart(3,'0'));
-    }
+    if(val === null){ callback(new Error('counter-unavailable')); return; }
+    // No S.nextInvNo bump here: the sale commit forward-syncs it, and doing
+    // both put it 2 ahead — which the 004 server floor turns into a gap per sale.
+    var invNo = 'INV-' + String(val).padStart(3,'0');
+    if(!invNoInUse(invNo)){ callback(null, invNo); return; }
+    if(tries + 1 >= INV_ALLOC_TRIES){ callback(new Error('counter-behind')); return; }
+    allocInvNo(callback, tries + 1);
   });
 }
 

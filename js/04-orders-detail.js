@@ -372,7 +372,7 @@ function convertToSale(ordId){
     // Total advance already paid → fills prev advance correctly
     document.getElementById('s-prev-advance').value=totalAdv;
     document.getElementById('s-notes').value='Order: '+o.ordNo+(o.notes?' | '+o.notes:'');
-    document.getElementById('s-invno').value='INV-'+String(S.nextInvNo).padStart(3,'0');
+    document.getElementById('s-invno').value=''; // assigned at save time (F3)
     var bal=Math.max(0,(o.quote||0)-totalAdv);
     setPayStatus(bal<=0?'full':'advance');
     updateSum();
