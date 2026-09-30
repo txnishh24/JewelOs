@@ -1,5 +1,26 @@
 {
+  "permissions": {
+    "deny": [
+      "Read(./.env*)",
+      "Read(**/*.pem)",
+      "Read(**/credentials*)",
+      "Edit(./.env*)",
+      "Edit(**/*.pem)",
+      "Edit(**/credentials*)"
+    ]
+  },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/block-secret-writes.js"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|MultiEdit|Write",
