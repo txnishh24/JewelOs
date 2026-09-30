@@ -70,6 +70,52 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-30 · Cowork (Sonnet) (Live strict-owner QA walkthrough of production, batch32 client — 21 findings, priority-ordered; verdict "not sellable yet, close")
+
+**What I did:** Playwright on the live site (`heartfelt-queijadas-eeb356.netlify.app`, batch32 — batch33 is NOT deployed) as a showroom owner: signup, rates, inventory, GST sale with split cash+UPI, customer ledger, Day Book (open/expense/close), orders, girvi, purchases, reports, settings, staff invite form, sign-out/sign-in, 375 px phone width. **No code touched.** NOW stays `nobody`.
+
+**Test data left in production:** shop `Sonar Jewellers QA (TEST - delete me)`, owner `qa.playwright.0930@example.com` (INV-001, ORD-001, GRV-0001 ₹5,00,000, PB-00001). Cowork/Tanish to delete — add to the throwaway-shop list. Not a real customer.
+
+**Worked (don't touch):** cloud persistence across sign-out/in (all records back), GST/CGST/SGST maths, weight-deduction maths, split payments + balance due, Day Book auto-posting of cash sale / girvi / order advance and the UPI-"not counted" line, Close Day count check, closed-day restatement, purchase paid>total block + rate sanity confirm, girvi phone/weight validation, login lockout counter.
+
+## FIXES, PRIORITY ORDER
+
+### P0 — blocks any demo/sale
+1. **Netlify free-tier badge steals taps on phones (hosting, not code).** At 375 px `document.elementFromPoint(170..300, 770)` returns the badge IFRAME, not the bottom-nav buttons — Orders/Customers/Reports/Day Book are untappable. Fix = leave the free tier or a host without the badge. **Cowork/Tanish decision** (same bug reported 20 & 21 Sep). batch33's nav-width fix does not solve this.
+2. **No GSTIN / phone validation on shop setup.** `INVALID123` and phone `98765` were accepted and printed on a "TAX INVOICE". Validate 15-char GSTIN format (regex; checksum optional) in signup setup AND Settings→Shop; do not print "TAX INVOICE" without a valid GSTIN (fall back to memo/"Bill of Supply"). Phone: same validator girvi step 1 already uses. (Check batch33's phone change covers setup + sale forms.)
+3. **Printed bill defects.** (a) Grand Total and Balance Due print `₹₹2,07,772` (also "₹ Rupees … Only" in words); (b) bill time reads `05:30 am` on a bill made ~21:37 IST, also in the customer account ("30 Sept 2026 at 05:30 am" vs its payment row "09:38 pm") — looks like the date-only `s-date` string parsed as UTC midnight → IST 05:30. Same family as the UTC-date bugs already swept.
+4. **Customer account merges payment modes.** INV-001 paid ₹1,00,000 Cash + ₹50,000 UPI; Payment History shows a single `Cash ₹1,50,000` (bill preview and Day Book show it correctly). Split payments at sale time are being collapsed when written to the payment history.
+5. **Reports: empty tables.** `#sales-hist` ("Sales in September") and `#cat-perf` ("By category") render zero rows with 1 sale present. Also "Category-wise Revenue" says `Other ₹2,01,720` while "Category Intelligence" says `Rings ₹1,89,720` for the same sale (product category was Rings).
+6. **Girvi has no LTV guard at creation.** ₹5,00,000 loan on ₹1,05,400 of gold passed all 5 steps; only afterwards the card shows red `LTV 474%`. Add a warning/confirm on step 4/5 above a threshold (Tanish to pick the %; don't rebuild `girviLedgerState`). Also: blank duration → the review says `Total Payable ₹5,60,000` (priced at 6 months) while due date says "No fixed term".
+
+### P1 — money/trust, fix next
+7. **Day Book posts the purchase TOTAL, not the amount paid.** PB-00001 total ₹50,000, paid ₹20,000 (Cash) → Day Book `−₹50,000`. Cash-out overstated by the unpaid ₹30,000.
+8. **Close Day "Record the shortfall?" silently fails.** Confirm → toast `Could not record: future-date`; `S.dayBook.entries` has no shortfall entry (the dialog says it will be dated 1 Oct; the entry validator rejects future dates; the system `adjust` path is not blocked). Either allow this specific entry or date it today.
+9. **Old-gold exchange values at 100 % of today's rate** (4 g × ₹10,540 = ₹42,160), no testing/wastage deduction. Needs a configurable deduction % — product decision for Tanish; "Direct Amount" mode is the current workaround.
+10. **Product net weight is ignored by billing.** Sale bills gross unless the jeweller re-enters deductions per bill; net > gross accepted on Add Product (5 g gross / 8 g net) and girvi step 2 (10/12); Inventory "Market value" and Dashboard use gross.
+11. **Orders have no sanity checks.** Advance ₹1,50,000 on a ₹1,00,000 quote saved ("Fully paid", excess just vanishes); delivery date 4 weeks in the past accepted; "Est. profit" = the whole quote (₹1,00,000).
+12. **Settings→Data shows "Cloud Setup / SQL Setup" to the user**: table names, Edge Function names, migration file names, security notes. Account tab also lists "Developer Tools" (Cloud Diagnostics, Reset Save Lock). Hide behind a dev flag / remove for shipped builds.
+13. **Copy contradicts the business model.** Signup says "Free forever • No credit card needed" (model: paid monthly). Settings→Automation says "see Settings → Profile for WhatsApp Business API setup" — no such setup exists in Shop tab.
+
+### P2 — polish
+14. Add Payment box pre-fills `57771.600000000006`; ledger holds ₹57,771.6 while bill shows ₹2,07,772 — round money at save.
+15. Customer account popup does not refresh after Add Payment (needs close/reopen).
+16. Raw error codes in toasts: `invalid-amount`, `future-date`.
+17. Analytics: "24-mo CLV ₹49,86,518" from ONE bill; Category Growth `▲0%` going ₹0 → ₹1,89,720.
+18. Reports "Net Cash" −₹2,92,228 omits the ₹500 expense that the P&L subtracts.
+19. Low-stock alert fires with a single ring; irrelevant for one-off jewellery.
+20. Long shop name overlaps header at 375 px (still, from 20/21 Sep).
+21. ~130 `store-proxy` GETs in ~30 min of use — check polling interval (old phones, data).
+
+**Not tested (say so, don't assume fine):** Refund / Edit Bill, Custom-Handmade billing, silver items, barcode Labels, backup Restore, PDF + GSTR-1 CSV downloads, staff-role enforcement, offline/PWA install, forgot-password, real handset.
+
+**Timing caveat:** items 2 (phone part) and the bottom-nav overflow may already be fixed in batch33 (F5) — re-test those two against batch33 before re-fixing.
+
+→ FOR CLAUDE CODE: work P0 items 2–6 first (all client-side, none touch the girvi ledger maths); 1 is Tanish's hosting call, not yours. Then P1 7–8 (Day Book posting) with tests, and 10–13. Item 9 and the LTV threshold in 6 need Tanish's decision — surface them, don't pick. Write your own entry when done.
+
+
+---
+
 ### 2026-09-30 · Claude Code (Opus 5.5) (LOW items 2–5 fixed + F5 built — Tanish approved F5 today; batch33 zip ready; migration 006 to apply)
 
 **Tanish's decision (30 Sep, in chat with Claude Code):** "Fix the four low items and continue
