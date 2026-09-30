@@ -1218,7 +1218,9 @@ function buildSaleObj(){
   return{
     id: (typeof crypto.randomUUID==='function') ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)),
     invNo:(document.getElementById('s-invno').value||'').trim(), // blank = assign at save
-    date:new Date(document.getElementById('s-date').value||new Date()).toISOString(),
+    // QA 30 Sep: the picked day parsed as UTC midnight printed "05:30 am" on
+    // every bill. Store the picked LOCAL day with the current time of day.
+    date:billDateISO(document.getElementById('s-date').value),
     createdAt:new Date().toISOString(),
     customer:document.getElementById('s-cust').value||'Walk-in',
     phone:document.getElementById('s-phone').value||'',
@@ -1828,11 +1830,13 @@ function buildInvoiceHTML(sale, billType){
   var memoBanner = '';
 
   // ── Header label ────────────────────────────────────────────────────
-  var invoiceLabel = isGST ? 'Tax Invoice' : 'Memo Bill';
-  var invoiceColor = isGST ? '#1a5fd4' : '#8a6a1f';
+  // QA 30 Sep: only a shop with a valid GSTIN may title the bill "Tax Invoice".
+  var _taxInvoice = isGST && isValidGSTIN(shop.gstin);
+  var invoiceLabel = _taxInvoice ? 'Tax Invoice' : 'Memo Bill';
+  var invoiceColor = _taxInvoice ? '#1a5fd4' : '#8a6a1f';
 
   // ── GST info block on invoice ────────────────────────────────────────
-  var gstInfoBlock = (isGST && shopGSTIN) ?
+  var gstInfoBlock = (_taxInvoice && shopGSTIN) ?
     '<div style="font-size:10px;color:#6c757d;margin-top:4px;">'+
     'GSTIN: <strong style="color:#141618;">'+shopGSTIN+'</strong></div>' : '';
 
@@ -1949,7 +1953,7 @@ function buildInvoiceHTML(sale, billType){
       '<div class="ibox">'+
         '<div class="ino">'+invoiceLabel+'</div>'+
         '<div class="inv">'+sale.invNo+'</div>'+
-        '<div class="idt">'+fmtDate(sale.date)+'&ensp;&middot;&ensp;'+fmtTime(sale.date)+'</div>'+
+        '<div class="idt">'+fmtDate(sale.date)+'&ensp;&middot;&ensp;'+fmtTime(sale.createdAt||sale.date)+'</div>'+
       '</div>'+
     '</div>'+
     /* Info row */
@@ -1979,7 +1983,7 @@ function buildInvoiceHTML(sale, billType){
       (t.dc?'<div class="tr2"><span class="tc">Diamond / Stone</span><span class="tv">'+fmt(t.dc)+'</span></div>':'')+
       (t.disc?'<div class="tr2"><span class="tc">Discount</span><span class="tv cr">&minus; '+fmt(t.disc)+'</span></div>':'')+
       gstTotalsBlock+
-      '<div class="tgrand"><span class="tgl">Grand Total</span><span class="tgv">&#8377;'+fmt(t.grand)+'</span></div>'+
+      '<div class="tgrand"><span class="tgl">Grand Total</span><span class="tgv">'+fmt(t.grand)+'</span></div>'+
       ((sale.oldGold&&sale.oldGold.value>0)?
         '<div class="tsettle"><span style="color:#6c757d;">&#9851; Old Gold'+(sale.oldGold.purity?' ('+sale.oldGold.purity+')':'')+'</span><span class="tv cr">&minus; '+fmt(sale.oldGold.value)+'</span></div>':'')+
       ((sale.prevAdvance&&sale.prevAdvance.amount>0)?
@@ -1991,15 +1995,15 @@ function buildInvoiceHTML(sale, billType){
           (!sale.oldGold&&!sale.prevAdvance&&sale.advance>0?
             '<div class="tsettle"><span style="color:#6c757d;">Advance Paid</span><span class="tv cr">&minus; '+fmt(t.adv)+'</span></div>':'')))+
       (t.bal>0?
-        '<div class="tr2" style="background:#fdf3f2;border-radius:4px;padding:8px 4px;margin-top:4px;"><span style="color:#c0392b;font-weight:700;">&#9201; Balance Due</span><span style="color:#c0392b;font-weight:700;font-size:15px;">&#8377;'+fmt(t.bal)+'</span></div>':
+        '<div class="tr2" style="background:#fdf3f2;border-radius:4px;padding:8px 4px;margin-top:4px;"><span style="color:#c0392b;font-weight:700;">&#9201; Balance Due</span><span style="color:#c0392b;font-weight:700;font-size:15px;">'+fmt(t.bal)+'</span></div>':
         '<div class="tr2" style="background:#ecfdf5;border-radius:4px;padding:8px 4px;margin-top:4px;"><span style="color:#059669;font-weight:600;">&#10003; Fully Settled</span><span style="color:#059669;font-weight:600;">Nil</span></div>')+
     '</div></div>'+
     /* Amount in words */
-    '<div class="wb"><div class="wbl">Amount in Words</div><div class="wbt">&#8377; '+amtWords+' Only</div></div>'+
+    '<div class="wb"><div class="wbl">Amount in Words</div><div class="wbt">'+amtWords+' Only</div></div>'+
     /* Status chips */
     '<div class="chips">'+
       '<span class="chip cp">'+sale.payment+'</span>'+
-      (t.bal>0?'<span class="chip ce">Balance Due: &#8377;'+fmt(t.bal)+'</span>':'<span class="chip cp">&#10003; Payment Complete</span>')+
+      (t.bal>0?'<span class="chip ce">Balance Due: '+fmt(t.bal)+'</span>':'<span class="chip cp">&#10003; Payment Complete</span>')+
     '</div>'+
     /* Signature section */
     '<div class="sigrow">'+

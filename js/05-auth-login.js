@@ -476,6 +476,11 @@ function saasOnboardSave(){
 
   if(!name){ errEl.textContent='Shop name is required'; return; }
   if(!city){ errEl.textContent='City is required'; return; }
+  // QA 30 Sep: an invalid GSTIN and a 5-digit phone were accepted and printed on bills.
+  if(gstin && !isValidGSTIN(gstin)){ errEl.textContent='GSTIN should be 15 characters, like 27ABCDE1234F1Z5. Leave it blank if you are not GST-registered.'; return; }
+  var _ph = normPhone10(phone);
+  if(_ph === null){ errEl.textContent='Phone should be a 10-digit number, like 98765 43210.'; return; }
+  phone = _ph;
 
   var shops = saasGetShops();
   var idx   = shops.findIndex(function(s){ return s.id===SAAS.shop.id; });
@@ -1042,6 +1047,10 @@ function saveShopProfile(){
   var city  = (document.getElementById('set-city').value||'').trim()     || SAAS.shop.city;
   var phone = (document.getElementById('set-phone').value||'').trim();
   var gstin = (document.getElementById('set-gstin').value||'').trim().toUpperCase();
+  if(gstin && !isValidGSTIN(gstin)){ toast('GSTIN should be 15 characters, like 27ABCDE1234F1Z5. Leave it blank if you are not GST-registered.'); return; }
+  var _ph = normPhone10(phone);
+  if(_ph === null){ toast('Phone should be a 10-digit number, like 98765 43210.'); return; }
+  phone = _ph;
 
   authGatewayCall('update-shop', {sessionToken: SAAS.sessionToken, name:name, city:city, phone:phone, gstin:gstin})
     .then(function(res){

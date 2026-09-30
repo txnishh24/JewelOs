@@ -1486,6 +1486,87 @@ test('shop name, city, phone and GSTIN are escaped on the sale invoice (a manage
   assertEscaped(html, 'invoice');
 });
 
+console.log('\nCowork QA walkthrough, 30 Sep (P0 item 3 -- printed bill):');
+
+test('the bill never prints a doubled rupee sign (Grand Total, Balance Due, amount in words)', function(){
+  var html = app.buildInvoiceHTML({ id:'s1', invNo:'INV-1', date:new Date().toISOString(), customer:'C', phone:'9',
+    items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:3, discount:0,
+    nowPaying:{ amount:100, mode:'Cash' }, advance:100 }, 'gst');
+  assert(html.indexOf('₹₹') === -1 && html.indexOf('&#8377;₹') === -1, 'found a doubled rupee sign');
+  assert(!/&#8377;\s*Rupees/.test(html), 'amount in words should read "Rupees ... Only", not "₹ Rupees"');
+});
+
+test('the bill shows the time it was actually saved, not 05:30 am', function(){
+  var created = new Date(2026, 8, 30, 21, 37).toISOString(); // 9:37 pm IST
+  var html = app.buildInvoiceHTML({ id:'s1', invNo:'INV-1', date:'2026-09-30T00:00:00.000Z', createdAt:created,
+    customer:'C', phone:'9', items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:3, discount:0 }, 'gst');
+  assert(html.indexOf(app.fmtTime(created)) !== -1, 'expected the save time ' + app.fmtTime(created) + ' on the bill');
+  assert(html.indexOf(app.fmtTime('2026-09-30T00:00:00.000Z')) === -1, 'must not print the UTC-midnight 05:30 time');
+});
+
+test('billDateISO keeps the picked local day and uses the current time of day', function(){
+  var iso = app.billDateISO('2026-10-01');
+  var d = new Date(iso), now = new Date();
+  assert(app.dbDayKey(iso) === '2026-10-01', 'the local day must stay 2026-10-01, got ' + app.dbDayKey(iso));
+  assert(d.getHours() === now.getHours() && d.getMinutes() === now.getMinutes(), 'the time should be now, got ' + d.toString());
+  assert(app.dbDayKey(app.billDateISO('')) === app.dbDayKey(new Date()), 'blank means now');
+});
+
+test('a sale made at 00:30 IST counts as that day, not the previous one (dashboard and GSTR-1 month)', function(){
+  var a = require('./harness.js').loadApp();
+  var justAfterMidnight = new Date(2026, 9, 1, 0, 30).toISOString(); // 1 Oct 00:30 IST = 30 Sep 19:00 UTC
+  assert(justAfterMidnight.slice(0,10) === '2026-09-30', 'setup: the stored string starts with the previous UTC day');
+  assert(a.dbDayKey(justAfterMidnight) === '2026-10-01', 'dbDayKey must read the local day');
+  a.S.sales = [{ id:'m', invNo:'INV-1', date:justAfterMidnight, gst:3, items:[] }];
+  var src = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', '03-billing-numbers.js'), 'utf8') +
+            require('fs').readFileSync(require('path').join(__dirname, '..', 'js', '06-inventory-stock.js'), 'utf8');
+  assert(!/\.date\|\|''\)\.slice\(0,10\)|\.date\.substring\(0,7\)|\.date\.startsWith\(/.test(src), 'a sale day/month is still read by slicing the stored string');
+});
+
+test('P0 item 2: GSTIN format check accepts a real-shaped GSTIN and rejects junk', function(){
+  assert(app.isValidGSTIN('27ABCDE1234F1Z5') && app.isValidGSTIN(' 29aaacr5055k1z7 '), 'well-formed GSTINs should pass');
+  ['INVALID123', '27ABCDE1234F1Y5', '27ABCDE1234F1Z', '99ABCDE1234F1Z5', ''].forEach(function(g){
+    assert(!app.isValidGSTIN(g), g + ' should be rejected');
+  });
+});
+
+test('P0 item 2: normPhone10 accepts +91 / 0 prefixes and rejects short numbers', function(){
+  assert(app.normPhone10('+91 98765 43210') === '9876543210' && app.normPhone10('098765 43210') === '9876543210', 'prefixes dropped');
+  assert(app.normPhone10('') === '' && app.normPhone10('98765') === null, 'blank is allowed, 5 digits is not');
+});
+
+test('P0 item 2: the bill says "Tax Invoice" only when the shop GSTIN is valid', function(){
+  var sale = { id:'s1', invNo:'INV-1', date:new Date().toISOString(), customer:'C', phone:'9',
+    items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:3, discount:0 };
+  var saved = app.SAAS.shop;
+  app.SAAS.shop = { name:'S', gstin:'INVALID123' };
+  var bad = app.buildInvoiceHTML(sale, 'gst');
+  app.SAAS.shop = { name:'S', gstin:'27ABCDE1234F1Z5' };
+  var good = app.buildInvoiceHTML(sale, 'gst');
+  app.SAAS.shop = saved;
+  assert(bad.indexOf('Tax Invoice') === -1 && bad.indexOf('Memo Bill') !== -1, 'an invalid GSTIN must not print "Tax Invoice"');
+  assert(bad.indexOf('INVALID123') === -1, 'the invalid GSTIN must not be printed');
+  assert(good.indexOf('Tax Invoice') !== -1 && good.indexOf('27ABCDE1234F1Z5') !== -1, 'a valid GSTIN prints a Tax Invoice with the GSTIN');
+});
+
+test('P0 item 2: shop setup refuses an invalid GSTIN or phone', function(){
+  var a = require('./harness.js').loadApp(), calls = 0;
+  a.SAAS.shop = { id:'shop1' };
+  a.authGatewayCall = function(){ calls++; return new Promise(function(){}); };
+  var vals = { 'ob-shopname':'Sonar', 'ob-city':'Pune', 'ob-phone':'98765', 'ob-gstin':'INVALID123' };
+  var err = { textContent:'' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){ if(id === 'ob-err') return err; if(id in vals) return { value:vals[id] }; return _o(id); };
+  a.saasOnboardSave();
+  assert(calls === 0 && /GSTIN/.test(err.textContent), 'invalid GSTIN must be refused, got: ' + err.textContent);
+  vals['ob-gstin'] = '';
+  a.saasOnboardSave();
+  assert(calls === 0 && /10-digit/.test(err.textContent), 'a 5-digit phone must be refused, got: ' + err.textContent);
+  vals['ob-phone'] = '+91 98765 43210';
+  a.saasOnboardSave();
+  assert(calls === 1, 'valid details should save');
+});
+
 test('girvi item description is escaped on the loan card', function(){
   var html = app.girviLoanCardHTML({ id:'g1', grvNo:'GRV-1', customer:'C', phone:'9', status:'active',
     items:[{ desc:HOSTILE, type:'Ring', metal:'gold', purity:'22K', weight:2, qty:1 }], amount:1000, rate:2,

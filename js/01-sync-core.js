@@ -725,6 +725,30 @@ function fmt(n){
   var v = Math.round(n||0);
   return (v<0?'\u2212':'')+'\u20B9'+Math.abs(v).toLocaleString('en-IN');
 }
+// A "YYYY-MM-DD" picked in a date box, as that LOCAL day at the current time
+// of day. new Date("YYYY-MM-DD") is UTC midnight -- 05:30 am in India, which
+// every bill printed as its time (QA 30 Sep). Blank -> now.
+// GSTIN format (QA 30 Sep: "INVALID123" was accepted and printed on a "TAX
+// INVOICE"): 2-digit state code, PAN (5 letters, 4 digits, 1 letter), entity
+// number, the fixed "Z", one check character. Format only -- no checksum.
+function isValidGSTIN(v){
+  return /^[0-3][0-9][A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(String(v||'').trim().toUpperCase());
+}
+// A phone as its 10 digits, accepting "+91 ..." or a leading 0 (the rule the
+// sale form uses). '' when blank, null when it isn't a 10-digit number.
+function normPhone10(v){
+  var d = String(v||'').replace(/\D/g,'');
+  if(!d) return '';
+  if(d.length===12 && d.slice(0,2)==='91') d = d.slice(2);
+  else if(d.length===11 && d.charAt(0)==='0') d = d.slice(1);
+  return d.length===10 ? d : null;
+}
+function billDateISO(dayKey){
+  var now = new Date();
+  var p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dayKey||''));
+  if(!p) return now.toISOString();
+  return new Date(+p[1], +p[2]-1, +p[3], now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
+}
 function fmtW(w){var v=parseFloat(w)||0;return (Math.round(v*100)/100).toFixed(2)+'g';}
 function fmtDate(d){try{var dt=new Date(d);if(isNaN(dt.getTime()))return '—';return dt.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});}catch(e){return '—';}}
 function fmtTime(d){try{var dt=new Date(d);if(isNaN(dt.getTime()))return '';return dt.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}catch(e){return '';}}

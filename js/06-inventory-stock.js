@@ -209,10 +209,13 @@ function renderDash(){
   }
 
   // ── 1. TODAY STRIP (sales / purchase / profit — today only) ──────
-  var todaySales = S.sales.filter(function(s){ return (s.date||'').slice(0,10)===todayStr; });
+  // Local IST day of each record, not a slice of its stored string (QA 30 Sep:
+  // sale dates now carry the time of day, so the string's first 10 chars can be
+  // the previous UTC day for a bill made after midnight IST).
+  var todaySales = S.sales.filter(function(s){ return s.date && dbDayKey(s.date)===todayStr; });
   var todaySalesTotal = todaySales.reduce(function(sum,s){ return sum+calcSaleTotals(s).grand; },0);
   var todayProfitTotal = todaySales.reduce(function(sum,s){ return sum+calcSaleProfit(s).profit; },0);
-  var todayPurchases = (S.purchases||[]).filter(function(b){ return !b._deleted && (b.date||'').slice(0,10)===todayStr; });
+  var todayPurchases = (S.purchases||[]).filter(function(b){ return !b._deleted && b.date && dbDayKey(b.date)===todayStr; });
   var todayPurchaseTotal = todayPurchases.reduce(function(sum,b){ return sum+(b.totalAmount||0); },0);
 
   var todayEl = document.getElementById('dash-today-strip');

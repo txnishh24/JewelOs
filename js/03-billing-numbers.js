@@ -551,7 +551,7 @@ function showCustHistory(encKey){
     hdr.innerHTML=
       '<div>'+
         '<div style="font-weight:700;font-size:13px;">'+s.invNo+'</div>'+
-        '<div style="font-size:12px;color:var(--text3);">'+fmtDate(s.date)+' at '+fmtTime(s.date)+'</div>'+
+        '<div style="font-size:12px;color:var(--text3);">'+fmtDate(s.date)+' at '+fmtTime(s.createdAt||s.date)+'</div>'+
         '<div style="font-size:12px;color:var(--text3);">'+s.payment+'</div>'+
         (s.paidAt?'<div style="font-size:11px;color:var(--success);margin-top:2px;">&#10003; Paid on '+fmtDate(s.paidAt)+'</div>':'')+
         (s.refundStatus==='full'?'<div style="font-size:10px;font-weight:700;color:#fff;background:#dc2626;border-radius:4px;padding:1px 7px;margin-top:3px;display:inline-block;">&#128260; REFUNDED</div>':'')+
@@ -935,7 +935,7 @@ function exportGSTR1(){
   // Ask user for month/year filter
   var months = {};
   sales.forEach(function(s){
-    var d = s.date ? s.date.substring(0,7) : 'unknown';
+    var d = s.date ? dbDayKey(s.date).slice(0,7) : 'unknown'; // local IST month, not the stored string's
     months[d] = (months[d]||0)+1;
   });
   var monthList = Object.keys(months).sort().reverse();
@@ -953,7 +953,7 @@ function exportGSTR1(){
 function exportGSTR1Month(ym){
   // ym = 'YYYY-MM'
   var sales = (S.sales||[]).filter(function(s){
-    return (parseFloat(s.gst)||0) > 0 && s.date && s.date.startsWith(ym);
+    return (parseFloat(s.gst)||0) > 0 && s.date && dbDayKey(s.date).slice(0,7) === ym; // local IST month
   });
   if(!sales.length){ toast('No GST sales for ' + ym); return; }
   _doGSTR1Export(sales, ym);
@@ -1049,7 +1049,7 @@ function renderReports(){
     if(btnEl){
       var gstSales = (S.sales||[]).filter(function(s){ return (parseFloat(s.gst)||0)>0 && s.date; });
       var months = {};
-      gstSales.forEach(function(s){ var m=s.date.substring(0,7); months[m]=(months[m]||0)+1; });
+      gstSales.forEach(function(s){ var m=dbDayKey(s.date).slice(0,7); months[m]=(months[m]||0)+1; });
       var mList = Object.keys(months).sort().reverse().slice(0,6);
       btnEl.innerHTML = mList.map(function(ym){
         var parts=ym.split('-'); var label=(parts[1]?['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(parts[1])-1]:ym)+' '+parts[0];
