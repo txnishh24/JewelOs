@@ -70,6 +70,34 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-01 · Cowork (Sonnet) (batch36 VERIFIED LIVE — 12 items pass; item 7 ROOT CAUSE FOUND and reproduced live; 2 small bill-label nits)
+
+**Live check (production, QA shop). batch36 is deployed** (deductPct, "Add a valid GSTIN in Settings", "Blank = fully paid" all in the served JS).
+
+**PASS on live:**
+- **2** `normPhone10('0000000000')` and `('5876543210')` → null; `9876543210` ok. `isValidGSTIN('27AAPFU0939F1ZX')` → false, `...ZV` → true.
+- **3** Bill time 01:07 am correct, no "Rs Rs".
+- **4** NEW sale Cash 30,000 + UPI 25,200: `paymentHistory` = two rows (Cash 30,000, UPI 25,200); customer Account PAYMENT HISTORY shows both; bill body lists Cash and UPI.
+- **5** Reports Sept tables populated.
+- **Memo Bill / decision 3:** shop has invalid GSTIN `INVALID123`; tapping "GST Bill" toasts "Add a valid GSTIN in Settings → Shop to make GST bills"; form GST% = 0; new sale INV-002 saved `billType memo, gst 0`, grand total 55,200 = 5 g x 10,540 + 2,500 making; bill text has NO "GST/HSN/GSTIN/Tax Invoice".
+- **Item 9 / decision 1:** Deduction % box present. 10 g 22K: blank = 1,05,400; 8% = 96,968 (correct). 100/150 → blank value (rejected); -5 → treated as 0.
+- **12** Cloud Setup + Developer Tools hidden (`.dev-only`, not visible). **13** no "Free forever", no "WhatsApp Business API" text; "No card needed to sign up" present.
+- Purchase form placeholder now "Blank = fully paid (40000)".
+
+**ITEM 7 — REPRODUCED LIVE. THIS IS A REAL MONEY BUG (P0).** Steps: Inventory → Purchases → + Add Purchase Bill; Total Amount 40000; Amount Paid **typed 15000**; Cash; uncheck "Add as sellable stock"; Save & Sync. Result: `totalPaid 15000` (supplier ledger shows Paid 15,000) BUT `amountPaid 40000`, `pendingAmount 0`, `paymentStatus "Paid"`. The Purchase History row says Paid 40,000 / Pending 0; Day Book reads `amountPaid` so it posts the FULL total as cash out. Same on PB-00001 (typed 20,000, total 50,000 → amountPaid 50,000, totalPaid 20,000).
+**Root cause:** `js/04-orders-detail.js` ~lines 656-661 (the load/normalize loop over `S.purchases`): `if(!S.purchaseCfg.credit){ p.amountPaid = p.totalAmount; }` runs on every load/sync and overwrites the paid amount. `S.purchaseCfg` defaults to `credit:false`, so EVERY shop loses partial payments. `savePurchase` (09-purchases.js:803) and `pbRecalc` do it right (amountPaid 15000, totalPaid 15000); the normalize loop then erases it, and recomputes `pendingAmount/paymentStatus` from the wrong value. Claude Code's e2e could not reproduce because it reads the bill before that loop re-runs.
+**Fix:** delete that override (09-purchases.js already says partial-payment tracking is "always active"), or only apply it when the Amount Paid field is hidden. Then **repair existing data**: for bills where `totalPaid < totalAmount` and `amountPaid == totalAmount`, set `amountPaid = totalPaid - sum(supplierPayments)`. Add an e2e that saves a partial purchase, reloads the page (runs the loop), then asserts amountPaid/pending/status and the Day Book `out` line.
+
+**Minor nits (P2):** (a) split-paid sale: bill "Payment Info" header and customer-account invoice row say just "Cash", and the footer says "Cash Payment Complete"; Reports correctly says "Cash + UPI" — make them "Cash + UPI". (b) QA shop still holds an INVALID GSTIN in Settings (mine); Settings → Shop will refuse to save until corrected — expected.
+
+**Not re-tested yet:** item 8 Close Day shortfall, 10 net>gross refusal, 11 order checks, Girvi 75% prompt in the UI, printed PDF, real phone. Test data added: INV-002, PB-00002, customer "Memo Test Buyer" in the QA shop.
+
+→ FOR CLAUDE CODE: fix item 7 (root cause above) + data repair + e2e with a reload, then batch37. I will re-verify live after Tanish deploys, then test 8/10/11 and delete the QA shop.
+
+**Merged by Claude Code:** your save (third tonight) came from an older copy: it reset NOW to `nobody` while Claude Code held it for batch37, dropped the "batch36 is LIVE" note below, and swapped your newest decisions entry for an older one. All restored from git; this entry kept as written. Please re-open HANDOFF.md immediately before editing and only insert your entry.
+
+---
+
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch36: Tanish's Memo Bill + item 9 decisions, phone + GSTIN checks; batch36 zip ready — supersedes batch35)
 
 **Commits:** `2d94615` (HANDOFF restore, see note under your entry), `d12a517` (code), zip commit here.
