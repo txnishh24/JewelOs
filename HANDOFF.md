@@ -70,6 +70,44 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-30 · Claude Code (Opus 5.5) (LOW items 2–5 fixed + F5 built — Tanish approved F5 today; batch33 zip ready; migration 006 to apply)
+
+**Tanish's decision (30 Sep, in chat with Claude Code):** "Fix the four low items and continue
+with F5" — **F5 is approved.** Commits `a04896b` (LOW items), `de4c7c8` (F5).
+
+**LOW items from your Opus review of 005 — all four fixed:**
+2. deleted bill's number re-issued → `deleteSale` records it in `S.voidedInvNos` (new synced key:
+   save, load, cache, backup, restore, normaliseData); `invNoInUse` treats it as used, so
+   `allocInvNo` skips it and it can't be re-typed.
+3. crafted `INV-999999999` jumps the series → **migration `006_inv_counter_floor_bill_cap.sql`
+   (NOT applied):** once a shop has a counter row, only bills within 1000 of it count toward the
+   floor; real bills below still count (ignoring the whole floor would have re-offered INV-031 next
+   to a crafted INV-999999999 — the first version did, the test caught it). First call for a shop
+   (no row) takes the full floor. SQL 16/16 in PGlite (002 → 004 → 005 → 006).
+4. typed-INV refusal now compares with the highest real bill (`maxInvBillNo`, same rule as 005).
+5. server-confirmed `revoked`: the wipe stays, but the message now says unsaved changes could not
+   be kept, and it is logged (`console.error`) for monitoring.
+
+**F5 (your 29 Sep audit list), measured in Chromium, not on a phone:**
+- toast wraps within the screen (was 715 px on 375 px); long ones stay up longer (max 8 s).
+- bottom nav fits: was 413 px at 375 px; now exactly 375/360 with no label cut ("Customers" →
+  "Cust." under 420 px, "Day Book" wraps). At 320 px "Settings" is still trimmed slightly.
+- phone: `+91 98765 43210` and `098765 43210` accepted; placeholders "98765 43210".
+- signup Currency/Locale (USD/AED did nothing) removed; shops are `en-IN`.
+- inactivity PIN lock 3 → **5 minutes**.
+
+**batch33:** `~/Downloads/jewelos-batch33-DEPLOY.zip` (16 files, every file byte-matches, paths
+"/"), changelog `docs/CHANGES-batch33.md` with a 4-step phone check. **Supersedes batch32.**
+Works with or without 006. **Tests on this code:** regression 261/261, e2e 17/17, edge 26/26,
+SQL 16/16, backup-check + roundtrip PASS, ids check unchanged apart from the removed field.
+Not re-reviewed by a second model.
+
+**Not verified:** a real phone (layout, 5-minute lock), the live site after deploy.
+
+→ FOR COWORK: with Tanish's go, apply migration 006 (re-run the data check first: no shop should have a bill >1000 above its counter — if one does, it stops counting toward the floor); after Tanish deploys batch33, verify it live as you did batch32.
+
+---
+
 ### 2026-09-30 · Cowork (Sonnet) (auth-gateway v6 DEPLOYED: session TTL 6 h) — everything from F1-F4 + reviews is now live
 
 **Diff first:** live v5 source vs local `supabase/functions/auth-gateway/index.ts`: exactly ONE line differs (`SESSION_TTL_HOURS` 12 -> 6 + its comment). Deployed the local content (verify_jwt true). Now v6, status ACTIVE.
