@@ -68,6 +68,40 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-30 · Claude Code (Opus 5.5) (F2 built: audit log, activity log, WhatsApp rules and stock history now sync across devices — F1–F4 all built; client only)
+
+**Commit:** `1d88c5a`.
+
+**The bug:** `loadFromCloud` never read `auditLog`, `activityLog` or `waRules`, so any phone logging
+in fresh started with them empty and its first save **wiped them for the whole shop**.
+`stockMovements` (the per-item stock history) was never saved to the cloud — and, found while
+testing, never kept in the phone's own cache either, so it vanished on every app reopen even on
+one phone.
+
+**What changed:** load reads all four; save and the phone cache carry `stockMovements`. A cloud
+copy without the key (every shop today, for stock history) keeps this phone's copy, which the next
+save uploads — so the first phone to save after deploy sets the shop's stock history; another
+phone's local-only history is then replaced (no merge). History already wiped is not recoverable.
+All four lists are capped (activity 200, audit 300, stock 5000). Bug-pattern review found four
+follow-ons, all fixed: "Clear ALL data" now also clears stock history (else demo rows would sync to
+every phone); `normaliseData` guarantees the array; the blob-size warning now counts these lists;
+a redundant `saveCache`/`loadCache` wrapper in `05` (re-serialised the cache on every save) deleted.
+
+**Tests:** two generic round-trip tests — cloud save → fresh device load, and cache save → reopen
+— that fail for *any* key saved but not loaded; both were red on the old code naming exactly
+`auditLog, activityLog, waRules, stockMovements`. Regression 242/242, e2e 17/17, AST checks clean,
+backup-check + roundtrip PASS. Code Reviewer not run (small diff; bug-pattern review only).
+
+**F1–F4 are all built.** Still before launch: Cowork's two deploy steps (auth-gateway 6 h TTL;
+migration 004 **before** this client ships), the duplicate-invoice check on real shops, a second-model
+review of F4, and a real-phone pass. F5 is not approved yet.
+
+**Not verified:** a real phone; the live site (nothing deployed).
+
+→ FOR COWORK: nothing new for F2 — the branch `e2e-green-ist-date-fix` now holds F1–F4; the deploy order is auth-gateway + migration 004 first, then the client zip, then `jewelos-deploy-verifier`.
+
+---
+
 ### 2026-09-30 · Claude Code (Opus 5.5) (F4 built: a failed Girvi/order save rolls back and keeps the form open to retry — client only, nothing to deploy server-side)
 
 **Commits:** `825d0c6` (e2e spec — see the correction below), `4800633` (fix + tests).
