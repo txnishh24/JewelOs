@@ -1587,9 +1587,10 @@ function deleteGirviEntry(gid){
     g._deletedBy=currentUser;
     if(!g.ledger)g.ledger=[];
     g.ledger.push({type:'deleted',note:'Archived by '+currentUser,ts:new Date().toISOString(),user:currentUser});
+    var _auditSnap=(S.auditLog||[]).slice(); // Cowork review 30 Sep: a failed archive must not leave its log line (it syncs since F2)
     if(typeof auditLog==='function') auditLog('delete','girvi',g.id,'Archived by '+currentUser);
     closeGirviDetail();
-    _girviCommit(g.id, {snapshot:_snap}, function(err){renderGirvi();renderDash();if(!err){toast('\ud83d\udce6 Girvi '+g.grvNo+' archived');}});
+    _girviCommit(g.id, {snapshot:_snap, restore:function(){ S.auditLog=_auditSnap; }}, function(err){renderGirvi();renderDash();if(!err){toast('\ud83d\udce6 Girvi '+g.grvNo+' archived');}});
   });
 }
 

@@ -206,6 +206,9 @@ function saveToCloud(callback){
   };
   var retries = 0;
   var delays  = [2000, 5000, 15000];
+  // ponytail: one fixed limit; generous because a big shop blob on 2G can
+  // legitimately take a while. Per-size limits if 60 s proves wrong.
+  var SAVE_TIMEOUT_MS = 60000;
 
   function _done_ok(row){
     isSaving = false;
@@ -229,15 +232,30 @@ function saveToCloud(callback){
     // accepts the write if expectedVersion still matches what's stored,
     // and auto-creates the row on a shop's very first save. A 409 with
     // conflict:true means another device saved since we last loaded.
+    // Cowork review 30 Sep: a stalled connection used to hang here forever,
+    // holding every submit lock (sale, new loan, new order) until a reload.
+    // After SAVE_TIMEOUT_MS the attempt counts as failed and goes down the
+    // normal retry path; its late answer, if any, is ignored. If that late
+    // answer was a success, the retry gets a version conflict and reloads --
+    // the save is not lost, the jeweller is asked to redo nothing that exists.
+    var timedOut = false;
+    var timer = setTimeout(function(){
+      timedOut = true;
+      console.error('[JewelOS] save attempt timed out');
+      if(retries < 3){ setTimeout(attempt, delays[retries++]); } else { _done_err(new Error('save timed out')); }
+    }, SAVE_TIMEOUT_MS);
     fetch(SB_FUNCTIONS + '/store-proxy', {
       method: 'PUT',
       headers: Object.assign({}, SB_HEADERS, { 'x-session-token': (typeof SAAS!=='undefined' && SAAS.sessionToken) || '' }),
       body: JSON.stringify({ data: dataPayload, expectedVersion: _loadedVersion || 0 })
     })
     .then(function(r){
+      if(timedOut) return null;
       return r.json().then(function(body){ return { status: r.status, body: body }; });
     })
     .then(function(res){
+      if(!res || timedOut) return; // this attempt already timed out and was retried
+      clearTimeout(timer); // only now: the body can stall after the headers
       if(res.body && res.body.ok){
         _done_ok(res.body);
         return;
@@ -275,6 +293,8 @@ function saveToCloud(callback){
       throw new Error('HTTP ' + res.status + (res.body && res.body.error ? ': ' + res.body.error : ''));
     })
     .catch(function(err){
+      if(timedOut) return;
+      clearTimeout(timer);
       console.error('[JewelOS] save attempt error:', err);
       if(retries < 3){
         setTimeout(attempt, delays[retries++]);

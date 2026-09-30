@@ -1178,6 +1178,25 @@ testAsync('the load path passes the server reason too ("expired" on a live-looki
   });
 });
 
+testAsync('a save on a stalled connection gives up after its retries instead of hanging forever', function(){
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  var timers = [], puts = 0;
+  a.setTimeout = function(f, ms){ timers.push({ f:f, ms:ms }); return timers.length; };
+  a.clearTimeout = function(){};
+  a.fetch = function(){ puts++; return new Promise(function(){}); }; // never answers
+  var result = 'pending';
+  a.saveToCloud(function(err){ result = err ? err.message : 'saved'; });
+  return flushAll().then(function(){
+    for(var guard = 0; guard < 20 && timers.length; guard++){ var t = timers.shift(); t.f(); }
+    return flushAll();
+  }).then(function(){
+    assert(result === 'save timed out', 'expected the save to fail with a timeout, got ' + result);
+    assert(puts === 4, 'expected the first try plus 3 retries, got ' + puts);
+    assert(a.isSaving === false, 'isSaving must be cleared so later saves are not queued forever');
+  });
+});
+
 testAsync('after signing in again from a failed boot load, data reloads and auto-refresh starts', function(){
   var a = reauthApp('ok'), refreshStarted = 0, gets = 0;
   var baseFetch = a.fetch;
@@ -3205,6 +3224,14 @@ test('a failed Girvi close, default, archive or recover leaves the loan exactly 
     assert(JSON.stringify(a.S.girvi[0]) === before, fn + ': loan changed after a failed save: ' + JSON.stringify(a.S.girvi[0]));
     assert(!a._girviLocked('g1'), fn + ': the loan must be unlocked for a retry');
   });
+});
+
+test('a failed archive leaves no "Archived" line in the audit log', function(){
+  var a = _girviHarness();
+  a.S.auditLog = [{ note:'older entry' }];
+  a.saveToCloud = function(cb){ cb(new Error('network down')); };
+  a.deleteGirviEntry('g1');
+  assert(a.S.auditLog.length === 1 && a.S.auditLog[0].note === 'older entry', 'audit log should be back to its one older entry, got ' + JSON.stringify(a.S.auditLog));
 });
 
 test('a successful Girvi close still closes the loan', function(){
