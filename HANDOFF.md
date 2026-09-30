@@ -60,11 +60,37 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
 - ~~F1 token storage.~~ **Answered 29 Sep: B, but 6 hours instead of 12.** Built (`a9e314f`);
   the 6 h needs the auth-gateway deploy — see the 29 Sep Claude Code "F1 built" entry.
 
+- ~~Where should the login token live (F1)?~~ **Answered 29 Sep (recorded by Claude Code in its F1 entry): option B — keep the token on the phone, 6 h life.** Reopen within 6 h asks for the PIN, not the password; expired asks for the login. Option C (revocable refresh token) is post-launch. Do not re-ask.
+
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
 outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUntil` in
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-09-30 · Cowork (Sonnet; Opus second-model review) (checked F1–F4: one HIGH finding in the invoice-number floor — migration 004 NOT applied, auth-gateway NOT deployed; no code changed)
+
+**Worst finding (Opus review, confirmed by running it in PGlite): a typed invoice number can break a shop's invoicing for good.** `js/02-ui-inactivity-modals.js:1425-1426` strips every non-digit from a typed `#s-invno` and sets `S.nextInvNo = used+1`; that value is saved in the blob, and 004 makes it the shop-wide floor. A jeweller who types a financial-year style number, `2025-26/001`, becomes 202526001 and every later bill is INV-202526002+. A pasted phone number 9876543210 is capped at 2147483647 (004 line 35); the first sale gets that, the next call fails with `integer out of range` (`counters.val + 1`), `getNextCounter` returns null, and the shop sees "Could not get an invoice number" on every sale until someone edits the DB. Also, 004's comment "nothing the client sends can move it" is wrong: the floor is read from `store.data`, which any logged-in user controls through a `store-proxy` PUT, so one crafted PUT with `nextInvNo: 2147483647` stops invoicing for the shop. Indian jewellers do use FY-prefixed invoice numbers, so this is not exotic. **004 stays unapplied until this is fixed**, because it would turn a bad typed number from a gap into a permanent jump.
+
+**Other Opus findings (worst first):**
+1. MEDIUM, plausible: `05-auth-login.js:208` treats a 401 whose token `exp` is still in the future *by the phone's clock* as "revoked" and wipes the device (`saasForceLogout`). A phone clock that runs behind the token's remaining life loses the bill exactly as before F1.
+2. MEDIUM, plausible: `saveToCloud`'s `attempt()` (`01-sync-core.js:228`) has no fetch timeout; on a stalled mobile connection `_saleSubmitLock` / `_girviSubmitLocks['__new']` / `_orderSubmitLocks['__new']` stay set until reload, and the 15 s refresh stays skipped (`01:492`). Second path: if `_commitSaleTransactionNow` throws after `S.sales.push`, the `getNextCounter` `.catch` swallows it, the lock stays set, and the unsaved sale stays in `S` for the next save to upload.
+3. LOW: a failed archive leaves its `auditLog('delete', ...)` line (`04:1589`); since F2 that log syncs, so every device shows an archive that did not happen. Also GRV numbers can still fall back to the local counter (already in Claude Code's limits).
+4. Mixed versions: old clients still send their own `auditLog`/`activityLog`/`waRules`, which overwrite the blob's copy; new clients read them back, so the logs can shrink until every device runs the new build.
+
+**What held up (Opus, ran `node --check` on 11 files, `regression.test.js` 242/242, `sql-inv-counter-floor.test.mjs` 8/8):** 004 is race-safe (row lock re-reads `counters.val`); a shop with no counter row, negative, float, null or non-numeric `nextInvNo` all fall back correctly; girvi_no / purchase_no / ord_no untouched; F3 sale path gave no duplicate it could construct; F4 rollbacks correct incl. customers, photos, `nextOrdId`; `girviLedgerState` shows no F1–F4 markers (not diffed, no git); an expired token never keeps working and re-login rejects a different user or shop.
+
+**Live checks I did (read-only, 30 Sep):**
+- **Duplicate invoice numbers in real shops: none found.** Only two test shops have any: `65a3ce29` ("lumineer jewelOs", INV-027 twice on 3 Sep, both "tanish", Rs 0) and `77c4aefe` (E2E Test Shop: INV-027 and INV-030, test data). The other six shops have none; the real jeweller's shop (`3720af09`) has 0 sales, counter 4.
+- **004 is not applied** (migrations list ends 18 Sep). **auth-gateway live is still v5 with `SESSION_TTL_HOURS = 12`.** The first ~215 lines of the local file match the deployed source line for line apart from the TTL line; the route handlers match in structure, but I could not run a true diff (no git or shell access to the deployed file), so a byte-exact diff is still owed by whoever deploys.
+
+**Not done, on purpose:** I did not deploy auth-gateway or apply 004. auth-gateway is a full-function paste into production login (a typo locks every shop out) and is independent of the 004 finding; it waits for Tanish's word. 004 waits for the fix below.
+
+**Still not verified by anyone:** a real phone; the live site serving the new client (nothing deployed); the deployed function versions.
+
+→ FOR CLAUDE CODE: fix the invoice-number floor before anything else — forward-sync `nextInvNo` only from numbers the counter issued (never from a typed number), stop stripping a typed "2025-26/001" into a number, clamp the floor in `004` (e.g. `least(v_floor, counters.val + <small N>)`, and use bigint or a cap far below 2147483647), correct the "nothing the client sends can move it" comment, add regression tests for the FY-prefix and phone-number cases; then the two MEDIUM items and the archive audit line. Do not start F5 (not approved).
 
 ---
 
