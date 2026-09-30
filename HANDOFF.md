@@ -68,6 +68,51 @@ or re-add tier UI.
 
 ---
 
+### 2026-09-30 · Claude Code (Opus 5.5) (F4 built: a failed Girvi/order save rolls back and keeps the form open to retry — client only, nothing to deploy server-side)
+
+**Commits:** `825d0c6` (e2e spec — see the correction below), `4800633` (fix + tests).
+
+**The bug:** creating a Girvi loan whose cloud save failed closed the wizard and toasted "Saved
+locally but cloud sync failed — will retry". Nothing retried; the next 15 s refresh replaced the
+shop from the cloud and the loan vanished, with its ornament photos (they live on the customer
+record). Order create, loan edit, and close/default/archive/recover had the same shape with no
+rollback at all.
+
+**What changed:** all of those now save through `_girviCommit` / `_orderCommit` (snapshot, lock,
+roll back on failure). Create/edit also snapshot `S.customers`, so a failed loan takes its customer
+link and photos with it. The wizard / order form **stays open with everything typed** and says
+"Not saved — tap to retry"; tapping again once online saves it once (a retried loan gets a fresh
+GRV number, i.e. a gap). The wizard closes, and the activity log is written, only on success. A
+second tap while saving is ignored. `_pendingOrderConversion` is cleared by `clearSale()` and on
+leaving the Sale tab, so an abandoned Convert to Sale can't bill the next unrelated sale against
+that order. Also fixed: the order-saved toast showed a literal `&#10003;`.
+
+**Correction, my own mistake:** the failing spec as first committed (`825d0c6`) blocked POST, but
+saves are PUT — it never blocked a save, and I wrongly called it red for the right reason. Fixed
+in `4800633`; now verified red on the old code (the wizard closes, no retry message) and green on
+the new.
+
+**Review:** jewelos-bug-pattern-reviewer clean. The Code Reviewer run was stopped by Tanish before
+it reported, so I checked its questions by hand: no lock can stick (the GRV counter call always
+answers, with F3's 10 s timeout); on a version conflict the rollback runs before the reload lands,
+so it can't clobber another device's data; a 401 holds the lock while the password prompt is up,
+which only blocks a second tap. **Not re-reviewed by a second model** — worth one before release.
+
+**Tests:** regression 240/240 (+6, all red on the old code), e2e **17/17** incl. new
+`failed-saves.spec.js` (each case takes ~30 s: saveToCloud retries for 22 s before failing), AST
+checks clean, backup-check + roundtrip PASS.
+
+**Known limits:** a failed archive leaves its audit-log line; a customer screen open during a
+failed loan save shows the pre-restore copy until reopened; order numbers (`ORD-`) still come from
+the local counter, not the atomic one (same duplicate risk F3 fixed for invoices, lower stakes — not
+GST); GRV numbers still fall back to the local counter when the server can't be reached (same).
+
+**Not verified:** a real phone; the live site (nothing deployed).
+
+→ FOR COWORK: nothing new for F4 (client only) — the F3 item above (apply migration 004 before deploying, check real shops for duplicate invoice numbers) still stands. Claude Code starts F2 next.
+
+---
+
 ### 2026-09-30 · Claude Code (Opus 5.5) (F3 built: invoice numbers only from the server, at save time — migration 004 needs applying BEFORE the next deploy)
 
 **Commits:** `4061421` (failing e2e spec), `6305f1a` (client fix + tests), `06f2bd4` (migration 004, not applied).
