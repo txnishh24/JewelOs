@@ -8,11 +8,22 @@
 -- again, but only 5 times — a counter further behind refuses sales until it
 -- catches up. This makes it catch up in one step.
 --
--- How: every committed sale forward-syncs the blob's nextInvNo to (number used)
--- + 1, so store.data->'nextInvNo' is the shop's own record of the next free
--- number. The counter now returns greatest(counter + 1, that floor). The floor
--- is read server-side from the shop's saved data — nothing the client sends
--- can move it. Only 'inv_no' gets a floor; other counters behave as before.
+-- How: every committed sale forward-syncs the blob's nextInvNo to (number the
+-- counter issued) + 1, so store.data->'nextInvNo' is the shop's own record of
+-- the next free number. The counter returns greatest(counter + 1, floor).
+-- Only 'inv_no' gets a floor; other counters behave as before.
+--
+-- The floor is NOT trusted input (correction after Cowork's review, 30 Sep):
+-- store.data is written by any logged-in user of the shop through a
+-- store-proxy PUT, and older clients forward-synced from TYPED numbers
+-- ("2025-26/001" -> 202526001; a pasted phone number -> past the integer
+-- limit, after which every call failed with "integer out of range"). So:
+--   * a floor more than 1000 (c_max_jump) ahead of the counter is treated as
+--     corrupt and IGNORED — the counter just adds 1. Any honest lag (the worst
+--     seen: 3) is far inside that; a typo or crafted value has no effect at
+--     all. (Clamping it to +1000 instead was tried and rejected: the bad
+--     floor never goes away, so EVERY sale would jump another 1000.)
+--   * the floor is read capped at 1e9, so a huge value cannot fail the cast.
 --
 -- Concurrency is unchanged: the single INSERT ... ON CONFLICT DO UPDATE still
 -- row-locks the counter, so two callers can never get the same value. The
@@ -25,6 +36,7 @@ security definer
 set search_path = public
 as $$
 declare
+  c_max_jump constant integer := 1000;
   v_val integer;
   v_floor integer := 1;
   v_raw jsonb;
@@ -32,14 +44,16 @@ begin
   if p_counter = 'inv_no' then
     select data->'nextInvNo' into v_raw from store where id = p_shop_id;
     if jsonb_typeof(v_raw) = 'number' then
-      v_floor := greatest(1, least((v_raw #>> '{}')::numeric, 2147483647))::integer;
+      v_floor := greatest(1, least((v_raw #>> '{}')::numeric, 1000000000))::integer;
     end if;
   end if;
 
   insert into counters (id, shop_id, counter, val, updated_at)
-  values (p_shop_id || '_' || p_counter, p_shop_id, p_counter, v_floor, now())
+  values (p_shop_id || '_' || p_counter, p_shop_id, p_counter, case when v_floor > c_max_jump then 1 else v_floor end, now())
   on conflict (id) do update
-    set val = greatest(counters.val + 1, v_floor), updated_at = now()
+    set val = case when v_floor > counters.val + c_max_jump then counters.val + 1
+                   else greatest(counters.val + 1, v_floor) end,
+        updated_at = now()
   returning val into v_val;
   return v_val;
 end;

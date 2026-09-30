@@ -620,8 +620,9 @@ test('a sale using an atomically-fetched invoice number advances S.nextInvNo pas
   var app2 = _freshSaleHarness();
   app2.S.nextInvNo = 5; // local counter lagging behind the server-issued number
   app2.saveToCloud = function(cb){ cb(null); };
+  app2.getNextCounter = function(name, cb){ cb(null, 50); }; // server issues 50 while local counter sits at 5
   var sale = _sale('1');
-  sale.invNo = 'INV-0050'; // as if getNextInvNo() resolved an atomic 50 while local counter sat at 5
+  sale.invNo = '';
   app2._commitSaleTransaction(sale);
   assert(app2.S.nextInvNo === 51, 'expected nextInvNo to jump past the number actually used (51), got ' + app2.S.nextInvNo);
 });
@@ -3102,6 +3103,30 @@ test('the 15 s background refresh skips while a sale is fetching its invoice num
   assert(typeof tick === 'function', 'startAutoRefresh should register its poll');
   tick();
   assert(loads === 0, 'the poll must not reload the shop mid-sale, got ' + loads + ' load(s)');
+});
+
+test('a typed invoice number never moves the shop series (FY-style, pasted phone number)', function(){
+  // Cowork review 30 Sep: "2025-26/001" was stripped to 202526001 and became
+  // the shop-wide floor via migration 004; a phone number overflowed it.
+  ['2025-26/001', '9876543210', 'INV-9999'].forEach(function(typed){
+    var a = _freshSaleHarness();
+    a.saveToCloud = function(cb){ cb(null); };
+    a.S.nextInvNo = 31;
+    var s = _sale('1'); s.invNo = typed;
+    a._commitSaleTransaction(s);
+    assert(a.S.sales.length === 1 && a.S.sales[0].invNo === typed, typed + ': the typed number should be kept on the bill as typed');
+    assert(a.S.nextInvNo === 31, typed + ': the series must stay at 31, got ' + a.S.nextInvNo);
+  });
+});
+
+test('an exception inside the sale commit releases the lock and leaves no unsaved sale behind', function(){
+  var a = _freshSaleHarness();
+  a.getNextCounter = function(name, cb){ cb(null, 40); };
+  a.saveToCloud = function(){ throw new Error('boom'); };
+  var s = _sale('1'); s.invNo = '';
+  a._commitSaleTransaction(s);
+  assert(a._saleSubmitLock === false, 'the submit lock must be released');
+  assert(a.S.sales.length === 0, 'the unsaved sale must not stay in S, got ' + a.S.sales.length);
 });
 
 test('the sale form, a cleared form and Convert to Sale never pre-fill a local invoice number', function(){

@@ -29,7 +29,16 @@ ok(await inc('C','inv_no')===1, 'no saved data: starts at 1 as before');
 await db.query(`insert into store (id,data) values ('D','{"nextInvNo":"99"}')`);
 ok(await inc('D','inv_no')===1, 'a non-number nextInvNo is ignored');
 await db.query(`insert into store (id,data) values ('E','{"nextInvNo":1e12}')`);
-ok(await inc('E','inv_no')===2147483647, 'a huge nextInvNo is capped, not an overflow error');
+ok(await inc('E','inv_no')===1, 'a huge nextInvNo on a new counter is ignored (starts at 1), no overflow');
+ok(await inc('E','inv_no')===2, 'and the next call adds 1 (no "integer out of range", no jump)');
+// Cowork review 30 Sep: a typed FY-style number stripped to digits, or a crafted PUT.
+await db.query(`insert into counters values ('F_inv_no','F','inv_no',30,now())`);
+await db.query(`insert into store (id,data) values ('F','{"nextInvNo":202526002}')`);
+ok(await inc('F','inv_no')===31, 'an FY-style floor (202526002) is ignored: 30 -> 31, not a jump');
+await db.query(`insert into counters values ('G_inv_no','G','inv_no',30,now())`);
+await db.query(`insert into store (id,data) values ('G','{"nextInvNo":9876543211}')`);
+ok(await inc('G','inv_no')===31, 'a phone-number floor past the integer limit is ignored, no error');
+ok(await inc('G','inv_no')===32, 'and every later sale adds 1 — the bad floor never causes a jump');
 // other counters untouched by the floor
 await db.query(`update store set data='{"nextInvNo":500,"nextGirviId":500}' where id='A'`);
 ok(await inc('A','girvi_no')===1, 'girvi_no ignores the invoice floor');

@@ -1368,7 +1368,16 @@ function _commitSaleTransaction(sale){
       return;
     }
     sale.invNo = invNo;
-    _commitSaleTransactionNow(sale, ctx);
+    ctx.issuedNo = parseInt(invNo.slice(4), 10); // only server-issued numbers move the series (below)
+    // Cowork review 30 Sep: an exception in the commit must not leave the
+    // submit lock set (every Record tap refused) or an unsaved sale in S.
+    try { _commitSaleTransactionNow(sale, ctx); }
+    catch(e){
+      _saleSubmitLock = false;
+      S.sales = S.sales.filter(function(s){ return s.id !== sale.id; });
+      console.error('[JewelOS] sale commit threw:', e);
+      toast('\u26a0 Sale not recorded. Please try again.');
+    }
   });
 }
 
@@ -1420,10 +1429,13 @@ function _commitSaleTransactionNow(sale, ctx){
   // separately-opened sales could mint the same INV- number. Snapshot the
   // pre-commit value so a failed save can restore it exactly, not just -1.
   var _prevNextInvNo = S.nextInvNo;
-  var _usedInvNo = parseInt((sale.invNo||'').replace(/\D/g,''),10);
   // F3: max(), never "+1 anyway" -- S.nextInvNo is the server counter's floor
   // (migration 004), so any extra bump becomes a skipped GST number.
-  if(!isNaN(_usedInvNo)) S.nextInvNo = Math.max(S.nextInvNo, _usedInvNo+1);
+  // Cowork review 30 Sep: ONLY a server-issued number moves it. A typed number
+  // ("2025-26/001", a pasted phone number) used to be stripped to its digits
+  // and could jump the whole shop's series to INV-202526002 or past the
+  // database's integer limit. Typed numbers are still checked for duplicates.
+  if(ctx.issuedNo > 0) S.nextInvNo = Math.max(S.nextInvNo, ctx.issuedNo+1);
   if(ctx.mode!=='custom'){
     deductSoldStock(saleItemsForStock, sale);
   }
