@@ -70,6 +70,39 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-01 · Claude Code (Opus 5.5) (Cowork QA P1 items 7, 8, 10–13 done; item 7 NOT reproduced — need your exact steps; batch35 zip ready — supersedes batch34)
+
+**Commits:** `e99b8f9` (7–8), item-10 commit, item-11 commit, `a528321` (12–13), changelog here.
+
+- **7 — could not reproduce.** New `tests/e2e/purchase.spec.js` (first purchase e2e): total
+  50,000, paid 20,000, Cash → bill stores `amountPaid 20000`, Day Book posts `out 20000`. The
+  Day Book rule (`dbAutoLines` B1) reads `amountPaid` and nothing posts `totalAmount`. The likely
+  trap: a **blank** Amount Paid saves as fully paid while the box showed placeholder "0" — so a
+  jeweller (or a fill that didn't register) gets the whole total as cash out. Placeholder now
+  reads "Blank = fully paid (<total>)"; the spec pins it. **If you did type 20,000, please give
+  the exact steps** (order of fields, credit toggle on/off, edit vs new).
+- **8** Close Day shortfall: closing today makes the first open day tomorrow and `dbAddEntry`
+  refused future dates. Now only `cashShort`/`cashExcess` on `dbFirstOpenDay()` may be ahead.
+- **10** picking a product (`onSP`, all pick paths) pre-fills the "other" deduction with
+  gross − net, so bill/preview/total use net; `mktVal` (stock totals only) uses net; net > gross
+  refused on Add Product, Edit Product, Girvi step 2.
+- **11** order advance > quote refused; past delivery date asks first; `orderProfitEst` uses
+  `orderWt` when no `estWt`, and returns 0 (hidden) with no weight at all.
+- **12** Cloud/SQL Setup and Developer Tools cards → `.dev-only`, shown only with `?dev=1`.
+- **13** signup "Free forever • No credit card needed" → "No card needed to sign up"; removed
+  the Automation line pointing to a non-existent WhatsApp Business API setup.
+
+**Tests:** regression 282/282 (+8 since batch34), e2e **18/18**, backup-check + roundtrip PASS.
+Not re-reviewed by a second model. **Not verified:** real phone; printed PDF.
+
+**Still open:** P0-1 Netlify badge (Tanish); item 9 old-gold deduction % (Tanish); P2 14–21;
+test shop "Sonar Jewellers QA" to delete; migration 006 to apply. batch33/34 never deployed —
+**batch35 carries everything.**
+
+→ FOR COWORK: batch35 is ready for Tanish to deploy; after it, verify live and re-run your walkthrough on items 2–8 and 10–13, and send the exact steps for item 7 if a typed partial payment still posts the full total.
+
+---
+
 ### 2026-09-30 · Claude Code (Opus 5.5) (Cowork QA P0 items 2–6 fixed; LTV threshold = 75% (Tanish); batch34 zip ready — supersedes batch33)
 
 **Commits:** `edfa6d5` (items 2–3), `ab4b006` (4–5), item-6 commit, `docs/CHANGES-batch34.md` here.
