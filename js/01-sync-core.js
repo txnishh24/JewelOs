@@ -792,7 +792,13 @@ function getRate(metal,purity){
   if(purity==='14K') return S.rates.g14||0;
   return S.rates.g18||S.rates.g22||0;
 }
-function mktVal(p){return p.weight*getRate(p.metal,p.purity);}
+// Stock value on the gold actually in the piece (QA 30 Sep: Inventory "Market
+// value" and the dashboard used gross weight, stones included). Net weight
+// when a valid one is saved, else gross. Only the stock totals use this.
+function mktVal(p){
+  var g=parseFloat(p.weight)||0, n=parseFloat(p.netWeight)||0;
+  return (n>0 && n<g ? n : g)*getRate(p.metal,p.purity);
+}
 
 // Returns the locked rate for a historical bill item, or live rate for new items
 function getItemRate(i){

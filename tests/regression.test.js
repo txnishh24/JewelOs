@@ -1636,6 +1636,38 @@ test('P0 item 6: a Girvi loan above 75% of the gold value asks before creating (
   assert(ok.confirms.length === 0 && ok.started === 1, 'a 66% loan should go straight through');
 });
 
+test('QA P1 item 10: picking a product pre-fills its gross-minus-net as a deduction, so the bill uses net weight', function(){
+  var a = require('./harness.js').loadApp();
+  a.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', weight:10, netWeight:8.5, qty:1, status:'available' }];
+  a.UI.saleItems = [{ pid:'', qty:1 }];
+  a.renderSaleItems = function(){};
+  a.onSP(0, 'p1');
+  assert(a.UI.saleItems[0].otherWt === 1.5, 'expected a 1.5 g deduction, got ' + a.UI.saleItems[0].otherWt);
+  a.UI.saleMode = 'stock';
+  var sale = a.buildSaleObj();
+  assert(sale.items[0].weight === 8.5, 'the bill should use 8.5 g net, got ' + sale.items[0].weight);
+  a.S.products[0].netWeight = 0; // no net saved -> nothing pre-filled
+  a.onSP(0, 'p1');
+  assert(a.UI.saleItems[0].otherWt === 0, 'no net weight -> no deduction');
+});
+
+test('QA P1 item 10: stock value uses net weight when one is saved', function(){
+  var a = require('./harness.js').loadApp();
+  var r = a.getRate('gold','22K');
+  assert(a.mktVal({ metal:'gold', purity:'22K', weight:10, netWeight:8 }) === 8*r, 'net 8 g');
+  assert(a.mktVal({ metal:'gold', purity:'22K', weight:10 }) === 10*r, 'no net -> gross');
+  assert(a.mktVal({ metal:'gold', purity:'22K', weight:10, netWeight:12 }) === 10*r, 'a net above gross is ignored');
+});
+
+test('QA P1 item 10: Girvi step 2 refuses a net weight above the gross weight', function(){
+  var a = require('./harness.js').loadApp(), msg = '';
+  a.toast = function(m){ msg = m; };
+  a.GF_STEP = 2;
+  a.GF_ITEMS = [{ type:'Ring', metal:'gold', purity:'22K', grossWt:10, netWt:12, qty:1 }];
+  a.girviWizardNext();
+  assert(/Net weight cannot be more than gross/.test(msg) && a.GF_STEP === 2, 'should stay on step 2 with the message, got "' + msg + '" at step ' + a.GF_STEP);
+});
+
 test('girvi item description is escaped on the loan card', function(){
   var html = app.girviLoanCardHTML({ id:'g1', grvNo:'GRV-1', customer:'C', phone:'9', status:'active',
     items:[{ desc:HOSTILE, type:'Ring', metal:'gold', purity:'22K', weight:2, qty:1 }], amount:1000, rate:2,

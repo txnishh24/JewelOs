@@ -820,6 +820,8 @@ function saveEditProd(){
   var epMcRate = parseFloat(document.getElementById('ep-mcrate').value)||0;
   if(epMcRate < 0){ toast('\u26a0 Making charge cannot be negative'); document.getElementById('ep-mcrate').focus(); return; }
 
+  var _epNet=parseFloat(document.getElementById('ep-netwt').value)||0;
+  if(_epNet>0 && _epNet>wt*Math.max(1,parseInt(p.qty,10)||1)+1e-9){ toast('Net weight cannot be more than gross weight'); document.getElementById('ep-netwt').focus(); return; } // QA 30 Sep
   var _snap = JSON.parse(JSON.stringify(p));
   p.name=name;
   p.cat=document.getElementById('ep-cat').value;

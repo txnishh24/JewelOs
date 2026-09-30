@@ -442,6 +442,7 @@ function addProduct(){
   if(!huidCheck.ok){ toast('\u26a0 '+huidCheck.msg); document.getElementById('f-huid').focus(); return; }
   var neEl=document.getElementById('f-netwt');
   var netwt=neEl?parseFloat(neEl.value)||0:0;
+  if(netwt>0 && netwt>wt){toast('Net weight cannot be more than gross weight'); if(neEl) neEl.focus(); return;} // QA 30 Sep: 5 g gross / 8 g net was accepted
   var sku=document.getElementById('f-sku').value.trim()||(UI.metal==='gold'?'GLD':'SLV')+'-'+String(S.nextId).padStart(3,'0');
   // Foundation audit §6: block a duplicate SKU or HUID before creating
   // the product, instead of silently accepting a second item under the
@@ -850,6 +851,13 @@ function onSP(i,v){
   UI.saleItems[i].blackBeads=0;
   UI.saleItems[i].diamondWt=0;
   UI.saleItems[i].otherWt=0;
+  // QA 30 Sep: a product saved as 10 g gross / 8.5 g net was billed on 10 g
+  // unless the jeweller re-typed the 1.5 g deduction on every bill. Pre-fill
+  // the "other" deduction from the product (still editable per bill), so the
+  // row preview, the live total and the saved bill all use the net weight.
+  var _p=v?S.products.find(function(x){return x.id==v;}):null;
+  var _pg=_p?parseFloat(_p.weight)||0:0, _pn=_p?parseFloat(_p.netWeight)||0:0;
+  if(_pn>0 && _pn<_pg) UI.saleItems[i].otherWt=Math.round((_pg-_pn)*1000)/1000;
   UI.saleItems[i].skuUnresolved=false;
   renderSaleItems();
 }

@@ -544,6 +544,8 @@ function girviWizardNext(){
   if(GF_STEP===2){
     var hasWt=GF_ITEMS.some(function(it){return (parseFloat(it.grossWt)||0)>0;});
     if(!hasWt){toast('\u26a0 Enter weight for at least one item');return;}
+    // QA 30 Sep: 10 g gross / 12 g net was accepted on step 2.
+    if(GF_ITEMS.some(function(it){ var n=parseFloat(it.netWt)||0; return n>0 && n>(parseFloat(it.grossWt)||0); })){toast('Net weight cannot be more than gross weight');return;}
   }
   if(GF_STEP===4){
     var principal=parseFloat(document.getElementById('gf-principal').value);
