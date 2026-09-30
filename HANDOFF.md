@@ -15,7 +15,7 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> Claude Code — batch37: Cowork QA P2 items 14–21 — since 1 Oct
+> nobody
 
 **Claim it before you start.** Replace the line above with e.g.
 `Claude Code — batch16 girvi photo fixes — since 8 Sep 21:40`.
@@ -67,6 +67,46 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-01 · Claude Code (Opus 5.5) (batch37: item 7 FIXED + existing bills repaired; P2 14–21 done; batch37 zip ready — supersedes batch36)
+
+**Commit:** `44bfba5` (+ this entry). **Zip:** `Downloads\jewelos-batch37-DEPLOY.zip` (16 files).
+
+- **Item 7 — your root cause was right.** `normaliseData` (04-orders-detail.js) still had the old
+  "credit off ⇒ amountPaid = total" rule that `pbRecalc` dropped long ago. It also ignored later
+  supplier payments. The loop now calls `pbRecalc(p)`, so there's one rule.
+  **Repair on load:** if a bill's stored `totalPaid` is below `amountPaid`, `amountPaid` becomes
+  `totalPaid` − later supplier payments. Only the old overwrite can produce that state (reversals
+  only cancel their own payment), and the repair is idempotent. PB-00001 → 20,000 of 50,000 and
+  PB-00002 → 15,000 of 40,000. Not repairable: a bill that got a later supplier payment *after*
+  being damaged (its totalPaid was recomputed from the wrong base).
+  **Closed days:** a repaired bill on a closed day is corrected by the normal locked-day sweep
+  when Day Book is next opened (one `adjust` entry on the first open day).
+  **e2e:** purchase spec now waits for "Purchase bill saved", **reloads**, and re-checks
+  paid/pending/status and the Day Book line. It fails on the old code at that step.
+- **14** totals locked in whole rupees (new + edited bills); payment box prefill rounded.
+  GSTR-1 Invoice Value = that rounded total (up to ₹1 round-off vs taxable + tax).
+- **15** customer account popup redraws after Add Payment / reversal.
+- **16** Day Book refusal codes → words (`dbErrText`; all 15 codes mapped, test enforces it).
+- **17** CLV projected only from 2+ bills ≥30 days apart, otherwise "spent so far"; interval maths
+  fixed; growth from ₹0 shows "New"; category via `saleItemCat`; category name escaped.
+- **18** `calcCashFlow` subtracts Day Book expenses (Reports + Dashboard; Dashboard lists them).
+- **19** "Low Stock Alerts" → "Pieces in Stock" (it also read nonexistent `p.category`).
+  **Product call for Tanish:** say if he wants a real low-stock rule.
+- **20** header: ≤480px buttons show icons only (aria-labels kept); long name ends in "…";
+  "Saved ✓" still visible. Checked in a browser at 375px.
+- **21** auto refresh 15 s → 60 s (returning to the app still reloads at once).
+- Your nit (a): split-paid bills say "Cash + UPI" on the bill, chip, customer row, WhatsApp and
+  CSV (`salePayModes`, the Reports rule).
+
+**Tests:** regression 295/295 (+8, each red on the previous code), e2e 18/18, check.bat clean.
+Bug-pattern review: no blockers; GSTR-1 round-off and closed-day sweep noted above.
+**Not verified:** real phone, printed PDF, the repair against the real QA-shop blob (it will run
+on your first load of batch37).
+
+→ FOR COWORK: batch37 is ready for Tanish to deploy. After it: on the QA shop, check PB-00001 shows Paid 20,000 / Pending 30,000 and PB-00002 Paid 15,000 / Pending 25,000 after a reload, then a NEW part-paid purchase survives a reload; then items 8, 10, 11 and the P2 list. Re-open HANDOFF.md right before you edit it and only insert your entry.
 
 ---
 
