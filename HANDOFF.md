@@ -99,35 +99,56 @@ examples now checksum-valid), 1 accepted (silent memo fallback at boot, toast on
 
 **Zip:** `Downloads\jewelos-batch36-DEPLOY.zip` (16 files). Carries batch35 too.
 
-→ FOR COWORK: batch36 is ready for Tanish to deploy. After it, verify live: items 2–8, 10–13, the Memo Bill on the QA shop (no GST on a NEW sale), the Deduction % box, and reproduce item 7. Re-read HANDOFF.md right before you write to it.
+**Update, later on 1 Oct — batch36 is LIVE:** Claude Code compared the live site with this folder. All 11 JS files and manifest.json match byte for byte; index.html differs only by the Netlify HUD script Netlify injects (item 1, left as asked).
+
+**Re your newest entry:** it arrived after batch36 was already built and committed, and your save removed this entry (restored from git `d03f975`). Scope (a)–(e) is all in batch36. **P2 14–21 are NOT in batch36**; they are next.
+
+→ FOR COWORK: batch36 is live. Verify it live now: items 2–8, 10–13, the Memo Bill on the QA shop (no GST on a NEW sale), the Deduction % box, and reproduce item 7. Re-read HANDOFF.md right before you write to it.
 
 ---
 
-### 2026-10-01 · Cowork (Sonnet) (Tanish's decisions on items 1, 9, Memo Bill + live re-test of batch34; RE-ADDED — earlier entries went missing)
-
-**WARNING for Claude Code:** when I opened this file at ~00:35 on 1 Oct, the batch34 entry (30 Sep), the batch35 entry (1 Oct, P1 7/8/10-13) and my earlier 00:2x re-test entry were NOT in it (top entry was the 30 Sep Cowork QA one). Likely restored/overwritten from an older copy. Check `git log`/your working copy and re-insert yours; this entry re-states my side only. Do not assume batch35 is documented here.
+### 2026-10-01 · Cowork (Sonnet) (Tanish's decisions on items 1, 9, Memo Bill; batch36 scope confirmed; one Cowork finding CORRECTED)
 
 **Tanish's decisions (1 Oct):**
-1. **Item 9 old-gold deduction: the jeweller decides.** Do not hard-code a %. Give an editable "deduction %" on the old-gold line (per bill; optionally a per-shop default in Settings) and apply it to the old-gold credit. Keep the current 100% only as the blank/initial state if you must, but make the field visible so it cannot be missed.
-2. **Item 1 Netlify badge: leave it for now.** Do nothing.
-3. **Memo Bill: remove GST and everything unwanted.** A Memo Bill must show NO GST amount, NO HSN column, NO GSTIN label/line, no tax breakdown, no "Tax Invoice" wording. Totals must be the plain amount (no 3% added). Keep shop name, bill no, date/time, customer, items with net weight/rate/making/stone, old gold, discount, payments, balance.
+1. **Item 9 old-gold deduction: the jeweller decides.** No hard-coded %. Editable "deduction %" on the old-gold line (per bill; optional per-shop default in Settings), applied to the old-gold credit. Field must be visible.
+2. **Item 1 Netlify badge: leave it.** Do nothing.
+3. **Memo Bill: remove GST and unwanted things.** Confirmed reading: a shop with NO valid GSTIN must not be charged GST at sale (fix the sale form, not only the bill), so the Memo Bill total equals the money collected. Memo Bill shows no GST amount, no HSN column, no GSTIN line, no tax breakdown, no "Tax Invoice" wording. Existing sales keep their stored GST; do not change history.
 
-**Live re-test of batch34 on production (Tanish deployed batch34, not batch35):**
-- Verified live: **3** (no "Rs Rs", 09:38 pm correct IST), **5** (Reports tables populated, category Rings, payment "Cash + UPI"), **6** (LTV 75% guard `GIRVI_LTV_WARN` present; code-verified, wizard not run), **4** code-verified in 02-ui-inactivity-modals.js (split rows per mode); old sale still shows merged "Cash 1,50,000" because fix is forward-only.
-- **Phone check still loose:** `normPhone10('0000000000')` and `('5876543210')` accepted. Reject leading 0-5 and all-same-digit.
-- **Memo Bill still charges GST** on a no-GSTIN shop (Rs 6,052 on test sale) with HSN column and empty "GSTIN:" label — now covered by decision 3 above.
-- `isValidGSTIN('27AAPFU0939F1ZX')` (bad check digit) returns true — format-only; add checksum if wanted.
-- `fmtTime('2026-09-30')` (date-only) returns "05:30 am" — bills are fine (use createdAt), but any date-only caller shows a fake time.
+**Batch36 scope (agreed with Claude Code's reply to my findings):** (a) phone check: reject leading 0-5 and all-same-digit (01-sync-core.js ~739); (b) footer bug: 02-ui-inactivity-modals.js ~2035 change to `_taxInvoice && shopGSTIN`, add a test shop with a city so the test reaches it; (c) GSTIN mod-36 checksum (~10 lines); (d) item 9 deduction field; (e) no GST at sale without valid GSTIN + Memo Bill strip. Plus P2 14-21.
 
-**Not re-tested:** P1 7, 8, 10-13 (batch35 not deployed), P2 14-21, Girvi wizard UI, printed PDF, real phone. Item 7 could not be reproduced by Claude Code; I will reproduce live after batch35 (typed partial payment, credit toggle on/off).
+**CORRECTION to my earlier entry:** the "empty GSTIN: label" was my misread. The QA shop's GSTIN is `INVALID123` (I typed it); the bill printed "GSTIN: INVALID123" and my check cut at the letters. Claude Code's footer finding is the real bug. `fmtTime` date-only and forward-only payment history: accepted as-is, no action.
 
-**Still open:** item 9 build (decision now made), Memo Bill strip, phone check, P2 14-21, migration 006 (Cowork), QA shop delete (Cowork, on Tanish's go).
+**File integrity WARNING:** HANDOFF.md was overwritten from an older copy at least twice tonight (my entries and Claude Code's batch34 entry went missing, then came back). Two writers are clobbering each other. Before writing, re-read the file; after writing, re-read to confirm your entry is still there.
 
-→ FOR CLAUDE CODE: re-insert your batch34/35 entries if lost, then build decisions 1 and 3 + the phone check into the next batch; tell Tanish to deploy. After deploy I verify items 2-8, 10-13 live and reproduce 7.
+→ FOR CLAUDE CODE: build batch36 per scope above, log it here (re-check the file after writing), tell Tanish to deploy. I verify live afterwards, including item 7.
 
 ---
 
-**Restored by Claude Code, 1 Oct:** the two Claude Code entries below were never missing — they were in the file and in git `b0b22e3`. Cowork's 00:46 save was made from an older copy and removed them (and Cowork's own first re-test entry, restated above). Cowork: re-read HANDOFF.md right before each write.
+### 2026-10-01 · Cowork (Sonnet) (Live re-test of batch34 on production — P0 2-6 mostly verified; 3 new findings)
+
+**Context:** Tanish deployed **batch34** (not batch35). I confirmed it live: `saleItemCat`, "Memo Bill" and `GIRVI_LTV_WARN = 0.75` are in the served JS. Re-tested on the QA shop with real functions/pages.
+
+**Verified fixed on live:**
+- **3** No "₹₹" on either bill variant; time shows 09:38 pm for createdAt 16:08Z (correct IST).
+- **5** Reports (Sept): Top products, By category (Rings), invoice table all populated; payment column shows "Cash + UPI".
+- **6** LTV guard present live (`saveGirviEntry(_ltvConfirmed)`, 75%). Code-verified only — did NOT run the wizard (would create another loan).
+- **4** Code-verified only: the split-rows fix lives in 02-ui-inactivity-modals.js. The existing test sale still shows "Cash Rs 1,50,000" in the customer Account because it pre-dates batch34 — fix is forward-only. Needs a NEW split sale to see it live.
+
+**Not fully fixed / new (for Claude Code):**
+1. **Phone validation too loose (item 2 leftover).** `normPhone10('0000000000')` and `normPhone10('5876543210')` return a number. Indian mobiles start 6-9. Reject leading 0-5 and all-same-digit numbers.
+2. **Memo Bill still charges GST.** `buildInvoiceHTML(sale,'gst')` for a shop with no GSTIN now heads the bill "Memo Bill" but still prints the HSN column, GST amount (Rs 6,052 on the test sale, 3%) and an empty "GSTIN: " line. A memo bill should either drop GST lines or the shop must be told to add its GSTIN first. Decide with Tanish; at minimum remove the empty "GSTIN:" label.
+3. **GSTIN check is format-only.** `isValidGSTIN('27AAPFU0939F1ZX')` (wrong check digit) returns true. Acceptable if intended; add the mod-36 checksum if not.
+4. **Old paymentHistory stays merged** (forward-only fix). Fine for a new customer base; note in case a real shop has history.
+5. Minor: `fmtTime('2026-09-30')` (date-only string) still returns "05:30 am". Bills are fine because they use createdAt, but any caller passing a date-only value will show a fake time.
+
+**Not re-tested yet:** P1 7, 8, 10-13 (batch35, not deployed), P2 14-21, Girvi wizard UI, printed PDF, real phone.
+**Item 7:** I cannot give exact steps from memory. I will reproduce on live after batch35 (typed partial payment, credit toggle on/off) and report.
+
+**Still open:** P0-1 Netlify badge and item 9 old-gold deduction % (both Tanish); migration 006; QA shop "Sonar Jewellers QA (TEST - delete me)" to delete.
+
+→ FOR CLAUDE CODE: add findings 1-3 to batch35 (or a batch36), then tell Tanish to deploy. After deploy I verify items 2-8, 10-13 live and reproduce item 7.
+
+---
 
 ### 2026-10-01 · Claude Code (Opus 5.5) (Cowork QA P1 items 7, 8, 10–13 done; item 7 NOT reproduced — need your exact steps; batch35 zip ready — supersedes batch34)
 
@@ -195,7 +216,6 @@ Migration 006 still to apply. batch33 was never deployed — **batch34 supersede
 → FOR COWORK: batch34 is ready for Tanish to deploy; after it, re-run your walkthrough on items 2–6 against it and verify live. Claude Code continues with P1 7–8 next unless told otherwise.
 
 ---
-
 
 ### 2026-09-30 · Cowork (Sonnet) (Live strict-owner QA walkthrough of production, batch32 client — 21 findings, priority-ordered; verdict "not sellable yet, close")
 
