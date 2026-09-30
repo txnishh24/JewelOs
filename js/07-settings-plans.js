@@ -626,8 +626,11 @@ function girviAutoCalc(){
       (_tm>0?'<div class="girvi-preview-row"><span>Total Mkt Value</span><span style="color:var(--gold-dark);font-weight:700;">\u20b9'+Math.round(_tm).toLocaleString('en-IN')+'</span></div>':'')+
       '<div class="girvi-preview-row"><span>Loan Amount</span><span style="font-weight:700;">\u20b9'+Math.round(p).toLocaleString('en-IN')+'</span></div>'+
       '<div class="girvi-preview-row"><span>Rate</span><span>'+r+'% '+(rt==='yearly'?'per year':'per month')+(cp?' (compound)':'')+' </span></div>'+
-      (dur?'<div class="girvi-preview-row"><span>Due Date</span><span style="color:var(--gold);font-weight:700;">'+dueStr+'</span></div>':'')+
-      '<div class="girvi-preview-row" style="border-top:1px solid rgba(201,168,76,.2);margin-top:6px;padding-top:6px;font-weight:700;"><span>Total Payable</span><span style="color:var(--gold);">\u20b9'+Math.round(payable).toLocaleString('en-IN')+'</span></div>';
+      // QA 30 Sep: with no duration the total below is priced at 6 months, but
+      // it said "Total Payable" next to "No fixed term" -- say what it is.
+      (dur?'<div class="girvi-preview-row"><span>Due Date</span><span style="color:var(--gold);font-weight:700;">'+dueStr+'</span></div>':
+           '<div class="girvi-preview-row"><span>Due Date</span><span>No fixed term</span></div>')+
+      '<div class="girvi-preview-row" style="border-top:1px solid rgba(201,168,76,.2);margin-top:6px;padding-top:6px;font-weight:700;"><span>'+(dur?'Total Payable':'Payable if repaid at 6 months')+'</span><span style="color:var(--gold);">\u20b9'+Math.round(payable).toLocaleString('en-IN')+'</span></div>';
     prevF.style.display='';
   }
 }
@@ -647,7 +650,13 @@ function updateGirviDueDate(){
 }
 
 // ── SAVE ENTRY (replaces old) ──────────────────────────────────────────
-function saveGirviEntry(){
+// Loan-to-value warning (QA 30 Sep: a Rs 5,00,000 loan on Rs 1,05,400 of gold went
+// through all 5 steps; the card showed "LTV 474%" only afterwards). Tanish,
+// 30 Sep: warn above 75% -- the RBI cap for gold loans. A warning the
+// jeweller can confirm, not a block. Skipped when there is no market value
+// (rates not set).
+var GIRVI_LTV_WARN = 0.75;
+function saveGirviEntry(_ltvConfirmed){
   // Creating a NEW loan is blocked read-only; editing an existing one is not,
   // and taking a repayment (submitGirviPayment) is deliberately never blocked.
   if(!GF_EDIT_ID && !subGuard('creating a new girvi loan')) return;
@@ -662,6 +671,14 @@ function saveGirviEntry(){
 
   var _si=GF_ITEMS.filter(function(it){return (parseFloat(it.grossWt)||0)>0;});
   if(!_si.length){toast('\u26a0 At least one item with weight required');return;}
+  var _mkt = _si.reduce(function(s,it){ return s + gfItemMktVal(it); }, 0);
+  if(!_ltvConfirmed && _mkt > 0 && principal > _mkt * GIRVI_LTV_WARN){
+    safeConfirm('Loan is '+Math.round(principal/_mkt*100)+'% of the gold value',
+      'Loan \u20b9'+Math.round(principal).toLocaleString('en-IN')+' against gold worth \u20b9'+Math.round(_mkt).toLocaleString('en-IN')+
+      ' at the current rate. The usual limit is '+Math.round(GIRVI_LTV_WARN*100)+'%. Continue anyway?',
+      function(){ saveGirviEntry(true); }, true);
+    return;
+  }
 
   if(GF_EDIT_ID){
     // ── EDIT PATH: update the existing record only. No new record is created. ──

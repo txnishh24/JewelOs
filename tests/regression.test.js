@@ -1615,6 +1615,27 @@ test('P0 item 5: every category table uses the product category for a stock sale
   assert(src.indexOf("i.category || i.cat || 'Other'") === -1, 'the "Other"-only category rule is still in use');
 });
 
+test('P0 item 6: a Girvi loan above 75% of the gold value asks before creating (Tanish, 30 Sep)', function(){
+  function tryLoan(principal){
+    var a = require('./harness.js').loadApp(), confirms = [], counterCalls = 0;
+    var vals = { 'gf-cust':'Ravi', 'gf-phone':'9876543210', 'gf-principal':String(principal), 'gf-rate':'2' };
+    var _o = a.document.getElementById;
+    a.document.getElementById = function(id){ if(id in vals) return { value:vals[id], checked:false }; return _o(id); };
+    a.GF_EDIT_ID = null;
+    a.GF_ITEMS = [{ type:'Ring', metal:'gold', purity:'22K', grossWt:'10', netWt:'10', qty:1 }];
+    a.gfItemMktVal = function(){ return 105400; };
+    a.subGuard = function(){ return true; };
+    a.safeConfirm = function(t, m, ok){ confirms.push({ t:t, ok:ok }); };
+    a.getNextGrvNo = function(){ counterCalls++; }; // the create path starts here
+    a.saveGirviEntry();
+    return { confirms:confirms, started:counterCalls };
+  }
+  var big = tryLoan(500000);
+  assert(big.confirms.length === 1 && /474%/.test(big.confirms[0].t) && big.started === 0, 'a 474% loan must ask first, got ' + JSON.stringify(big.confirms.map(function(c){return c.t;})));
+  var ok = tryLoan(70000); // 66%
+  assert(ok.confirms.length === 0 && ok.started === 1, 'a 66% loan should go straight through');
+});
+
 test('girvi item description is escaped on the loan card', function(){
   var html = app.girviLoanCardHTML({ id:'g1', grvNo:'GRV-1', customer:'C', phone:'9', status:'active',
     items:[{ desc:HOSTILE, type:'Ring', metal:'gold', purity:'22K', weight:2, qty:1 }], amount:1000, rate:2,

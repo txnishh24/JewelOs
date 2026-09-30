@@ -45,6 +45,8 @@ test.describe('failed saves (F4)', () => {
     await page.locator('#gf-principal').fill('15000');
     await page.locator('#gf-next-btn').click();
     await expect(page.getByText('LOAN SUMMARY')).toBeVisible();
+    // QA 30 Sep: no duration here, so the total is priced at 6 months -- it must say so.
+    await expect(page.getByText('Payable if repaid at 6 months')).toBeVisible();
 
     await blockSaves(page);
     await page.locator('#gf-next-btn').click();
