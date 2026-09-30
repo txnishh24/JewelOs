@@ -90,9 +90,9 @@ test.describe('auth', () => {
     const signOutBtn = page.getByRole('button', { name: /sign out/i }).first();
     await expect(signOutBtn).toBeVisible();
 
-    // Jump past the real 3-minute inactivity window (INACTIVITY_MS,
+    // Jump past the real 5-minute inactivity window (INACTIVITY_MS,
     // js/01-sync-core.js) in one step instead of actually waiting.
-    await page.clock.fastForward('03:05');
+    await page.clock.fastForward('05:05');
 
     const overlay = page.locator('#inactivity-overlay');
     await expect(overlay).toBeVisible({ timeout: 5000 });

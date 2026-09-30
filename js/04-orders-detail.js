@@ -745,7 +745,7 @@ function _PIN_LAST_ACTIVE_KEY(){ return 'ssj_last_active::' + _pinShopSuffix(); 
 
 // sessionStorage alone gets wiped every time a mobile OS kills the
 // backgrounded PWA process — which happens far more often than the user
-// actually being idle for 3 minutes. That made the PIN screen reappear on
+// actually being idle for the lock window (INACTIVITY_MS). That made the PIN screen reappear on
 // almost every re-open, not just after real inactivity. These helpers use
 // a localStorage timestamp instead, which survives the process being
 // killed, so "still unlocked" is judged by actual elapsed time since the
@@ -759,7 +759,7 @@ function isPinSessionActive(){
   try{
     var ts = parseInt(localStorage.getItem(_PIN_LAST_ACTIVE_KEY()), 10);
     if(!ts || isNaN(ts)) return false;
-    var idleMs = (typeof INACTIVITY_MS !== 'undefined') ? INACTIVITY_MS : (3*60*1000);
+    var idleMs = (typeof INACTIVITY_MS !== 'undefined') ? INACTIVITY_MS : (5*60*1000);
     return (Date.now() - ts) < idleMs;
   }catch(e){ return false; }
 }

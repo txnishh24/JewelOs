@@ -752,7 +752,10 @@ function safeConfirm(title, msg, onOk, danger){
 function toast(msg){
   var t=document.getElementById('toast');
   t.textContent=msg;t.classList.add('show');
-  clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},2800);
+  // F5: long messages (several now explain what to do next) stay up long
+  // enough to read -- 2.8 s, plus ~45 ms per character past 60, at most 8 s.
+  var ms = Math.min(8000, 2800 + Math.max(0, String(msg||'').length - 60) * 45);
+  clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},ms);
 }
 
 function getRate(metal,purity){
@@ -2044,9 +2047,9 @@ var debouncedRenderCustomers = debounce(function(){ renderCustomers.apply(this, 
 
 
 // ═══════════════════════════════════════════════════════════════════════
-// AUTO-LOCK ON INACTIVITY (3 minutes)
+// AUTO-LOCK ON INACTIVITY (5 minutes -- Tanish, 29 Sep; was 3)
 // ═══════════════════════════════════════════════════════════════════════
-var INACTIVITY_MS = 3 * 60 * 1000; // 3 minutes
+var INACTIVITY_MS = 5 * 60 * 1000; // 5 minutes (F5)
 var _inactTimer = null;
 var _inactOverlayShown = false;
 

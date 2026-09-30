@@ -479,7 +479,7 @@ function saasOnboardSave(){
 
   var shops = saasGetShops();
   var idx   = shops.findIndex(function(s){ return s.id===SAAS.shop.id; });
-  var locale = document.getElementById('ob-locale').value || 'en-IN';
+  var locale = 'en-IN'; // F5: the USD/AED choice did nothing anywhere else in the app; removed
   if(idx !== -1){
     shops[idx].name   = name;
     shops[idx].city   = city;

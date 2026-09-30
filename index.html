@@ -504,7 +504,14 @@ tr:hover td{background:var(--gold-bg);}
 .bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 7px;background:transparent;border:none;color:#5a5244;font-family:inherit;cursor:pointer;transition:color var(--t1);font-size:10px;font-weight:600;letter-spacing:.04em;}
 .bnav-btn:hover,.bnav-btn.active{color:var(--gold);}
 .bnav-icon{font-size:20px;line-height:1;}
-.bnav-label{font-size:9px;text-transform:uppercase;letter-spacing:.05em;}
+.bnav-label{font-size:9px;text-transform:uppercase;letter-spacing:.05em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* F5: 9 buttons on a 375px phone get ~41px each; "CUSTOMERS" needed ~50px, so the row
+   ran to 413px and Settings was cut off. Let buttons shrink below their label and
+   tighten the label on narrow screens; anything still too long ends in an ellipsis. */
+.bnav-btn{min-width:0;}
+@media(max-width:420px){.bnav-btn{padding-left:1px;padding-right:1px;}.bnav-label{font-size:8.5px;letter-spacing:0;text-transform:none;white-space:normal;line-height:1.1;}
+  /* one word that still can't fit (Customers, 48px in 40px): show its short form; the full word stays in the DOM for screen readers */
+  .bnav-label[data-short]{font-size:0;}.bnav-label[data-short]::after{content:attr(data-short);font-size:8.5px;}}
 @media(max-width:639px){.bnav{display:block;}.dtabs{display:none;}}
 
 /* ── MODALS ──────────────────────────────────────── */
@@ -518,7 +525,7 @@ tr:hover td{background:var(--gold-bg);}
 .modal-body{padding:1.4rem;overflow-y:auto;}
 
 /* ── TOAST ───────────────────────────────────────── */
-.toast{position:fixed;bottom:5.5rem;left:50%;transform:translateX(-50%) translateY(14px);background:linear-gradient(135deg,#18160e,#242118);color:#e8d49a;padding:10px 22px;border-radius:100px;font-size:13px;font-weight:500;z-index:9999;opacity:0;pointer-events:none;transition:all .22s var(--ease);white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.3),0 0 0 0.5px rgba(201,163,78,.18);letter-spacing:.03em;}
+.toast{position:fixed;bottom:5.5rem;left:50%;transform:translateX(-50%) translateY(14px);background:linear-gradient(135deg,#18160e,#242118);color:#e8d49a;padding:10px 22px;border-radius:18px;font-size:13px;font-weight:500;z-index:9999;opacity:0;pointer-events:none;transition:all .22s var(--ease);white-space:normal;width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;text-align:center;line-height:1.4;box-shadow:0 4px 24px rgba(0,0,0,.3),0 0 0 0.5px rgba(201,163,78,.18);letter-spacing:.03em;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 @media(min-width:640px){.toast{bottom:1.5rem;}}
 
@@ -1428,13 +1435,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
       <div class="auth-field"><label>Phone</label><input id="ob-phone" type="tel" placeholder="10-digit number"></div>
     </div>
     <div class="auth-field"><label>GSTIN (optional)</label><input id="ob-gstin" type="text" placeholder="22AAAAA0000A1Z5" style="text-transform:uppercase"></div>
-    <div class="auth-field"><label>Currency / Locale</label>
-      <select id="ob-locale" style="width:100%;box-sizing:border-box;padding:10px 13px;border-radius:10px;border:1px solid var(--border2);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;">
-        <option value="en-IN">🇮🇳 Indian Rupee (₹)</option>
-        <option value="en-US">🇺🇸 US Dollar ($)</option>
-        <option value="en-AE">🇦🇪 UAE Dirham (د.إ)</option>
-      </select>
-    </div>
+    <!-- F5: USD/AED options removed -- nothing in the app used them; JewelOS is rupees + GST. -->
     <button class="auth-btn" onclick="saasOnboardSave()" style="margin-top:8px;">Start Managing My Shop →</button>
     <div class="auth-err" id="ob-err"></div>
   </div>
@@ -1724,7 +1725,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
       <div class="fg"><label>Invoice No.</label><input id="s-invno" placeholder="Assigned on save"/></div>
       <div class="fg"><label>Date</label><input id="s-date" type="date"/></div>
       <div class="fg"><label>Customer name *</label><input id="s-cust" placeholder="Customer name" oninput="custAutocomplete()"/></div>
-      <div class="fg"><label>Customer phone</label><input id="s-phone" type="tel" inputmode="tel" placeholder="+91 XXXXX XXXXX"/></div>
+      <div class="fg"><label>Customer phone</label><input id="s-phone" type="tel" inputmode="tel" placeholder="98765 43210"/></div>
       <div class="fg"><label>Customer address</label><input id="s-addr" placeholder="Optional"/></div>
       <!-- payment mode moved to Paying Now section -->
     </div>
@@ -1918,7 +1919,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
       <div class="ord-section-label">Customer Details</div>
       <div class="form-grid">
         <div class="fg"><label>Customer Name *</label><input id="of-cust" placeholder="Full name" oninput="ordCustAuto()"/></div>
-        <div class="fg"><label>Phone *</label><input id="of-phone" type="tel" inputmode="tel" placeholder="+91 XXXXX XXXXX"/></div>
+        <div class="fg"><label>Phone *</label><input id="of-phone" type="tel" inputmode="tel" placeholder="98765 43210"/></div>
         <div class="fg"><label>Address</label><input id="of-addr" placeholder="Optional"/></div>
       </div>
       <div id="of-cust-sug" style="display:none;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-top:-6px;margin-bottom:10px;max-height:120px;overflow-y:auto;"></div>
@@ -2854,7 +2855,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
     <button class="bnav-btn" onclick="switchTab('sales')" id="bn-sales"><span class="bnav-icon">&#128179;</span><span class="bnav-label">Sale</span></button>
     <button class="bnav-btn" onclick="switchTab('girvi')" id="bn-girvi"><span class="bnav-icon">&#129354;</span><span class="bnav-label">Girvi</span></button>
     <button class="bnav-btn" onclick="switchTab('orders')" id="bn-orders"><span class="bnav-icon">&#128221;</span><span class="bnav-label">Orders</span></button>
-    <button class="bnav-btn" onclick="switchTab('customers')" id="bn-customers"><span class="bnav-icon">&#128101;</span><span class="bnav-label">Customers</span></button>
+    <button class="bnav-btn" onclick="switchTab('customers')" id="bn-customers"><span class="bnav-icon">&#128101;</span><span class="bnav-label" data-short="Cust.">Customers</span></button>
     <button class="bnav-btn" onclick="switchTab('reports')" id="bn-reports"><span class="bnav-icon">&#128200;</span><span class="bnav-label">Reports</span></button>
     <button class="bnav-btn" onclick="switchTab('daybook')" id="bn-daybook"><span class="bnav-icon">&#128214;</span><span class="bnav-label">Day Book</span></button>
     <button class="bnav-btn" onclick="switchTab('settings')" id="bn-settings"><span class="bnav-icon">&#9881;</span><span class="bnav-label">Settings</span></button>

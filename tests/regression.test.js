@@ -188,6 +188,34 @@ test('PIN session expires after real inactivity', function(){
   assert(app.isPinSessionActive() === false, 'should require PIN again after 10 real minutes of inactivity');
 });
 
+test('F5: the PIN lock is 5 minutes -- 4 idle minutes still unlocked, 6 locked (Tanish, 29 Sep)', function(){
+  assert(app.INACTIVITY_MS === 5 * 60 * 1000, 'INACTIVITY_MS should be 5 minutes, got ' + app.INACTIVITY_MS);
+  app.localStorage.setItem(app._PIN_LAST_ACTIVE_KEY(), String(Date.now() - 4*60*1000));
+  assert(app.isPinSessionActive() === true, '4 minutes idle must not need the PIN yet');
+  app.localStorage.setItem(app._PIN_LAST_ACTIVE_KEY(), String(Date.now() - 6*60*1000));
+  assert(app.isPinSessionActive() === false, '6 minutes idle must need the PIN');
+});
+
+test('F5: a phone typed as +91 or with a leading 0 is accepted and stored as 10 digits', function(){
+  ['+91 98765 43210', '098765 43210', '98765-43210'].forEach(function(typed){
+    var a = _freshSaleHarness(), saved = null;
+    a.saveToCloud = function(cb){ cb(null); };
+    var _orig = a.document.getElementById;
+    a.document.getElementById = function(id){ return id === 's-cust' ? { style:{}, value:'Test Customer' } : _orig(id); };
+    a.buildSaleObj = function(){ var s = _sale('X'); s.phone = typed; return s; };
+    a._commitSaleTransaction = function(s){ saved = s; };
+    a.recordSale();
+    assert(saved && saved.phone === '9876543210', typed + ' should be saved as 9876543210, got ' + (saved && saved.phone));
+  });
+  var b = _freshSaleHarness(), got = null;
+  var _o = b.document.getElementById;
+  b.document.getElementById = function(id){ return id === 's-cust' ? { style:{}, value:'T' } : _o(id); };
+  b.buildSaleObj = function(){ var s = _sale('Y'); s.phone = '12345'; return s; };
+  b._commitSaleTransaction = function(s){ got = s; };
+  b.recordSale();
+  assert(got === null, 'a 5-digit number must still be refused');
+});
+
 // ── PIN security review (20-21 Sep 2026) ────────────────────────────────
 // Fresh app instances throughout, not the shared `app` above — PIN storage
 // and the lockout counters are shop-scoped state, and these tests need to

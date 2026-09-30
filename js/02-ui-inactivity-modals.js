@@ -1297,6 +1297,11 @@ function recordSale(){
   // Phone validation — must be empty OR 10 digits
   if(sale.phone){
     var _cleanPhone = (sale.phone||'').replace(/\D/g,'');
+    // F5: accept what people type -- "+91 98765 43210" or "098765 43210" --
+    // by dropping the country code or trunk 0 (the form used to suggest +91
+    // and then refuse it).
+    if(_cleanPhone.length===12 && _cleanPhone.slice(0,2)==='91') _cleanPhone=_cleanPhone.slice(2);
+    else if(_cleanPhone.length===11 && _cleanPhone.charAt(0)==='0') _cleanPhone=_cleanPhone.slice(1);
     if(_cleanPhone.length && _cleanPhone.length !== 10){
       toast('\u26a0 Phone must be 10 digits (e.g. 9876543210). Got: '+sale.phone);
       var _pEl=document.getElementById('s-phone'); if(_pEl) _pEl.focus();
