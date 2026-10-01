@@ -1189,9 +1189,9 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 .girvi-kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
 .girvi-kpi{text-align:center;}
 .girvi-kpi-val{font-size:20px;font-weight:800;line-height:1.1;color:#f8f0dc;}
-.girvi-kpi-val.danger{color:#ef4444;}
-.girvi-kpi-val.warning{color:#f59e0b;}
-.girvi-kpi-val.success{color:#22c55e;}
+.girvi-kpi-val.danger{color:var(--danger);}
+.girvi-kpi-val.warning{color:var(--warning);}
+.girvi-kpi-val.success{color:var(--success);}
 .girvi-kpi-lbl{font-size:9px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.06em;margin-top:2px;}
 
 /* Today's action list */
@@ -1202,10 +1202,10 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   border-left:3px solid transparent;
 }
 .girvi-action:active{transform:scale(.98);}
-.girvi-action.red{background:rgba(239,68,68,.08);border-left-color:#ef4444;}
-.girvi-action.amber{background:rgba(245,158,11,.08);border-left-color:#f59e0b;}
-.girvi-action.blue{background:rgba(96,165,250,.08);border-left-color:#60a5fa;}
-.girvi-action.green{background:rgba(34,197,94,.08);border-left-color:#22c55e;}
+.girvi-action.red{background:var(--danger-soft);border-left-color:var(--danger);}
+.girvi-action.amber{background:var(--warning-soft);border-left-color:var(--warning);}
+.girvi-action.blue{background:var(--info-soft);border-left-color:var(--info);}
+.girvi-action.green{background:var(--success-soft);border-left-color:var(--success);}
 .girvi-action-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
 .girvi-action-body{flex:1;min-width:0;}
 .girvi-action-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -1218,7 +1218,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   padding:4px 10px;border-radius:100px;border:none;
   font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;
 }
-.gab-call{background:rgba(34,197,94,.15);color:#22c55e;}
+.gab-call{background:var(--success-soft);color:var(--success);}
 .gab-wa{background:rgba(37,211,102,.15);color:#25d366;}
 .gab-pay{background:var(--gold);color:#1a1200;}
 .gab-view{background:rgba(148,163,184,.1);color:var(--text2);}
@@ -1244,22 +1244,22 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 .girvi-card-right{text-align:right;flex-shrink:0;}
 .girvi-card-outstanding{font-size:clamp(18px,5vw,24px);font-weight:800;line-height:1;}
 .girvi-card.status-active{border-left:3px solid var(--gold);}
-.girvi-card.status-overdue,.girvi-card.status-defaulted{border-left:3px solid #ef4444;}
+.girvi-card.status-overdue,.girvi-card.status-defaulted{border-left:3px solid var(--danger);}
 .girvi-card.status-atrisk{border-left:3px solid #f97316;}
-.girvi-card.status-closed{border-left:3px solid #64748b;opacity:.7;}
-.girvi-card-outstanding.red{color:#ef4444;font-weight:800;}
-.girvi-card-outstanding.amber{color:#d97706;font-weight:800;}
-.girvi-card-outstanding.green{color:#16a34a;font-weight:800;}
+.girvi-card.status-closed{border-left:3px solid var(--text3);opacity:.7;}
+.girvi-card-outstanding.red{color:var(--danger);font-weight:800;}
+.girvi-card-outstanding.amber{color:var(--warning);font-weight:800;}
+.girvi-card-outstanding.green{color:var(--success);font-weight:800;}
 .girvi-card-outstanding.normal{color:var(--gold-dark);}
 .girvi-card-principal{font-size:10px;color:var(--text3);margin-top:2px;}
-.girvi-card-interest{font-size:11px;color:#f59e0b;font-weight:600;margin-top:1px;}
+.girvi-card-interest{font-size:11px;color:var(--warning);font-weight:600;margin-top:1px;}
 .girvi-card-days{
   display:inline-block;font-size:10px;font-weight:700;
   padding:2px 8px;border-radius:100px;margin-top:3px;
 }
-.days-overdue{background:rgba(239,68,68,.15);color:#ef4444;}
-.days-soon{background:rgba(245,158,11,.15);color:#f59e0b;}
-.days-safe{background:rgba(34,197,94,.12);color:#22c55e;}
+.days-overdue{background:var(--danger-soft);color:var(--danger);}
+.days-soon{background:var(--warning-soft);color:var(--warning);}
+.days-safe{background:var(--success-soft);color:var(--success);}
 .days-na{background:rgba(148,163,184,.1);color:#94a3b8;}
 /* Chip active state (Feature 10) */
 .girvi-search-chip.active{

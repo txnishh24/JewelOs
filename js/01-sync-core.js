@@ -1462,9 +1462,9 @@ function girviLTV(g){
 }
 
 function girviLTVLabel(ltv){
-  if(ltv <= 0.70) return { label:'Safe',   color:'#22c55e', icon:'🟢' };
-  if(ltv <= 0.85) return { label:'Medium', color:'#f59e0b', icon:'🟡' };
-  return                  { label:'High',  color:'#ef4444', icon:'🔴' };
+  if(ltv <= 0.70) return { label:'Safe',   color:'var(--success)', icon:'🟢' };
+  if(ltv <= 0.85) return { label:'Medium', color:'var(--warning)', icon:'🟡' };
+  return                  { label:'High',  color:'var(--danger)', icon:'🔴' };
 }
 
 // Penalty = additional % on top of regular interest after overdue

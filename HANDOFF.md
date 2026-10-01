@@ -55,6 +55,50 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 5/10: Girvi; no zip)
+
+Found the same bright-SaaS-color issue as Dashboard, spread across more places than
+expected — fixed everything confirmed Girvi-exclusive:
+
+- `index.html`: `.girvi-card.status-*` border colors, `.girvi-card-outstanding.*`,
+  `.girvi-action.*` (red/amber/**blue**/green — blue wasn't an exact hex match to
+  `--info` but got the same semantic treatment as its red/amber/green siblings),
+  `.gab-call`, `.girvi-card-interest`, `.days-overdue/.days-soon/.days-safe` — all moved
+  from bright hex + raw rgba tints to the matching `--danger/--warning/--success/--info`
+  tokens and their existing `-soft` tint variants. Left `.days-na` and `.gab-wa` alone —
+  the former is intentionally neutral (no status to color), the latter is WhatsApp's
+  actual brand green, not a generic status color.
+- `js/01-sync-core.js` (`girviLTVLabel()`), `js/04-orders-detail.js` (`girviRiskBadge()`
+  — rebuilt to use the `-soft` tokens since the original concatenated a hex alpha suffix
+  onto the bright color, which `var()` can't do), `js/07-settings-plans.js`
+  (`girviLoanCardHTML()`'s penalty color), `js/08-girvi-viewmode.js` (exec-dash accent
+  gradients — one of which turned out to be an off-brand gold, `#c9a84c`/`#e2c063`, not
+  `--gold`/`--gold-light` at all — realigned to the canonical tokens; plus Interest Due,
+  Recover button, penalty, and full-payment-confirmation colors).
+- Deliberately left alone: `08-girvi-viewmode.js`'s "Reset Save Lock" button
+  (`#dc2626`) — that's inside `cloudDiag()`, an internal diagnostics panel, not
+  customer-facing UI a demo would ever show.
+
+**Found a gap in my own earlier work while sweeping index.html for remaining bright
+hex**: `.ib-up`/`.ib-down`/`.trend-up`/`.trend-down`/`.trend-flat` (Dashboard's insight
+badges and category-trend arrows) and `.itag-risk`/`.itag-new` (Stock's alert tags) are
+the same bright-hex pattern, and I missed them in passes 2 and 3 because they're CSS
+classes referenced from JS outside the exact line-ranges I'd scoped my scripts to. Also
+still open, not Girvi: `.auth-err` (Sign-in, `#ef4444`), `.role-badge`/`.role-badge.staff`
+(Settings), `#sub-banner.warn`, `.btn-pdf`/`.btn-wa` (Reports export), and the demo-data/
+sign-out buttons (global chrome). Raising how to handle these with Tanish next.
+
+**Verified:** `check.bat` — 318/318 (no test hardcoded these hex values, unlike
+Dashboard), zero new AST findings. Confirmed the fix with a computed-style check, not
+just eyeballing — `.girvi-kpi-val.success` resolves to `rgb(28,96,64)` (exactly
+`--success`), even though it reads as more vivid against the dark Portfolio strip's
+near-black background (optical contrast, not an unfixed color). Screenshots in
+`redesign-shots/girvi/{375,768,1440}.png`.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 4/10: Sales/Billing; no zip)
 
 Smallest diff of the redesign so far. `renderSaleItems()` (`js/02-ui-inactivity-modals.js:

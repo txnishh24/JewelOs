@@ -1021,7 +1021,7 @@ function girviLoanCardHTML(g){
             '<div class="girvi-card-outstanding '+outColor+'">\u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</div>'+
             '<div class="girvi-card-principal">₹'+Math.round(g.principal).toLocaleString('en-IN')+' @ '+g.interestRate+'%'+(g.rateType==='yearly'?'/yr':'/mo')+'</div>'+
             (interest>0?'<div class="girvi-card-interest">+\u20b9'+Math.round(interest).toLocaleString('en-IN')+' interest</div>':'')+
-            (penalty>0?'<div style="font-size:10px;color:#ef4444;font-weight:700;">+\u20b9'+Math.round(penalty).toLocaleString('en-IN')+' penalty</div>':'')+
+            (penalty>0?'<div style="font-size:10px;color:var(--danger);font-weight:700;">+\u20b9'+Math.round(penalty).toLocaleString('en-IN')+' penalty</div>':'')+
             '<div style="font-size:10px;color:'+ltvL.color+';margin-top:2px;">'+ltvL.icon+' LTV '+(ltv*100).toFixed(0)+'%</div>'+
           '</div>'+
         '</div>'+

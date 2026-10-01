@@ -36,10 +36,14 @@ function renderGirviExecDash(){
   var fmt = function(n){ return '\u20b9'+(Math.round(n)||0).toLocaleString('en-IN'); };
 
   var cards = [
-    { label:'Outstanding',    val: fmt(Math.round(totalExpected)), sub: active.length+' active loans', accent:'linear-gradient(90deg,#c9a84c,#e2c063)', valColor:'var(--ink)' },
-    { label:'Interest Earned',val: fmt(Math.round(totalInterest)), sub: 'Accrued today',                accent:'linear-gradient(90deg,#1c6040,#22c55e)', valColor:'var(--success)' },
-    { label:'Overdue',        val: overdue.length,                 sub: overdue.length?'Need follow-up':'All clear \u2713', accent:'linear-gradient(90deg,'+(overdue.length?'#a8312a,#ef4444':'#1c6040,#22c55e')+')', valColor: overdue.length?'var(--danger)':'var(--success)' },
-    { label:'Due This Month', val: dueThisMonth.length,           sub: fmt(dueThisMonth.reduce(function(s,g){ return s+girviOutstanding(g); },0))+' expected', accent:'linear-gradient(90deg,#8a4e0c,#f59e0b)', valColor:'var(--warning)' }
+    // accent bars previously used an off-brand gold (#c9a84c/#e2c063, not
+    // --gold/--gold-light) plus bright Tailwind-style hex for the other three
+    // -- realigned to the canonical tokens (two identical stops reads as a
+    // flat tone, since there's no lighter muted companion shade defined yet).
+    { label:'Outstanding',    val: fmt(Math.round(totalExpected)), sub: active.length+' active loans', accent:'linear-gradient(90deg,var(--gold-dark),var(--gold))', valColor:'var(--ink)' },
+    { label:'Interest Earned',val: fmt(Math.round(totalInterest)), sub: 'Accrued today',                accent:'linear-gradient(90deg,var(--success),var(--success))', valColor:'var(--success)' },
+    { label:'Overdue',        val: overdue.length,                 sub: overdue.length?'Need follow-up':'All clear \u2713', accent:'linear-gradient(90deg,'+(overdue.length?'var(--danger),var(--danger)':'var(--success),var(--success)')+')', valColor: overdue.length?'var(--danger)':'var(--success)' },
+    { label:'Due This Month', val: dueThisMonth.length,           sub: fmt(dueThisMonth.reduce(function(s,g){ return s+girviOutstanding(g); },0))+' expected', accent:'linear-gradient(90deg,var(--warning),var(--warning))', valColor:'var(--warning)' }
   ];
 
   el.innerHTML = cards.map(function(c){
@@ -159,7 +163,7 @@ function renderGirviByCustomer(search, filter, metalFilter){
       '</div>'+
       '<div style="display:flex;gap:16px;flex-wrap:wrap;margin:0 16px 12px;padding:10px 0;border-top:0.5px solid rgba(201,168,76,.14);border-bottom:0.5px solid rgba(201,168,76,.14);">'+
         '<div><div style="font-size:10px;color:var(--text3);">Total Loan</div><div style="font-weight:700;">\u20b9'+Math.round(grp.totalLoan).toLocaleString('en-IN')+'</div></div>'+
-        '<div><div style="font-size:10px;color:var(--text3);">Interest Due</div><div style="font-weight:700;color:#f59e0b;">\u20b9'+Math.round(grp.totalInterest).toLocaleString('en-IN')+'</div></div>'+
+        '<div><div style="font-size:10px;color:var(--text3);">Interest Due</div><div style="font-weight:700;color:var(--warning);">\u20b9'+Math.round(grp.totalInterest).toLocaleString('en-IN')+'</div></div>'+
         '<div><div style="font-size:10px;color:var(--text3);">Outstanding</div><div style="font-weight:700;color:var(--danger);">\u20b9'+Math.round(grp.totalOutstanding).toLocaleString('en-IN')+'</div></div>'+
       '</div>'+
       '<div style="padding:0 16px;">'+entriesHtml+'</div>'+
@@ -205,7 +209,7 @@ var _v20_renderGirvi_installed = false;
               '<div class="girvi-card-item">'+((Array.isArray(g.items)&&g.items.length?g.items[0].type:g.item&&g.item.type)||'Item')+'</div></div>'+
               '<div class="girvi-card-right">'+
                 '<div class="girvi-card-outstanding normal">₹'+Math.round(g.principal).toLocaleString('en-IN')+'</div>'+
-                '<button onclick="recoverGirviEntry(\''+g.id+'\')" style="margin-top:6px;padding:5px 12px;border-radius:20px;border:1px solid #22c55e44;background:#22c55e12;color:#22c55e;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">↺ Recover</button>'+
+                '<button onclick="recoverGirviEntry(\''+g.id+'\')" style="margin-top:6px;padding:5px 12px;border-radius:20px;border:1px solid var(--border-success);background:var(--success-soft);color:var(--success);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">↺ Recover</button>'+
               '</div>'+
             '</div>'+
           '</div>'+
@@ -357,7 +361,7 @@ var _v20_renderGirvi_installed = false;
               '<div class="girvi-card-outstanding '+outColor+'">\u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</div>'+
               '<div class="girvi-card-principal">\u20b9'+Math.round(g.principal).toLocaleString('en-IN')+' @ '+g.interestRate+'%'+(g.rateType==='yearly'?'/yr':'/mo')+'</div>'+
               (interest>0?'<div class="girvi-card-interest">+\u20b9'+Math.round(interest).toLocaleString('en-IN')+' interest</div>':'')+
-              (penalty>0?'<div style="font-size:10px;color:#ef4444;font-weight:700;">+\u20b9'+Math.round(penalty).toLocaleString('en-IN')+' penalty</div>':'')+
+              (penalty>0?'<div style="font-size:10px;color:var(--danger);font-weight:700;">+\u20b9'+Math.round(penalty).toLocaleString('en-IN')+' penalty</div>':'')+
               '<div style="font-size:10px;color:'+ltvL.color+';margin-top:2px;">'+ltvL.icon+' LTV '+(ltv*100).toFixed(0)+'%</div>'+
             '</div>'+
           '</div>'+
@@ -720,7 +724,7 @@ function glUpdateBalance(){
   if(_glEntryType==='payment'||_glEntryType==='interest'){
     var remaining=Math.max(0,outstanding-amt);
     el.innerHTML=remaining<=0
-      ?'<span style="color:#22c55e;font-weight:700;">\u2713 Full payment \u2014 loan will be CLOSED.</span>'
+      ?'<span style="color:var(--success);font-weight:700;">\u2713 Full payment \u2014 loan will be CLOSED.</span>'
       :'<span style="color:var(--text3);">Balance after: <strong style="color:var(--ink);">\u20b9'+Math.round(remaining).toLocaleString('en-IN')+'</strong></span>';
   } else if(_glEntryType==='waiver'){
     el.innerHTML='<span style="color:var(--warning);">\ud83c\udff7 Waiver of \u20b9'+Math.round(amt).toLocaleString('en-IN')+' will reduce outstanding.</span>';

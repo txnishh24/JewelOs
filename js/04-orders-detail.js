@@ -1545,8 +1545,16 @@ function girviStatusBadge(s){
   return '<span style="background:'+v[0]+'22;color:'+v[0]+';font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;border:1px solid '+v[0]+'44;text-transform:uppercase;letter-spacing:.05em;">'+v[1]+'</span>';
 }
 function girviRiskBadge(r){
-  var m={low:'#22c55e',medium:'#f59e0b',high:'#ef4444'},c=m[r]||m['medium'];
-  return '<span style="background:'+c+'22;color:'+c+';font-size:10px;font-weight:600;padding:2px 7px;border-radius:100px;">'+(r?r.charAt(0).toUpperCase()+r.slice(1):'Med')+'</span>';
+  // Pre-redesign this concatenated a hex alpha suffix ('#22c55e'+'22') onto the
+  // color for the soft background -- var(--success) can't take a suffix like
+  // that, so it uses the matching --success-soft/-warning-soft/-danger-soft
+  // token for the background instead of building one from the text color.
+  var m={
+    low:{bg:'var(--success-soft)',fg:'var(--success)'},
+    medium:{bg:'var(--warning-soft)',fg:'var(--warning)'},
+    high:{bg:'var(--danger-soft)',fg:'var(--danger)'}
+  },c=m[r]||m['medium'];
+  return '<span style="background:'+c.bg+';color:'+c.fg+';font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--radius-pill);">'+(r?r.charAt(0).toUpperCase()+r.slice(1):'Med')+'</span>';
 }
 
 // Patch normaliseData
