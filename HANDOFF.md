@@ -55,6 +55,19 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (wrote docs/CHANGES-batch46.md for the redesign — still no zip)
+
+Tanish asked for the deploy changelog. Wrote `docs/CHANGES-batch46.md` covering
+everything in this session (the touch-target fix plus the full luxury redesign) in the
+same Tanish-facing plain-language format as the existing `CHANGES-batch*.md` files —
+`build-deploy-zip.js` refuses to build a zip without one of these present for the batch
+name it's given. Didn't run the build script myself — deploying stays Tanish's call, per
+the original brief ("I deploy manually via Netlify Drop").
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign FINAL cleanup — REDESIGN COMPLETE; no zip)
 
 Per Tanish's "one final cleanup pass now" decision. Went through all ~40 remaining
