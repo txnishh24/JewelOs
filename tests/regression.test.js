@@ -2950,6 +2950,15 @@ test('QA 1 Oct P0-2: Edit Bill refuses payments above the bill and leaves the bi
   assert(saved, 'an edit that fits the bill still saves');
 });
 
+test('QA 1 Oct #3: opening the Girvi Pay dialog leaves the sale form payment rows alone', function(){
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:10000, interestRate:2, payments:[] }];
+  a.initSplitPayments();
+  a.openGirviPayment('g1');
+  // It emptied splitRows; the sale form's row on screen then wrote to splitRows[0] (TypeError) and the bill saved Rs 0.
+  assert(a.splitRows.length === 1, 'sale form payment rows were wiped: ' + JSON.stringify(a.splitRows));
+});
+
 test('girvi type:penalty with mode:Cash posts no line — it is a charge, not cash received', function(){
   var a = loadApp();
   a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,

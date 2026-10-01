@@ -1553,9 +1553,6 @@ function openGirviPayment(gid){
     '</div>';
 
   document.getElementById('gd-title').innerHTML='\ud83d\udcb8 Payment — '+escHtml(g.grvNo);
-  // Clear stale split rows from previous open
-  if(typeof splitRows!=='undefined') splitRows=[];
-  var _splitEl=document.getElementById('split-rows'); if(_splitEl) _splitEl.innerHTML='';
   document.getElementById('gd-body').innerHTML=html;
   document.getElementById('pay-date').value=dbDayKey(new Date());
   document.getElementById('girvi-detail-modal').style.display='block';
