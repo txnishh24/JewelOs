@@ -55,6 +55,41 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-01 · Claude Code (Sonnet 5) (luxury redesign Phase 1: design tokens only, index.html :root; no screens touched yet, no zip)
+
+Full plan (approved by Tanish, plan-mode session) is saved at
+`C:\Users\ADMIN\.claude\plans\dynamic-dreaming-jellyfish.md` on this machine — covers the
+whole redesign (token spec + screen-by-screen change list + 4 decisions: Netlify badge
+pad-only, new Hinglish empty-state copy for Orders/Purchases/Reports, safeConfirm amber
+fix approved, printed-bill iframe out of scope). This entry covers Phase 1 only.
+
+**What changed, `index.html` :root block (lines ~37-137) only:**
+- Deleted a dead CSS variable block (`--background-primary`...`--color-border-success`,
+  `--border-radius-md/lg`, ~22 vars) — verified zero references anywhere in index.html or
+  js/*.js before removing. Also removed one byte-identical duplicate `--card2` line.
+- Added, purely additive, nothing else repointed yet: 3 refined gold tones
+  (`--gold-deep/-mist/-line`), an 8-step spacing scale (`--space-1..8`), 2 new radius
+  tokens (`--radius-sm/-full/-pill`), 2 font-stack vars + an 8-step type scale
+  (`--font-display/-body`, `--text-xs..3xl`), 2 modal-overlay vars (declared, not yet
+  wired into `.modal-bg`/`.modal-overlay`), a documented 375/768/1440 breakpoint
+  convention (comment only — plain CSS can't put custom props in @media conditions),
+  a `prefers-reduced-motion` media query, and a new `.btn-warning` button class (for the
+  safeConfirm amber fix, not yet wired up).
+- Nothing existing was renamed or repointed. Nothing in js/*.js touched.
+
+**Verified:** `check.bat` — 318/318 regression tests pass (identical to pre-edit
+baseline), zero new AST findings (CSS-classes-defined count went 536→537, exactly the one
+new `.btn-warning`; nothing newly used-but-undefined), `backup-check`/`roundtrip` clean.
+
+**Not yet done (next phases, waiting for "go"):** the cross-cutting fixes (safeConfirm
+amber wiring, "Signing in..." red-text fix, Netlify-badge bottom-nav padding) and all 10
+screen passes from the plan. Nothing visual has changed yet — this phase only adds new
+token names to :root, so the live app looks identical until the next phase applies them.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-01 · Claude Code (Sonnet 5) (touch-target CSS fix: .btn-sm/.btn-xs row-action buttons were under Android's 48dp tap-target minimum; no zip yet)
 
 Ran a UI/UX audit (ui-ux-pro-max skill) against the live app, not a redesign — the
