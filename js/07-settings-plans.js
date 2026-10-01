@@ -17,42 +17,42 @@ function showPdfReport(){
   var html =
     '<div style="font-family:Arial,sans-serif;color:#111;max-width:580px;margin:0 auto;">'+
     // Header
-    '<div style="text-align:center;border-bottom:2px solid #c9a84c;padding-bottom:16px;margin-bottom:20px;">'+
-      '<div style="font-size:24px;font-weight:800;color:#c9a84c;">'+shopName+'</div>'+
+    '<div style="text-align:center;border-bottom:2px solid var(--gold);padding-bottom:16px;margin-bottom:20px;">'+
+      '<div style="font-size:24px;font-weight:800;color:var(--gold);">'+shopName+'</div>'+
       '<div style="font-size:13px;color:#666;margin-top:4px;">Monthly Business Report — '+mName+' '+year+'</div>'+
       '<div style="font-size:11px;color:#999;">Generated: '+now.toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</div>'+
     '</div>'+
     // P&L
     '<div style="margin-bottom:20px;">'+
       '<h3 style="font-size:14px;font-weight:700;color:#333;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:10px;">P&L Summary — '+mName+'</h3>'+
-      pdfRow('Total Revenue',      fmt(thisM.revenue),'#c9a84c',true)+
-      pdfRow('Metal Cost',         fmt(thisM.cost),   '#ef4444',false)+
+      pdfRow('Total Revenue',      fmt(thisM.revenue),'var(--gold)',true)+
+      pdfRow('Metal Cost',         fmt(thisM.cost),   'var(--danger)',false)+
       pdfRow('GST Collected',      fmt(thisM.gst),    '#666',  false)+
       '<div style="border-top:2px solid #eee;margin:8px 0;"></div>'+
-      pdfRow('Gross Profit',       fmt(thisM.profit), '#c9a84c',true)+
-      pdfRow('Operating Expenses', '(−) '+fmt(thisM.expenses.total), '#ef4444',false)+
+      pdfRow('Gross Profit',       fmt(thisM.profit), 'var(--gold)',true)+
+      pdfRow('Operating Expenses', '(−) '+fmt(thisM.expenses.total), 'var(--danger)',false)+
       '<div style="border-top:2px solid #eee;margin:8px 0;"></div>'+
-      pdfRow('Net Profit',         fmt(thisM.netProfit), thisM.netProfit>=0?'#22c55e':'#ef4444',true)+
-      pdfRow('Gross margin',       thisM.margin.toFixed(1)+'%', '#22c55e',false)+
+      pdfRow('Net Profit',         fmt(thisM.netProfit), thisM.netProfit>=0?'var(--success)':'var(--danger)',true)+
+      pdfRow('Gross margin',       thisM.margin.toFixed(1)+'%', 'var(--success)',false)+
       pdfRow('Bills This Month',   thisM.count+' invoices','#666',false)+
     '</div>'+
     // Capital
     '<div style="margin-bottom:20px;">'+
       '<h3 style="font-size:14px;font-weight:700;color:#333;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:10px;">Capital Status</h3>'+
-      pdfRow('Stock Value',        fmt(stockGV()+stockSV()), '#c9a84c',false)+
-      pdfRow('Credit Outstanding', fmt(pending),  '#ef4444',false)+
-      pdfRow('Girvi Exposure',     fmt(girviTot), '#f59e0b',false)+
+      pdfRow('Stock Value',        fmt(stockGV()+stockSV()), 'var(--gold)',false)+
+      pdfRow('Credit Outstanding', fmt(pending),  'var(--danger)',false)+
+      pdfRow('Girvi Exposure',     fmt(girviTot), 'var(--warning)',false)+
       '<div style="border-top:2px solid #eee;margin:8px 0;"></div>'+
-      pdfRow('Total Capital Stuck',fmt(pending+girviTot),'#ef4444',true)+
+      pdfRow('Total Capital Stuck',fmt(pending+girviTot),'var(--danger)',true)+
     '</div>'+
     // All-time
     '<div style="margin-bottom:20px;">'+
       '<h3 style="font-size:14px;font-weight:700;color:#333;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:10px;">All-Time Summary</h3>'+
-      pdfRow('Total Revenue',  fmt(allT.revenue), '#c9a84c',false)+
-      pdfRow('Gross Profit',   fmt(allT.profit),  '#c9a84c',false)+
-      pdfRow('Operating Expenses', '(−) '+fmt(allT.expenses.total), '#ef4444',false)+
-      pdfRow('Net Profit',     fmt(allT.netProfit), allT.netProfit>=0?'#22c55e':'#ef4444',true)+
-      pdfRow('Gross margin',   allT.margin.toFixed(1)+'%','#22c55e',false)+
+      pdfRow('Total Revenue',  fmt(allT.revenue), 'var(--gold)',false)+
+      pdfRow('Gross Profit',   fmt(allT.profit),  'var(--gold)',false)+
+      pdfRow('Operating Expenses', '(−) '+fmt(allT.expenses.total), 'var(--danger)',false)+
+      pdfRow('Net Profit',     fmt(allT.netProfit), allT.netProfit>=0?'var(--success)':'var(--danger)',true)+
+      pdfRow('Gross margin',   allT.margin.toFixed(1)+'%','var(--success)',false)+
       pdfRow('Total Sales',    S.sales.length+' invoices','#666',false)+
     '</div>'+
     // Top customers
@@ -194,7 +194,7 @@ function gfRenderItemCard(idx){
   return '<div id="gf-item-card-'+idx+'" style="background:var(--card1);border:1.5px solid rgba(201,168,76,.22);border-radius:13px;padding:12px;margin-bottom:10px;">'+
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;">'+
       '<span style="font-size:10px;font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.07em;">Item '+(idx+1)+'</span>'+
-      (GF_ITEMS.length>1?'<button onclick="gfRemoveItem('+idx+')" style="padding:2px 10px;border-radius:100px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08);color:#ef4444;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">&#10005; Remove</button>':'')+
+      (GF_ITEMS.length>1?'<button onclick="gfRemoveItem('+idx+')" style="padding:2px 10px;border-radius:var(--radius-pill);border:1px solid rgba(168,49,42,.3);background:var(--danger-soft);color:var(--danger);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">&#10005; Remove</button>':'')+
     '</div>'+
     '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px;">'+typePills+'</div>'+
     '<div style="margin-bottom:8px;">'+
@@ -518,7 +518,7 @@ function renderWizardStep(){
   if(nb){
     if(GF_STEP===GF_MAX_STEPS){
       nb.textContent='🪙 '+(GF_EDIT_ID?'Update':'Create')+' Girvi';
-      nb.style.background='linear-gradient(135deg,#c9a84c,#f0c040)';
+      nb.style.background='linear-gradient(135deg,var(--gold-dark),var(--gold))';
     } else {
       nb.textContent='Next →';
       nb.style.background='var(--gold)';
@@ -598,8 +598,8 @@ function girviAutoCalc(){
   var rowsHtml =
     '<div class="girvi-preview-row"><span>Principal</span><span style="font-weight:700;">\u20b9'+Math.round(p).toLocaleString('en-IN')+'</span></div>'+
     '<div class="girvi-preview-row"><span>Interest per month</span><span>\u20b9'+Math.round(m1).toLocaleString('en-IN')+'</span></div>'+
-    (dur?'<div class="girvi-preview-row"><span>Interest for '+dur+' months</span><span style="color:#f59e0b;">\u20b9'+Math.round(mDur).toLocaleString('en-IN')+'</span></div>':
-         '<div class="girvi-preview-row"><span>Interest @ 6 months</span><span style="color:#f59e0b;">\u20b9'+Math.round(m6).toLocaleString('en-IN')+'</span></div>');
+    (dur?'<div class="girvi-preview-row"><span>Interest for '+dur+' months</span><span style="color:var(--warning);">\u20b9'+Math.round(mDur).toLocaleString('en-IN')+'</span></div>':
+         '<div class="girvi-preview-row"><span>Interest @ 6 months</span><span style="color:var(--warning);">\u20b9'+Math.round(m6).toLocaleString('en-IN')+'</span></div>');
 
   var totalHtml = '\u20b9'+Math.round(payable).toLocaleString('en-IN');
 
@@ -879,7 +879,7 @@ function renderGirviTodayActions(){
         '</div>'+
       '</div>'+
       '<div class="girvi-action-right">'+
-        '<div class="girvi-action-amt" style="color:'+(a.urgency==='red'?'#ef4444':'#f59e0b')+'">\u20b9'+kFmt(Math.round(a.outstanding))+'</div>'+
+        '<div class="girvi-action-amt" style="color:'+(a.urgency==='red'?'var(--danger)':'var(--warning)')+'">\u20b9'+kFmt(Math.round(a.outstanding))+'</div>'+
         '<div class="girvi-action-days">outstanding</div>'+
       '</div>'+
     '</div>';
@@ -1163,7 +1163,7 @@ function openGirviDetail(gid){
             ' style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:9px;border:1.5px solid var(--gold);background:rgba(201,168,76,.05);color:var(--text1);font-size:15px;font-weight:800;font-family:inherit;">'+
         '</div>'+
       '</div>'+
-      (adjDiff!==0?'<div id="gd-adj-diff" style="font-size:12px;color:'+(adjDiff<0?'#22c55e':'#f59e0b')+';font-weight:600;margin-bottom:8px;">'+
+      (adjDiff!==0?'<div id="gd-adj-diff" style="font-size:12px;color:'+(adjDiff<0?'var(--success)':'var(--warning)')+';font-weight:600;margin-bottom:8px;">'+
         (adjDiff<0?'🟢 Discount/Waiver: ₹'+Math.round(Math.abs(adjDiff)).toLocaleString('en-IN'):'🟡 Extra Charge: ₹'+Math.round(adjDiff).toLocaleString('en-IN'))+
       '</div>':'<div id="gd-adj-diff" style="font-size:12px;color:var(--text3);margin-bottom:8px;"></div>')+
       '<select id="gd-adj-reason" style="width:100%;padding:8px 10px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:13px;font-family:inherit;margin-bottom:8px;">'+
@@ -1224,7 +1224,7 @@ function openGirviDetail(gid){
   var icons={created:'🟢',payment:'💸',closed:'🔒',defaulted:'🔴',edit:'✏️',renewal:'🔄',waiver:'💚',penalty:'⚠️',note:'📝',adjustment:'🔧'};
   var timelineRows = allEvents.slice(0,12).map(function(l){
     return '<div class="gd-tl-item">'+
-      '<div class="gd-tl-dot" style="background:'+(l.type==='payment'?'#22c55e':l.type==='closed'?'#64748b':l.type==='defaulted'?'#ef4444':l.type==='note'?'#60a5fa':l.type==='adjustment'?'#f59e0b':'var(--gold)')+'"></div>'+
+      '<div class="gd-tl-dot" style="background:'+(l.type==='payment'?'var(--success)':l.type==='closed'?'var(--text3)':l.type==='defaulted'?'var(--danger)':l.type==='note'?'var(--info)':l.type==='adjustment'?'var(--warning)':'var(--gold)')+'"></div>'+
       '<div class="gd-tl-text">'+(icons[l.type]||'📋')+' '+escHtml(l.note||'')+(l.user?' <span style="color:var(--text3);font-size:10px;">· '+escHtml(l.user)+'</span>':'')+'</div>'+
       '<div class="gd-tl-date">'+fmtDate(l.ts)+(girviIsDateOnly(l.ts)?'':' '+fmtTime(l.ts))+'</div>'+
     '</div>';
@@ -1258,15 +1258,15 @@ function openGirviDetail(gid){
   var statusBanner='';
   if(status!=='closed'){
     if(daysInfo.overdue>0){
-      statusBanner='<div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">'+
+      statusBanner='<div style="background:var(--danger-soft);border:1px solid rgba(168,49,42,.3);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">'+
         '<span style="font-size:22px;">🚨</span>'+
-        '<div><div style="font-weight:700;color:#ef4444;font-size:14px;">'+daysInfo.overdue+' Din Overdue!</div>'+
+        '<div><div style="font-weight:700;color:var(--danger);font-size:14px;">'+daysInfo.overdue+' Din Overdue!</div>'+
         '<div style="font-size:12px;color:var(--text3);">Penalty: +₹'+Math.round(penalty).toLocaleString('en-IN')+' added</div></div>'+
       '</div>';
     } else if(daysInfo.daysLeft>=0&&daysInfo.daysLeft<=7){
-      statusBanner='<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">'+
+      statusBanner='<div style="background:var(--warning-soft);border:1px solid rgba(138,78,12,.3);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">'+
         '<span style="font-size:22px;">⏰</span>'+
-        '<div><div style="font-weight:700;color:#f59e0b;font-size:14px;">'+(daysInfo.daysLeft===0?'Due today!':daysInfo.daysLeft+' Din Mein Due')+'</div>'+
+        '<div><div style="font-weight:700;color:var(--warning);font-size:14px;">'+(daysInfo.daysLeft===0?'Due today!':daysInfo.daysLeft+' Din Mein Due')+'</div>'+
         '<div style="font-size:12px;color:var(--text3);">Due: '+fmtDate(dbDayKey(daysInfo.dueDate))+'</div></div>'+
       '</div>';
     }
@@ -1312,11 +1312,11 @@ function openGirviDetail(gid){
           '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;">Loan Balance</div>'+
         '</div>'+
         '<div style="text-align:center;">'+
-          '<div style="font-size:18px;font-weight:800;color:#f59e0b;">₹'+Math.round(interest).toLocaleString('en-IN')+'</div>'+
+          '<div style="font-size:18px;font-weight:800;color:var(--warning);">₹'+Math.round(interest).toLocaleString('en-IN')+'</div>'+
           '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;">Interest</div>'+
         '</div>'+
         '<div style="text-align:center;">'+
-          '<div style="font-size:18px;font-weight:800;color:'+(status==='closed'?'#22c55e':penalty>0?'#ef4444':'#c9a84c')+';">₹'+Math.round(displayAmt).toLocaleString('en-IN')+(g.adjustedAmount!=null?'*':'')+'</div>'+
+          '<div style="font-size:18px;font-weight:800;color:'+(status==='closed'?'var(--success)':penalty>0?'var(--danger)':'var(--gold)')+';">₹'+Math.round(displayAmt).toLocaleString('en-IN')+(g.adjustedAmount!=null?'*':'')+'</div>'+
           '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;">'+(status==='closed'?'Closed':'Payable')+(g.adjustedAmount!=null?' (adj)':'')+'</div>'+
         '</div>'+
       '</div>'+
@@ -1326,7 +1326,7 @@ function openGirviDetail(gid){
         '<div>\ud83d\udcc8 <strong>'+g.interestRate+'% '+(g.rateType==='yearly'?'p.a.':'p.m.')+(g.compound?' compound':' simple')+'</strong></div>'+
         '<div>\ud83d\udcb3 Paid so far <strong>\u20b9'+Math.round(totalPaid).toLocaleString('en-IN')+'</strong></div>'+
       '</div>'+
-      (penalty>0?'<div style="font-size:12px;color:#ef4444;font-weight:600;">\u26a0 Penalty for late payment: +\u20b9'+Math.round(penalty).toLocaleString('en-IN')+'</div>':'')+
+      (penalty>0?'<div style="font-size:12px;color:var(--danger);font-weight:600;">\u26a0 Penalty for late payment: +\u20b9'+Math.round(penalty).toLocaleString('en-IN')+'</div>':'')+
       (g.adjustedAmount!=null?'<div style="font-size:11px;color:var(--text3);margin-top:4px;">* Adjusted amount. System calc: \u20b9'+Math.round(calcTotal).toLocaleString('en-IN')+'</div>':'')+
     '</div>'+
     // ── Customer vs Financer margin — only shown when this loan has
@@ -1334,11 +1334,11 @@ function openGirviDetail(gid){
     // fully additive, doesn't touch the customer-side interest engine) ──
     (girviHasFinancer(g) ? (function(){
       var m = girviMargin(g);
-      var marginColor = m.margin>=0 ? '#22c55e' : '#ef4444';
+      var marginColor = m.margin>=0 ? 'var(--success)' : 'var(--danger)';
       return '<div style="background:var(--card2);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;margin-bottom:14px;">'+
         '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px;">\ud83e\udd1d Financer: '+escHtml(g.financerName)+' ('+g.financerRate+'% '+(g.financerRateType==='yearly'?'p.a.':'p.m.')+')</div>'+
         '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
-          '<div style="flex:1;min-width:100px;"><div style="font-size:10px;color:var(--text3);">Customer gives us</div><div style="font-weight:800;color:#c9a84c;">\u20b9'+Math.round(m.customerInterest).toLocaleString('en-IN')+'</div></div>'+
+          '<div style="flex:1;min-width:100px;"><div style="font-size:10px;color:var(--text3);">Customer gives us</div><div style="font-weight:800;color:var(--gold);">\u20b9'+Math.round(m.customerInterest).toLocaleString('en-IN')+'</div></div>'+
           '<div style="flex:1;min-width:100px;"><div style="font-size:10px;color:var(--text3);">We pay financer</div><div style="font-weight:800;color:var(--text2);">\u20b9'+Math.round(m.financerInterest).toLocaleString('en-IN')+'</div></div>'+
           '<div style="flex:1;min-width:100px;"><div style="font-size:10px;color:var(--text3);">Our margin</div><div style="font-weight:800;color:'+marginColor+';">\u20b9'+Math.round(m.margin).toLocaleString('en-IN')+'</div></div>'+
         '</div>'+
@@ -1389,9 +1389,9 @@ function openGirviDetail(gid){
         '<button onclick="girviWhatsApp(\''+gid+'\')" style="padding:12px;border-radius:11px;border:none;background:#25d36622;color:#25d366;border:1px solid #25d36640;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">📱 WhatsApp</button>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;">'+
-        '<button onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:#22c55e;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📞 Call</button>'+
+        '<button onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--success);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📞 Call</button>'+
         '<button onclick="openGirviEditModal(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">✏ Edit</button>'+
-        '<button onclick="openGirviRenewalModal(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid #60a5fa44;background:#60a5fa15;color:#60a5fa;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔄 Renew</button>'+
+        '<button onclick="openGirviRenewalModal(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(26,74,138,.3);background:var(--info-soft);color:var(--info);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔄 Renew</button>'+
       '</div>'+
       // Ledger / Timeline / Receipt used to be bolted on by an override in
       // 08-girvi-viewmode.js that re-opened this modal and appended a second
@@ -1403,8 +1403,8 @@ function openGirviDetail(gid){
         '<button onclick="openGirviReceiptModal(\''+gid+'\',\'creation\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🧾 Receipt</button>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:7px;">'+
-        '<button onclick="closeGirviManual(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid #22c55e44;background:#22c55e12;color:#22c55e;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔓 Release Item</button>'+
-        '<button onclick="markGirviDefault(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid #ef444444;background:#ef444412;color:#ef4444;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔴 Mark Default</button>'+
+        '<button onclick="closeGirviManual(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(28,96,64,.3);background:var(--success-soft);color:var(--success);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔓 Release Item</button>'+
+        '<button onclick="markGirviDefault(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(168,49,42,.3);background:var(--danger-soft);color:var(--danger);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔴 Mark Default</button>'+
       '</div>'
     :'<div style="text-align:center;padding:10px;font-size:13px;color:var(--text3);">🔒 This loan is '+status+'. No further actions.</div>');
 
@@ -1423,7 +1423,7 @@ function gdPreviewAdj(calcTotal){
   var diff=val-calcTotal;
   el.innerHTML=diff<0?'🟢 Discount/Waiver: ₹'+Math.round(Math.abs(diff)).toLocaleString('en-IN'):
                diff>0?'🟡 Extra Charge: ₹'+Math.round(diff).toLocaleString('en-IN'):'✅ Same as calculated';
-  el.style.color=diff<0?'#22c55e':diff>0?'#f59e0b':'var(--text3)';
+  el.style.color=diff<0?'var(--success)':diff>0?'var(--warning)':'var(--text3)';
 }
 function gdSaveAdjAmount(gid){
   var g=(S.girvi||[]).find(function(x){return x.id===gid;});
@@ -1507,7 +1507,7 @@ function openGirviPayment(gid){
     // Big outstanding number
     '<div style="text-align:center;padding:14px 0 10px;">'+
       '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Total Outstanding</div>'+
-      '<div style="font-size:clamp(22px,7vw,32px);font-weight:800;color:#ef4444;">\u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</div>'+
+      '<div style="font-size:clamp(22px,7vw,32px);font-weight:800;color:var(--danger);">\u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</div>'+
       '<div style="font-size:12px;color:var(--text3);margin-top:3px;">'+
         '\u20b9'+Math.round(girviLedgerState(g).principal).toLocaleString('en-IN')+' principal + '+
         '\u20b9'+Math.round(interest).toLocaleString('en-IN')+' interest'+
@@ -1573,7 +1573,7 @@ function updatePayBalance(outstanding){
   }
   var remaining = Math.max(0, outstanding-amt);
   el.innerHTML = remaining<=0
-    ? '<span style="color:#22c55e;font-weight:700;">\u2713 Full payment — loan will be CLOSED</span>'
+    ? '<span style="color:var(--success);font-weight:700;">\u2713 Full payment — loan will be CLOSED</span>'
     : 'Balance after payment: <strong>\u20b9'+Math.round(remaining).toLocaleString('en-IN')+'</strong>';
 }
 

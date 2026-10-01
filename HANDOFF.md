@@ -55,6 +55,50 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign FINAL cleanup — REDESIGN COMPLETE; no zip)
+
+Per Tanish's "one final cleanup pass now" decision. Went through all ~40 remaining
+bright-hex instances file by file: `js/03-billing-numbers.js` (customer risk cards,
+refund badges, customer-detail-modal Girvi section), `js/05-auth-login.js` (staff badge,
+cloud-status badge — confirmed genuinely live via the wrapper's own code comment),
+`js/06-inventory-stock.js` (Settings Analytics' profit-trend chart, category-growth
+trend, capital-allocation bars), `js/07-settings-plans.js` (the bulk — Girvi wizard,
+detail modal, payment modal, timeline, action buttons), `js/10-daybook.js` (one
+off-brand gold in the auto-line icon map), plus a handful in `index.html` (`.auth-err`,
+`.gca.call-btn`, the "Continue Offline" button, `#save-error-banner`).
+
+**Two corrections to earlier assumptions, caught during this pass:**
+- `.btn-pdf`/`.btn-wa` were marked dead in the Reports pass — **wrong**, they're used as
+  static `class="..."` attributes in `index.html` (Settings' PDF Report button, WhatsApp
+  digest/reminder buttons), which my JS-only grep at the time couldn't see. Fixed both;
+  kept `.btn-wa` on WhatsApp's actual brand green rather than muting it, consistent with
+  `.gab-wa`'s existing exception.
+- `showPdfReport()`'s preview renders live in-app (`#pdf-preview-modal`, shown before the
+  user ever prints) rather than being an isolated document like the invoice — so it's in
+  scope. Fixed its colored value figures (revenue/profit/credit/girvi) while leaving its
+  intentionally neutral print-document grays (`#111`/`#666`/`#999`/`#333`/`#eee`) alone.
+
+**Deliberately left alone, each with a reason:** the app's actual logo mark (a
+hand-crafted faceted-gem SVG gradient in the topbar — brand artwork, not a status color),
+Reports' metal/category-wise chart palettes (categorical, not semantic), the `cloudDiag()`
+internal diagnostics panel (not customer-facing), and `pbWastageReportHtml()` (confirmed
+dead, zero callers). One byte-exact edit (`✓` near a line the Edit tool's string
+matcher choked on) done via a small Node script per `CLAUDE.md`'s guidance, not forced.
+
+**Verified:** `check.bat` — 318/318, zero new AST findings. Visually spot-checked the
+Girvi detail modal (the single biggest concentration of fixes — Call/Renew/Ledger/
+Timeline/Release/Mark-Default buttons, Interest/Payable figures) and the Customers
+screen behind it — both read as one cohesive muted palette now, no leftover bright
+Tailwind-style colors anywhere in the customer-facing app.
+
+**The luxury redesign is now complete**: all 10 planned screens plus every reachable
+modal/detail-view are on the token system. Nothing deliberately deferred remains except
+the items explicitly marked out of scope above.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 10/10 — ALL SCREENS DONE; no zip)
 
 Mostly the plan's predicted "right file" gotcha — `renderSettings()` in `05-auth-login.js`

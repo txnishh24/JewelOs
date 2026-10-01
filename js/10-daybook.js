@@ -35,7 +35,7 @@ var DB_CATS = {
 var DB_AUTO_ICONS = {
   sale:     {icon:'💎', color:'var(--gold-dark)'},
   purchase: {icon:'📥', color:'var(--text2)'},
-  girvi:    {icon:'🪙', color:'#c9a84c'},
+  girvi:    {icon:'🪙', color:'var(--gold)'},
   order:    {icon:'📝', color:'var(--text2)'}
 };
 

@@ -742,7 +742,7 @@ html.dev .dev-only{display:block!important;}
   min-height:48px; -webkit-tap-highlight-color:transparent;
 }
 .auth-btn:hover{opacity:.9;}
-.auth-err{font-size:var(--text-sm);color:#ef4444;text-align:center;margin-top:8px;min-height:18px;}
+.auth-err{font-size:var(--text-sm);color:var(--danger);text-align:center;margin-top:8px;min-height:18px;}
 .auth-info{color:var(--gold-dark);}
 .auth-link{font-size:var(--text-sm);color:var(--text3);text-align:center;margin-top:12px;}
 .auth-link a{color:var(--gold);cursor:pointer;text-decoration:none;font-weight:600;}
@@ -1139,13 +1139,15 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 
 /* PDF export button */
 .btn-pdf{
-  background:linear-gradient(135deg,#dc2626,#ef4444);
+  background:linear-gradient(135deg,var(--danger),var(--danger));
   color:#fff;border:none;border-radius:9px;
   padding:9px 16px;font-size:13px;font-weight:700;
   cursor:pointer;font-family:inherit;
 }
 .btn-wa{
-  background:linear-gradient(135deg,#16a34a,#22c55e);
+  /* WhatsApp's actual brand green, same as .gab-wa elsewhere -- not a
+     generic status color, so it's exempt from the token-muting pass. */
+  background:linear-gradient(135deg,#25d366,#25d366);
   color:#fff;border:none;border-radius:9px;
   padding:9px 16px;font-size:13px;font-weight:700;
   cursor:pointer;font-family:inherit;
@@ -1288,7 +1290,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 .gca-icon{font-size:16px;}
 .gca.pay-btn{color:var(--gold);}
 .gca.wa-btn{color:#25d366;}
-.gca.call-btn{color:#22c55e;}
+.gca.call-btn{color:var(--success);}
 
 /* Wizard steps for girvi form */
 .gf-wizard{display:none;}
@@ -1534,11 +1536,11 @@ iframe.nl-badge-frame{display:none !important;}
   <div class="loading-sub" id="loading-msg">Connecting to cloud...</div>
   <div id="loading-offline-btn" style="display:none;margin-top:18px;">
     <button onclick="window._forceOfflineBoot&&window._forceOfflineBoot()"
-      style="background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.4);color:#c9a84c;
+      style="background:rgba(201,163,78,.15);border:1px solid rgba(201,163,78,.4);color:var(--gold);
              padding:10px 22px;border-radius:24px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">
       📴 Continue Offline
     </button>
-    <div style="font-size:11px;color:rgba(201,168,76,.5);margin-top:8px;">Network seems slow — your local data is safe</div>
+    <div style="font-size:11px;color:rgba(201,163,78,.5);margin-top:8px;">Network seems slow — your local data is safe</div>
   </div>
 </div>
 
@@ -2932,7 +2934,7 @@ iframe.nl-badge-frame{display:none !important;}
 <div class="toast" id="toast"></div>
 
 <!-- PERSISTENT SAVE ERROR BANNER -->
-<div id="save-error-banner" style="display:none;position:fixed;top:62px;left:0;right:0;z-index:900;background:#dc2626;color:#fff;font-size:12px;font-weight:600;padding:8px 16px;display:none;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.3);">
+<div id="save-error-banner" style="display:none;position:fixed;top:62px;left:0;right:0;z-index:900;background:var(--danger);color:#fff;font-size:12px;font-weight:600;padding:8px 16px;display:none;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.3);">
   <span>⚠ Last save failed — your data is safe locally.</span>
   <div style="display:flex;gap:8px;align-items:center;">
     <button onclick="forceSync();dismissSaveError();" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);border-radius:6px;color:#fff;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">Retry</button>

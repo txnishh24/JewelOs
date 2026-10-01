@@ -635,7 +635,7 @@ function applyFeatureGates(){
     if(!staffBadge){
       staffBadge = document.createElement('div');
       staffBadge.id = 'staff-role-badge';
-      staffBadge.style.cssText = 'font-size:10px;padding:3px 10px;border-radius:100px;background:rgba(245,158,11,.15);color:#f59e0b;font-weight:700;letter-spacing:.06em;';
+      staffBadge.style.cssText = 'font-size:10px;padding:3px 10px;border-radius:var(--radius-pill);background:var(--warning-soft);color:var(--warning);font-weight:700;letter-spacing:.06em;';
       staffBadge.textContent = 'STAFF';
       var topbar = document.querySelector('header.topbar');
       if(topbar) topbar.appendChild(staffBadge);
@@ -970,7 +970,7 @@ function renderSettings(){
         return '<div class="log-row">'+
           '<div><b>'+escHtml(u.name)+'</b><div style="font-size:11px;color:var(--text3);">'+escHtml(u.email)+'</div></div>'+
           '<div style="text-align:right;"><span class="role-badge '+roleClass+'">'+escHtml(u.role)+'</span>'+
-          (u.id!==SAAS.user.id&&isOwner()?'<br><a onclick="removeStaff(\''+u.id+'\')" style="font-size:10px;color:#ef4444;cursor:pointer;margin-top:3px;display:block;">Remove</a>':'')+
+          (u.id!==SAAS.user.id&&isOwner()?'<br><a onclick="removeStaff(\''+u.id+'\')" style="font-size:10px;color:var(--danger);cursor:pointer;margin-top:3px;display:block;">Remove</a>':'')+
           '</div></div>';
       }).join('');
     }
@@ -1008,13 +1008,13 @@ function renderSettings(){
     var lastEvent = Math.max(lastSave, lastLoad);
     if(!lastEvent){
       badge.textContent='\u26aa Not connected yet';
-      badge.style.cssText='background:rgba(100,100,100,.12);color:var(--text3);font-size:10px;padding:2px 8px;border-radius:100px;font-weight:600;';
+      badge.style.cssText='background:rgba(100,100,100,.12);color:var(--text3);font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);font-weight:600;';
       if(line) line.textContent='Open any tab to connect to cloud.';
     } else {
       var minsAgo=Math.round((Date.now()-lastEvent)/60000);
       var ok=minsAgo<5;
       badge.textContent=ok?'\ud83d\udfe2 Connected':'\ud83d\udfe1 Last sync '+minsAgo+'m ago';
-      badge.style.cssText='font-size:10px;padding:2px 8px;border-radius:100px;font-weight:600;background:'+(ok?'rgba(34,197,94,.12)':'rgba(251,191,36,.12)')+';color:'+(ok?'#16a34a':'#b45309')+';';
+      badge.style.cssText='font-size:10px;padding:2px 8px;border-radius:var(--radius-pill);font-weight:600;background:'+(ok?'var(--success-soft)':'var(--warning-soft)')+';color:'+(ok?'var(--success)':'var(--warning)')+';';
       if(line) line.textContent='Last sync: '+new Date(lastEvent).toLocaleTimeString('en-IN')+(isSaving?' · Saving...':(ok?' · Cloud OK':' · Check connection'));
     }
   })();

@@ -1440,7 +1440,7 @@ function renderSettingsAnalytics(){
           '<div style="font-size:9px;color:var(--text3);">'+(m.revenue>0?Math.round(m.margin)+'%':'')+'</div>'+
           '<div style="width:100%;position:relative;height:56px;display:flex;align-items:flex-end;gap:1px;">'+
             '<div style="flex:1;height:'+hR+'px;background:var(--bg3);border-radius:2px 2px 0 0;"></div>'+
-            '<div style="flex:1;height:'+hP+'px;background:#22c55e;border-radius:2px 2px 0 0;opacity:.85;"></div>'+
+            '<div style="flex:1;height:'+hP+'px;background:var(--success);border-radius:2px 2px 0 0;opacity:.85;"></div>'+
           '</div></div>';
       }).join('')+
       '</div>'+
@@ -1449,7 +1449,7 @@ function renderSettingsAnalytics(){
       }).join('')+'</div>'+
       '<div style="display:flex;gap:12px;font-size:11px;color:var(--text3);margin-top:8px;">'+
         '<span><span style="display:inline-block;width:10px;height:10px;background:var(--bg3);border-radius:2px;margin-right:3px;"></span>Revenue</span>'+
-        '<span><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:3px;"></span>Profit</span>'+
+        '<span><span style="display:inline-block;width:10px;height:10px;background:var(--success);border-radius:2px;margin-right:3px;"></span>Profit</span>'+
       '</div>';
   }
 
@@ -1481,7 +1481,7 @@ function renderSettingsAnalytics(){
         '<tbody>'+catArr.slice(0,8).map(function(e){
           var prev=e[1][1]||0,curr=e[1][2]||0;
           var trend=prev>0?((curr-prev)/prev*100):0;
-          var tColor=trend>=0?'#22c55e':'#ef4444';
+          var tColor=trend>=0?'var(--success)':'var(--danger)';
           // QA P2-17: Rs 0 -> Rs 1,89,720 read "▲0%". No base month = no percentage.
           var tText=prev>0 ? (trend>=0?'▲':'▼')+Math.abs(Math.round(trend))+'%' : (curr>0?'New':'—');
           return '<tr>'+
@@ -1506,8 +1506,8 @@ function renderSettingsAnalytics(){
     if(totalCap > 0){
       var bars = [
         {label:'Stock',   val:stockVal,  color:'var(--gold)',   pct:stockVal/totalCap*100},
-        {label:'Credit',  val:pendingB,  color:'#ef4444',       pct:pendingB/totalCap*100},
-        {label:'Girvi',   val:girviTot,  color:'#f59e0b',       pct:girviTot/totalCap*100},
+        {label:'Credit',  val:pendingB,  color:'var(--danger)', pct:pendingB/totalCap*100},
+        {label:'Girvi',   val:girviTot,  color:'var(--warning)',pct:girviTot/totalCap*100},
       ];
       capEl.innerHTML=
         '<div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Total tracked capital: <strong>'+fmt(Math.round(totalCap))+'</strong></div>'+
