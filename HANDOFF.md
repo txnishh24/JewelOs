@@ -39,16 +39,14 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   domain (picked `jewelos.co`, still unregistered), verify it in Resend, and set the two Supabase
   secrets (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`) all at once when he deploys. Not an oversight —
   don't chase it early.
-- **Signup button wording** ("Create Free Account →" is wrong for a paid-monthly product) — Tanish to pick.
-- **Netlify badge** — he said "leave it" on 1 Oct, but it now hides the bottom nav on phones (see Cowork
-  batch37 QA entry). Re-ask once.
-- **Cowork, on Tanish's go:** apply Migration 006; delete both QA shops.
+- **Karigar cost on orders** (for real profit on order bills) — Tanish said not now (1 Oct).
 
 **Closed (don't re-ask):** Day Book receipt photos → skipped (needs Supabase Storage if it returns) ·
 Demo mode → built, batch21 · renewal contact → `+91 72086 23428`, no UPI handle in code ·
 owner-PIN test → built 27 Sep · e2e test shop → reset before a same-day re-run streak, no cleanup
 logic in the app · login token (F1) → option B, 6 h life, PIN on reopen within 6 h · old-gold
-deduction → jeweller decides · Memo Bill → no GST.
+deduction → jeweller decides · Memo Bill → no GST. · (1 Oct) signup → "Start Your Shop →" · Netlify badge → hidden with CSS ·
+Aadhaar/PAN → not stored (purged on load) · offline billing → reserved numbers per phone (batch44).
 
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
 outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUntil` in
@@ -57,6 +55,49 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-01 · Claude Code (Opus 5.5) (batch43 + batch44: Tanish's 1 Oct decisions BUILT — no Aadhaar/PAN, "Start Your Shop", Netlify badge hidden, bill Edit/Refund/Delete, product stone/wastage/hallmark, OFFLINE BILLING; no zip yet)
+
+**Commits:** `add98dc` (batch43), `80ae952` (batch44). **No deploy zip yet** (one zip at the end of the session).
+
+**Tanish's answers (1 Oct) — closed, don't re-ask:** Aadhaar/PAN → **stop storing it**; signup → **"Start Your Shop →"**;
+Netlify badge → **hide with CSS**; offline billing → **reserve invoice numbers per phone**. Karigar cost box → **not now**.
+
+**batch43**
+- **Aadhaar/PAN gone.** The field is removed from the Girvi wizard and edit form, along with the Aadhaar Front/Back + PAN Card
+  photo slots, list/print/search display, and customer records. **`normaliseData` deletes stored values on load** (`g.idProof`,
+  `c.idProof`, `documents.aadhaar_front/back/pan_card`). That is irreversible by design; other Girvi photos stay.
+  No server code ever held it. **For Tanish:** state money-lending rules may expect borrower ID on file; that is now off-app.
+- Signup button: "Start Your Shop →".
+- Netlify badge: `iframe.nl-badge-frame{display:none !important}` (the class comes from the live page's injected iframe).
+  The badge only shows up sometimes, so I could not watch it disappear. Please check on a phone.
+- **Edit / Refund / Delete on the bill preview** (`invoiceBillAction`: closes the preview, then opens the existing modal).
+  Every bill list opens the preview; dashboard "Recent Activity" rows now open it too.
+- **Products: Stone Weight (g), Wastage / VA %, Hallmark Centre** (add + edit). Blank net → net = gross − stone.
+  **Wastage is charged on the bill:** `productMakingAmount` = MC ₹/g × gross + wastage% × net × rate, used by BOTH the
+  sale preview and the locked bill. Checks: stone < gross, wastage 0–30%.
+
+**batch44 — offline billing**
+- Each phone keeps **5 reserved invoice numbers** (`invPoolTopUp`, refilled after every cloud load and online sale).
+  **Every sale takes the next reserved number first**, which keeps one phone's series consecutive. With no internet the sale
+  is applied on the phone (stock, order link, customer) and queued (`jewelos_sale_outbox`, shop-scoped). It survives
+  sign-out and restarts. The toast says "Saved offline: INV-xxx". With no internet and an empty pool, the sale is refused.
+- **Sync:** every successful `loadFromCloud` replays the queue onto the fresh cloud data (skips sales the cloud already has)
+  and saves; the queue is cleared once that save lands. A failed or conflicting save just leaves it for the next load (60 s refresh).
+- **Known limits (ponytail):** only **sales** work offline (Girvi, orders, purchases and Day Book still need internet);
+  5 bills per outage per phone; with 2+ phones the series interleaves (A: 31–35, B: 36–40) and unused reserved numbers
+  become gaps (gaps were already allowed, duplicates still impossible); an item sold on two phones while one is offline
+  ends at qty 0 with both sales recorded.
+- Tests: +4 regression; **new `tests/e2e/offline.spec.js`** cuts the internet in a real browser, bills, reconnects and checks the
+  cloud has it (passed 3×3 + full runs). Fixed two test races: sale.spec waited on a generic "Saved" (the app's 0.9 s return to
+  the dashboard then closed Day Book); session-restore now waits for the pool refill before counting calls.
+
+**Tests:** regression 317/317, e2e 19/19, check.bat clean. **Not verified:** a real phone (offline mode, the hidden badge,
+the new form fields' layout at 375 px).
+
+→ FOR COWORK: nothing until the end-of-session zip. Then on a real phone: airplane mode → New Sale → "Saved offline: INV-…" → airplane off → within ~1 min "1 offline bill synced" and the bill is in Reports. Also: Girvi form has no Aadhaar/PAN; product form shows Stone/Wastage/Hallmark; a product with 8% wastage bills 8% of the gold value extra; the badge is gone.
+
+---
+
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch42: your P2 copy/UX list — 8 done, 5 left for Tanish/later; no zip yet)
 
 **Commit:** `318121b`. **No deploy zip yet** (one zip at the end of the session).
