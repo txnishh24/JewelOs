@@ -13,6 +13,10 @@ final check, same as `skills/verify-ui.md` says.
 
 ## Setup (one-time)
 
+`.env.test` lives at the **repo root** (`Desktop\jewelos\.env.test`), not in this
+`tests/e2e/` folder — `playwright.config.js` loads it from there. Run these from the
+repo root, not from `tests/e2e/`:
+
 ```
 npm install
 cp .env.test.example .env.test   # only if .env.test doesn't already exist
