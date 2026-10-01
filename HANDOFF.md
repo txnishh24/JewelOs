@@ -57,6 +57,24 @@ or re-add tier UI.
 ---
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch43 + batch44: Tanish's 1 Oct decisions BUILT — no Aadhaar/PAN, "Start Your Shop", Netlify badge hidden, bill Edit/Refund/Delete, product stone/wastage/hallmark, OFFLINE BILLING; no zip yet)
 
+### 2026-10-01 · Claude Code (Opus 5.5) (batch45: leftovers from today's reviews — waiver ≠ money received, Edit Bill GST 0%, label price; no zip yet)
+
+**Commit:** `e6d2ffe`. **No deploy zip yet** (one zip at the end of the session).
+
+- **Girvi waivers were counted as money received.** `girviTotalPaid` (customer account, Girvi summary "paid", loan detail)
+  included `waiver`. The receipt and WhatsApp message after a waiver said "Aapka payment mil gaya hai" for money the shop
+  forgave. All three now leave waivers out (penalty and refund were already out). The interest engine is untouched:
+  a waiver still reduces what is owed.
+- **Edit Bill:** taking a GST bill from 3% down to 0% is refused (same rule as New Sale). Bills already at 0% stay editable.
+- **Price labels:** the printed ₹ was gross weight × rate, which matched nothing on the bill. It is now what the bill charges
+  before GST: gold on net weight + making + wastage.
+
+**Tests:** regression 318/318 (+1, and the waiver case added to the existing paid-total test), e2e 19/19, check.bat clean.
+
+→ FOR COWORK: nothing until the end-of-session zip. Then: Girvi waiver ₹500 → "Total paid" doesn't grow and no "payment received" WhatsApp; print a label for a product with net < gross and check the ₹ matches the bill before GST.
+
+---
+
 **Commits:** `add98dc` (batch43), `80ae952` (batch44). **No deploy zip yet** (one zip at the end of the session).
 
 **Tanish's answers (1 Oct) — closed, don't re-ask:** Aadhaar/PAN → **stop storing it**; signup → **"Start Your Shop →"**;
