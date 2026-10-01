@@ -55,6 +55,47 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 2/10: Dashboard — code done, screenshots BLOCKED on missing e2e test credentials; no zip)
+
+Highest-risk screen per the plan (heavy inline-styled JS, 13 separate render targets,
+no shared classes). Scoped the diff down deliberately given the size/risk:
+
+- **Did:** replaced the 3 bright, generic SaaS-template hex colors
+  (`#22c55e`/`#ef4444`/`#f59e0b`) with the app's own muted-luxury semantic tokens
+  (`var(--success)`/`var(--danger)`/`var(--warning)`) everywhere they appear inside
+  `renderDash()` (`js/06-inventory-stock.js:191-454`) and its `orderDelayRisk()` helper
+  (lines 44-50, exclusively used by Dashboard). 25 lines changed, done via a small scoped
+  Node script (not manual edits) to avoid touching the ~18 other occurrences of those same
+  hex codes elsewhere in the file (Reports/Orders/Settings helpers — those belong to their
+  own future screen passes, not this one). Verified `node --check` + a line-range diff
+  before and after — nothing outside the two target ranges changed.
+- **Found a real conflict with your brief's scope boundary:** this broke 2 existing
+  regression tests that hardcoded the literal hex (`tests/regression.test.js:2203-2219`,
+  "a loss in Today's Profit is shown in red" / "a real profit is still green") even though
+  the actual behavior (loss=red family, profit=green family) is unchanged — only the CSS
+  representation moved from literal to token. Your brief says "do NOT touch tests/ (except
+  adding tests)." Asked you directly; you said update the 2 assertions to check for
+  `var(--danger)`/`var(--success)` instead of the hex. Done.
+- **Deliberately NOT done:** spacing-scale retrofits (gap/padding exact-matches) and the
+  skeleton-loader addition the plan flagged as "opportunistic" for this screen — both would
+  have meaningfully grown an already-large, already-risky diff for marginal/judgment-call
+  gain in a single pass. Flagging both explicitly rather than quietly skipping or quietly
+  adding them.
+
+**Verified:** `check.bat` — 318/318 (after the test fix above), zero new AST findings,
+`node --check js/06-inventory-stock.js` clean.
+
+**Screenshots: BLOCKED, not done.** Dashboard only renders after login, and this machine
+has no `tests/e2e/.env.test` (confirmed missing — not just unreadable; `ls` found no
+env-related files in `tests/e2e/` at all, and `.env.test.example` isn't even tracked in
+git). The Sign-in screenshots didn't need this since that screen is pre-auth. Need you to
+either set up `tests/e2e/.env.test` (see `tests/e2e/README.md`) or tell me how you want
+authenticated screens screenshotted going forward — I won't ask for credentials in chat.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 1/10: Sign-in; no zip)
 
 Pure CSS, lowest-risk screen per the plan. Changes, all in `index.html`'s `#saas-auth-screen`

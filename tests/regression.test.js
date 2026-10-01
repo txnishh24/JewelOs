@@ -2206,16 +2206,19 @@ test("a loss in Today's Profit is shown in red, not the same green as a profit",
   var idx = html.indexOf("Today's Profit");
   assert(idx !== -1, "Today's Profit tile should render");
   var tile = html.slice(idx, idx + 220);
-  assert(tile.indexOf('#ef4444') !== -1,
-    'a negative profit should be red (#ef4444); tile was: ' + tile.slice(0, 160));
-  assert(tile.indexOf('#22c55e') === -1, 'a negative profit must not render green');
+  // Redesign Phase 1 moved this tile's color from a literal hex to the shared
+  // --danger/--success tokens (index.html :root) -- same red/green families,
+  // just referenced through the design system now instead of hardcoded.
+  assert(tile.indexOf('var(--danger)') !== -1,
+    'a negative profit should be red (var(--danger)); tile was: ' + tile.slice(0, 160));
+  assert(tile.indexOf('var(--success)') === -1, 'a negative profit must not render green');
 });
 
 test("a real profit is still green", function(){
   var html = dashWithProfit(5000);
   var tile = html.slice(html.indexOf("Today's Profit"));
   tile = tile.slice(0, 220);
-  assert(tile.indexOf('#22c55e') !== -1, 'a positive profit should stay green');
+  assert(tile.indexOf('var(--success)') !== -1, 'a positive profit should stay green');
 });
 
 test('the sign-in footer year is not hard-coded', function(){

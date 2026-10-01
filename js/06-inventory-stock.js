@@ -43,10 +43,10 @@ function renderCustomerTag(tag){
 // ── ORDER INTELLIGENCE ────────────────────────────────────────────────
 function orderDelayRisk(o){
   var dl = Math.ceil((new Date(o.delivery)-Date.now())/86400000);
-  if(dl < 0)  return {level:'overdue',  color:'#ef4444', label:'Overdue '+Math.abs(dl)+'d'};
-  if(dl===0)  return {level:'today',    color:'#f59e0b', label:'Due Today!'};
-  if(dl <= 3) return {level:'urgent',   color:'#f59e0b', label:'In '+dl+'d'};
-  return              {level:'ok',      color:'#22c55e', label:'In '+dl+'d'};
+  if(dl < 0)  return {level:'overdue',  color:'var(--danger)', label:'Overdue '+Math.abs(dl)+'d'};
+  if(dl===0)  return {level:'today',    color:'var(--warning)', label:'Due Today!'};
+  if(dl <= 3) return {level:'urgent',   color:'var(--warning)', label:'In '+dl+'d'};
+  return              {level:'ok',      color:'var(--success)', label:'In '+dl+'d'};
 }
 
 function orderProfitEst(o){
@@ -229,11 +229,11 @@ function renderDash(){
   if(todayEl){
     todayEl.innerHTML =
       fsnCard("Today's Sales", fmt(todaySalesTotal), todaySales.length+' bill(s)', null, '', 'var(--gold-dark)')+
-      fsnCard("Today's Purchase", fmt(todayPurchaseTotal), todayPurchases.length+' bill(s)', null, '', '#f59e0b')+
+      fsnCard("Today's Purchase", fmt(todayPurchaseTotal), todayPurchases.length+' bill(s)', null, '', 'var(--warning)')+
       // Colour by sign, like the Net Cash line below — a loss shown in the
       // same green as a profit is the one number on this strip a jeweller
       // cannot afford to misread.
-      fsnCard("Today's Profit", fmt(todayProfitTotal), '', null, '', todayProfitTotal>=0?'#22c55e':'#ef4444');
+      fsnCard("Today's Profit", fmt(todayProfitTotal), '', null, '', todayProfitTotal>=0?'var(--success)':'var(--danger)');
   }
 
   // ── 3. BUSINESS SNAPSHOT (the 4 numbers before any decision) ────
@@ -251,8 +251,8 @@ function renderDash(){
   if(snapEl2){
     snapEl2.innerHTML =
       fsnCard('Inventory Value', fmt(tgv+tsv), 'gold + silver stock', null, '', 'var(--gold-dark)')+
-      fsnCard('Outstanding Payments', fmt(totalPendingBal), getSalesDueSoon(30).length+' overdue 30d+', null, '', '#ef4444')+
-      fsnCard('Pending Girvi', fmt(activeGirviTotal), activeGirviList.length+' active loan(s)', null, '', '#f59e0b')+
+      fsnCard('Outstanding Payments', fmt(totalPendingBal), getSalesDueSoon(30).length+' overdue 30d+', null, '', 'var(--danger)')+
+      fsnCard('Pending Girvi', fmt(activeGirviTotal), activeGirviList.length+' active loan(s)', null, '', 'var(--warning)')+
       fsnCard('Pieces in Stock', stockPieces, stockCatCount+' categor'+(stockCatCount===1?'y':'ies'), null, '', 'var(--gold-dark)');
   }
 
@@ -298,14 +298,14 @@ function renderDash(){
       '<div class="sbox sbox-g">'+
         '<div class="sbox-title">\ud83d\udcb0 Cash Flow \u2014 This Month</div>'+
         '<div style="display:grid;gap:6px;margin-top:8px;">'+
-          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Cash In</span><span style="font-weight:700;color:#22c55e;">'+fmt(cfMonth.cashIn)+'</span></div>'+
-          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Cash Out (old gold)</span><span style="font-weight:700;color:#ef4444;">'+fmt(cfMonth.cashOut)+'</span></div>'+
-          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Girvi Lent</span><span style="font-weight:700;color:#f59e0b;">'+fmt(cfMonth.girviOut)+'</span></div>'+
-          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Girvi Collected</span><span style="font-weight:700;color:#22c55e;">'+fmt(cfMonth.girviIn)+'</span></div>'+
-          (cfMonth.expenses>0?'<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Expenses</span><span style="font-weight:700;color:#ef4444;">'+fmt(cfMonth.expenses)+'</span></div>':'')+
+          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Cash In</span><span style="font-weight:700;color:var(--success);">'+fmt(cfMonth.cashIn)+'</span></div>'+
+          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Cash Out (old gold)</span><span style="font-weight:700;color:var(--danger);">'+fmt(cfMonth.cashOut)+'</span></div>'+
+          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Girvi Lent</span><span style="font-weight:700;color:var(--warning);">'+fmt(cfMonth.girviOut)+'</span></div>'+
+          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Girvi Collected</span><span style="font-weight:700;color:var(--success);">'+fmt(cfMonth.girviIn)+'</span></div>'+
+          (cfMonth.expenses>0?'<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Expenses</span><span style="font-weight:700;color:var(--danger);">'+fmt(cfMonth.expenses)+'</span></div>':'')+
           '<div style="border-top:0.5px solid var(--border);padding-top:6px;display:flex;justify-content:space-between;font-size:14px;">'+
             '<span style="font-weight:700;">Net Cash</span>'+
-            '<span style="font-weight:800;color:'+(cfMonth.netCash>=0?'#22c55e':'#ef4444')+';">'+fmt(cfMonth.netCash)+'</span>'+
+            '<span style="font-weight:800;color:'+(cfMonth.netCash>=0?'var(--success)':'var(--danger)')+';">'+fmt(cfMonth.netCash)+'</span>'+
           '</div>'+
         '</div>'+
       '</div>'+
@@ -313,11 +313,11 @@ function renderDash(){
         '<div class="sbox-title">\ud83d\udcca Capital Status</div>'+
         '<div style="display:grid;gap:6px;margin-top:8px;">'+
           '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Stock Value</span><span style="font-weight:700;color:var(--gold-dark);">'+fmt(tgv+tsv)+'</span></div>'+
-          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Credit Given</span><span style="font-weight:700;color:#ef4444;">'+fmt(totalPendingBal)+'</span></div>'+
-          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">In Girvi</span><span style="font-weight:700;color:#f59e0b;">'+fmt(activeGirviTotal)+'</span></div>'+
+          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Credit Given</span><span style="font-weight:700;color:var(--danger);">'+fmt(totalPendingBal)+'</span></div>'+
+          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">In Girvi</span><span style="font-weight:700;color:var(--warning);">'+fmt(activeGirviTotal)+'</span></div>'+
           '<div style="border-top:0.5px solid var(--border);padding-top:6px;display:flex;justify-content:space-between;font-size:14px;">'+
             '<span style="font-weight:700;">Capital Stuck</span>'+
-            '<span style="font-weight:800;color:#ef4444;">'+fmt(totalPendingBal+activeGirviTotal)+'</span>'+
+            '<span style="font-weight:800;color:var(--danger);">'+fmt(totalPendingBal+activeGirviTotal)+'</span>'+
           '</div>'+
         '</div>'+
       '</div>';
@@ -348,8 +348,8 @@ function renderDash(){
           '<div style="font-size:11px;color:var(--text3);">'+(s.items||[]).map(function(i){return escHtml(i.name);}).join(', ')+' &bull; '+fmtW(wt)+'</div></div>'+
           '<div style="text-align:right;">'+
             '<div style="font-weight:700;color:var(--gold-dark);">'+fmt(t.grand)+'</div>'+
-            '<div style="font-size:11px;color:#22c55e;">\u2191 '+fmt(Math.round(p.profit))+'</div>'+
-            (t.bal>0?'<div style="font-size:11px;color:#ef4444;">Due: '+fmt(t.bal)+'</div>':'')+
+            '<div style="font-size:11px;color:var(--success);">\u2191 '+fmt(Math.round(p.profit))+'</div>'+
+            (t.bal>0?'<div style="font-size:11px;color:var(--danger);">Due: '+fmt(t.bal)+'</div>':'')+
           '</div>'+
         '</div></div>';
     }).join('')
@@ -370,13 +370,13 @@ function renderDash(){
       pbEl.innerHTML=
         '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);margin-bottom:4px;">'+
           '<span style="font-size:12px;color:var(--text3);">'+pending.length+' customers</span>'+
-          '<span style="font-weight:700;color:#ef4444;">'+fmt(totalPendingBal)+'</span>'+
+          '<span style="font-weight:700;color:var(--danger);">'+fmt(totalPendingBal)+'</span>'+
         '</div>'+
         pending.slice(0,5).map(function(x){
-          var ac=x.oldestDays>60?'#ef4444':x.oldestDays>30?'#f59e0b':'var(--text3)';
+          var ac=x.oldestDays>60?'var(--danger)':x.oldestDays>30?'var(--warning)':'var(--text3)';
           return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid var(--border);font-size:13px;">'+
             '<div><span style="font-weight:600;">'+escHtml(x.name)+'</span>'+(x.phone?'<div style="font-size:11px;color:var(--text3);">'+escHtml(x.phone)+'</div>':'')+'</div>'+
-            '<div style="text-align:right;"><div style="font-weight:700;color:#ef4444;">'+fmt(x.bal)+'</div>'+
+            '<div style="text-align:right;"><div style="font-weight:700;color:var(--danger);">'+fmt(x.bal)+'</div>'+
             '<div style="font-size:10px;color:'+ac+';">'+x.oldestDays+'d old</div></div></div>';
         }).join('')+
         (pending.length>5?'<div style="font-size:12px;color:var(--text3);padding:4px 0;">+'+(pending.length-5)+' more</div>':'');
@@ -397,7 +397,7 @@ function renderDash(){
         return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;">'+
           '<div><div style="font-weight:600;">'+escHtml(o.customer)+'</div>'+
           '<div style="font-size:11px;color:var(--text3);">'+escHtml(o.items&&o.items.length?o.items[0].desc:(o.desc||''))+'</div>'+
-          (profEst>0?'<div style="font-size:10px;color:#22c55e;">Est profit: '+fmt(Math.round(profEst))+'</div>':'')+
+          (profEst>0?'<div style="font-size:10px;color:var(--success);">Est profit: '+fmt(Math.round(profEst))+'</div>':'')+
           '</div>'+
           '<div style="text-align:right;"><div style="font-weight:700;color:'+risk.color+';">'+risk.label+'</div>'+
           '<div style="font-size:11px;color:var(--text3);">'+fmtDate(o.delivery)+'</div></div></div>';
@@ -447,8 +447,8 @@ function renderDash(){
     '<div class="card-title">\ud83e\udea9 Girvi Portfolio <span style="font-size:11px;color:var(--text3);font-weight:400;">(tap to manage)</span></div>'+
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">'+
     '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;">'+gActive+'</div><div style="font-size:10px;color:var(--text3);">Active</div></div>'+
-    '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;color:#f59e0b;">'+gOverdue+'</div><div style="font-size:10px;color:var(--text3);">Overdue</div></div>'+
-    '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;color:#ef4444;">'+gDeflt+'</div><div style="font-size:10px;color:var(--text3);">Defaulted</div></div>'+
+    '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;color:var(--warning);">'+gOverdue+'</div><div style="font-size:10px;color:var(--text3);">Overdue</div></div>'+
+    '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;color:var(--danger);">'+gDeflt+'</div><div style="font-size:10px;color:var(--text3);">Defaulted</div></div>'+
     '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:15px;font-weight:800;color:var(--gold);">\u20b9'+Math.round(gTotalOut/1000).toLocaleString('en-IN')+'K</div><div style="font-size:10px;color:var(--text3);">Outstanding</div></div>'+
     '</div></div>';
 }
