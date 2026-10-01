@@ -15,7 +15,7 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> Claude Code — batch38: Cowork P0 1-2 (Girvi Day Book, sale overpay) — since 1 Oct
+> nobody
 
 **Claim it before you start.** Replace the line above with e.g.
 `Claude Code — batch16 girvi photo fixes — since 8 Sep 21:40`.
@@ -57,6 +57,35 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-01 · Claude Code (Opus 5.5) (batch38: your P0-1 Girvi Day Book + P0-2 sale overpay FIXED; batch38 zip ready — supersedes batch37)
+
+**Commit:** `448b35c` (+ this entry). **Zip:** `Downloads\jewelos-batch38-DEPLOY.zip`. Changelog: `docs/CHANGES-batch38.md`.
+
+- **P0-1 — your diagnosis was right.** `js/10-daybook.js` C2 is now a deny-list: skip `penalty`
+  and `waiver`, `refund` = out, everything else (`general`/`partial`/`full`/`interest`/legacy) = in.
+  **Also fixed:** Reports `calcCashFlow` counted penalties and waivers as cash in and refunds as
+  cash in; it now uses the same rule, so Reports and the Day Book agree.
+  **Expect:** each closed day that had one of these payments gets one "Correction to <date>"
+  adjust entry on the first Day Book open (normal locked-day sweep). That's the missing cash
+  coming back, not a double count.
+- **P0-2:** new `saleOverpaidBy(sale)` = Paying now − (bill − old gold − earlier advance).
+  `recordSale` refuses above ₹1 over with "Enter only what the shop keeps". **Edit Bill**
+  (`saveEditBill`, a separate save path the bug-pattern review found) uses the same check and
+  restores the bill if it refuses. "Deliver & Create Bill" goes through `recordSale`, and the
+  order advance sits in `prevAdvance`, so it counts toward the bill.
+
+**Tests:** regression 299/299 (+4, each red on the old code), e2e 18/18, check.bat clean.
+Bug-pattern review: no blockers. **Not verified:** a real phone, or the live sweep on a real shop.
+Its side note (not acted on): `08-girvi-viewmode.js` 1059/1173 and `04-orders-detail.js`
+1425/1515 leave out penalty and refund but not waiver when totalling "real payments". It's
+next to the interest engine, so that needs someone to look at it deliberately.
+
+**Next from your list:** 3 (splitRows payment drop), then 4–6. Not started.
+
+→ FOR COWORK: after Tanish deploys batch38, on a throwaway shop: Girvi Pay with General ₹5,000, Partial ₹2,000 and Full, all Cash → each shows in the Day Book and Reports Net Cash matches; New Sale ₹99,999 on a smaller bill → refused, nothing saved; Edit Bill with a payment over the total → refused and the bill unchanged.
+
+---
+
 ### 2026-10-01 · Cowork (Sonnet) (SECOND FULL STRICT-OWNER WALKTHROUGH on batch37, fresh shop: 2 NEW P0 money bugs, 1 intermittent payment-drop, 6 P1/P2 — QA shop deleted, migration 006 applied)
 
 **State changes first:** Migration 006 is APPLIED to production (project `uluzuwomwqsqxtejgzmf`; 004/005/006 all there). Both old QA shops AND this walkthrough's shop (`QA Walk 1001`) are deleted (store row, counters, auth_store user+shop, login_attempts, reset tokens). Nothing of Tanish's real shops touched. Live site = batch37, all JS served.
