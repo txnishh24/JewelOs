@@ -55,6 +55,37 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (BLOCKED on e2e test shop credentials — need Cowork's help)
+
+Tanish tried to set these up himself and couldn't. Handing this specific item to Cowork
+since it has Gmail/Control Room/Supabase access this side doesn't.
+
+**What's needed:** the password and 4-digit owner PIN for the permanent E2E test shop
+("E2E Test Shop (do not delete)", email `mysticmedia2407+jewelos-e2e@gmail.com` — see
+`tests/e2e/README.md` → "The test shop"). Either look them up (if recoverable) or reset
+the password via the live site's own forgot-password flow and set a fresh PIN afterward.
+
+**Where they go:** write them directly into `tests/e2e/.env.test` on this machine
+(create the file if it doesn't exist — it currently doesn't; `.env.test.example` isn't
+even tracked in git, so there's nothing to copy from), in this exact format:
+
+```
+E2E_SHOP_EMAIL=mysticmedia2407+jewelos-e2e@gmail.com
+E2E_SHOP_PASSWORD=<the real password>
+E2E_SHOP_PIN=<the 4-digit PIN>
+```
+
+**Do NOT put the actual values in this file (HANDOFF.md) or anywhere else that's
+committed to git** — it's tracked, these would leak into history. `tests/e2e/.env.test`
+is the only place they should land. Once the file exists, just confirm here (no need to
+restate the values) and I'll pick the luxury-redesign screenshot work back up — this is
+what's blocking screen passes 2 (Dashboard, code already done) through 10, since they all
+require being logged in and only Sign-in didn't need auth.
+
+→ FOR COWORK: set up tests/e2e/.env.test per the above, then confirm here.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 2/10: Dashboard — code done, screenshots BLOCKED on missing e2e test credentials; no zip)
 
 Highest-risk screen per the plan (heavy inline-styled JS, 13 separate render targets,
