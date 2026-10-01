@@ -646,7 +646,7 @@ function renderSaleItems(){
     // Header row
     var hdr=document.createElement('div');
     hdr.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;';
-    hdr.innerHTML='<div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Item '+(i+1)+'</div>';
+    hdr.innerHTML='<div style="font-size:var(--text-xs);color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Item '+(i+1)+'</div>';
     if(UI.saleItems.length>1){
       var rb=document.createElement('button');
       rb.className='btn btn-sm btn-danger';
@@ -726,14 +726,14 @@ function renderSaleItems(){
     // Product info bar + deductions (shown when product is selected)
     if(p){
       var info=document.createElement('div');
-      info.style.cssText='margin-top:8px;font-size:12px;color:var(--ink2);background:var(--gold-bg);padding:11px 13px;border-radius:var(--radius);border:0.5px solid rgba(201,168,76,0.25);';
+      info.style.cssText='margin-top:8px;font-size:var(--text-sm);color:var(--ink2);background:var(--gold-bg);padding:11px 13px;border-radius:var(--radius);border:0.5px solid rgba(201,168,76,0.25);';
 
       // Top row: name, purity, gross weight, rate
       var topRow=document.createElement('div');
       topRow.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px;margin-bottom:10px;';
       topRow.innerHTML=
         '<div>'+
-          '<div style="font-weight:700;font-size:14px;color:var(--text);">'+escHtml(p.name)+'</div>'+
+          '<div style="font-weight:700;font-size:var(--text-base);color:var(--text);">'+escHtml(p.name)+'</div>'+
           '<div style="margin-top:3px;">'+
             '<span class="badge '+(p.metal==='gold'?'bg-gold':'bg-silver')+'">'+p.purity+'</span>'+
             '&nbsp; Gross: <strong>'+fmtW(p.weight)+'</strong>'+
@@ -742,7 +742,7 @@ function renderSaleItems(){
           '</div>'+
         '</div>'+
         '<div style="text-align:right;">'+
-          '<div id="si-lineval-'+i+'" style="font-weight:700;font-size:14px;color:var(--gold-dark);">'+fmt(getRate(p.metal,p.purity)*p.weight)+'</div>'+
+          '<div id="si-lineval-'+i+'" style="font-weight:700;font-size:var(--text-base);color:var(--gold-dark);">'+fmt(getRate(p.metal,p.purity)*p.weight)+'</div>'+
         '</div>';
       info.appendChild(topRow);
 
@@ -760,12 +760,12 @@ function renderSaleItems(){
 
       // Black Beads field
       var bbWrap=document.createElement('div');
-      bbWrap.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:3px;">&#9679; Black Beads (g)</div>';
+      bbWrap.innerHTML='<div style="font-size:var(--text-xs);color:var(--text3);margin-bottom:3px;">&#9679; Black Beads (g)</div>';
       var bbIW=document.createElement('div'); bbIW.className='isuf';
       var bbI=document.createElement('input'); bbI.type='text'; bbI.setAttribute('inputmode','decimal');
       bbI.placeholder='0.000'; bbI.id='si-bb-'+i;
       bbI.value=(item.blackBeads>0)?item.blackBeads:'';
-      bbI.style.cssText='font-size:12px;';
+      bbI.style.cssText='font-size:var(--text-sm);';
       (function(idx){bbI.oninput=function(){UI.saleItems[idx].blackBeads=parseFloat(this.value)||0;refreshStockDeductDisplay(idx);updateSum();};})(i);
       var bbS=document.createElement('span'); bbS.className='suf'; bbS.textContent='g';
       bbIW.appendChild(bbI); bbIW.appendChild(bbS); bbWrap.appendChild(bbIW);
@@ -773,12 +773,12 @@ function renderSaleItems(){
 
       // Diamond/Stone field
       var dwWrap=document.createElement('div');
-      dwWrap.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:3px;">&#128142; Diamond/Stone (g)</div>';
+      dwWrap.innerHTML='<div style="font-size:var(--text-xs);color:var(--text3);margin-bottom:3px;">&#128142; Diamond/Stone (g)</div>';
       var dwIW=document.createElement('div'); dwIW.className='isuf';
       var dwI=document.createElement('input'); dwI.type='text'; dwI.setAttribute('inputmode','decimal');
       dwI.placeholder='0.000'; dwI.id='si-dw-'+i;
       dwI.value=(item.diamondWt>0)?item.diamondWt:'';
-      dwI.style.cssText='font-size:12px;';
+      dwI.style.cssText='font-size:var(--text-sm);';
       (function(idx){dwI.oninput=function(){UI.saleItems[idx].diamondWt=parseFloat(this.value)||0;refreshStockDeductDisplay(idx);updateSum();};})(i);
       var dwS=document.createElement('span'); dwS.className='suf'; dwS.textContent='g';
       dwIW.appendChild(dwI); dwIW.appendChild(dwS); dwWrap.appendChild(dwIW);
@@ -786,12 +786,12 @@ function renderSaleItems(){
 
       // Other deduction field
       var owWrap=document.createElement('div');
-      owWrap.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:3px;">Other (g)</div>';
+      owWrap.innerHTML='<div style="font-size:var(--text-xs);color:var(--text3);margin-bottom:3px;">Other (g)</div>';
       var owIW=document.createElement('div'); owIW.className='isuf';
       var owI=document.createElement('input'); owI.type='text'; owI.setAttribute('inputmode','decimal');
       owI.placeholder='0.000'; owI.id='si-ow-'+i;
       owI.value=(item.otherWt>0)?item.otherWt:'';
-      owI.style.cssText='font-size:12px;';
+      owI.style.cssText='font-size:var(--text-sm);';
       (function(idx){owI.oninput=function(){UI.saleItems[idx].otherWt=parseFloat(this.value)||0;refreshStockDeductDisplay(idx);updateSum();};})(i);
       var owS=document.createElement('span'); owS.className='suf'; owS.textContent='g';
       owIW.appendChild(owI); owIW.appendChild(owS); owWrap.appendChild(owIW);
@@ -802,7 +802,7 @@ function renderSaleItems(){
       // Net weight result row
       var netRow=document.createElement('div');
       netRow.id='si-netrow-'+i;
-      netRow.style.cssText='margin-top:8px;font-size:12px;';
+      netRow.style.cssText='margin-top:8px;font-size:var(--text-sm);';
       refreshStockDeductDisplay_el(netRow, p, item);
       dbox.appendChild(netRow);
       info.appendChild(dbox);
@@ -813,7 +813,7 @@ function renderSaleItems(){
       if(safePhotoUrl){
         var phLink=document.createElement('a');
         phLink.href=safePhotoUrl; phLink.target='_blank';
-        phLink.style.cssText='font-size:12px;color:var(--info);display:inline-block;margin-right:10px;';
+        phLink.style.cssText='font-size:var(--text-sm);color:var(--info);display:inline-block;margin-right:10px;';
         phLink.innerHTML='&#128247; View Photo';
         info.appendChild(phLink);
       }
@@ -821,7 +821,7 @@ function renderSaleItems(){
       // Clear button
       var clrBtn=document.createElement('button');
       clrBtn.className='btn btn-sm btn-danger';
-      clrBtn.style.cssText='font-size:11px;';
+      clrBtn.style.cssText='font-size:var(--text-xs);';
       clrBtn.innerHTML='&#10005; Clear Item';
       (function(idx){clrBtn.onclick=function(){onSP(idx,'');renderSaleItems();};})(i);
       info.appendChild(clrBtn);
@@ -854,7 +854,7 @@ function skuSearch(idx,val,sugBox){
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'+
         '<div>'+
           '<div style="font-weight:700;font-size:13px;">'+escHtml(p.name)+'</div>'+
-          '<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">'+
             '<span style="font-weight:700;color:var(--info);">'+escHtml(p.sku)+'</span>'+
             ' &bull; '+escHtml(p.purity)+' &bull; '+fmtW(p.weight)+
             (p.huid?' &bull; HUID: '+p.huid:'')+
@@ -862,7 +862,7 @@ function skuSearch(idx,val,sugBox){
         '</div>'+
         '<div style="text-align:right;flex-shrink:0;margin-left:8px;">'+
           '<div style="font-weight:700;color:var(--gold-dark);font-size:13px;">'+fmt(mktVal(p))+'</div>'+
-          '<div style="font-size:11px;color:var(--text3);">'+p.qty+' in stock</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);">'+p.qty+' in stock</div>'+
         '</div>'+
       '</div>';
     row.onmouseover=function(){this.style.background='var(--bg2)';};

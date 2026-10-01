@@ -55,6 +55,28 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 4/10: Sales/Billing; no zip)
+
+Smallest diff of the redesign so far. `renderSaleItems()` (`js/02-ui-inactivity-modals.js:
+637-834`) and its `skuSearch()` helper were already fully token-driven — no bright/
+hardcoded colors like Dashboard had, and no table structure so `.num` doesn't apply here
+(the on-screen sale cards use flex layout with their own `text-align:right` wrapper, not
+table columns). The printed/previewed invoice (`buildInvoiceHTML`) stays out of scope as
+decided — separate iframe document, untouched.
+
+Only change: 15 exact-match font-size literals (11px/12px/14px, scoped precisely to lines
+637-878 via a line-range script, same approach as Dashboard's color fix) swapped for
+`var(--text-xs)`/`var(--text-sm)`/`var(--text-base)` — zero visual change, same computed
+pixel values, just named from the scale now instead of repeated as magic numbers.
+
+**Verified:** `check.bat` — 318/318, zero new AST findings (no classes added/removed, this
+was inline-style token substitution only). Screenshots in `redesign-shots/sales/
+{375,768,1440}.png` — clean at both widths, no overflow.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 3/10: Stock/Add Product; no zip)
 
 Moderate risk per the plan — real `<table>`, already had a skeleton. Introduced the
