@@ -1518,9 +1518,10 @@ function girviMargin(g){
 }
 function girviTotalPaid(g){
   // Total cash received from customer — excludes penalty (a charge, not a
-  // receipt) and refund (money given back, the opposite direction).
+  // receipt), refund (money given back, the opposite direction) and waiver
+  // (money forgiven, never received).
   return (g.payments||[]).reduce(function(s,x){
-    if(x.type==='penalty' || x.type==='refund') return s;
+    if(x.type==='penalty' || x.type==='refund' || x.type==='waiver') return s;
     return s+(parseFloat(x.amount)||0);
   }, 0);
 }

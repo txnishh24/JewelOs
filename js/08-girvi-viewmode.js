@@ -1057,7 +1057,7 @@ function openGirviReceiptModal(gid, receiptType){
 
   // The most recent real payment (used for the customer-facing headline
   // when this receipt is being generated right after a payment)
-  var realPayments=ledger.payments.filter(function(p){return p.type!=='penalty'&&p.type!=='refund';});
+  var realPayments=ledger.payments.filter(function(p){return p.type!=='penalty'&&p.type!=='refund'&&p.type!=='waiver';}); // a waiver is forgiven, not received
   var lastPay=realPayments.length?realPayments[realPayments.length-1]:null;
 
   // ── Customer-facing headline: no interest math, just three numbers ──
@@ -1170,7 +1170,7 @@ function _loadHtml2Canvas(cb){
 
 function _girviReceiptWaMessage(g, ledger){
   var shopName=(typeof SAAS!=='undefined'&&SAAS.shop&&SAAS.shop.name)||'hamari dukaan';
-  var realPayments=ledger.payments.filter(function(p){return p.type!=='penalty'&&p.type!=='refund';});
+  var realPayments=ledger.payments.filter(function(p){return p.type!=='penalty'&&p.type!=='refund'&&p.type!=='waiver';}); // a waiver is forgiven, not received
   var lastPay=realPayments.length?realPayments[realPayments.length-1]:null;
   var outstanding=Math.round(ledger.outstanding).toLocaleString('en-IN');
   if(lastPay){

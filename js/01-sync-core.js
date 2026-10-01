@@ -1166,6 +1166,13 @@ function saveEditBill(){
     toast('⚠ Payments are ₹'+Math.round(_over).toLocaleString('en-IN')+' more than the bill. Enter only what the shop keeps.');
     return;
   }
+  // QA 1 Oct P1-4, same rule as New Sale: a GST bill edited down to 0% GST would
+  // still print as a Tax Invoice with no tax. (A bill already at 0% stays editable.)
+  if(sale.billType === 'gst' && !(sale.gst > 0) && (JSON.parse(_beforeEdit).gst > 0)){
+    S.sales[S.sales.indexOf(sale)] = JSON.parse(_beforeEdit);
+    toast('⚠ A GST bill needs a GST % (3% for jewellery).');
+    return;
+  }
   if(t.bal<=0) sale.payStatus='full';
   saveToCloud(function(err){
     if(!err){
@@ -1885,7 +1892,10 @@ function openBarcodeLabels(prodIds) {
   var labHtml = prods.map(function(p){
     var sku  = p.sku||('ITEM-'+p.id);
     var huid = p.huid||'';
-    var price= Math.round((p.weight||0)*getRate(p.metal,p.purity));
+    // What the bill charges before GST: gold on net weight + making + wastage
+    // (was gross weight x rate, which matched nothing on the bill).
+    var _lg=parseFloat(p.weight)||0, _ln=parseFloat(p.netWeight)||0;
+    var price= Math.round(mktVal(p) + productMakingAmount(p, _ln>0&&_ln<_lg?_ln:_lg));
     var bars = _barcodeSVG(sku);
     return '<div class="lbl">' +
       '<div class="ls">'+ escHtml((SAAS&&SAAS.shop&&SAAS.shop.name)||'Sri Sai Jewellers') +'</div>'+

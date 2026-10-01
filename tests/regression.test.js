@@ -96,11 +96,12 @@ test('refund increases outstanding balance (money given back means more is owed)
   assert(after.outstanding > before.outstanding, 'a refund should increase outstanding, before=' + before.outstanding + ' after=' + after.outstanding);
 });
 
-test('penalty/refund are excluded from girviTotalPaid (not real cash received)', function(){
+test('penalty/refund/waiver are excluded from girviTotalPaid (not real cash received)', function(){
   var g = { payments: [
     { amount: 5000, type: 'partial' },
     { amount: 1000, type: 'penalty' },
-    { amount: 500,  type: 'refund' }
+    { amount: 500,  type: 'refund' },
+    { amount: 700,  type: 'waiver' }
   ]};
   var total = app.girviTotalPaid(g);
   assert(approxEqual(total, 5000, 1), 'girviTotalPaid should only count real payments (5000), got ' + total);
@@ -2949,6 +2950,27 @@ test('QA 1 Oct P0-2: Edit Bill refuses payments above the bill and leaves the bi
   vals['ebsp-amt-0'] = '10000';
   a.saveEditBill();
   assert(saved, 'an edit that fits the bill still saves');
+});
+
+test('Edit Bill refuses taking a GST bill down to 0% GST', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10300, advance:0, billType:'gst',
+    payStatus:'pending', gst:3, discount:0, making:0, diamond:0,
+    items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }] }];
+  a._editBillId = 's1';
+  var vals = { 'eb-disc':'0', 'eb-gst':'0', 'eb-advance':'0', 'eb-oldgold':'0' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(/^ebsp-amt-/.test(id)) return null;
+    if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+    return _o(id);
+  };
+  var saved = false; a.saveToCloud = function(){ saved = true; };
+  a.saveEditBill();
+  assert(!saved && a.S.sales[0].gst === 3, 'GST 3% -> 0% must be refused and the bill left as it was');
+  vals['eb-gst'] = '3';
+  a.saveEditBill();
+  assert(saved, 'keeping 3% saves');
 });
 
 test('QA 1 Oct #3: opening the Girvi Pay dialog leaves the sale form payment rows alone', function(){
