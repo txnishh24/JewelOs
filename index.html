@@ -420,6 +420,7 @@ th{
   letter-spacing:.1em;white-space:nowrap;
 }
 td{padding:11px 14px;border-bottom:0.5px solid var(--border);color:var(--ink);vertical-align:middle;}
+.num{font-variant-numeric:tabular-nums;text-align:right;font-weight:600;}
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:var(--gold-bg);}
 .sold-row td{opacity:.5;}
@@ -1744,7 +1745,7 @@ iframe.nl-badge-frame{display:none !important;}
     <div class="pills" id="cat-pills"></div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Product</th><th>HUID</th><th>Purity</th><th>Gross Wt</th><th>Net Wt</th><th>Mkt Value</th><th>Photo</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Product</th><th>HUID</th><th>Purity</th><th style="text-align:right;">Gross Wt</th><th style="text-align:right;">Net Wt</th><th style="text-align:right;">Mkt Value</th><th>Photo</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="inv-body"></tbody>
       </table>
     <div id="inv-pagination" style="padding:6px 0;"></div>

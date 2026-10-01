@@ -306,9 +306,9 @@ function renderInv(){
         '<td><div style="font-weight:600;font-size:13px">'+escHtml(p.name)+'</div>'+(p.notes?'<div style="font-size:11px;color:var(--text3)">'+escHtml(p.notes)+'</div>':'')+'<div style="font-size:10px;color:var(--text3)">'+escHtml(p.sku)+'</div></td>'+
         '<td style="font-size:11px;font-weight:600;color:var(--info)">'+(p.huid?p.huid:'<span style="color:var(--text3)">&#8212;</span>')+'</td>'+
         '<td><span class="badge" style="'+pbg+'">'+p.purity+'</span></td>'+
-        '<td style="font-weight:700;color:'+(isG?'var(--gold-dark)':'var(--silver-dark)')+'">'+fmtW(p.weight)+'</td>'+
-        '<td style="font-size:12px;color:var(--text2)">'+(p.netWeight&&p.netWeight>0?fmtW(p.netWeight):'<span style="color:var(--text3)">&#8212;</span>')+'</td>'+
-        '<td style="font-weight:600;color:var(--gold-dark)">'+fmt(mv)+'</td>'+
+        '<td class="num" style="font-weight:700;color:'+(isG?'var(--gold-dark)':'var(--silver-dark)')+'">'+fmtW(p.weight)+'</td>'+
+        '<td class="num" style="font-size:12px;font-weight:400;color:var(--text2)">'+(p.netWeight&&p.netWeight>0?fmtW(p.netWeight):'<span style="color:var(--text3)">&#8212;</span>')+'</td>'+
+        '<td class="num" style="color:var(--gold-dark)">'+fmt(mv)+'</td>'+
         '<td>'+photoHtml+'</td>'+
         '<td>'+statusBadge+'</td>'+
         '<td><div style="display:flex;gap:5px;flex-wrap:wrap;">'+

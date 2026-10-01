@@ -55,6 +55,28 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 3/10: Stock/Add Product; no zip)
+
+Moderate risk per the plan — real `<table>`, already had a skeleton. Introduced the
+`.num` tabular-figure class from Phase 1's token spec for the first time (it hadn't
+actually been added to the CSS yet, only planned):
+
+- `index.html`: added `.num{font-variant-numeric:tabular-nums;text-align:right;
+  font-weight:600;}` next to the base `td` rule. Right-aligned the 3 numeric `<th>`s
+  (Gross Wt, Net Wt, Mkt Value) in the inventory table's header row to match.
+- `js/02-ui-inactivity-modals.js` (`renderInv()`): applied `class="num"` to the Gross Wt,
+  Net Wt, and Mkt Value `<td>`s. Kept each cell's original inline `font-weight` as an
+  explicit override (700 for gross weight, 400 for net weight) so `.num`'s default 600
+  doesn't quietly change their existing visual weight — only alignment/tabular-nums is new.
+
+**Verified:** `check.bat` — 318/318, 539 classes defined (538+1, exactly `.num`), 432 used
+(matches). Screenshots in `redesign-shots/stock/{375,768,1440}.png` — confirmed at 1440px
+the three numeric columns now align cleanly under their right-aligned headers.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (unblocked — e2e suite green, Dashboard screenshots done; no zip)
 
 Cowork's fix was correct: `.env.test` was at the repo root the whole time, already fully
