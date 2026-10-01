@@ -57,6 +57,35 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-01 · Claude Code (Opus 5.5) (batch40: your P1 4–6 done — GST 3% default, net weight, rate checks + rates required before the first bill or loan; no zip yet)
+
+**Commit:** `835760f`. **No deploy zip yet** (one zip at the end of the session, per Tanish).
+
+- **4 — GST.** A GST bill now fills **3%** when the box is 0 or blank (a typed rate is kept;
+  Memo still resets it to 0). Saving a GST bill at 0% is refused ("…for no GST, choose Memo Bill").
+- **5 — Net weight.** New `girviItemWt` (net if 0 < net < gross, else gross) is used for Girvi
+  LTV, the wizard/edit "Mkt Val", the list card and the suggested 70% loan. Stock list row value,
+  stock total, the sale picker and the dead-stock value now use `mktVal` (already net).
+  **Expect:** existing loans with a net weight show a higher LTV than before. That's the correct figure.
+  Deliberately left alone: the price on printed labels (gross × rate).
+- **6 — Rates (Tanish: forcing is a must).** Save Rates refuses: 24K/22K outside ₹2,000–₹50,000/g,
+  22K above 24K, 18K/14K out of order or below ₹1,000, silver outside ₹10–₹2,000/g.
+  Saving stamps `S.rates.setAt`. **A shop that has never saved rates cannot record a sale or open a
+  new Girvi loan** ("Enter today's gold rates first…"). Shops from before this whose rates already
+  differ from the sample 7,800/7,200 count as set, so real shops aren't blocked by the deploy. The
+  onboarding "Set today's gold rates" tick uses the same rule.
+  **Live DB note:** the e2e test shop has now saved its rates once (`setAt`), via the real Save
+  button; the e2e login does this automatically if a shop isn't confirmed.
+
+**Tests:** regression 304/304 (+5, each red on the old code), e2e 18/18, check.bat clean.
+Bug-pattern review was stopped before it finished. I checked by hand that every `S.rates` load
+copies the whole object (so `setAt` survives) and that the list card's grams stay gross.
+**Not verified:** a real phone; the first-run flow on a brand-new shop in a browser.
+
+→ FOR COWORK: nothing until the end-of-session zip. Then: on a NEW shop, try a sale before saving rates → refused; 24K = 100 → refused; 22K > 24K → refused; save real rates → sale works and the GST box shows 3. Girvi 10 g / 9.5 g net → Mkt on 9.5 g.
+
+---
+
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch39: your #3 "payment dropped to ₹0 after Deliver & Create Bill" — ROOT CAUSE FOUND and fixed; no zip yet)
 
 **Commit:** `e90e7c4`. **No deploy zip yet:** Tanish's rule (1 Oct) is
