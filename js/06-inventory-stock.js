@@ -675,8 +675,8 @@ function renderOrdersPipeline(){
       var totalBal=active.reduce(function(s,o){return s+Math.max(0,(o.quote||0)-ordAdvance(o));},0);
       return '<div style="display:flex;gap:16px;font-size:12px;padding-top:6px;border-top:0.5px solid var(--border);flex-wrap:wrap;">'+
         '<span>Active: <strong>'+active.length+'</strong></span>'+
-        '<span>Est. profit: <strong style="color:#22c55e;">'+fmt(Math.round(totalProfit))+'</strong></span>'+
-        '<span>Balance due: <strong style="color:#ef4444;">'+fmt(Math.round(totalBal))+'</strong></span>'+
+        '<span>Est. profit: <strong style="color:var(--success);">'+fmt(Math.round(totalProfit))+'</strong></span>'+
+        '<span>Balance due: <strong style="color:var(--danger);">'+fmt(Math.round(totalBal))+'</strong></span>'+
       '</div>';
     }());
 
@@ -761,7 +761,7 @@ function showSettingsTab(tab){
       staffEl.innerHTML=users.length
         ?users.map(function(u){
           return '<div class="log-row"><div><b>'+escHtml(u.name)+'</b><div style="font-size:11px;color:var(--text3);">'+escHtml(u.email)+' &bull; '+escHtml(u.role)+'</div></div>'+
-            '<div>'+(u.id!==SAAS.user.id&&isOwner()?'<button onclick="removeStaff(\''+u.id+'\')" style="font-size:11px;color:#ef4444;background:none;border:none;cursor:pointer;">Remove</button>':'<span style="font-size:11px;color:var(--text3);">You</span>')+'</div></div>';
+            '<div>'+(u.id!==SAAS.user.id&&isOwner()?'<button onclick="removeStaff(\''+u.id+'\')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;">Remove</button>':'<span style="font-size:11px;color:var(--text3);">You</span>')+'</div></div>';
         }).join('')
         :'<div style="font-size:12px;color:var(--text3);">No team members yet.</div>';
     }
@@ -1244,7 +1244,7 @@ function renderSettingsAutomation(){
       var oP=getSalesDueSoon(30).length;
       if(oP) due.push(oP+' overdue payments');
     }
-    rulesEl.innerHTML += (due.length?'<b style="color:#f59e0b;">'+due.join(', ')+' due</b>':'all clear today') + '</div>';
+    rulesEl.innerHTML += (due.length?'<b style="color:var(--warning);">'+due.join(', ')+' due</b>':'all clear today') + '</div>';
   }
 }
 
@@ -1394,7 +1394,7 @@ function renderSettingsAnalytics(){
     if(custs.length){
       clvEl.innerHTML = custs.slice(0,10).map(function(c,i){
         var tagHtml = c.tags.map(renderCustomerTag).join('');
-        var riskColor={low:'#22c55e',medium:'#f59e0b',high:'#ef4444'}[c.riskLevel]||'var(--text3)';
+        var riskColor={low:'var(--success)',medium:'var(--warning)',high:'var(--danger)'}[c.riskLevel]||'var(--text3)';
         return '<div class="clv-tier">'+
           '<div style="flex-shrink:0;width:22px;text-align:center;font-weight:800;font-size:12px;color:var(--text3);">'+(i+1)+'</div>'+
           '<div style="flex:1;min-width:0;">'+
@@ -1407,7 +1407,7 @@ function renderSettingsAnalytics(){
           '<div style="text-align:right;flex-shrink:0;margin-left:10px;">'+
             '<div style="font-weight:700;font-size:14px;color:var(--gold-dark);">'+fmt(Math.round(c.projectedLTV))+'</div>'+
             '<div style="font-size:9px;color:var(--text3);">'+(c.projected?'24-mo CLV':'spent so far')+'</div>'+
-            (c.pending>0?'<div style="font-size:10px;color:#ef4444;">Due: '+fmt(c.pending)+'</div>':'')+
+            (c.pending>0?'<div style="font-size:10px;color:var(--danger);">Due: '+fmt(c.pending)+'</div>':'')+
           '</div>'+
         '</div>';
       }).join('');

@@ -55,6 +55,50 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 10/10 — ALL SCREENS DONE; no zip)
+
+Mostly the plan's predicted "right file" gotcha — `renderSettings()` in `05-auth-login.js`
+is wrapped by `06-inventory-stock.js:738`'s override, which wins for the staff list,
+activity log, and account info blocks. Edited the live (06) copy throughout.
+
+- `.role-badge`/`.role-badge.staff` (deferred from the Girvi-pass color sweep, per your
+  "patch shipped gaps now, rest stays per-screen" decision — this is the "rest," now
+  reached) — rebuilt around the `-soft` tokens, same hex-alpha-suffix issue as before.
+- Remove-staff link color, Clear-Demo-Data button, both Sign Out buttons (topbar pill +
+  Account tab), and the global subscription banner's two gradients — all moved to tokens.
+  The topbar Sign Out's `#9a8c78` was close enough to `var(--text3)` (#9a8e7c, off by one
+  hex digit) that it read as an unintentional near-duplicate rather than a deliberate
+  different shade — consolidated to the token.
+- Found and fixed 2 bright-hex lines in `renderOrdersPipeline()` — belongs to the
+  already-shipped Orders pass (it renders into `#panel-orders`, confirmed via its actual
+  caller, not Dashboard as an earlier research note had guessed), fixed opportunistically
+  while already touching this file, same as `.itag-overdue` in the earlier patch-gaps
+  commit.
+
+**Found something bigger while doing the final full-app sweep**: there's substantially
+more bright-hex debt than Settings itself — concentrated in `js/07-settings-plans.js`'s
+Girvi-detail/ledger-modal code (that file owns "Settings tabs, audit views, **girvi list
+rendering**" per `CLAUDE.md` — file ownership ≠ screen ownership, most of what's left
+there is Girvi detail modals, not the Settings screen) and `js/03-billing-numbers.js`'s
+customer-detail-modal Girvi section. None of it maps cleanly to any of the plan's 10
+screens — it's modal/detail-view content reachable from multiple screens. ~40+ instances,
+roughly 10x the size of what I just fixed for Settings itself. Flagging for a decision
+rather than either chasing it unbounded or silently leaving it, same pattern as the
+Girvi-pass color-sweep question.
+
+**Verified:** `check.bat` — 318/318, zero new AST findings. Role badge and Sign Out
+colors confirmed via computed style (`role-badge` → exactly `var(--success-soft)`/
+`var(--success)`; Sign Out → exactly `var(--danger)`), not just screenshots. Screenshots
+in `redesign-shots/settings/{375,768,1440}.png`.
+
+**All 10 planned screens are now done** — Sign-in, Dashboard, Stock, Sales, Girvi, Day
+Book, Reports, Orders, Purchases, Settings. Remaining open items: the ~40-instance
+leftover color debt above, and whatever Tanish decides about it.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 9/10: Purchases; no zip)
 
 Real `<table>` throughout, good `.num` candidate as the plan expected:
