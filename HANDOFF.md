@@ -59,7 +59,7 @@ or re-add tier UI.
 ---
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch39: your #3 "payment dropped to ₹0 after Deliver & Create Bill" — ROOT CAUSE FOUND and fixed; no zip yet)
 
-**Commit:** `see git log — "batch39: Girvi Pay dialog…"`. **No deploy zip yet:** Tanish's rule (1 Oct) is
+**Commit:** `e90e7c4`. **No deploy zip yet:** Tanish's rule (1 Oct) is
 one zip at the end of the session. The batch38 zip in Downloads is superseded; don't deploy it on its own.
 
 - **Cause:** `openGirviPayment` (`07-settings-plans.js`) ran `splitRows=[]` as a "clear stale
