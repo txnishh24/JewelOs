@@ -57,6 +57,17 @@ or re-add tier UI.
 ---
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch43 + batch44: Tanish's 1 Oct decisions BUILT — no Aadhaar/PAN, "Start Your Shop", Netlify badge hidden, bill Edit/Refund/Delete, product stone/wastage/hallmark, OFFLINE BILLING; no zip yet)
 
+### 2026-10-01 · Claude Code (Opus 5.5) (batch45 VERIFIED LIVE)
+
+Tanish deployed batch45. Live origin checked file by file: all 11 `js/*.js`, `manifest.json` and both icons are **byte-identical**
+to the repo; `index.html` differs only by Netlify's injected `/.netlify/scripts/hud` line. In a browser at 375 px: no page or
+console errors, all 10 new functions present (`replayOfflineSales`, `ratesProblem`, `girviItemWt`, `saleOverpaidBy`, …),
+"Start Your Shop →" shown, no visible Netlify badge. **Not checked:** signed-in flows on live, and a real phone.
+
+→ FOR COWORK: run the real-phone / throwaway-shop checks listed in the "SESSION WRAP-UP" entry below, starting with airplane-mode billing and a Girvi General payment in the Day Book.
+
+---
+
 ### 2026-10-01 · Claude Code (Opus 5.5) (SESSION WRAP-UP: batch45 zip READY — one deploy for batches 38–45, supersedes batch37 and the unused batch38 zip)
 
 **Zip:** `Downloads\jewelos-batch45-DEPLOY.zip` (built and verified by `build-deploy-zip.js`). **Changelog:** `docs/CHANGES-batch45.md`.
