@@ -55,6 +55,33 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 6/10: Day Book; no zip)
+
+Low risk, confirmed — already the best-structured screen (`.gl-entry-amt.credit/.debit`
+already used `var(--success)`/`var(--danger)`, no bright-hex fix needed here at all,
+unlike every other screen so far). CSS-only, zero JS touched:
+
+- `index.html`: added `font-variant-numeric:tabular-nums` to the 5 shared value classes
+  the plan's token spec named (`.metric-value`, `.gl-entry-amt`, `.gl-entry-right`,
+  `.fsn-val`, `.ged-val`) — a single zero-risk property addition, so I did all 5 together
+  rather than just Day Book's two; `.fsn-val`/`.ged-val` belong to the already-shipped
+  Dashboard/Girvi passes but this has no visual risk (it only affects how digits space
+  themselves, not color/layout), unlike the color-sweep question I asked about earlier.
+- Exact-match swaps only (same discipline as every prior pass): `.metric-value`/`.ged-val`
+  font-family → `var(--font-display)`, `.metric-value` 26px → `var(--text-2xl)`,
+  `.ged-val` 22px → `var(--text-xl)`, `.gl-entry-meta` 11px → `var(--text-xs)`,
+  `.db-party-tag`/`.gl-entry-badge` 100px radius → `var(--radius-pill)`.
+- Left `#999` (one neutral placeholder-dash color in `10-daybook.js:1292`) alone — not a
+  status color, no exact token match, not worth the risk for a rare empty-state cell.
+
+**Verified:** `check.bat` — 318/318, zero new AST findings (no classes added/removed).
+Screenshots in `redesign-shots/daybook/{375,768,1440}.png` — clean, serif numerals read
+well with the new font-display fallback, credit/debit colors already correct.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (follow-up: patched the Dashboard/Stock color-token gaps found during Girvi; no zip)
 
 Per Tanish's decision — patch the 2 shipped-pass gaps now, leave the rest (Settings,

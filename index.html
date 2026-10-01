@@ -225,8 +225,9 @@ body{
 .metric:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px);}
 .metric-label{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px;font-weight:600;}
 .metric-value{
-  font-family:'Cormorant Garamond',Georgia,serif;
-  font-size:26px;font-weight:600;color:var(--ink);line-height:1.1;
+  font-family:var(--font-display);
+  font-size:var(--text-2xl);font-weight:600;color:var(--ink);line-height:1.1;
+  font-variant-numeric:tabular-nums;
 }
 .metric-sub{font-size:11px;color:var(--text3);margin-top:6px;}
 
@@ -850,13 +851,13 @@ html.dev .dev-only{display:block!important;}
 .gl-body{padding:0 1.2rem 1.2rem;}
 .gl-entry{display:flex;justify-content:space-between;align-items:flex-start;padding:11px 12px;background:var(--surface);border-radius:10px;margin-bottom:7px;border:0.5px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.04);}
 .gl-entry-left{}
-.gl-entry-amt{font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;font-weight:700;}
+.gl-entry-amt{font-family:var(--font-display);font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;}
 .gl-entry-amt.credit{color:var(--success);}
 .gl-entry-amt.debit{color:var(--danger);}
-.gl-entry-meta{font-size:11px;color:var(--text3);margin-top:2px;}
-.db-party-tag{display:inline-block;margin-left:4px;padding:0 6px;border-radius:100px;background:var(--gold-bg);color:var(--gold-dark);font-size:10px;font-weight:600;}
-.gl-entry-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;text-transform:uppercase;letter-spacing:.04em;margin-top:4px;}
-.gl-entry-right{text-align:right;}
+.gl-entry-meta{font-size:var(--text-xs);color:var(--text3);margin-top:2px;}
+.db-party-tag{display:inline-block;margin-left:4px;padding:0 6px;border-radius:var(--radius-pill);background:var(--gold-bg);color:var(--gold-dark);font-size:10px;font-weight:600;}
+.gl-entry-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:var(--radius-pill);text-transform:uppercase;letter-spacing:.04em;margin-top:4px;}
+.gl-entry-right{text-align:right;font-variant-numeric:tabular-nums;}
 .gl-entry-date{font-size:12px;font-weight:600;color:var(--ink3);}
 .gl-entry-time{font-size:10px;color:var(--text3);}
 .gl-add-form{background:var(--gold-bg);border:0.5px solid rgba(201,168,76,.25);border-radius:12px;padding:14px;margin-top:12px;}
@@ -891,7 +892,7 @@ html.dev .dev-only{display:block!important;}
 .ged-card{background:var(--surface);border:0.5px solid var(--border2);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
 .ged-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ged-accent,var(--gold));}
 .ged-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:4px;}
-.ged-val{font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:700;color:var(--ink);line-height:1.1;}
+.ged-val{font-family:var(--font-display);font-size:var(--text-xl);font-weight:700;color:var(--ink);line-height:1.1;font-variant-numeric:tabular-nums;}
 .ged-sub{font-size:10px;color:var(--text3);margin-top:4px;}
 
 /* ── Advanced Search Bar (Girvi) ── */
@@ -1030,7 +1031,7 @@ html.dev .dev-only{display:block!important;}
 #dash-more summary::-webkit-details-marker{display:none;}
 #dash-more[open] summary span:last-child{transform:rotate(180deg);display:inline-block;}
 .fsn-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:4px;}
-.fsn-val{font-size:20px;font-weight:800;line-height:1.1;}
+.fsn-val{font-size:20px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;}
 .fsn-sub{font-size:10px;color:var(--text3);margin-top:4px;}
 .fsn-trend{font-size:11px;font-weight:700;margin-top:3px;}
 .trend-up{color:var(--success);}.trend-down{color:var(--danger);}.trend-flat{color:#94a3b8;}
