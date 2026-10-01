@@ -513,12 +513,12 @@ tr:hover td{background:var(--gold-bg);}
 .ord-card.urgent{border-left:3px solid var(--warning);background:linear-gradient(135deg,var(--warning-bg),var(--surface));}
 
 /* ── ORDER STATUS ────────────────────────────────── */
-.ord-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:100px;}
-.ord-st-new{background:#eef2f6;color:#3a4a5c;border:0.5px solid rgba(58,74,92,.25);}
-.ord-st-prog{background:#fff4e0;color:#a86a00;border:0.5px solid rgba(168,106,0,.25);}
-.ord-st-rdy{background:#e7f5ec;color:#1c6b3f;border:0.5px solid rgba(28,107,63,.25);}
-.ord-st-dlv{background:#e8eefc;color:#2a4d9b;border:0.5px solid rgba(42,77,155,.25);}
-.ord-st-cxl{background:#fdeaea;color:#9b2c2c;border:0.5px solid rgba(155,44,44,.25);}
+.ord-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:var(--radius-pill);}
+.ord-st-new{background:var(--info-bg);color:var(--info);border:0.5px solid rgba(26,74,138,.25);}
+.ord-st-prog{background:var(--warning-bg);color:var(--warning);border:0.5px solid rgba(138,78,12,.25);}
+.ord-st-rdy{background:var(--success-bg);color:var(--success);border:0.5px solid rgba(28,96,64,.25);}
+.ord-st-dlv{background:var(--ivory3);color:var(--text3);border:0.5px solid rgba(154,142,124,.25);}
+.ord-st-cxl{background:var(--danger-bg);color:var(--danger);border:0.5px solid rgba(168,49,42,.25);}
 .ord-new{background:var(--info-bg);color:var(--info);}
 .ord-progress{background:var(--warning-bg);color:var(--warning);}
 .ord-ready{background:var(--success-bg);color:var(--success);}
@@ -685,7 +685,7 @@ html.dev .dev-only{display:block!important;}
 .ord-ledger-row:last-child{border-bottom:none;}
 .ledger-amt{font-weight:600;color:var(--success);}
 .ledger-bal{color:var(--danger);font-weight:700;}
-.priority-urgent{background:#fff3cd;color:#856404;border:0.5px solid #ffc107;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;}
+.priority-urgent{background:var(--warning-bg);color:var(--warning);border:0.5px solid var(--warning);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;}
 .priority-vip{background:#f3e8ff;color:#6f3fa0;border:0.5px solid #c084fc;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;}
 .priority-normal{display:none;}
 @media print{

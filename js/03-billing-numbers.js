@@ -1622,7 +1622,7 @@ function renderOrders(){
   }).sort(function(a,b){return new Date(b.createdAt)-new Date(a.createdAt);});
   var listEl=document.getElementById('ord-list');
   if(!listEl)return;
-  if(!filtered.length){listEl.innerHTML='<div class="empty"><span class="empty-icon">&#128221;</span>No orders found</div>';return;}
+  if(!filtered.length){listEl.innerHTML='<div class="empty"><span class="empty-icon">&#128221;</span>No orders found — naya order yahan se banao</div>';return;}
   listEl.innerHTML='';
   filtered.forEach(function(o){
     var adv=ordAdvance(o);

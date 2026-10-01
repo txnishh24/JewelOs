@@ -55,6 +55,37 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 8/10: Orders; no zip)
+
+`renderOrders()` itself had no bright-hex problem — its metric-card accent gradients use
+soft pastel tints already in the same hue family as their base token (not generic SaaS
+defaults), so I left those alone rather than inventing a fix for something that wasn't
+actually broken.
+
+- **`.ord-status` raw-hex family** (the plan's flagged item): found that the ALREADY-
+  tokenized sibling family (`.ord-new`/`.ord-progress`/etc.) is dead code — zero
+  references anywhere — and the actually-live classes are `.ord-st-new/-prog/-rdy/-dlv/
+  -cxl`, which had the raw hex. Mapped those to tokens, but **not** by blindly copying the
+  dead family's scheme: both "new" and "delivered" happened to be blue in the live
+  version, and the dead family's mapping would have made them visually identical (a real
+  regression — you couldn't tell a brand-new order from a finished one at a glance).
+  Kept "new" → `var(--info)` and gave "delivered" the neutral ivory/text3 treatment
+  instead, matching how `.girvi-card.status-closed` already treats "finished" states.
+- `.priority-urgent` → `var(--warning-bg)`/`var(--warning)` per the Phase 1 plan (exact
+  item named in the token spec). `.priority-vip`'s purple stays literal, also per plan —
+  no token fits a one-off VIP color.
+- Added the approved bilingual empty-state copy at Orders' one empty state ("No orders
+  found — naya order yahan se banao").
+
+**Verified:** `check.bat` — 318/318, zero new AST findings. Confirmed the status-badge
+fix with a computed-style check (not just eyeballing) — `.ord-st-new` resolves to exactly
+`var(--info)` text on `var(--info-bg)`. Screenshots in `redesign-shots/orders/
+{375,768,1440}.png`.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 7/10: Reports; no zip)
 
 Edited both `renderReports()` (`js/03-billing-numbers.js:1080`) and the `patchReports`
