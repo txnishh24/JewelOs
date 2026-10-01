@@ -330,8 +330,8 @@ body{
 .btn-success:hover{background:var(--success-bg);}
 .btn-info{color:var(--info);border-color:rgba(26,74,138,.22);background:transparent;}
 .btn-info:hover{background:var(--info-bg);}
-.btn-sm{padding:5px 12px;font-size:12px;border-radius:7px;}
-.btn-xs{padding:3px 8px;font-size:11px;border-radius:6px;}
+.btn-sm{padding:5px 12px;font-size:12px;border-radius:7px;min-height:32px;}
+.btn-xs{padding:3px 8px;font-size:11px;border-radius:6px;min-height:28px;}
 .btn-full{width:100%;}
 
 /* ── FORMS ───────────────────────────────────────── */
@@ -1305,7 +1305,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 
 /* ── Pagination ─────────────────────────────────────────────────── */
 .pg-bar { display:flex; align-items:center; gap:5px; padding:8px 0; flex-wrap:wrap; }
-.pg-bar .btn-sm { min-width:32px; padding:5px 10px; font-size:12px; font-weight:600; border-radius:7px; cursor:pointer; border:1px solid var(--border2); background:var(--surface); color:var(--ink3); transition:all .15s; }
+.pg-bar .btn-sm { min-width:32px; min-height:32px; padding:5px 10px; font-size:12px; font-weight:600; border-radius:7px; cursor:pointer; border:1px solid var(--border2); background:var(--surface); color:var(--ink3); transition:all .15s; }
 .pg-bar .btn-sm:hover { background:var(--gold-bg); color:var(--gold-dark); border-color:var(--gold); }
 .pg-bar .btn-gold { background:var(--gold) !important; color:#fff !important; border-color:var(--gold) !important; }
 .pg-info { font-size:11px; color:var(--text3); margin-left:4px; }

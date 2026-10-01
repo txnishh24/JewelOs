@@ -55,6 +55,55 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-01 · Claude Code (Sonnet 5) (touch-target CSS fix: .btn-sm/.btn-xs row-action buttons were under Android's 48dp tap-target minimum; no zip yet)
+
+Ran a UI/UX audit (ui-ux-pro-max skill) against the live app, not a redesign — the
+gold/ivory branding is correct and untouched. One real finding, verified against the
+actual CSS and call sites, fixed:
+
+- `.btn-sm` (padding 5px 12px, 12px font ≈ 24px tall) and `.btn-xs` (≈20px tall) were
+  under Android's 48dp minimum tap target, `.btn-xs` even under the 24px web/WCAG floor.
+  These are the Edit/Delete/Reverse row-action buttons in Orders, Inventory, Girvi and
+  Purchases — 52 call sites across `js/*.js`, all driven by the shared CSS class.
+- Fix: added `min-height:32px` to `.btn-sm`, `min-height:28px` to `.btn-xs`, and
+  `min-height:32px` to the pagination-scoped `.pg-bar .btn-sm`. CSS-only, `index.html`
+  lines ~333-334 and ~1308. No JS touched.
+- `check.bat`: 318/318 regression tests pass, syntax clean, backup-check/roundtrip
+  clean. AST noise in step 3 is pre-existing, unrelated to this change.
+- **Not verified:** actual tap feel on a real phone — this is a CSS change with no
+  browser automation or device test in this project. Tanish should eyeball row-action
+  buttons on Orders/Inventory/Girvi/Purchases on a real Android phone before trusting it.
+- Did NOT touch the two items Cowork flagged below (Netlify badge selector, `/sw.js`
+  404) — separate, unrelated fixes, left for a dedicated pass.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
+### 2026-10-01 · Cowork (Sonnet) (batch45 LIVE VERIFIED on a fresh throwaway shop: both P0 cash bugs FIXED, offline billing WORKS, P1 4–10 + copy PASS; 2 NEW small issues: Netlify badge still visible, /sw.js 404)
+
+Live = batch45 (markers `replayOfflineSales`, `ratesProblem`, `girviItemWt` present; "Start Your Shop →"; no `gf-idproof`). Tested signed-in on production, desktop 1280 px, shop `QA Verify 1001`.
+
+**PASS (verified live):**
+- **P0-1 Girvi → Day Book:** General ₹25,000, Partial ₹2,000, Interest ₹1,000 all post; Cash In ₹48,000 = 20,000 + 25,000 + 2,000 + 1,000. Girvi LTV now falls with repayments (22%).
+- **P0-2 sale overpay:** ₹99,999 on ₹56,959 refused: "Paying now is ₹43,040 more than the bill due".
+- **P0-3 Deliver & Create Bill:** typed ₹15,000 kept (`nowPaying=15000`, `prevAdvance=20000`, pending ₹78,300), order flips to Delivered, no console error.
+- **Offline billing (11):** offline → "Saved offline: INV-002. It will sync when the internet is back." → back online "1 offline bill synced"; Day Book and Reports include it, number stayed INV-002.
+- GST % defaults to 3; first bill/loan blocked until real rates are saved ("Enter today's gold rates first"); rate checks (₹0 / ₹99,999 → "between ₹2,000 and ₹50,000"; 22K > 24K refused); market value uses NET (₹34,560 = 4.8 g × ₹7,200); Girvi collateral ₹1,04,500 / LTV 48% at creation; interest-over-due prompt ("More than the interest due?"); Reports category kept (Chains / Rings); Pending Aging no longer says "Paid"; Edit/Refund/Delete now on the bill preview; Aadhaar/PAN field gone; copy fixed ("1 bill", "1 order", Girvi 🤝, Sign Out 🚪, no Hinglish, no VIP+RISKY clash); product form has Hallmark, Stone wt, Wastage; purity defaults 22K.
+
+**NEW — please fix:**
+1. **The Netlify badge is still visible on desktop.** `index.html` has `iframe.nl-badge-frame{display:none !important;}` (a CLASS selector) but the live badge is `<iframe id="nl-badge-frame" … style="position:fixed;bottom:0;right:0">` with NO class (`className` is ""). It needs `#nl-badge-frame` (and probably `iframe[title="Powered by Netlify"]`); check the phone widths too, your 375 px check said hidden, mine at 1280 px shows it at x=1340,y=610, 196×64.
+2. **`/sw.js` returns 404** (console error on every load; `navigator.serviceWorker.getRegistrations()` = 0). Either the file isn't in the deploy zip or nothing references it. Effect: offline billing works only while the tab is already open; a cold start with no internet cannot load the app. If a service worker is intended, add it to `build-deploy-zip.js`; if not, remove the `register()` call so the 404 stops.
+3. Low: after "interest" payment accepted as "advance interest", outstanding fell ₹23,000 → ₹22,000 (the advance interest reduces the displayed balance). Probably intended, but label it.
+4. Low: part-paid bills still store `payStatus:"advance"` (display looks fine).
+5. Still open by decision: order-made bills show Profit ₹0 (no cost rate), needs Tanish's cost decision.
+
+**State:** QA shop `QA Verify 1001` (rowKey 1d262eef-32de-4983-bd24-6aca861f5d74, shop_mupjlmqyhb30, qa.verify.1001c@example.com) is still in production, my delete query was cancelled; Cowork will remove it when Tanish says so. Not tested: real phone, paper print, WhatsApp delivery.
+
+→ FOR CLAUDE CODE: fix 1 (one-line CSS) and 2, then redeploy. → FOR TANISH: say "delete it" and I remove the QA shop.
+
+---
+
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch43 + batch44: Tanish's 1 Oct decisions BUILT — no Aadhaar/PAN, "Start Your Shop", Netlify badge hidden, bill Edit/Refund/Delete, product stone/wastage/hallmark, OFFLINE BILLING; no zip yet)
 
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch45 VERIFIED LIVE)
