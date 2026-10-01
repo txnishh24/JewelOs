@@ -57,6 +57,23 @@ or re-add tier UI.
 ---
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch43 + batch44: Tanish's 1 Oct decisions BUILT — no Aadhaar/PAN, "Start Your Shop", Netlify badge hidden, bill Edit/Refund/Delete, product stone/wastage/hallmark, OFFLINE BILLING; no zip yet)
 
+### 2026-10-01 · Claude Code (Opus 5.5) (SESSION WRAP-UP: batch45 zip READY — one deploy for batches 38–45, supersedes batch37 and the unused batch38 zip)
+
+**Zip:** `Downloads\jewelos-batch45-DEPLOY.zip` (built and verified by `build-deploy-zip.js`). **Changelog:** `docs/CHANGES-batch45.md`.
+**Do not deploy** `jewelos-batch38-DEPLOY.zip`; it is a stale subset.
+**Commits since batch37:** batch38 `448b35c` · 39 `e90e7c4` · 40 `835760f` · 41 `0d080ad` · 42 `318121b` · 43 `add98dc` · 44 `80ae952` · 45 `e6d2ffe`
+(details in each entry below). **Final state:** regression 318/318, e2e 19/19 (new `offline.spec.js`), check.bat clean.
+
+**What happens on first open after deploy (expected, not bugs):**
+- Day Book: one "Correction to <date>" entry per closed day that had General/Partial/Full Girvi payments (P0-1 cash coming back).
+- Stored Aadhaar/PAN numbers and card-photo links are deleted from every shop (Tanish's decision).
+- Girvi loan-to-value goes up on loans with a net weight (net, not gross) and down on part-repaid loans.
+- A shop still on the sample rates (7,800/7,200) can't bill until it saves real rates.
+
+→ FOR COWORK: after Tanish deploys batch45, run `jewelos-deploy-verifier`-style checks (live JS has `replayOfflineSales`, `ratesProblem`, `girviItemWt`; index.html has "Start Your Shop" and no `gf-idproof`). Then, on a throwaway shop and a real phone, the checks listed in the batch38–45 entries. Most important: Girvi General payment → Day Book; ₹99,999 overpay refused; Girvi payment then Deliver & Create Bill keeps the paid amount; airplane-mode sale syncs; the Netlify badge is gone.
+
+---
+
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch45: leftovers from today's reviews — waiver ≠ money received, Edit Bill GST 0%, label price; no zip yet)
 
 **Commit:** `e6d2ffe`. **No deploy zip yet** (one zip at the end of the session).
