@@ -55,6 +55,38 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 9/10: Purchases; no zip)
+
+Real `<table>` throughout, good `.num` candidate as the plan expected:
+
+- `pbTh()` (the sortable-header helper, `js/09-purchases.js:276`) got an optional `align`
+  param so Gross Wt/Wastage/Total's headers right-align without touching its other
+  callers (billNo/date/supplier stay left, backward compatible). Applied `class="num"` to
+  the matching 5 data cells in `renderPurchaseList()`.
+- Same treatment for `pbSupplierLedgerHtml()`'s Bills/Total/Paid/Outstanding columns —
+  caught myself initially dropping the original bold-red emphasis on overdue supplier
+  balances when simplifying the conditional style; restored it (`.num` gives 600 weight,
+  the overdue case still gets an explicit 700 override, matching original intent).
+- **The outlier empty-state** (`js/09-purchases.js:1341`, the one raw inline-styled `<td>`
+  not on the shared pattern) is now `.empty`/`.empty-icon` like everywhere else, with new
+  bilingual copy — this was the last of the plan's 3 Hinglish empty-state targets
+  (Orders, Reports, Purchases all done now).
+- Left `pbWastageReportHtml()` alone — confirmed dead code (zero callers, matches its own
+  code comment "left defined but uncalled" since the wastage-report feature was pulled),
+  so its bright hex colors never actually render and aren't worth fixing.
+
+**Verified:** `check.bat` — 318/318, zero new AST findings. Screenshots in
+`redesign-shots/purchases/{375,768,1440}.png` — Supplier Ledger's columns align cleanly
+at 1440px with the overdue-red emphasis intact; at 375px the table scrolls horizontally
+within its own container, same pre-existing pattern every wide table in this app already
+uses (not a regression from this pass).
+
+**9 of 10 screens done.** Only Settings left.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 8/10: Orders; no zip)
 
 `renderOrders()` itself had no bright-hex problem — its metric-card accent gradients use

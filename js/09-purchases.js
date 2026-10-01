@@ -152,8 +152,8 @@ function renderPurchases(){
     '<div class="tbl-wrap"><table id="pb-table">'+
       '<thead><tr>'+
         pbTh('billNo','Bill #')+pbTh('date','Date')+pbTh('supplier','Supplier')+
-        '<th>Invoice #</th><th>Type</th>'+pbTh('grossWt','Gross Wt')+pbTh('wastagePct','Wastage')+pbTh('totalAmount','Total')+
-        '<th>Paid</th><th>Pending</th><th>Status</th><th>Actions</th>'+
+        '<th>Invoice #</th><th>Type</th>'+pbTh('grossWt','Gross Wt','right')+pbTh('wastagePct','Wastage','right')+pbTh('totalAmount','Total','right')+
+        '<th style="text-align:right;">Paid</th><th style="text-align:right;">Pending</th><th>Status</th><th>Actions</th>'+
       '</tr></thead>'+
       '<tbody id="pb-body"></tbody>'+
     '</table>'+
@@ -180,15 +180,15 @@ function pbSupplierLedgerHtml(){
   var body = rows.map(function(r){
     return '<tr>'+
       '<td>'+escHtml(r.name)+'</td>'+
-      '<td>'+r.bills+'</td>'+
-      '<td>'+fmt(r.total)+'</td>'+
-      '<td>'+fmt(r.paid)+'</td>'+
-      '<td style="'+(r.pending>0?'color:var(--danger,#c0392b);font-weight:700;':'')+'">'+fmt(r.pending)+'</td>'+
+      '<td class="num">'+r.bills+'</td>'+
+      '<td class="num">'+fmt(r.total)+'</td>'+
+      '<td class="num">'+fmt(r.paid)+'</td>'+
+      '<td class="num" style="'+(r.pending>0?'color:var(--danger,#c0392b);font-weight:700;':'')+'">'+fmt(r.pending)+'</td>'+
     '</tr>';
   }).join('');
   return '<div class="card">'+
     '<div class="card-title">Supplier Ledger <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">What you owe each supplier, across all their bills</span></div>'+
-    '<div class="tbl-wrap"><table><thead><tr><th>Supplier</th><th>Bills</th><th>Total</th><th>Paid</th><th>Outstanding</th></tr></thead>'+
+    '<div class="tbl-wrap"><table><thead><tr><th>Supplier</th><th style="text-align:right;">Bills</th><th style="text-align:right;">Total</th><th style="text-align:right;">Paid</th><th style="text-align:right;">Outstanding</th></tr></thead>'+
     '<tbody>'+body+'</tbody></table></div></div>';
 }
 
@@ -273,9 +273,9 @@ function pbSetCfg(key, val){
   renderPurchases();
 }
 
-function pbTh(field, label){
+function pbTh(field, label, align){
   var arrow = pbUI.sortBy === field ? (pbUI.sortDir === 'asc' ? ' \u25b2' : ' \u25bc') : '';
-  return '<th style="cursor:pointer;" onclick="pbSort(\''+field+'\')">'+label+arrow+'</th>';
+  return '<th style="cursor:pointer;'+(align==='right'?'text-align:right;':'')+'" onclick="pbSort(\''+field+'\')">'+label+arrow+'</th>';
 }
 function pbSort(field){
   if(pbUI.sortBy === field) pbUI.sortDir = pbUI.sortDir === 'asc' ? 'desc' : 'asc';
@@ -1338,7 +1338,7 @@ function renderPurchaseList(){
   var body = document.getElementById('pb-body');
   if(!body) return;
   if(!pageRows.length){
-    body.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text3);padding:20px;">No purchase bills yet</td></tr>';
+    body.innerHTML = '<tr><td colspan="12"><div class="empty"><span class="empty-icon">&#128230;</span>No purchase bills yet — pehla purchase bill banao</div></td></tr>';
   } else {
     body.innerHTML = pageRows.map(function(b){
       var statusColor = b.paymentStatus === 'Paid' ? 'var(--success)' : (b.paymentStatus === 'Partial' ? 'var(--warning)' : 'var(--danger,#c0392b)');
@@ -1348,12 +1348,12 @@ function renderPurchaseList(){
         '<td>'+escHtml(b.supplier)+'</td>'+
         '<td>'+escHtml(b.supplierInvoiceNo||'-')+'</td>'+
         '<td>'+escHtml(b.purchaseType)+'</td>'+
-        '<td>'+fmtW(b.grossWt)+'</td>'+
+        '<td class="num">'+fmtW(b.grossWt)+'</td>'+
         // Blank, not 0%, for bills entered before wastage was recorded.
-        '<td>'+((b.wastagePct===null||b.wastagePct===undefined)?'—':(parseFloat(b.wastagePct).toFixed(2)+'%'))+'</td>'+
-        '<td>'+fmt(b.totalAmount)+'</td>'+
-        '<td>'+fmt(b.amountPaid)+'</td>'+
-        '<td>'+fmt(b.pendingAmount)+'</td>'+
+        '<td class="num">'+((b.wastagePct===null||b.wastagePct===undefined)?'—':(parseFloat(b.wastagePct).toFixed(2)+'%'))+'</td>'+
+        '<td class="num">'+fmt(b.totalAmount)+'</td>'+
+        '<td class="num">'+fmt(b.amountPaid)+'</td>'+
+        '<td class="num">'+fmt(b.pendingAmount)+'</td>'+
         '<td><span style="color:'+statusColor+';font-weight:700;">'+b.paymentStatus+'</span></td>'+
         '<td style="white-space:nowrap;">'+
           '<button class="btn btn-sm" onclick="pbToggleForm(\''+b.id+'\')" title="Edit">\u270f\ufe0f</button> '+
