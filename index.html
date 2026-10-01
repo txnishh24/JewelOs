@@ -1311,6 +1311,9 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 .pg-info { font-size:11px; color:var(--text3); margin-left:4px; }
 
 
+/* Tanish 1 Oct: Netlify's "Powered by Netlify" badge (an iframe its hud script injects) covered the
+   bottom nav and the PIN screen's Forgot PIN on phones. */
+iframe.nl-badge-frame{display:none !important;}
 </style>
 </head>
 <body>
@@ -1395,7 +1398,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
       <div class="auth-field"><label>Password</label><input id="signup-password" type="password" placeholder="Min 8 characters" autocomplete="new-password"></div>
       <div class="auth-field"><label>Shop Name</label><input id="signup-shop" type="text" placeholder="e.g. Sri Sai Jewellers"></div>
       <div class="auth-field"><label>City</label><input id="signup-city" type="text" placeholder="e.g. Mumbai"></div>
-      <button class="auth-btn" onclick="saasSignup()">Create Free Account →</button>
+      <button class="auth-btn" onclick="saasSignup()">Start Your Shop →</button>
       <div class="auth-err" id="auth-signup-err"></div>
       <div class="auth-link" style="font-size:11px;color:var(--text3);">No card needed to sign up</div>
       <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:8px;line-height:1.6;">
@@ -1683,11 +1686,14 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
         <div class="fg"><label>Category</label><select id="f-cat"><option>Rings</option><option>Necklaces / Haar</option><option>Earrings</option><option>Jhumkas</option><option>Bangles</option><option>Kankanalu</option><option>Bracelets</option><option>Anklets / Payal</option><option>Pendants</option><option>Chains</option><option>Mangalsutras</option><option>Maang Tikka</option><option>Nose Ring / Nath</option><option>Armlet / Bajuband</option><option>Waist Belt / Kamarbandh</option><option>Jadau</option><option>Other</option></select></div>
         <div class="fg"><label>Purity</label><select id="f-purity"></select></div>
         <div class="fg"><label>HUID Number</label><input id="f-huid" placeholder="e.g. ABC123456" maxlength="20" style="text-transform:uppercase"/></div>
+        <div class="fg"><label>Hallmark Centre <span style="font-size:10px;color:var(--text3)">(optional)</span></label><input id="f-hallmark" placeholder="e.g. BIS centre name / code"/></div>
         <div class="fg"><label>SKU / Item Code</label><input id="f-sku" placeholder="Auto if empty"/></div>
         <div class="fg"><label>Gross Weight (g)</label><div class="isuf"><input id="f-wt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
         <div class="fg"><label>Net Weight (g) <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-netwt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
+        <div class="fg"><label>Stone Weight (g) <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-stonewt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
         <div class="fg"><label>Purchase Rate ₹/g <span style="font-size:10px;color:var(--text3)">(cost price)</span></label><div class="isuf"><input id="f-costrate" type="number" inputmode="decimal" placeholder="Rate you paid"/><span class="suf">₹/g</span></div></div>
         <div class="fg"><label>Making Charge ₹/g <span style="font-size:10px;color:var(--text3)">(per gram MC)</span></label><div class="isuf"><input id="f-mcrate" type="number" inputmode="decimal" placeholder="0"/><span class="suf">₹/g</span></div></div>
+        <div class="fg"><label>Wastage / VA % <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-wastage" type="number" inputmode="decimal" placeholder="0" step="0.1"/><span class="suf">%</span></div></div>
         <div class="fg"><label>Photo / Product URL</label><input id="f-photo" placeholder="Paste image link" type="url"/></div>
         <div class="fg"><label>Notes</label><input id="f-notes" placeholder="Optional"/></div>
       </div>
@@ -2216,11 +2222,6 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
         <input id="gf-addr" type="text" placeholder="Optional"
           style="width:100%;box-sizing:border-box;padding:10px 13px;border-radius:11px;border:1.5px solid var(--border-gold);background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;outline:none;" onfocus="this.style.borderColor='var(--gold-dark)'" onblur="this.style.borderColor='var(--border-gold)'">
       </div>
-      <div style="margin-bottom:4px;">
-        <label style="display:block;font-weight:700;font-size:12px;color:var(--ink);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;">Aadhaar / PAN</label>
-        <input id="gf-idproof" type="text" placeholder="Optional"
-          style="width:100%;box-sizing:border-box;padding:10px 13px;border-radius:11px;border:1.5px solid #C9A84C;background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;text-transform:uppercase;outline:none;" onfocus="this.style.borderColor='var(--gold-dark)'" onblur="this.style.borderColor='var(--border-gold)'">
-      </div>
     </div>
 
     <!-- STEP 2: Items (multi-item) -->
@@ -2407,7 +2408,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
       <div class="ge-section">Customer Information</div>
       <div class="ge-row"><div class="ge-fg"><label>Customer Name *</label><input id="ge-cust" placeholder="Full name"/></div><div class="ge-fg"><label>Mobile *</label><input id="ge-phone" type="tel" placeholder="10-digit"/></div></div>
       <div class="ge-row full"><div class="ge-fg"><label>Address</label><input id="ge-addr" placeholder="Street, City"/></div></div>
-      <div class="ge-row"><div class="ge-fg"><label>Aadhaar / PAN</label><input id="ge-idproof" placeholder="XXXX XXXX XXXX" style="text-transform:uppercase"/></div><div class="ge-fg"><label>Risk Level</label><select id="ge-risk"><option value="low">🟢 Low</option><option value="medium" selected>🟡 Medium</option><option value="high">🔴 High</option></select></div></div>
+      <div class="ge-row"><div class="ge-fg"><label>Risk Level</label><select id="ge-risk"><option value="low">🟢 Low</option><option value="medium" selected>🟡 Medium</option><option value="high">🔴 High</option></select></div></div>
       <div class="ge-row full"><div class="ge-fg"><label>Staff / Agent</label><input id="ge-staff" placeholder="Staff name handling this loan"/></div></div>
       <div class="ge-section" style="margin-top:.8rem;">Remarks</div>
       <div class="ge-row full"><div class="ge-fg"><textarea id="ge-remarks" rows="3" placeholder="Condition of items, witness name, any special notes…"></textarea></div></div>
@@ -2433,9 +2434,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 
     <!-- TAB: Documents -->
     <div class="ge-tab-panel" id="ge-panel-docs">
-      <div class="ge-section">Aadhaar / KYC Docs</div>
-      <div class="doc-grid" id="ge-docs-kyc"></div>
-      <div class="ge-section" style="margin-top:1rem;">Ornament Photos</div>
+      <div class="ge-section">Ornament Photos</div>
       <div class="doc-grid" id="ge-docs-ornament"></div>
       <div class="ge-section" style="margin-top:1rem;">Other (Signature, Receipt)</div>
       <div class="doc-grid" id="ge-docs-other"></div>
@@ -2954,6 +2953,12 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
         <button class="btn btn-info btn-full" onclick="window.print()">&#128424; Print Bill</button>
         <button class="btn btn-full" onclick="closeModal()">Close</button>
       </div>
+      <!-- QA 1 Oct P2: these used to exist only inside the customer popup. -->
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap" class="no-print">
+        <button class="btn btn-sm" style="flex:1;background:var(--info);color:#fff;" onclick="invoiceBillAction(openEditBill)">&#9998; Edit</button>
+        <button class="btn btn-sm" style="flex:1;background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning);" onclick="invoiceBillAction(openRefundModal)">&#128260; Refund</button>
+        <button class="btn btn-sm btn-danger" style="flex:1;" onclick="invoiceBillAction(deleteSale)">&#128465; Delete</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3001,9 +3006,16 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
         <div class="fg"><label>Net Weight (g)</label>
           <div class="isuf"><input id="ep-netwt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div>
         </div>
+        <div class="fg"><label>Stone Weight (g) <span style="font-size:10px;color:var(--text3)">(optional)</span></label>
+          <div class="isuf"><input id="ep-stonewt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div>
+        </div>
         <div class="fg"><label>Making Charge ₹/g <span style="font-size:10px;color:var(--text3)">(per gram MC)</span></label>
           <div class="isuf"><input id="ep-mcrate" type="number" inputmode="decimal" placeholder="0"/><span class="suf">₹/g</span></div>
         </div>
+        <div class="fg"><label>Wastage / VA % <span style="font-size:10px;color:var(--text3)">(optional)</span></label>
+          <div class="isuf"><input id="ep-wastage" type="number" inputmode="decimal" placeholder="0" step="0.1"/><span class="suf">%</span></div>
+        </div>
+        <div class="fg"><label>Hallmark Centre <span style="font-size:10px;color:var(--text3)">(optional)</span></label><input id="ep-hallmark" placeholder="e.g. BIS centre name / code"/></div>
         <div class="fg"><label>Photo / Product URL</label><input id="ep-photo" type="url" placeholder="Paste image link"/></div>
         <div class="fg"><label>Notes</label><input id="ep-notes" placeholder="Optional"/></div>
       </div>

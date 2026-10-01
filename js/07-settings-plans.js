@@ -406,7 +406,7 @@ function openGirviForm(editId, prefill){
   var title = document.getElementById('girvi-modal-title');
 
   // Reset all fields
-  ['gf-cust','gf-phone','gf-addr','gf-idproof',
+  ['gf-cust','gf-phone','gf-addr',
    'gf-principal','gf-duration','gf-notes','gf-financer-name','gf-financer-rate'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.value='';
   });
@@ -432,7 +432,6 @@ function openGirviForm(editId, prefill){
     document.getElementById('gf-phone').value     = g.phone||'';
     document.getElementById('gf-risk').value      = g.risk||'medium';
     document.getElementById('gf-addr').value      = g.address||'';
-    document.getElementById('gf-idproof').value   = g.idProof||'';
     // Load items array (multi-item) or wrap legacy single item
     GF_ITEMS = Array.isArray(g.items)&&g.items.length ? g.items.map(function(it){ return {
         type:it.type||'Ring',metal:it.metal||'gold',purity:it.purity||'22K',
@@ -697,7 +696,6 @@ function saveGirviEntry(_ltvConfirmed){
     g.ledger.push({type:'edit',note:'Entry edited',ts:new Date().toISOString()});
     g.customer=cust; g.phone=phone; g.risk=document.getElementById('gf-risk').value;
     g.address=(document.getElementById('gf-addr').value||'').trim();
-    g.idProof=(document.getElementById('gf-idproof').value||'').trim().toUpperCase();
     g.items=_si.map(function(it){return {type:it.type,metal:it.metal,purity:it.purity,
       weight:parseFloat(it.grossWt)||0,netWt:parseFloat(it.netWt)||0,qty:parseInt(it.qty)||1,desc:it.desc};});
     g.item=g.items[0]; // legacy compat
@@ -735,7 +733,6 @@ function saveGirviEntry(_ltvConfirmed){
     createdAt:new Date().toISOString(),
     customer:cust, phone:phone, risk:document.getElementById('gf-risk').value,
     address:(document.getElementById('gf-addr').value||'').trim(),
-    idProof:(document.getElementById('gf-idproof').value||'').trim().toUpperCase(),
     items:_si.map(function(it){return {type:it.type,metal:it.metal,purity:it.purity,
       weight:parseFloat(it.grossWt)||0,netWt:parseFloat(it.netWt)||0,qty:parseInt(it.qty)||1,desc:it.desc};}),
     item:(function(){ var fi=_si[0];
@@ -1282,7 +1279,6 @@ function openGirviDetail(gid){
         '<div style="font-size:15px;font-weight:700;">'+escHtml(g.customer)+'</div>'+
         '<div style="font-size:12px;color:var(--text3);">📞 '+escHtml(g.phone)+'</div>'+
         (g.address?'<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+escHtml(g.address)+'</div>':'')+
-        (g.idProof?'<div style="font-size:11px;color:var(--text3);">ID: '+escHtml(g.idProof)+'</div>':'')+
       '</div>'+
       (function(){
         var _its=_allIt;

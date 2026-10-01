@@ -342,7 +342,7 @@ function renderDash(){
     ?rec.map(function(s){
       var t=calcSaleTotals(s),p=calcSaleProfit(s);
       var wt=(s.items||[]).reduce(function(a,i){return a+i.weight*(i.qty||1);},0);
-      return '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">'+
+      return '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer;" onclick="showSaleInvoice(\''+jsAttrEsc(s.id)+'\')">'+
         '<div style="display:flex;justify-content:space-between;">'+
           '<div><div style="font-weight:600;">'+escHtml(s.customer)+'</div>'+
           '<div style="font-size:11px;color:var(--text3);">'+(s.items||[]).map(function(i){return escHtml(i.name);}).join(', ')+' &bull; '+fmtW(wt)+'</div></div>'+
@@ -834,7 +834,7 @@ function loadDemoData(){
   // Demo girvi
   var demoGirvi = [
     {id:'demo-g1',_seq:9001,grvNo:'GRV-D001',createdAt:twoMonth,customer:'Demo Customer 4',phone:'0000000004',
-     risk:'medium',address:'Sample address',idProof:'SAMPLE-ID-001',
+     risk:'medium',address:'Sample address',
      item:{metal:'gold',purity:'22K',weight:28,qty:1,desc:'22K Gold Bangles (2 pieces)'},
      principal:150000,interestRate:2,rateType:'monthly',compound:false,startDate:twoMonth,
      duration:3,notes:'Sample note',status:'overdue',payments:[
@@ -842,7 +842,7 @@ function loadDemoData(){
      ],
      ledger:[{type:'created',note:'Girvi created \u20b9150000',ts:twoMonth+'T09:00:00Z'}]},
     {id:'demo-g2',_seq:9002,grvNo:'GRV-D002',createdAt:lastMonth,customer:'Demo Customer 5',phone:'0000000005',
-     risk:'low',address:'Sample address',idProof:'SAMPLE-ID-002',
+     risk:'low',address:'Sample address',
      item:{metal:'gold',purity:'22K',weight:15,qty:1,desc:'22K Gold Chain'},
      principal:80000,interestRate:2,rateType:'monthly',compound:false,startDate:lastMonth,
      duration:6,notes:'',status:'active',payments:[],

@@ -593,6 +593,14 @@ function normaliseData(){
     if(!S.rates.g18 && S.rates.gold18) S.rates.g18 = S.rates.gold18;
     if(!S.rates.sil && S.rates.silver) S.rates.sil = S.rates.silver;
   }
+  // Tanish 1 Oct: JewelOS does not store Aadhaar/PAN. Remove what older
+  // versions saved (the number, and Aadhaar/PAN card photo links).
+  (S.girvi||[]).forEach(function(g){
+    delete g.idProof;
+    if(g.documents){ delete g.documents.aadhaar_front; delete g.documents.aadhaar_back; delete g.documents.pan_card; }
+  });
+  (S.customers||[]).forEach(function(c){ delete c.idProof; });
+
   // ── GIRVI ITEMS NORMALISATION ────────────────────────────────
   // Wrap legacy single g.item into g.items[] array for multi-item compat
   (S.girvi||[]).forEach(function(g){

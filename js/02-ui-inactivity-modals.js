@@ -473,7 +473,11 @@ function addProduct(){
   if(!huidCheck.ok){ toast('\u26a0 '+huidCheck.msg); document.getElementById('f-huid').focus(); return; }
   var neEl=document.getElementById('f-netwt');
   var netwt=neEl?parseFloat(neEl.value)||0:0;
-  if(netwt>0 && netwt>wt){toast('Net weight cannot be more than gross weight'); if(neEl) neEl.focus(); return;} // QA 30 Sep: 5 g gross / 8 g net was accepted
+  if(netwt>0 && netwt>wt){toast('Net weight cannot be more than gross weight'); if(neEl) neEl.focus(); return;}
+  var stoneWt=parseFloat((document.getElementById('f-stonewt')||{value:0}).value)||0;
+  var wastagePct=parseFloat((document.getElementById('f-wastage')||{value:0}).value)||0;
+  var _xp=productExtrasProblem(wt, stoneWt, wastagePct); if(_xp){ toast('\u26a0 '+_xp); return; }
+  if(!netwt && stoneWt>0) netwt=Math.round((wt-stoneWt)*1000)/1000; // net = gross - stones when not typed // QA 30 Sep: 5 g gross / 8 g net was accepted
   var sku=document.getElementById('f-sku').value.trim()||(UI.metal==='gold'?'GLD':'SLV')+'-'+String(S.nextId).padStart(3,'0');
   // Foundation audit §6: block a duplicate SKU or HUID before creating
   // the product, instead of silently accepting a second item under the
@@ -496,13 +500,15 @@ function addProduct(){
     netWeight:netwt,
     costRate: parseFloat((document.getElementById('f-costrate')||{value:0}).value)||0,
     mcRate:   parseFloat((document.getElementById('f-mcrate')||{value:0}).value)||0,
+    stoneWt: stoneWt, wastagePct: wastagePct,
+    hallmarkCentre: ((document.getElementById('f-hallmark')||{value:''}).value||'').trim(),
     unitWeight: wt, unitNetWeight: netwt,
     making:0,diamond:0,qty:1,alert:1,_origQty:1,
     photo:document.getElementById('f-photo').value.trim(),
     notes:document.getElementById('f-notes').value.trim(),
     status:'available'
   });
-  ['f-name','f-huid','f-sku','f-wt','f-netwt','f-costrate','f-mcrate','f-photo','f-notes'].forEach(function(id){
+  ['f-name','f-huid','f-sku','f-wt','f-netwt','f-costrate','f-mcrate','f-photo','f-notes','f-stonewt','f-wastage','f-hallmark'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.value='';
   });
   logStockMovement(newProdId, 'opening_stock', {newStatus:'available', qtyChange:1, reason:'Manually added to inventory'});
@@ -1068,7 +1074,7 @@ function updateSum(){
       gv+=getRate(p.metal,p.purity)*netWt;
       // Must match buildSaleRecord()'s stock branch exactly, or this preview
       // disagrees with the total actually locked onto the bill.
-      mc+=(parseFloat(p.mcRate)||0)*(parseFloat(p.weight)||0);
+      mc+=productMakingAmount(p, netWt);
     });
   }
   mc+=(parseFloat(document.getElementById('s-making').value)||0);
@@ -1217,7 +1223,7 @@ function buildSaleObj(){
         // charged on gross weight like every other making charge. Stored as a
         // value, not a rate, so editing the product later cannot restate a
         // bill that was already printed and paid.
-        making:(parseFloat(p.mcRate)||0)*(parseFloat(p.weight)||0),
+        making:productMakingAmount(p, netWt),
         diamond:0,
         huid:p.huid||'',
         lockedRate:lockedRate

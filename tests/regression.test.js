@@ -3063,6 +3063,42 @@ test('QA 1 Oct P2: one big unpaid first bill is not VIP; a repeat customer in go
   assert(tags.indexOf('vip') !== -1, 'two paid bills over 1L should be VIP: ' + tags);
 });
 
+test('Tanish 1 Oct: Aadhaar/PAN numbers and card photos are removed on load and never stored again', function(){
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', principal:1000, startDate:'2026-09-01', idProof:'1234 5678 9012',
+    documents:{ aadhaar_front:'https://x/a.jpg', pan_card:'https://x/p.jpg', ornament_1:'https://x/o.jpg' } }];
+  a.S.customers = [{ id:'c1', name:'A', idProof:'ABCDE1234F' }];
+  a.normaliseData();
+  var g = a.S.girvi[0];
+  assert(!('idProof' in g) && !g.documents.aadhaar_front && !g.documents.pan_card, 'girvi still holds Aadhaar/PAN');
+  assert(g.documents.ornament_1 === 'https://x/o.jpg', 'other photos must stay');
+  assert(!('idProof' in a.S.customers[0]), 'customer still holds Aadhaar/PAN');
+  var c = a.findOrCreateGirviCustomer('B', '9876543210', { addr:'x', idProof:'1234' });
+  assert(!('idProof' in c), 'new customer record must not store it');
+});
+
+test('Tanish 1 Oct: wastage % adds to a stock bill, and the preview and locked bill agree', function(){
+  var a = loadApp();
+  a.S.rates.g22 = 10000;
+  var p = { id:'p1', name:'Chain', metal:'gold', purity:'22K', weight:10, netWeight:9, mcRate:100, wastagePct:8, qty:1, status:'available', sku:'GLD-1' };
+  // 100/g x 10 g gross + 8% of (9 g x 10,000)
+  assert(a.productMakingAmount(p, 9) === 1000 + 7200, 'making+wastage: ' + a.productMakingAmount(p, 9));
+  delete p.wastagePct;
+  assert(a.productMakingAmount(p, 9) === 1000, 'no wastage: unchanged making');
+  assert(a.productExtrasProblem(10, 10, 0), 'stone = gross refused');
+  assert(a.productExtrasProblem(10, 1, 31), 'wastage over 30% refused');
+  assert(a.productExtrasProblem(10, 1, 8) === '' && a.productExtrasProblem(10, 0, 0) === '', 'normal values pass');
+});
+
+test('Bill preview: Edit / Refund / Delete act on the bill that was showing, after closing it', function(){
+  var a = loadApp();
+  a.CURRENT_SALE_FOR_PDF = { id:'s9' };
+  var got = null;
+  a.invoiceBillAction(function(id){ got = id; });
+  assert(got === 's9', 'action got ' + got);
+  assert(a.CURRENT_SALE_FOR_PDF === null, 'preview should be closed first');
+});
+
 test('girvi type:penalty with mode:Cash posts no line — it is a charge, not cash received', function(){
   var a = loadApp();
   a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,

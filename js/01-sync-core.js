@@ -807,6 +807,19 @@ function mktVal(p){
   var g=parseFloat(p.weight)||0, n=parseFloat(p.netWeight)||0;
   return (n>0 && n<g ? n : g)*getRate(p.metal,p.purity);
 }
+// Making on a stock item: the product's Making Charge ₹/g on gross weight
+// (unchanged), plus wastage / VA % of the gold value of the net weight sold
+// (Tanish 1 Oct). Used by the sale preview AND the locked bill, so they agree.
+function productMakingAmount(p, netWt){
+  return (parseFloat(p.mcRate)||0)*(parseFloat(p.weight)||0)
+       + (parseFloat(p.wastagePct)||0)/100*(netWt||0)*getRate(p.metal,p.purity);
+}
+// Product form checks for the new fields; returns words, or ''.
+function productExtrasProblem(grossWt, stoneWt, wastagePct){
+  if(stoneWt < 0 || stoneWt >= grossWt && stoneWt > 0) return 'Stone weight must be less than gross weight';
+  if(wastagePct < 0 || wastagePct > 30) return 'Wastage must be between 0% and 30%';
+  return '';
+}
 // Same rule for a Girvi item (QA 1 Oct P1-5: collateral was valued on gross,
 // so LTV looked safer than it is). Saved items use weight, form items grossWt.
 function girviItemWt(it){

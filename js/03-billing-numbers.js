@@ -44,6 +44,14 @@ function openInvoiceModal(html, initialBillType){
     setBillType(bt);
   }, 80);
 }
+// Edit / Refund / Delete from the bill preview: close the preview first so the
+// next modal is not stacked under it, then act on the bill that was showing.
+function invoiceBillAction(fn){
+  var sale = CURRENT_SALE_FOR_PDF;
+  if(!sale || !sale.id) return;
+  closeModal();
+  fn(sale.id);
+}
 function closeModal(){
   document.getElementById('invoice-modal').classList.remove('open');
   CURRENT_SALE_FOR_PDF = null;
@@ -166,7 +174,6 @@ function findOrCreateGirviCustomer(name, phone, extra){
     if(phone && !existing.phone) existing.phone = phone;
     if(extra){
       if(extra.addr && !existing.addr) existing.addr = extra.addr;
-      if(extra.idProof && !existing.idProof) existing.idProof = extra.idProof;
     }
     existing.lastSeen = new Date().toISOString();
     return existing;
@@ -174,7 +181,7 @@ function findOrCreateGirviCustomer(name, phone, extra){
   var rec = {
     id: (typeof crypto.randomUUID==='function') ? crypto.randomUUID() : (Date.now().toString(36)+Math.random().toString(36).slice(2)),
     name: name||'', phone: phone||'',
-    addr: (extra&&extra.addr)||'', idProof:(extra&&extra.idProof)||'',
+    addr: (extra&&extra.addr)||'',
     gstin:'', email:'', notes:'',
     createdAt: new Date().toISOString(), lastSeen: new Date().toISOString()
   };
@@ -185,7 +192,7 @@ function findOrCreateGirviCustomer(name, phone, extra){
 // Call this whenever a Girvi entry is created or its name/phone is edited.
 function linkGirviToCustomer(g){
   if(!g) return null;
-  var cust = findOrCreateGirviCustomer(g.customer, g.phone, {addr:g.address, idProof:g.idProof});
+  var cust = findOrCreateGirviCustomer(g.customer, g.phone, {addr:g.address});
   g.customerId = cust.id;
   return cust;
 }
@@ -777,6 +784,9 @@ function editProd(id){
   }
   document.getElementById('ep-netwt').value=p.netWeight||'';
   document.getElementById('ep-mcrate').value=p.mcRate||'';
+  document.getElementById('ep-stonewt').value=p.stoneWt||'';
+  document.getElementById('ep-wastage').value=p.wastagePct||'';
+  document.getElementById('ep-hallmark').value=p.hallmarkCentre||'';
   document.getElementById('ep-photo').value=p.photo||'';
   document.getElementById('ep-notes').value=p.notes||'';
   var purList=p.metal==='gold'?['24K','22K','18K','14K','Gold Plated']:['999 Pure','925 Sterling','800','Silver Plated'];
@@ -821,6 +831,9 @@ function saveEditProd(){
   if(epMcRate < 0){ toast('\u26a0 Making charge cannot be negative'); document.getElementById('ep-mcrate').focus(); return; }
 
   var _epNet=parseFloat(document.getElementById('ep-netwt').value)||0;
+  var _epStone=parseFloat((document.getElementById('ep-stonewt')||{value:0}).value)||0;
+  var _epWast=parseFloat((document.getElementById('ep-wastage')||{value:0}).value)||0;
+  var _epXp=productExtrasProblem(wt, _epStone, _epWast); if(_epXp){ toast('\u26a0 '+_epXp); return; }
   if(_epNet>0 && _epNet>wt*Math.max(1,parseInt(p.qty,10)||1)+1e-9){ toast('Net weight cannot be more than gross weight'); document.getElementById('ep-netwt').focus(); return; } // QA 30 Sep
   var _snap = JSON.parse(JSON.stringify(p));
   p.name=name;
@@ -839,6 +852,9 @@ function saveEditProd(){
   p.weight = Math.round(wt*qtyNow*1000)/1000;
   p.netWeight=parseFloat(document.getElementById('ep-netwt').value)||0;
   p.mcRate=epMcRate;
+  p.stoneWt=_epStone; p.wastagePct=_epWast;
+  p.hallmarkCentre=((document.getElementById('ep-hallmark')||{value:''}).value||'').trim();
+  if(!p.netWeight && _epStone>0) p.netWeight=Math.round((wt-_epStone)*qtyNow*1000)/1000; // net = gross - stones when not typed
   p.photo=photoVal;
   p.notes=document.getElementById('ep-notes').value.trim();
 

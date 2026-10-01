@@ -239,7 +239,6 @@ var _v20_renderGirvi_installed = false;
         (g.phone||'').replace(/\D/g,'').indexOf(search.replace(/\D/g,''))>-1||
         (g.grvNo||'').toLowerCase().indexOf(search)>-1||
         (g.address||'').toLowerCase().indexOf(search)>-1||
-        (g.idProof||'').toLowerCase().indexOf(search)>-1||
         ((g.item&&g.item.desc)||'').toLowerCase().indexOf(search)>-1||
         ((g.item&&g.item.type)||'').toLowerCase().indexOf(search)>-1||
         (g.items||[]).some(function(it){
@@ -394,7 +393,6 @@ function openGirviEditModal(gid){
   document.getElementById('ge-cust').value=g.customer||'';
   document.getElementById('ge-phone').value=g.phone||'';
   document.getElementById('ge-addr').value=g.address||'';
-  document.getElementById('ge-idproof').value=g.idProof||'';
   document.getElementById('ge-risk').value=g.risk||'medium';
   document.getElementById('ge-staff').value=g.staff||'';
   document.getElementById('ge-remarks').value=g.notes||'';
@@ -569,7 +567,6 @@ function geRenderDocs(g){
       c.appendChild(slot);
     });
   }
-  renderSlots('ge-docs-kyc',['aadhaar_front','aadhaar_back','pan_card'],['Aadhaar Front','Aadhaar Back','PAN Card']);
   renderSlots('ge-docs-ornament',['ornament_1','ornament_2','ornament_3'],['Item Photo 1','Item Photo 2','Item Photo 3']);
   renderSlots('ge-docs-other',['signature','customer_photo','receipt'],['Signature','Customer Photo','Receipt']);
 }
@@ -640,7 +637,6 @@ function saveGirviEdit(){
   chk('Principal',g.principal,principal);
   chk('Rate',g.interestRate,rate);
   chk('Address',g.address,(document.getElementById('ge-addr').value||'').trim());
-  chk('ID Proof',g.idProof,(document.getElementById('ge-idproof').value||'').trim().toUpperCase());
   chk('Duration',g.duration,parseInt(document.getElementById('ge-duration').value)||0);
   chk('Staff',g.staff,(document.getElementById('ge-staff').value||'').trim());
 
@@ -653,7 +649,6 @@ function saveGirviEdit(){
   g.phone      =phone;
   g.risk       =document.getElementById('ge-risk').value;
   g.address    =(document.getElementById('ge-addr').value||'').trim();
-  g.idProof    =(document.getElementById('ge-idproof').value||'').trim().toUpperCase();
   g.staff      =(document.getElementById('ge-staff').value||'').trim();
   g.notes      =(document.getElementById('ge-remarks').value||'').trim();
   g.items      =_si.map(function(it){return{type:it.type,metal:it.metal,purity:it.purity,weight:parseFloat(it.grossWt)||0,netWt:parseFloat(it.netWt)||0,qty:parseInt(it.qty)||1,desc:it.desc};});
@@ -1111,7 +1106,6 @@ function openGirviReceiptModal(gid, receiptType){
         '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Customer</div><strong>'+escHtml(g.customer)+'</strong></div>'+
         '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Mobile</div><strong>'+escHtml(g.phone)+'</strong></div>'+
         (g.address?'<div style="grid-column:1/-1;"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Address</div>'+escHtml(g.address)+'</div>':'')+
-        (g.idProof?'<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Aadhaar/PAN</div>'+escHtml(g.idProof)+'</div>':'')+
       '</div>'+
       customerHeadline+
       '<div style="border:0.5px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px;">'+
