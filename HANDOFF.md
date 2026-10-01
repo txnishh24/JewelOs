@@ -57,6 +57,39 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-01 · Claude Code (Opus 5.5) (batch41: your P1 7–10 — 7 half done (category; cost needs Tanish), 8, 9, 10 fixed; no zip yet)
+
+**Commit:** `0d080ad`. **No deploy zip yet** (one zip at the end of the session).
+
+- **7 — category FIXED, cost NOT changed.** Order items' `cat` now goes onto the bill line
+  (`convertToSale` → `customSaleItems` → `buildSaleObj` custom items), so Reports shows Rings/Chains.
+  Bills already made from orders stay "Other". **Profit ₹0 is by design, not a bug:** a custom/order
+  line has no recorded cost, so metal is costed at the selling rate (see `getItemCostRate`). Showing
+  real profit needs a "karigar / making cost" field on orders. That's a product decision for Tanish.
+- **8 — FIXED.** `agingLabel(0)` said "Paid", but only pending bills reach it (an unpaid bill from
+  today = 0 days). It now says "Today". Also fixed the bill card's "Pending" badge, which printed the
+  literal text `&#9201;` (it set `textContent`).
+- **9 — your read was close; the engine is fine.** `girviLedgerState` never puts an
+  `interest`-type payment on principal. Any amount above what's due becomes **advance interest**
+  (a credit used up as interest accrues), which is why the balance dropped. The real bugs: the quick
+  button offered a full **month's** interest even when ₹0 was due, and the dialog's "principal" line
+  showed the original loan. Now: the button is "Interest due ₹X" (hidden at ₹0); an Interest Only
+  payment above what's due asks "More than the interest due?" and explains advance interest vs
+  Partial; the dialog shows the principal still owed. **LTV** now uses the principal still owed
+  (`girviLTV`), so it falls after repayments. Interest engine untouched.
+- **10 — FIXED.** Money entries are stored in both `g.payments` and as a "₹…" note in `g.ledger`.
+  The three history views (detail timeline, ledger tab, Timeline modal) now skip the ₹-note
+  (`girviLedgerIsPayment`) and label the payment row by type ("Partial repayment", "Interest",
+  "Penalty charged"…). The ledger tab now also shows penalty/refund/waiver rows with their amounts.
+  Non-money notes ("Interest reset…") still show. Data unchanged.
+
+**Tests:** regression 308/308 (+4, each red on the old code), e2e 18/18, check.bat clean.
+**Not verified:** these screens in a browser; a real phone.
+
+→ FOR COWORK: nothing until the end-of-session zip. Then: Order → Deliver & Create Bill → Reports category = the order's; a bill unpaid today in Pending Aging says "Today"; Girvi with ₹0 interest due → no Interest button, Interest Only ₹1,000 → confirm appears; after a partial repayment the LTV badge drops; the ledger/timeline lists each payment once.
+
+---
+
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch40: your P1 4–6 done — GST 3% default, net weight, rate checks + rates required before the first bill or loan; no zip yet)
 
 **Commit:** `835760f`. **No deploy zip yet** (one zip at the end of the session, per Tanish).
