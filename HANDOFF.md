@@ -55,6 +55,41 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 1/10: Sign-in; no zip)
+
+Pure CSS, lowest-risk screen per the plan. Changes, all in `index.html`'s `#saas-auth-screen`
+/`.auth-*` rules (~lines 704-773):
+- Swapped literal font-family/font-size values for the new Phase 1 tokens, but ONLY where
+  the literal exactly matched a token value (zero visual change, pure cleanup):
+  `.auth-title` → `var(--font-display)`/`var(--text-2xl)`, `.auth-sub`/`.auth-err`/
+  `.auth-link` → `var(--text-sm)`, `.auth-field label` → `var(--text-xs)`,
+  `.auth-btn` → `var(--text-md)`, `.auth-tab-row`/`.auth-field input,select` border-radius
+  → `var(--radius)`. Left `.auth-tab`'s 13px and `.auth-btn`'s 11px radius alone — neither
+  matches an existing token exactly, so forcing one would be a real (if tiny) value change,
+  not a no-op cleanup.
+- Added the one-line data-privacy trust cue from your brief's Target State §5 ("Your shop
+  data is private, encrypted, and always yours to export.") to the shared footer below the
+  auth box — this item was in your original brief but I'd missed assigning it to a screen
+  in the approved plan; folding it in now since it's a 1-line, zero-risk addition and
+  explicitly requested, not scope creep.
+
+**Verified:** `check.bat` — 318/318, zero new AST findings (538 classes defined, unchanged —
+no classes added or removed, only property values inside existing rules). Screenshots at
+375/768/1440px captured via a throwaway Playwright script against the local static server
+(`tests/e2e/static-server.js`, port 4173) — `redesign-shots/sign-in/{375,768,1440}.png`.
+All three read clean: no horizontal scroll, gold palette holds up, trust-cue line fits
+without crowding at any width. (Used a one-off Playwright script instead of
+`claude-in-chrome`'s `resize_window`, which didn't actually constrain the page viewport in
+this environment — confirmed via `window.innerWidth` staying at full desktop width after
+the "resize".)
+
+**Not yet done:** screens 2-10. Next up per the plan's order: Dashboard (highest risk —
+heavy inline-styled JS, no skeleton today, likely the first screen a demo shows).
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5, Opus-reviewed) (luxury redesign cross-cutting fixes: safeConfirm amber state, "Signing in..." text, Netlify-badge nav padding; no screens touched yet, no zip)
 
 Followed up on the Opus review of the Phase 1 token commit (f573cfd) before continuing —

@@ -718,16 +718,16 @@ html.dev .dev-only{display:block!important;}
   border-radius:14px;display:inline-flex;align-items:center;justify-content:center;
   font-size:28px;margin-bottom:10px;box-shadow:0 4px 16px rgba(201,163,78,.35);
 }
-.auth-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;margin-bottom:3px;}
-.auth-sub{font-size:12px;color:var(--text3);}
-.auth-tab-row{display:flex;gap:0;margin-bottom:1.4rem;border-radius:10px;overflow:hidden;border:1px solid var(--border2);}
+.auth-title{font-family:var(--font-display);font-size:var(--text-2xl);font-weight:600;margin-bottom:3px;}
+.auth-sub{font-size:var(--text-sm);color:var(--text3);}
+.auth-tab-row{display:flex;gap:0;margin-bottom:1.4rem;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border2);}
 .auth-tab{flex:1;padding:9px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;background:var(--card2);color:var(--text3);border:none;font-family:inherit;transition:all .15s;}
 .auth-tab.active{background:var(--gold);color:#1a1200;}
 .auth-field{margin-bottom:11px;}
-.auth-field label{display:block;font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
+.auth-field label{display:block;font-size:var(--text-xs);font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
 .auth-field input,.auth-field select{
   width:100%;box-sizing:border-box;padding:12px 13px;
-  border-radius:10px;border:1px solid var(--border2);
+  border-radius:var(--radius);border:1px solid var(--border2);
   background:var(--card2);color:var(--text1);
   font-size:16px;font-family:inherit;
 }
@@ -735,14 +735,14 @@ html.dev .dev-only{display:block!important;}
 .auth-btn{
   width:100%;padding:14px;border-radius:11px;border:none;
   background:linear-gradient(135deg,var(--gold-dark),var(--gold));
-  color:#1a1200;font-size:15px;font-weight:700;cursor:pointer;
+  color:#1a1200;font-size:var(--text-md);font-weight:700;cursor:pointer;
   font-family:inherit;margin-top:4px;transition:opacity .15s;
   min-height:48px; -webkit-tap-highlight-color:transparent;
 }
 .auth-btn:hover{opacity:.9;}
-.auth-err{font-size:12px;color:#ef4444;text-align:center;margin-top:8px;min-height:18px;}
+.auth-err{font-size:var(--text-sm);color:#ef4444;text-align:center;margin-top:8px;min-height:18px;}
 .auth-info{color:var(--gold-dark);}
-.auth-link{font-size:12px;color:var(--text3);text-align:center;margin-top:12px;}
+.auth-link{font-size:var(--text-sm);color:var(--text3);text-align:center;margin-top:12px;}
 .auth-link a{color:var(--gold);cursor:pointer;text-decoration:none;font-weight:600;}
 
 /* Mobile sign-in redesign (Aug 2026) — designed intentionally for small
@@ -760,7 +760,7 @@ html.dev .dev-only{display:block!important;}
     max-width:100%;
   }
   .auth-logo-mark{width:48px;height:48px;font-size:24px;}
-  .auth-title{font-size:22px;}
+  .auth-title{font-size:var(--text-xl);}
   .auth-sub{font-size:11.5px;}
   .auth-tab{padding:11px 6px;font-size:12.5px;min-height:44px;}
   .auth-field{margin-bottom:13px;}
@@ -1456,6 +1456,7 @@ iframe.nl-badge-frame{display:none !important;}
     </div>
   </div>
   <div style="text-align:center;padding:12px 0;font-size:10px;color:var(--text3);">
+    <div style="margin-bottom:6px;">Your shop data is private, encrypted, and always yours to export.</div>
     <a onclick="showLegalModal('privacy')" style="color:var(--text3);cursor:pointer;text-decoration:underline;margin:0 8px;">Privacy Policy</a>
     <a onclick="showLegalModal('terms')" style="color:var(--text3);cursor:pointer;text-decoration:underline;margin:0 8px;">Terms of Service</a>
     <span style="margin:0 8px;">© <span id="footer-year">2026</span> JewelOS</span>
