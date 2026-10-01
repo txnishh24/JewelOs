@@ -771,6 +771,12 @@ function girviEventDate(g, e){
   });
   return near.length === 1 ? near[0].date : e.ts;
 }
+// QA 1 Oct P1-10: every money entry is written to g.payments AND as a "\u20b9..." note
+// in g.ledger, so history views listed each payment twice. Views show the
+// payments row (it has the amount) and skip the matching ledger note.
+function girviLedgerIsPayment(l){ return /^(payment|interest|waiver|penalty|refund)$/.test(l.type) && /^\u20b9/.test(l.note||''); }
+var GIRVI_PAY_LABEL={general:'Payment',payment:'Payment',partial:'Partial repayment',full:'Full redemption',interest:'Interest',waiver:'Waiver',penalty:'Penalty charged',refund:'Refund'};
+function girviPayLabel(p){ return GIRVI_PAY_LABEL[p.type]||'Payment'; }
 // A bare YYYY-MM-DD has no time of day. Printing one would invent a time.
 function girviIsDateOnly(v){ return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v); }
 
@@ -778,8 +784,8 @@ function glRenderEntries(g){
   var el=document.getElementById('gl-entries');
   if(!el) return;
   var entries=[];
-  (g.ledger||[]).forEach(function(l){entries.push({ts:girviEventDate(g,l),type:l.type,note:l.note,amount:l.amount||null,mode:null,user:l.user||''});});
-  (g.payments||[]).forEach(function(p){if(p.type==='penalty'||p.type==='refund'||p.type==='waiver')return;entries.push({ts:p.date||p.ts,type:'payment_entry',note:'Payment',amount:parseFloat(p.amount)||0,mode:p.mode,ref:p.ref||''});});
+  (g.ledger||[]).forEach(function(l){if(girviLedgerIsPayment(l))return;entries.push({ts:girviEventDate(g,l),type:l.type,note:l.note,amount:l.amount||null,mode:null,user:l.user||''});});
+  (g.payments||[]).forEach(function(p){var dt=/^(penalty|refund|waiver)$/.test(p.type);entries.push({ts:p.date||p.ts,type:dt?p.type:'payment_entry',note:girviPayLabel(p),amount:parseFloat(p.amount)||0,mode:p.type==='waiver'?null:p.mode,ref:p.ref||''});});
   entries.sort(function(a,b){return new Date(b.ts)-new Date(a.ts);});
 
   var ICONS={payment:'\ud83d\udcb8',payment_entry:'\ud83d\udcb8',interest:'\ud83d\udcc8',waiver:'\ud83c\udff7',penalty:'\u26a0',refund:'\u21a9',created:'\ud83d\udfe2',closed:'\ud83d\udd12',renewal:'\ud83d\udd04',edit:'\u270f\ufe0f',defaulted:'\ud83d\udd34',whatsapp:'\ud83d\udcac'};
@@ -895,8 +901,8 @@ function openGirviTimeline(gid){
   if(!g){toast('Not found');return;}
   document.getElementById('gt-modal-title').innerHTML='\ud83d\udccb Timeline \u2014 '+escHtml(g.customer);
   var events=[];
-  (g.ledger||[]).forEach(function(l){events.push({ts:girviEventDate(g,l),type:l.type||'edit',title:l.note||l.type,sub:l.user||''});});
-  (g.payments||[]).forEach(function(p){events.push({ts:p.date||p.ts,type:'payment',title:'Payment: \u20b9'+Math.round(parseFloat(p.amount)||0).toLocaleString('en-IN')+' via '+p.mode,sub:p.ref||''});});
+  (g.ledger||[]).forEach(function(l){if(girviLedgerIsPayment(l))return;events.push({ts:girviEventDate(g,l),type:l.type||'edit',title:l.note||l.type,sub:l.user||''});});
+  (g.payments||[]).forEach(function(p){events.push({ts:p.date||p.ts,type:/^(penalty|refund|waiver)$/.test(p.type)?p.type:'payment',title:girviPayLabel(p)+': \u20b9'+Math.round(parseFloat(p.amount)||0).toLocaleString('en-IN')+' via '+p.mode,sub:p.ref||''});});
   events.sort(function(a,b){return new Date(b.ts)-new Date(a.ts);});
   var ICONS={created:'\ud83d\udfe2',payment:'\ud83d\udcb8',edit:'\u270f\ufe0f',closed:'\ud83d\udd12',renewal:'\ud83d\udd04',defaulted:'\ud83d\udd34',whatsapp:'\ud83d\udcac',waiver:'\ud83c\udff7',penalty:'\u26a0'};
   var body=document.getElementById('gt-body');

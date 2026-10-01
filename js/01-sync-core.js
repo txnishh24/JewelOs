@@ -1416,7 +1416,8 @@ function calcCashFlow(fromDate, toDate){
 // ── GIRVI FINANCIAL METRICS ──────────────────────────────────────────
 // LTV = Loan / (Item Market Value)   →  safe < 70%, medium < 85%, high > 85%
 function girviLTV(g){
-  var principal = parseFloat(g.principal)||0;
+  // Principal still owed, not the original loan (QA 1 Oct P1-9: 45% stayed 45% after repayments).
+  var principal = g.payments && g.payments.length ? girviLedgerState(g).principal : (parseFloat(g.principal)||0);
   if(!principal) return 0;
   var allItems = Array.isArray(g.items)&&g.items.length ? g.items : (g.item?[g.item]:[]);
   var totalMkt = allItems.reduce(function(s,it){
@@ -2089,7 +2090,7 @@ function agingClass(days){
 }
 
 function agingLabel(days){
-  if(days===0) return 'Paid';
+  if(days<=0) return 'Today'; // QA 1 Oct P1-8: only pending bills get here; a bill from today said "Paid"
   if(days<=7)  return days+'d';
   if(days<=30) return days+'d overdue';
   return days+'d OVERDUE';

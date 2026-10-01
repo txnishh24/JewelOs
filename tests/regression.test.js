@@ -3003,6 +3003,48 @@ test('QA 1 Oct P1-5: Girvi LTV and the form value use net weight when it is vali
   assert(a.girviItemWt({ weight:10, netWt:12 }) === 10, 'net above gross is ignored');
 });
 
+test('QA 1 Oct P1-7: a custom/order bill line keeps its category for Reports', function(){
+  var a = loadApp();
+  a.UI.saleMode = 'custom';
+  a.customSaleItems = [{ name:'Bridal ring', cat:'Rings', metal:'gold', purity:'22K', grossWt:5, blackBeads:0, diamond:0, making:0, stoneCharges:0 }];
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){ return /^csi-/.test(id) ? null : _o(id); }; // no rendered cards
+  var s = a.buildSaleObj();
+  assert(s.items.length === 1 && s.items[0].cat === 'Rings', 'cat lost: ' + JSON.stringify(s.items));
+  assert(a.saleItemCat(s.items[0]) === 'Rings', 'Reports category should be Rings');
+});
+
+test('QA 1 Oct P1-8: Pending Aging never labels an unpaid bill "Paid"', function(){
+  var a = loadApp();
+  assert(a.agingLabel(0) === 'Today', 'a pending bill from today: ' + a.agingLabel(0));
+  assert(a.agingLabel(5) === '5d', 'unchanged for older bills');
+});
+
+test('QA 1 Oct P1-9: LTV falls as the principal is repaid', function(){
+  var a = loadApp();
+  a.S.rates.g22 = 10000;
+  var start = new Date(Date.now() - 2*86400000).toISOString().slice(0,10);
+  var g = { principal:50000, interestRate:0, rateType:'monthly', startDate:start,
+    items:[{ metal:'gold', purity:'22K', weight:10, qty:1 }], payments:[] };
+  assert(Math.abs(a.girviLTV(g) - 0.5) < 1e-9, 'before: ' + a.girviLTV(g));
+  g.payments.push({ id:'p1', amount:25000, type:'partial', mode:'Cash', date:start });
+  assert(Math.abs(a.girviLTV(g) - 0.25) < 1e-9, 'after repaying half, LTV should be 25%: ' + a.girviLTV(g));
+});
+
+test('QA 1 Oct P1-10: Girvi history shows each payment once, labelled by type', function(){
+  var a = loadApp();
+  var g = { id:'g1', grvNo:'GRV-1', principal:50000, startDate:'2026-09-01',
+    payments:[{ id:'p1', amount:25000, mode:'Cash', type:'partial', date:'2026-09-05', ts:'2026-09-05T10:00:00Z' }],
+    ledger:[{ type:'created', note:'Loan created', ts:'2026-09-01T10:00:00Z' },
+            { type:'payment', note:'₹25,000 via Cash (Partial)', ts:'2026-09-05T10:00:00Z', date:'2026-09-05' },
+            { type:'payment', note:'Interest reset — accrual restarts from 2026-09-05', ts:'2026-09-05T10:00:01Z' }] };
+  a.glRenderEntries(g);
+  var html = a.document.getElementById('gl-entries').innerHTML;
+  var rows = html.split('class="gl-entry"').length - 1;
+  assert(rows === 3, 'expected created + one payment + interest-reset note, got ' + rows);
+  assert(html.indexOf('Partial repayment') !== -1, 'payment row should say what kind of payment');
+});
+
 test('girvi type:penalty with mode:Cash posts no line — it is a charge, not cash received', function(){
   var a = loadApp();
   a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,

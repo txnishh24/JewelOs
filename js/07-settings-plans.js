@@ -1219,8 +1219,8 @@ function openGirviDetail(gid){
   var allEvents = [];
   // girviEventDate (08-girvi-viewmode.js) gives a payment its real date, not
   // the moment it was typed in; runs at render time, after 08 has loaded.
-  (g.ledger||[]).forEach(function(l){ allEvents.push({ts:girviEventDate(g,l),type:l.type,note:l.note,user:l.user||''}); });
-  (g.payments||[]).forEach(function(p){ allEvents.push({ts:p.date||p.ts,type:'payment',note:'₹'+Math.round(p.amount).toLocaleString('en-IN')+' received via '+(p.mode||'Cash'),user:''}); });
+  (g.ledger||[]).forEach(function(l){ if(girviLedgerIsPayment(l)) return; allEvents.push({ts:girviEventDate(g,l),type:l.type,note:l.note,user:l.user||''}); });
+  (g.payments||[]).forEach(function(p){ var dt=/^(penalty|refund|waiver)$/.test(p.type); allEvents.push({ts:p.date||p.ts,type:dt?p.type:'payment',note:girviPayLabel(p)+' ₹'+Math.round(p.amount).toLocaleString('en-IN')+(dt?'':' via '+(p.mode||'Cash')),user:p.user||''}); });
   (g.notesList||[]).forEach(function(n){ allEvents.push({ts:n.ts,type:'note',note:'Note: '+n.text,user:n.user||''}); });
   (g.amountAdjLog||[]).forEach(function(a){ allEvents.push({ts:a.ts,type:'adjustment',note:'Amount adjusted to ₹'+Math.round(a.newAmount).toLocaleString('en-IN')+' ('+a.reason+')',user:a.user||''}); });
   allEvents.sort(function(a,b){ return new Date(b.ts)-new Date(a.ts); });
@@ -1513,14 +1513,16 @@ function openGirviPayment(gid){
       '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Total Outstanding</div>'+
       '<div style="font-size:clamp(22px,7vw,32px);font-weight:800;color:#ef4444;">\u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</div>'+
       '<div style="font-size:12px;color:var(--text3);margin-top:3px;">'+
-        '\u20b9'+Math.round(g.principal).toLocaleString('en-IN')+' principal + '+
+        '\u20b9'+Math.round(girviLedgerState(g).principal).toLocaleString('en-IN')+' principal + '+
         '\u20b9'+Math.round(interest).toLocaleString('en-IN')+' interest'+
       '</div>'+
     '</div>'+
     // Quick payment buttons
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">'+
       '<div style="font-size:11px;color:var(--text3);width:100%;font-weight:600;text-transform:uppercase;letter-spacing:.06em;">Quick amounts:</div>'+
-      '<button onclick="setPayAmt('+Math.round(monthly)+')" style="padding:5px 11px;border-radius:100px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Interest only \u20b9'+Math.round(monthly).toLocaleString('en-IN')+'</button>'+
+      // QA 1 Oct P1-9: offered a month's interest even when none was due, which
+      // silently became advance interest. Offer what is actually due.
+      (Math.round(interest)>0?'<button onclick="setPayAmt('+Math.round(interest)+')" style="padding:5px 11px;border-radius:100px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Interest due \u20b9'+Math.round(interest).toLocaleString('en-IN')+'</button>':'')+
       '<button onclick="setPayAmt('+Math.round(outstanding/2)+')" style="padding:5px 11px;border-radius:100px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Half \u20b9'+Math.round(outstanding/2).toLocaleString('en-IN')+'</button>'+
       '<button onclick="setPayAmt('+Math.round(outstanding)+')" style="padding:5px 11px;border-radius:100px;border:1px solid var(--gold);background:rgba(201,168,76,.1);color:var(--gold);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Full \u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</button>'+
     '</div>'+
@@ -1647,6 +1649,16 @@ function submitGirviPayment(gid){
     });
   }
 
+  // QA 1 Oct P1-9: the ledger keeps an Interest Only payment above what is due
+  // as advance interest (used up as interest accrues), never as principal. Say so.
+  if(payType==='interest' && amount > interest+1){
+    safeConfirm(
+      'More than the interest due?',
+      'Only \u20b9'+Math.round(interest).toLocaleString('en-IN')+' interest is due now. The extra \u20b9'+Math.round(amount-interest).toLocaleString('en-IN')+' will count as advance interest. To reduce the loan instead, choose Partial Principal Repayment.',
+      doSubmit, true
+    );
+    return;
+  }
   if(amount > outstanding+1 && payType!=='full'){
     safeConfirm(
       'Payment exceeds outstanding?',

@@ -603,7 +603,7 @@ function showCustHistory(encKey){
       var ageDiv=document.createElement('div');
       ageDiv.style.cssText='margin-top:5px;font-size:11px;font-weight:700;';
       ageDiv.className=agingClass(ageDays);
-      ageDiv.textContent='&#9201; Pending '+agingLabel(ageDays);
+      ageDiv.textContent='⏱ Pending '+agingLabel(ageDays);
       card.appendChild(ageDiv);
     }
 

@@ -1193,7 +1193,7 @@ function buildSaleObj(){
       var lockedRate=getRate(item.metal||'gold',item.purity||'22K');
       // makingBasis records what this bill was actually charged on, so the
       // figures stay reproducible if the shop's basis ever changes again.
-      return{pid:null,name:item.name,qty:1,grossWeight:parseFloat(item.grossWt)||0,blackBeads:parseFloat(item.blackBeads)||0,diamondWt:parseFloat(item.diamond)||0,weight:net,purity:item.purity||'22K',metal:item.metal||'gold',making:parseFloat(item.making)||0,makingBasis:'gross',diamond:parseFloat(item.stoneCharges)||0,huid:'',isCustom:true,lockedRate:lockedRate};
+      return{pid:null,name:item.name,qty:1,grossWeight:parseFloat(item.grossWt)||0,blackBeads:parseFloat(item.blackBeads)||0,diamondWt:parseFloat(item.diamond)||0,weight:net,purity:item.purity||'22K',metal:item.metal||'gold',making:parseFloat(item.making)||0,makingBasis:'gross',diamond:parseFloat(item.stoneCharges)||0,huid:'',isCustom:true,lockedRate:lockedRate,cat:item.cat||''};
     });
   } else {
     saleItems=UI.saleItems.filter(function(x){return x.pid;}).map(function(item){

@@ -353,7 +353,7 @@ function convertToSale(ordId){
           }
         }
         for(var p=0; p<pieces; p++){
-          lines.push({name:it.desc||'Custom item', metal:metal, purity:purity,
+          lines.push({name:it.desc||'Custom item', cat:it.cat||'', metal:metal, purity:purity,
                       grossWt:wt, blackBeads:0, diamond:0,
                       making:perGram, stoneCharges:0});
         }
