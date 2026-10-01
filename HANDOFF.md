@@ -55,6 +55,31 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (follow-up: patched the Dashboard/Stock color-token gaps found during Girvi; no zip)
+
+Per Tanish's decision — patch the 2 shipped-pass gaps now, leave the rest (Settings,
+Reports, Sign-in, global chrome) for whichever screen pass reaches them naturally.
+
+- `index.html`: `.ib-up`/`.ib-down` (Dashboard insight badges), `.trend-up`/`.trend-down`
+  (Dashboard category trend arrows — left `.trend-flat`'s neutral gray alone, same as
+  `.ib-flat`/`.days-na`), `.itag-risk`/`.itag-freq`/`.itag-new`/`.itag-overdue` (Stock's
+  alert tags — `.itag-overdue` turned out unused anywhere in js/*.js, fixed anyway since
+  it's the same family and a one-line change, not new scope). All moved to the matching
+  `--success/--danger/--info` tokens and their `-soft` tint variants, consistent with the
+  Girvi pass's treatment.
+
+**Verified:** `check.bat` — 318/318, zero new AST findings. Confirmed directly in source
+rather than re-screenshotting — these specific badges (insights, category trends, risk/
+new/frequent-buyer tags) are conditional on data states the test shop may not currently
+trigger, so a computed-style/source check is more reliable evidence than hoping a
+screenshot happens to catch one rendering.
+
+Resuming the plan's screen order now — Day Book (6/10) next.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 5/10: Girvi; no zip)
 
 Found the same bright-SaaS-color issue as Dashboard, spread across more places than

@@ -1014,8 +1014,8 @@ html.dev .dev-only{display:block!important;}
   display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;
   border-radius:100px;margin-left:4px;vertical-align:middle;
 }
-.ib-up{background:rgba(34,197,94,.2);color:#22c55e;}
-.ib-down{background:rgba(239,68,68,.2);color:#ef4444;}
+.ib-up{background:var(--success-soft);color:var(--success);}
+.ib-down{background:var(--danger-soft);color:var(--danger);}
 .ib-flat{background:rgba(148,163,184,.15);color:#94a3b8;}
 
 /* Financial snapshot bar */
@@ -1033,17 +1033,17 @@ html.dev .dev-only{display:block!important;}
 .fsn-val{font-size:20px;font-weight:800;line-height:1.1;}
 .fsn-sub{font-size:10px;color:var(--text3);margin-top:4px;}
 .fsn-trend{font-size:11px;font-weight:700;margin-top:3px;}
-.trend-up{color:#22c55e;}.trend-down{color:#ef4444;}.trend-flat{color:#94a3b8;}
+.trend-up{color:var(--success);}.trend-down{color:var(--danger);}.trend-flat{color:#94a3b8;}
 
 /* Intelligence tag badges */
 .itag{display:inline-block;font-size:9px;font-weight:800;padding:2px 7px;border-radius:100px;margin-right:3px;text-transform:uppercase;letter-spacing:.06em;}
 .itag-vip{background:rgba(201,168,76,.2);color:var(--gold);}
-.itag-risk{background:rgba(239,68,68,.2);color:#ef4444;}
-.itag-freq{background:rgba(96,165,250,.2);color:#60a5fa;}
-.itag-new{background:rgba(34,197,94,.2);color:#22c55e;}
+.itag-risk{background:var(--danger-soft);color:var(--danger);}
+.itag-freq{background:var(--info-soft);color:var(--info);}
+.itag-new{background:var(--success-soft);color:var(--success);}
 .itag-dead{background:rgba(148,163,184,.15);color:#94a3b8;}
 .itag-hot{background:rgba(251,146,60,.2);color:#fb923c;}
-.itag-overdue{background:rgba(239,68,68,.15);color:#ef4444;}
+.itag-overdue{background:var(--danger-soft);color:var(--danger);}
 
 /* Dead stock / fast movers */
 .inv-intel-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:12px;}
