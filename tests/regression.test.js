@@ -2959,6 +2959,50 @@ test('QA 1 Oct #3: opening the Girvi Pay dialog leaves the sale form payment row
   assert(a.splitRows.length === 1, 'sale form payment rows were wiped: ' + JSON.stringify(a.splitRows));
 });
 
+test('QA 1 Oct P1-4: a GST bill defaults to 3% (typed value kept); Memo goes back to 0', function(){
+  var a = loadApp();
+  a.SAAS.shop = a.SAAS.shop || {}; a.SAAS.shop.gstin = '27AAPFU0939F1ZV';
+  var el = a.document.getElementById('s-gst');
+  el.value = '0'; a.setSaleFormBillType('gst');
+  assert(el.value === '3', 'GST bill should default to 3, got ' + el.value);
+  el.value = '5'; a.setSaleFormBillType('gst');
+  assert(el.value === '5', 'a typed rate is kept');
+  a.setSaleFormBillType('memo');
+  assert(el.value === '0', 'memo resets to 0');
+});
+
+test('QA 1 Oct P1-6: ratesProblem refuses zero, per-10g typos and purities out of order', function(){
+  var a = loadApp();
+  var ok = { g24:11000, g22:10100, g18:8300, g14:6400, sil:130 };
+  assert(a.ratesProblem(ok) === '', 'real rates must pass: ' + a.ratesProblem(ok));
+  function w(ch){ var r = JSON.parse(JSON.stringify(ok)); for(var k in ch) r[k] = ch[k]; return a.ratesProblem(r); }
+  assert(w({g24:0}), '24K 0'); assert(w({g24:100}), '24K 100'); assert(w({g24:110000}), '24K per 10 g');
+  assert(w({g22:12000}), '22K above 24K'); assert(w({g18:10500}), '18K above 22K');
+  assert(w({g14:9000}), '14K above 18K'); assert(w({sil:13000}), 'silver per kg');
+  assert(w({g18:0, g14:0, sil:0}) === '', '18K/14K/silver are optional');
+});
+
+test('QA 1 Oct P1-6: a new shop on the sample rates cannot bill or open a new Girvi until rates are saved', function(){
+  var a = loadApp();
+  delete a.S.rates.setAt; // fresh shop: sample rates 7800/7200, never saved
+  assert(!a.ratesConfirmed(), 'sample rates must not count as set');
+  assert(a.needRatesFirst() === true, 'gate must stop billing');
+  a.S.rates.g24 = 11000; a.S.rates.g22 = 10100;
+  assert(a.ratesConfirmed(), 'a shop from before setAt with real rates is not blocked');
+  a.S.rates.g24 = 7800; a.S.rates.g22 = 7200; a.S.rates.setAt = '2026-10-01T10:00:00Z';
+  assert(a.ratesConfirmed(), 'saved rates count even if they equal the samples');
+});
+
+test('QA 1 Oct P1-5: Girvi LTV and the form value use net weight when it is valid', function(){
+  var a = loadApp();
+  a.S.rates.g22 = 11000;
+  var g = { principal:52250, items:[{ metal:'gold', purity:'22K', weight:10, netWt:9.5, qty:1 }] };
+  assert(Math.abs(a.girviLTV(g) - 0.5) < 1e-9, 'LTV on net 9.5 g: ' + a.girviLTV(g));
+  assert(a.gfItemMktVal({ metal:'gold', purity:'22K', grossWt:10, netWt:9.5, qty:1 }) === 104500, 'form value on net');
+  assert(a.gfItemMktVal({ metal:'gold', purity:'22K', grossWt:10, netWt:0, qty:1 }) === 110000, 'no net: gross');
+  assert(a.girviItemWt({ weight:10, netWt:12 }) === 10, 'net above gross is ignored');
+});
+
 test('girvi type:penalty with mode:Cash posts no line — it is a charge, not cash received', function(){
   var a = loadApp();
   a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,

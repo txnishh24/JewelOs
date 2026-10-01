@@ -170,12 +170,42 @@ function loadRates(){
   document.getElementById('rate-g14').value=S.rates.g14||'';
   document.getElementById('rate-sil').value=S.rates.sil||'';
 }
+// QA 1 Oct P1-6: 24K = Rs 0, Rs 100, or 22K above 24K all saved. Returns what is
+// wrong in words, or '' when the rates look like real per-gram prices.
+function ratesProblem(r){
+  function bad(v,lo,hi){ return !(v>=lo && v<=hi); }
+  if(bad(r.g24,2000,50000)) return '24K rate must be the price per gram (between ₹2,000 and ₹50,000)';
+  if(bad(r.g22,2000,50000)) return '22K rate must be the price per gram (between ₹2,000 and ₹50,000)';
+  if(r.g22 > r.g24) return '22K rate cannot be more than 24K';
+  if(r.g18 > 0 && (r.g18 > r.g22 || r.g18 < 1000)) return '18K rate must be below 22K (and at least ₹1,000)';
+  if(r.g14 > 0 && (r.g14 > (r.g18 || r.g22) || r.g14 < 1000)) return '14K rate must be below 18K (and at least ₹1,000)';
+  if(r.sil > 0 && bad(r.sil,10,2000)) return 'Silver rate must be the price per gram (between ₹10 and ₹2,000)';
+  return '';
+}
+// A new shop ships with sample rates (00-config-state.js); it may not bill or
+// lend until the owner has saved real ones. Shops from before setAt existed
+// count as set once their rates differ from those samples.
+function ratesConfirmed(){
+  var r = S.rates || {};
+  return !!r.setAt || (r.g24 > 0 && (r.g24 !== 7800 || r.g22 !== 7200));
+}
+function needRatesFirst(){
+  if(ratesConfirmed()) return false;
+  toast('⚠ Enter today\'s gold rates first (Stock tab → Rates) and tap Save.');
+  return true;
+}
 function saveRates(){
-  S.rates.g24=parseFloat(document.getElementById('rate-g24').value)||0;
-  S.rates.g22=parseFloat(document.getElementById('rate-g22').value)||0;
-  S.rates.g18=parseFloat(document.getElementById('rate-g18').value)||0;
-  S.rates.g14=parseFloat(document.getElementById('rate-g14').value)||0;
-  S.rates.sil=parseFloat(document.getElementById('rate-sil').value)||0;
+  var r = {
+    g24:parseFloat(document.getElementById('rate-g24').value)||0,
+    g22:parseFloat(document.getElementById('rate-g22').value)||0,
+    g18:parseFloat(document.getElementById('rate-g18').value)||0,
+    g14:parseFloat(document.getElementById('rate-g14').value)||0,
+    sil:parseFloat(document.getElementById('rate-sil').value)||0
+  };
+  var problem = ratesProblem(r);
+  if(problem){ toast('⚠ '+problem); return; }
+  S.rates.g24=r.g24; S.rates.g22=r.g22; S.rates.g18=r.g18; S.rates.g14=r.g14; S.rates.sil=r.sil;
+  S.rates.setAt=new Date().toISOString();
   saveToCloud(function(err){
     if(!err){toast('Rates saved & synced to all devices!');renderInv();}
   });
@@ -266,7 +296,7 @@ function renderInv(){
     ?pagedProds.map(function(p){
       var sold=p.status==='sold';
       var returned=p.status==='returned';
-      var mv=p.weight*getRate(p.metal,p.purity);
+      var mv=mktVal(p);
       var pbg=isG?'background:#fef9ec;color:var(--gold-dark);border:1px solid rgba(201,168,76,0.3)':'background:#eef2f6;color:var(--silver-dark);border:1px solid rgba(168,180,192,0.35)';
       var safePhoto=(p.photo&&(p.photo.startsWith('http://')||p.photo.startsWith('https://')))?p.photo:'';
       var photoHtml=safePhoto?'<a href="'+safePhoto+'" target="_blank" class="photo-link">&#128247; View</a>':'<span style="color:var(--text3);font-size:11px">&#8212;</span>';
@@ -299,7 +329,7 @@ function renderInv(){
   var all=S.products.filter(function(p){return p.metal===m&&p.status!=='sold'&&p.status!=='returned';});
   if(UI.selCat!=='All') all=all.filter(function(p){return p.cat===UI.selCat;});
   var tw=all.reduce(function(s,p){return s+p.weight;},0);
-  var tv=all.reduce(function(s,p){return s+p.weight*getRate(p.metal,p.purity);},0);
+  var tv=all.reduce(function(s,p){return s+mktVal(p);},0);
   var soldCount=S.products.filter(function(p){return p.metal===m&&p.status==='sold';}).length;
   var returnedCount=S.products.filter(function(p){return p.metal===m&&p.status==='returned';}).length;
   document.getElementById('inv-footer').innerHTML=
@@ -824,7 +854,7 @@ function skuSearch(idx,val,sugBox){
           '</div>'+
         '</div>'+
         '<div style="text-align:right;flex-shrink:0;margin-left:8px;">'+
-          '<div style="font-weight:700;color:var(--gold-dark);font-size:13px;">'+fmt(getRate(p.metal,p.purity)*p.weight)+'</div>'+
+          '<div style="font-weight:700;color:var(--gold-dark);font-size:13px;">'+fmt(mktVal(p))+'</div>'+
           '<div style="font-size:11px;color:var(--text3);">'+p.qty+' in stock</div>'+
         '</div>'+
       '</div>';
@@ -1327,6 +1357,7 @@ function recordSale(){
   if(!document.getElementById('s-cust').value.trim()){toast('Enter customer name');return;}
   var sale=buildSaleObj();
   if(!sale.items||!sale.items.length){toast('Add at least one item');return;}
+  if(needRatesFirst()) return;
   // Phone validation — must be empty OR 10 digits
   if(sale.phone){
     var _cleanPhone = (sale.phone||'').replace(/\D/g,'');
@@ -1372,6 +1403,10 @@ function recordSale(){
   }
   // QA 1 Oct P0-2: \u20b999,999 "Paying now" on a \u20b956,650 bill went into the
   // Day Book as cash. Girvi and Orders already guard this; refuse it here.
+  if(sale.billType === 'gst' && !(sale.gst > 0)){
+    toast('⚠ A GST bill needs a GST % (3% for jewellery). For no GST, choose Memo Bill.');
+    return;
+  }
   var _over = saleOverpaidBy(sale);
   if(_over > 0){
     toast('\u26a0 Paying now is \u20b9'+Math.round(_over).toLocaleString('en-IN')+' more than the bill due. Enter only what the shop keeps (give back the change).');
@@ -1773,9 +1808,11 @@ function setSaleFormBillType(type){
   var gstSumRow = document.getElementById('ss-gst-row');
   if(gstWrap)   gstWrap.style.display   = (type === 'gst') ? '' : 'none';
   if(gstSumRow) gstSumRow.style.display = (type === 'gst') ? '' : 'none';
-  if(type === 'memo'){
-    var gstInput = document.getElementById('s-gst');
-    if(gstInput){ gstInput.value = '0'; }
+  var gstInput = document.getElementById('s-gst');
+  if(gstInput){
+    if(type === 'memo') gstInput.value = '0';
+    // QA 1 Oct P1-4: a GST bill defaulted to 0% and printed a Tax Invoice with no tax.
+    else if(!(parseFloat(gstInput.value) > 0)) gstInput.value = '3';
   }
   updateSum();
 }

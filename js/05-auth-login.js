@@ -1637,7 +1637,7 @@ function runInsightEngine(){
   // ── RULE 8: Dead stock detection ─────────────────────────────────
   var deadItems = getDeadStock(90);
   if(deadItems.length > 0){
-    var deadVal = deadItems.reduce(function(s,p){return s+p.weight*getRate(p.metal,p.purity);},0);
+    var deadVal = deadItems.reduce(function(s,p){return s+mktVal(p);},0);
     insights.push({type:'alert',icon:'📦',
       text:'<strong>'+deadItems.length+' items ('+fmt(Math.round(deadVal))+')</strong> have been in stock for 90+ days without selling. Consider discounting or promoting them.'
     });

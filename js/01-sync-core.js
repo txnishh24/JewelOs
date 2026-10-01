@@ -805,6 +805,12 @@ function mktVal(p){
   var g=parseFloat(p.weight)||0, n=parseFloat(p.netWeight)||0;
   return (n>0 && n<g ? n : g)*getRate(p.metal,p.purity);
 }
+// Same rule for a Girvi item (QA 1 Oct P1-5: collateral was valued on gross,
+// so LTV looked safer than it is). Saved items use weight, form items grossWt.
+function girviItemWt(it){
+  var g=parseFloat(it.weight||it.grossWt)||0, n=parseFloat(it.netWt)||0;
+  return n>0 && n<g ? n : g;
+}
 
 // Returns the locked rate for a historical bill item, or live rate for new items
 function getItemRate(i){
@@ -1414,7 +1420,7 @@ function girviLTV(g){
   if(!principal) return 0;
   var allItems = Array.isArray(g.items)&&g.items.length ? g.items : (g.item?[g.item]:[]);
   var totalMkt = allItems.reduce(function(s,it){
-    return s + getRate(it.metal||'gold',it.purity||'22K')*(parseFloat(it.weight||it.grossWt)||0)*(parseInt(it.qty)||1);
+    return s + getRate(it.metal||'gold',it.purity||'22K')*girviItemWt(it)*(parseInt(it.qty)||1);
   },0);
   if(!totalMkt) return 1;
   return principal / totalMkt;

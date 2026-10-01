@@ -80,6 +80,19 @@ async function login(page) {
   await page.getByRole('button', { name: /sign out/i }).waitFor({ timeout: 15000 });
   await dismissNetlifyBadge(page);
   await dismissV18Modal(page);
+  await confirmRatesOnce(page);
+}
+
+// batch40 (QA 1 Oct P1-6): a shop still on the sample rates may not bill or
+// open a Girvi until the owner saves rates. The test shop never had, so the
+// first run after batch40 saves its current rates once through the real
+// Stock-tab button; later runs skip this (S.rates.setAt is stored).
+async function confirmRatesOnce(page) {
+  if (await page.evaluate(() => ratesConfirmed())) return;
+  await goToTab(page, 'stock');
+  await page.locator('.rate-save').click();
+  await page.getByText(/Rates saved/i).first().waitFor({ timeout: 15000 });
+  await goToTab(page, 'home');
 }
 
 // Bottom-nav tab ids, captured from the live DOM (26 Sep 2026). The app

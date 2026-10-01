@@ -318,7 +318,7 @@ var _v20_renderGirvi_installed = false;
         itemHtml='<div class="girvi-card-item">'+escHtml(it0.desc||it0.type||'Item')+
           ' \u2022 '+(it0.purity||'')+' '+(it0.metal||'')+
           (_cw?' \u2022 '+_cw.toFixed(2)+'g':'')+
-          ' \u2022 Mkt: \u20b9'+Math.round(getRate(it0.metal||'gold',it0.purity||'22K')*_cw).toLocaleString('en-IN')+'</div>';
+          ' \u2022 Mkt: \u20b9'+Math.round(getRate(it0.metal||'gold',it0.purity||'22K')*girviItemWt(it0)*(parseInt(it0.qty)||1)).toLocaleString('en-IN')+'</div>';
       } else {
         itemHtml='<div class="girvi-card-item"><span style="background:rgba(201,168,76,.15);color:var(--gold-dark);font-weight:700;font-size:10px;padding:1px 6px;border-radius:8px;margin-right:4px;">'+_allIt.length+' items</span>'+_cw.toFixed(2)+'g \u2022 '+_allIt.map(function(it){ return it.type||'Item'; }).join(', ')+'</div>';
       }
@@ -533,7 +533,7 @@ function geItemCard(i,item){
   card.appendChild(grid);
 
   var mktRate=getRate(item.metal||'gold',item.purity||'22K');
-  var mktVal=mktRate*(item.grossWt||0);
+  var mktVal=mktRate*girviItemWt(item);
   if(mktVal>0){
     var mv=document.createElement('div');
     mv.style.cssText='font-size:11px;color:var(--gold-dark);font-weight:600;margin-top:6px;background:rgba(201,168,76,.08);border-radius:6px;padding:5px 8px;';

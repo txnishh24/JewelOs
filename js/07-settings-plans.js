@@ -170,7 +170,7 @@ function gfGetRate(metal, purity){
 }
 
 function gfItemMktVal(item){
-  var wt = parseFloat(item.grossWt||item.weight)||0;
+  var wt = girviItemWt(item);
   if(!wt) return 0;
   return gfGetRate(item.metal||'gold', item.purity||'22K') * wt * (parseInt(item.qty)||1);
 }
@@ -399,6 +399,7 @@ function gfRenderPhotos(){
 }
 
 function openGirviForm(editId, prefill){
+  if(!editId && needRatesFirst()) return; // collateral is valued at these rates
   GF_STEP = 1; GF_EDIT_ID = editId || null;
   GF_PHOTOS = [];   // never carry photos over from a previous loan
   var modal = document.getElementById('girvi-modal');

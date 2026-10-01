@@ -102,6 +102,8 @@ function loadApp(){
       throw new Error('Failed loading ' + f + ': ' + e.message);
     }
   });
+  // A shop that has saved its rates once; the first-run rate gate has its own tests.
+  sandbox.S.rates.setAt = '2026-01-01T00:00:00.000Z';
   return sandbox;
 }
 

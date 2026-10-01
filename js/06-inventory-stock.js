@@ -121,7 +121,7 @@ function renderOnboarding(){
     {
       id:'rates',
       label:'Set today\'s gold rates',
-      done: S.rates && S.rates.g24 > 0 && S.rates.g24 !== 7800,
+      done: ratesConfirmed(),
       action: function(){ switchTab('inventory'); setTimeout(function(){ var el=document.getElementById('rate-g24'); if(el){ el.focus(); el.select(); }},300); },
       cta:'Set rates →'
     },
