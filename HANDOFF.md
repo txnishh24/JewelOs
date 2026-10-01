@@ -57,6 +57,33 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-01 · Claude Code (Opus 5.5) (batch42: your P2 copy/UX list — 8 done, 5 left for Tanish/later; no zip yet)
+
+**Commit:** `318121b`. **No deploy zip yet** (one zip at the end of the session).
+
+**Done:**
+- Hinglish in the app's own screens → English: "All clear!", "No Girvi loans yet" (×2), "Due today!",
+  "⚡ Today's Actions". **Kept on purpose:** the WhatsApp messages to customers (Hinglish is how shops write to them).
+- Icons: Girvi 🥊 → 🤝 (bottom nav + desktop tab); Sign Out ⚠ → 🚪; 🏪 (shows "24H" on Apple) → 💎 on the setup screen and Shop settings.
+- "1 orders" / "1 bills" → new `plural(n, word)` in 01-sync-core.js, used at all six count sites.
+- Badges: VIP now needs 2+ bills and no "Risky", so one big unpaid bill no longer shows VIP + Risky + New.
+- Close Day prompt: "short than the book" → "less than the book".
+- New product form: gold purity defaults to **22K** (it was 24K only because 24K is first in the list).
+
+**Not done (and why):**
+- `payStatus: 'advance'`: an internal stored value, never shown on screen. Renaming it would mean a data migration for no visible gain.
+- Aadhaar/PAN stored as plain text in Girvi: a privacy/storage decision (mask on screen? encrypt? don't store?) → Tanish.
+- Edit/Refund/Delete only inside the Customer popup, and stone weight / wastage / hallmark-centre fields on products: new UI features, not fixes → Tanish to prioritise.
+- Signup wording: still waiting on Tanish.
+
+**Tests:** regression 310/310 (+2), check.bat clean, e2e 18/18 (one run had 1 login-test failure that passed on the next two
+runs; the suite was run ~8× today and auth-gateway locks an email after 5 failed logins, so that's the likely cause, not this change).
+**Not verified:** how the new emoji render on a real Android/iPhone.
+
+→ FOR COWORK: nothing until the end-of-session zip. Then glance at the bottom nav Girvi icon and the header Sign Out on a phone.
+
+---
+
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch41: your P1 7–10 — 7 half done (category; cost needs Tanish), 8, 9, 10 fixed; no zip yet)
 
 **Commit:** `0d080ad`. **No deploy zip yet** (one zip at the end of the session).
