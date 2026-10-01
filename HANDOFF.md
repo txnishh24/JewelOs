@@ -55,6 +55,19 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (built batch46 zip — NOT deployed)
+
+Tanish asked to build the zip. Ran `node build-deploy-zip.js batch46` — its own
+self-checks passed (correct "/" path separators, every file byte-matches this folder).
+**`C:\Users\ADMIN\Downloads\jewelos-batch46-DEPLOY.zip`**, 16 files, 314.6 KB.
+
+This only builds locally — nothing was uploaded or deployed. Netlify Drop is still
+Tanish's manual step.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (wrote docs/CHANGES-batch46.md for the redesign — still no zip)
 
 Tanish asked for the deploy changelog. Wrote `docs/CHANGES-batch46.md` covering
