@@ -1540,9 +1540,20 @@ function girviComputeStatus(g){
   return 'active';
 }
 function girviStatusBadge(s){
-  var m={active:['#22c55e','Active'],overdue:['#f59e0b','Overdue'],atrisk:['#ef4444','At Risk'],defaulted:['#7f1d1d','Defaulted'],closed:['#64748b','Closed']};
+  // Pre-redesign this concatenated hex alpha suffixes onto bright colors for the
+  // tinted pill (same issue girviRiskBadge had) -- rebuilt around the existing
+  // -soft tokens. atrisk and defaulted share --danger, the same simplification
+  // already used for .girvi-card.status-*'s border colors, rather than inventing
+  // a second, darker danger shade just for this one badge.
+  var m={
+    active:   {bg:'var(--success-soft)', fg:'var(--success)', label:'Active'},
+    overdue:  {bg:'var(--warning-soft)', fg:'var(--warning)', label:'Overdue'},
+    atrisk:   {bg:'var(--danger-soft)',  fg:'var(--danger)',  label:'At Risk'},
+    defaulted:{bg:'var(--danger-soft)',  fg:'var(--danger)',  label:'Defaulted'},
+    closed:   {bg:'var(--card2)',        fg:'var(--text3)',   label:'Closed'}
+  };
   var v=m[s]||m['active'];
-  return '<span style="background:'+v[0]+'22;color:'+v[0]+';font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;border:1px solid '+v[0]+'44;text-transform:uppercase;letter-spacing:.05em;">'+v[1]+'</span>';
+  return '<span style="background:'+v.bg+';color:'+v.fg+';font-size:10px;font-weight:700;padding:3px 9px;border-radius:var(--radius-pill);text-transform:uppercase;letter-spacing:.05em;">'+v.label+'</span>';
 }
 function girviRiskBadge(r){
   // Pre-redesign this concatenated a hex alpha suffix ('#22c55e'+'22') onto the

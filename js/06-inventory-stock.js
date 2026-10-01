@@ -576,7 +576,7 @@ function renderReportsIntelligence(){
     weekLabels.map(function(l,i){return '<th style="padding:6px 4px;color:var(--text3);font-weight:600;text-align:right;'+(i===6?'color:var(--gold-dark);':'')+'">'+l+'</th>';}).join('')+
     '</tr></thead><tbody>'+
     '<tr>'+weekRevs.map(function(v,i){return '<td style="padding:6px 4px;text-align:right;font-weight:'+(i===6?'700':'400')+';color:'+(i===6?'var(--gold-dark)':'var(--text2)')+';">'+fmt(v)+'</td>';}).join('')+'</tr>'+
-    '<tr>'+weekProfs.map(function(v,i){return '<td style="padding:4px;text-align:right;font-size:11px;color:'+(v>=0?'#22c55e':'#ef4444')+';font-weight:'+(i===6?'700':'400')+';">'+fmt(Math.round(v))+'</td>';}).join('')+'</tr>'+
+    '<tr>'+weekProfs.map(function(v,i){return '<td style="padding:4px;text-align:right;font-size:11px;color:'+(v>=0?'var(--success)':'var(--danger)')+';font-weight:'+(i===6?'700':'400')+';">'+fmt(Math.round(v))+'</td>';}).join('')+'</tr>'+
     '</tbody></table></div>'+
     '<div style="display:flex;align-items:flex-end;gap:3px;height:50px;margin-top:10px;padding:0 4px;">'+
     weekRevs.map(function(v,i){
@@ -595,12 +595,12 @@ function renderReportsIntelligence(){
       '<div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Revenue</th><th>Units</th><th>Profit</th><th>Trend</th></tr></thead><tbody>'+
       catPerf.map(function(c){
         var tIcon = c.prevRev>0?(c.trend>=0?'\u25B2 '+Math.round(c.trend)+'%':'\u25BC '+Math.abs(Math.round(c.trend))+'%'):'—';
-        var tColor= c.prevRev>0?(c.trend>=0?'#22c55e':'#ef4444'):'var(--text3)';
+        var tColor= c.prevRev>0?(c.trend>=0?'var(--success)':'var(--danger)'):'var(--text3)';
         return '<tr>'+
           '<td style="font-weight:600;">'+c.cat+'</td>'+
           '<td style="font-weight:700;color:var(--gold-dark);">'+fmt(Math.round(c.rev))+'</td>'+
           '<td>'+c.units+'</td>'+
-          '<td style="color:#22c55e;">'+fmt(Math.round(c.profit))+'</td>'+
+          '<td style="color:var(--success);">'+fmt(Math.round(c.profit))+'</td>'+
           '<td style="color:'+tColor+';font-weight:600;font-size:11px;">'+tIcon+'</td>'+
         '</tr>';
       }).join('')+'</tbody></table></div>'

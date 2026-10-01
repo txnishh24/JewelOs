@@ -55,6 +55,43 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 7/10: Reports; no zip)
+
+Edited both `renderReports()` (`js/03-billing-numbers.js:1080`) and the `patchReports`
+wrapper's `renderReportsIntelligence()` (`js/06-inventory-stock.js:483`) per the plan's
+explicit note that both need touching.
+
+- Most of `renderReports()` itself was already token-driven (same pattern as Day Book) —
+  found and fixed one bright-hex spot (Girvi mini-report's "Outstanding" figure, `#f59e0b`
+  → `var(--warning)`) and rebuilt `girviStatusBadge()` (`js/04-orders-detail.js`), which
+  had the same hex-alpha-suffix problem `girviRiskBadge()` had in the Girvi pass — same
+  fix, same `-soft` tokens. `atrisk` and `defaulted` now share `var(--danger)` rather than
+  two different reds, matching the simplification already used for `.girvi-card.status-*`.
+- `renderReportsIntelligence()` had 2 more bright-hex spots (week-over-week profit color,
+  category-intelligence trend/profit color) — fixed. Deliberately left the metal-wise and
+  category-wise bar-chart palettes alone (`var(--gold)`, `#a78bfa`, `#34d399`, etc.) —
+  those are categorical colors distinguishing chart series, not status indicators, and
+  collapsing them to danger/success/warning would make different categories
+  indistinguishable. Fixing that properly means designing a new restrained categorical
+  palette, which the token spec doesn't cover — flagging as a real, separate design
+  question rather than guessing at one.
+- Added the approved bilingual (English/Hinglish) empty-state copy at all 6 of Reports'
+  empty states (top products, by-category, sales history, top customers, pending aging,
+  girvi report) — e.g. "No sales this month yet — is mahine ka pehla bill banao!",
+  "No pending balances — sab clear hai!". Matches the WhatsApp-template tone already used
+  elsewhere in the app. (Left Customers' and Orders' own empty states alone — Customers
+  isn't one of the plan's 10 screens, Orders' comes with its own pass next.)
+
+**Verified:** `check.bat` — 318/318, zero new AST findings. The bilingual copy itself
+isn't visible in this session's screenshots since the test shop already has a full
+month's data (so those empty-state branches don't render) — confirmed directly in source
+instead, same as Day Book's `#999` decision. Screenshots in `redesign-shots/reports/
+{375,768,1440}.png` for the populated-data view.
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (luxury redesign screen pass 6/10: Day Book; no zip)
 
 Low risk, confirmed — already the best-structured screen (`.gl-entry-amt.credit/.debit`

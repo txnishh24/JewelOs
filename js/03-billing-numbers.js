@@ -1206,7 +1206,7 @@ function renderReports(){
   var tp=document.getElementById('top-prods');
   if(tp) tp.innerHTML=Object.entries(pm).sort(function(a,b){return b[1].rev-a[1].rev;}).slice(0,8)
     .map(function(e){return '<tr><td>'+escHtml(e[0])+'</td><td>'+e[1].u+'</td><td style="font-weight:700">'+fmtW(e[1].w)+'</td><td style="font-weight:700;color:var(--gold-dark);">'+fmt(Math.round(e[1].rev))+'</td></tr>';}).join('')
-    ||'<tr><td colspan="4"><div class="empty">No sales this month</div></td></tr>';
+    ||'<tr><td colspan="4"><div class="empty">No sales this month yet — is mahine ka pehla bill banao!</div></td></tr>';
 
   // ── By category (QA 30 Sep: #cat-perf had no renderer at all -- empty) ──
   var cm={};
@@ -1218,7 +1218,7 @@ function renderReports(){
   var cpEl=document.getElementById('cat-perf');
   if(cpEl) cpEl.innerHTML=Object.entries(cm).sort(function(a,b){return b[1].w-a[1].w;})
     .map(function(e){return '<tr><td>'+escHtml(e[0])+'</td><td>'+e[1].u+'</td><td style="font-weight:700">'+fmtW(e[1].w)+'</td></tr>';}).join('')
-    ||'<tr><td colspan="3"><div class="empty">No sales this month</div></td></tr>';
+    ||'<tr><td colspan="3"><div class="empty">No category data yet — koi bill nahi bana is mahine</div></td></tr>';
 
   // ── Sales in <month> (QA 30 Sep: #sales-hist had no renderer either) ──
   var shEl=document.getElementById('sales-hist');
@@ -1233,7 +1233,7 @@ function renderReports(){
         '<td style="color:'+(t.bal>0?'var(--danger)':'var(--success)')+'">'+(t.bal>0?fmt(t.bal):'\u2713')+'</td>'+
         '<td><button class="btn btn-sm" onclick="showSaleInvoice(\''+jsAttrEsc(s.id)+'\')">View</button></td></tr>';
     }).join('')
-    ||'<tr><td colspan="9"><div class="empty">No sales this month</div></td></tr>';
+    ||'<tr><td colspan="9"><div class="empty">No sales this month — naya bill banane ke liye Record Sale par jao</div></td></tr>';
 
   // ── Top customers this month ──
   var custMap3={};
@@ -1259,7 +1259,7 @@ function renderReports(){
           '</div></div>';
       }).join('');
     } else {
-      tcEl.innerHTML='<div class="empty"><span class="empty-icon">&#128101;</span>No sales this month</div>';
+      tcEl.innerHTML='<div class="empty"><span class="empty-icon">&#128101;</span>No sales this month — top customers yahan dikhenge jab bill banoge</div>';
     }
   }
 
@@ -1280,7 +1280,7 @@ function renderReports(){
           '</div></div>';
       }).join('');
     } else {
-      agingEl.innerHTML='<div class="empty"><span class="empty-icon">&#9989;</span>No pending balances</div>';
+      agingEl.innerHTML='<div class="empty"><span class="empty-icon">&#9989;</span>No pending balances — sab clear hai!</div>';
     }
   }
 
@@ -1301,7 +1301,7 @@ function renderReports(){
     var highRisk=gList.filter(function(g){return girviLTV(g)>0.85;}).length;
     girviRepEl.innerHTML=
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">'+
-        '<div style="background:var(--card2);border-radius:10px;padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:#f59e0b;">'+fmt(totalOut)+'</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;">Outstanding</div></div>'+
+        '<div style="background:var(--card2);border-radius:10px;padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:var(--warning);">'+fmt(totalOut)+'</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;">Outstanding</div></div>'+
         '<div style="background:var(--card2);border-radius:10px;padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:var(--success);">'+fmt(totalInt)+'</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;">Interest Earned</div></div>'+
         '<div style="background:var(--card2);border-radius:10px;padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:'+(highRisk>0?'var(--danger)':'var(--success)')+';">'+highRisk+'</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;">High Risk</div></div>'+
       '</div>'+
@@ -1319,7 +1319,7 @@ function renderReports(){
           '</tr>';
         }).join('')+
         '</tbody></table></div>'
-        :'<div class="empty">No active girvi loans</div>');
+        :'<div class="empty">No active girvi loans — abhi koi girvi nahi hai</div>');
   }
 }
 
