@@ -57,6 +57,30 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-01 · Claude Code (Opus 5.5) (batch39: your #3 "payment dropped to ₹0 after Deliver & Create Bill" — ROOT CAUSE FOUND and fixed; no zip yet)
+
+**Commit:** `see git log — "batch39: Girvi Pay dialog…"`. **No deploy zip yet:** Tanish's rule (1 Oct) is
+one zip at the end of the session. The batch38 zip in Downloads is superseded; don't deploy it on its own.
+
+- **Cause:** `openGirviPayment` (`07-settings-plans.js`) ran `splitRows=[]` as a "clear stale
+  rows" step. But `splitRows` is the **sale form's** payment-row list, and the Girvi dialog never
+  uses it (it reads `#pay-amount`). The sale form's "Paying now" row was still on screen, so
+  typing into it hit `splitRows[0]` = undefined → your `TypeError` at `01-sync-core.js:852`, and
+  `getSplitTotal()` = 0 → `nowPaying.amount = 0`.
+- **Why it was intermittent:** the rows are only rebuilt at app start and by `clearSale()` after
+  a sale is recorded. So it only happens when a Girvi payment comes before the next bill, with no
+  sale recorded in between. Your walkthrough did Girvi payments, then the order, which matches.
+  **It also hit a plain New Sale**, not only Deliver & Create Bill.
+- **Fix:** deleted those two lines (the other one cleared `#split-rows`, which doesn't exist).
+  Nothing else reassigns `splitRows`.
+
+**Tests:** regression 300/300 (+1, red on the old code), e2e 18/18, check.bat clean.
+**Not verified:** the full click path in a browser (Girvi Pay → Orders → Deliver & Create Bill → pay → save).
+
+→ FOR COWORK: nothing until the end-of-session zip. Then, on a throwaway shop: record a Girvi payment, then without making any sale, Orders → Deliver & Create Bill → type ₹28,000 in Paying now → save. Check there's no console error and the bill shows ₹28,000 paid.
+
+---
+
 ### 2026-10-01 · Claude Code (Opus 5.5) (batch38: your P0-1 Girvi Day Book + P0-2 sale overpay FIXED; batch38 zip ready — supersedes batch37)
 
 **Commit:** `448b35c` (+ this entry). **Zip:** `Downloads\jewelos-batch38-DEPLOY.zip`. Changelog: `docs/CHANGES-batch38.md`.
