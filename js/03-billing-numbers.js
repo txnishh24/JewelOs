@@ -412,7 +412,7 @@ function renderCustomers(){
         '<div>'+
           '<div style="font-weight:700;font-size:14px;">'+riskIcon+' '+escHtml(c.name)+'</div>'+
           (c.phone?'<div style="font-size:12px;color:var(--text3);">&#128222; '+escHtml(c.phone)+'</div>':'')+
-          '<div style="font-size:11px;color:var(--text3);margin-top:3px;">'+(last?c.sales.length+' bills &bull; '+fmtW(wt)+' &bull; Last: '+fmtDate(last.date):'No jewellery purchases &bull; Girvi account')+'</div>'+
+          '<div style="font-size:11px;color:var(--text3);margin-top:3px;">'+(last?plural(c.sales.length,'bill')+' &bull; '+fmtW(wt)+' &bull; Last: '+fmtDate(last.date):'No jewellery purchases &bull; Girvi account')+'</div>'+
           (f.activeGirvi>0||_cGActive.length>0?
             '<div style="font-size:11px;color:#f59e0b;font-weight:600;margin-top:2px;">🪙 '+(_cGActive.length||f.activeGirvi)+' active girvi · ₹'+Math.round(_cGOut||f.girviExposure).toLocaleString('en-IN')+' out · ₹'+Math.round(_cGInt).toLocaleString('en-IN')+' interest</div>'
             :'')+
@@ -1099,7 +1099,7 @@ function renderReports(){
   // ── Key metrics row ──
   var rm=document.getElementById('rep-metrics');
   if(rm) rm.innerHTML=
-    '<div class="metric"><div class="metric-label">Revenue</div><div class="metric-value" style="color:var(--gold-dark)">'+fmt(mProfit.revenue)+'</div><div class="metric-sub">'+monthSales.length+' bills + girvi interest</div></div>'+
+    '<div class="metric"><div class="metric-label">Revenue</div><div class="metric-value" style="color:var(--gold-dark)">'+fmt(mProfit.revenue)+'</div><div class="metric-sub">'+plural(monthSales.length,'bill')+' + girvi interest</div></div>'+
     '<div class="metric"><div class="metric-label">Profit</div><div class="metric-value" style="color:'+(mProfit.netProfit>=0?'var(--success)':'var(--danger)')+'">'+fmt(mProfit.netProfit)+'</div><div class="metric-sub">net of expenses</div></div>'+
     '<div class="metric"><div class="metric-label">GST Collected</div><div class="metric-value">'+fmt(mProfit.gst)+'</div><div class="metric-sub">govt portion</div></div>'+
     '<div class="metric"><div class="metric-label">Cash In</div><div class="metric-value" style="color:var(--success)">'+fmt(cf.cashIn)+'</div><div class="metric-sub">actual collected</div></div>'+

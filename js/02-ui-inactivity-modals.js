@@ -230,6 +230,7 @@ function fillPurities(){
   var sel=document.getElementById('f-purity');if(!sel)return;
   var list=UI.metal==='gold'?G_PUR:S_PUR;
   sel.innerHTML=list.map(function(p){return '<option>'+p+'</option>';}).join('');
+  if(UI.metal==='gold') sel.value='22K'; // QA 1 Oct P2: most jewellery is 22K; 24K was just first in the list
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────

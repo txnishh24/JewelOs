@@ -24,6 +24,9 @@ function getCustomerTags(custName, phone, salesArr){
   // Has girvi
   var custGirvi = (S.girvi||[]).filter(function(g){return g.customer===custName;});
   if(custGirvi.some(function(g){return g.status==='defaulted';})) tags.push('risk');
+  // QA 1 Oct P2: one big unpaid bill showed VIP + Risky + New at once. VIP is a
+  // repeat customer in good standing: 2+ bills and not risky.
+  if(tags.indexOf('vip')!==-1 && (salesArr.length<2 || tags.indexOf('risk')!==-1)) tags.splice(tags.indexOf('vip'),1);
   return tags;
 }
 
@@ -1271,7 +1274,7 @@ function showDailyDigest(){
     '<div style="text-align:center;padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:12px;">'+
       '<div style="font-size:13px;color:var(--text3);">'+dayName+'</div>'+
       '<div style="font-size:22px;font-weight:800;margin-top:4px;">'+fmt(todayRev)+'</div>'+
-      '<div style="font-size:11px;color:var(--text3);">Today\'s revenue &bull; '+todaySales.length+' bills</div>'+
+      '<div style="font-size:11px;color:var(--text3);">Today\'s revenue &bull; '+plural(todaySales.length,'bill')+'</div>'+
     '</div>'+
     digestSection('\ud83d\udcb0 This Month So Far',[
       ['Revenue', fmt(thisMonth.revenue)],
@@ -1282,7 +1285,7 @@ function showDailyDigest(){
     digestSection('\u26a0\ufe0f Action Needed',[
       ['Overdue girvi', overdueG.length ? overdueG.length+' loans' : '\u2705 Clear'],
       ['Pending dues',  pendingBal > 0  ? fmt(pendingBal)          : '\u2705 Clear'],
-      ['Urgent orders', urgentOrders.length ? urgentOrders.length+' orders' : '\u2705 Clear']
+      ['Urgent orders', urgentOrders.length ? plural(urgentOrders.length,'order') : '\u2705 Clear']
     ])+
     digestSection('\ud83e\udea9 Girvi Status',[
       ['Active loans', activeGirvi.length],
@@ -1396,7 +1399,7 @@ function renderSettingsAnalytics(){
           '<div style="flex-shrink:0;width:22px;text-align:center;font-weight:800;font-size:12px;color:var(--text3);">'+(i+1)+'</div>'+
           '<div style="flex:1;min-width:0;">'+
             '<div style="font-weight:600;font-size:13px;">'+escHtml(c.name)+' '+tagHtml+'</div>'+
-            '<div style="font-size:10px;color:var(--text3);">'+c.orders+' orders &bull; '+fmt(Math.round(c.avgOrder))+'/order'+(c.projected?' &bull; every '+Math.round(c.intervalDays)+'d on average':'')+'</div>'+
+            '<div style="font-size:10px;color:var(--text3);">'+plural(c.orders,'order')+' &bull; '+fmt(Math.round(c.avgOrder))+'/order'+(c.projected?' &bull; every '+Math.round(c.intervalDays)+'d on average':'')+'</div>'+
             '<div class="clv-bar-track" style="margin-top:4px;">'+
               '<div class="clv-bar-fill" style="width:'+Math.round(c.projectedLTV/maxCLV*100)+'%;background:var(--gold);"></div>'+
             '</div>'+

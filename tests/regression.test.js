@@ -3045,6 +3045,24 @@ test('QA 1 Oct P1-10: Girvi history shows each payment once, labelled by type', 
   assert(html.indexOf('Partial repayment') !== -1, 'payment row should say what kind of payment');
 });
 
+test('QA 1 Oct P2: counts read "1 bill" / "2 bills"', function(){
+  var a = loadApp();
+  assert(a.plural(1,'bill') === '1 bill' && a.plural(2,'order') === '2 orders' && a.plural(0,'bill') === '0 bills', 'plural wrong');
+});
+
+test('QA 1 Oct P2: one big unpaid first bill is not VIP; a repeat customer in good standing is', function(){
+  var a = loadApp();
+  var today = new Date().toISOString();
+  a.S.sales = [{ id:'s1', customer:'Karan', phone:'9876543210', date:today, lockedGrand:150000, advance:0, payStatus:'pending', items:[] }];
+  var tags = a.getCustomerTags('Karan', '9876543210', a.S.sales);
+  assert(tags.indexOf('vip') === -1, 'one bill must not be VIP: ' + tags);
+  a.S.sales = [
+    { id:'s1', customer:'Asha', phone:'9876500000', date:'2026-06-01', lockedGrand:80000, advance:80000, payStatus:'full', items:[] },
+    { id:'s2', customer:'Asha', phone:'9876500000', date:'2026-08-01', lockedGrand:80000, advance:80000, payStatus:'full', items:[] }];
+  tags = a.getCustomerTags('Asha', '9876500000', a.S.sales);
+  assert(tags.indexOf('vip') !== -1, 'two paid bills over 1L should be VIP: ' + tags);
+});
+
 test('girvi type:penalty with mode:Cash posts no line — it is a charge, not cash received', function(){
   var a = loadApp();
   a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,

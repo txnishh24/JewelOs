@@ -276,7 +276,7 @@ var _v20_renderGirvi_installed = false;
         (search||filter!=='all'
           ?'<div style="font-size:28px;margin-bottom:8px;">\ud83d\udd0d</div><div style="font-size:14px;">No results found</div><button class="btn" style="margin-top:10px;" onclick="document.getElementById(\'girvi-search\').value=\'\';resetGirviPage();">Clear Search</button>'
           :'<div style="font-size:40px;margin-bottom:10px;">\ud83e\ude99</div>'+
-           '<div style="font-size:15px;font-weight:700;margin-bottom:6px;">Koi girvi entry nahi hai</div>'+
+           '<div style="font-size:15px;font-weight:700;margin-bottom:6px;">No Girvi loans yet</div>'+
            '<div style="font-size:13px;margin-bottom:14px;color:var(--text3);">Start tracking pawn loans</div>'+
            '<button class="btn btn-gold" onclick="openGirviForm()" style="padding:12px 24px;font-size:14px;">+ New Girvi</button>')+
       '</div>';

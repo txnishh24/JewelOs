@@ -1210,7 +1210,7 @@ function dbSubmitClose(){
         var landDate = dbFirstOpenDay();
         safeConfirm(
           res.diff < 0 ? 'Record the shortfall?' : 'Record the excess?',
-          'Counted cash was '+fmt(Math.abs(res.diff))+' '+(res.diff<0?'short':'more')+' than the book. Add this as an entry on '+fmtDate(landDate)+'?',
+          'Counted cash was '+fmt(Math.abs(res.diff))+' '+(res.diff<0?'less':'more')+' than the book. Add this as an entry on '+fmtDate(landDate)+'?',
           function(){
             dbAddEntry(landDate, res.diff<0?'out':'in', Math.abs(res.diff), res.diff<0?'cashShort':'cashExcess', 'From closing '+dateKey, function(err2){
               if(err2){ toast('⚠ Could not record: '+dbErrText(err2)); return; }

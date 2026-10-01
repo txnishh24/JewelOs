@@ -64,7 +64,7 @@ function showPdfReport(){
           return {name:c.name,rev:c.sales.reduce(function(s,x){return s+calcSaleTotals(x).grand;},0),count:c.sales.length};
         }).sort(function(a,b){return b.rev-a.rev;}).slice(0,5);
         return custs.map(function(c,i){
-          return pdfRow((i+1)+'. '+c.name, fmt(c.rev)+' ('+c.count+' orders)','#333',false);
+          return pdfRow((i+1)+'. '+c.name, fmt(c.rev)+' ('+plural(c.count,'order')+')','#333',false);
         }).join('');
       }())+
     '</div>'+
@@ -863,7 +863,7 @@ function renderGirviTodayActions(){
   if(!actions.length){
     el.innerHTML='<div style="display:flex;align-items:center;gap:10px;padding:10px 0;font-size:13px;color:var(--text3);">'+
       '<span style="font-size:22px;">\u2705</span>'+
-      '<span>Sab theek hai! No overdue loans or urgent follow-ups today.</span>'+
+      '<span>All clear! No overdue loans or urgent follow-ups today.</span>'+
     '</div>';
     return;
   }
@@ -927,7 +927,7 @@ function renderGirvi(){
       (search||filter!=='all'
         ?'<div style="font-size:28px;margin-bottom:8px;">🔍</div><div>No results found</div>'
         :'<div style="font-size:40px;margin-bottom:10px;">🪙</div>'+
-         '<div style="font-size:15px;font-weight:700;margin-bottom:6px;">Koi girvi entry nahi hai</div>'+
+         '<div style="font-size:15px;font-weight:700;margin-bottom:6px;">No Girvi loans yet</div>'+
          '<div style="font-size:13px;margin-bottom:14px;">Tap + New Girvi to start tracking loans</div>'+
          '<button class="btn btn-gold" onclick="openGirviForm()" style="padding:12px 24px;font-size:14px;">+ New Girvi</button>')+
     '</div>';
@@ -1269,7 +1269,7 @@ function openGirviDetail(gid){
     } else if(daysInfo.daysLeft>=0&&daysInfo.daysLeft<=7){
       statusBanner='<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">'+
         '<span style="font-size:22px;">⏰</span>'+
-        '<div><div style="font-weight:700;color:#f59e0b;font-size:14px;">'+(daysInfo.daysLeft===0?'Aaj Due Hai!':daysInfo.daysLeft+' Din Mein Due')+'</div>'+
+        '<div><div style="font-weight:700;color:#f59e0b;font-size:14px;">'+(daysInfo.daysLeft===0?'Due today!':daysInfo.daysLeft+' Din Mein Due')+'</div>'+
         '<div style="font-size:12px;color:var(--text3);">Due: '+fmtDate(dbDayKey(daysInfo.dueDate))+'</div></div>'+
       '</div>';
     }

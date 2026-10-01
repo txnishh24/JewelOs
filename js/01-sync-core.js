@@ -721,6 +721,8 @@ function repairAndReload(){
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────
+// "1 bill", "2 bills" (QA 1 Oct P2: the app said "1 orders", "1 bills").
+function plural(n, word){ return n+' '+word+(n===1?'':'s'); }
 function fmt(n){
   var v = Math.round(n||0);
   return (v<0?'\u2212':'')+'\u20B9'+Math.abs(v).toLocaleString('en-IN');
