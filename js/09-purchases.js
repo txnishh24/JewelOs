@@ -1168,7 +1168,7 @@ function pbSubmitPayment(billId){
   }
 
   if(amount > b.pendingAmount + 1){
-    safeConfirm('Payment exceeds balance?','This payment ('+fmt(amount)+') is more than the outstanding balance ('+fmt(b.pendingAmount)+'). It will be recorded as an overpayment. Continue?',doPay,true);
+    safeConfirm('Payment exceeds balance?','This payment ('+fmt(amount)+') is more than the outstanding balance ('+fmt(b.pendingAmount)+'). It will be recorded as an overpayment. Continue?',doPay,'warn');
     return;
   }
   doPay();

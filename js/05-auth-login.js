@@ -27,6 +27,7 @@ function saasLogin(){
   if(!email) { errEl.textContent='Enter your email'; return; }
   if(!password) { errEl.textContent='Enter your password'; return; }
 
+  errEl.className = 'auth-err auth-info';
   errEl.textContent = '\u23f3 Signing in... please wait';
   var loginBtn = document.querySelector('#auth-login-form .auth-btn');
   if(loginBtn) loginBtn.disabled = true;
@@ -53,6 +54,7 @@ function saasLogin(){
     bootApp();
   }).catch(function(err){
     if(loginBtn) loginBtn.disabled = false;
+    errEl.className = 'auth-err';
     console.error('[JewelOS] login failed:', err);
 
     if(err.status === 429){

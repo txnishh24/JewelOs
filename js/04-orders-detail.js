@@ -209,7 +209,7 @@ function addPaymentToOrder(ordId){
   // Overpayment guard
   var totalAfter=ordAdvance(o)+amt;
   if(o.quote>0&&totalAfter>o.quote*1.05){
-    safeConfirm('Payment exceeds quote?','Total payments ('+fmt(totalAfter)+') exceed quoted amount ('+fmt(o.quote)+'). Continue anyway?',doAdd,true);
+    safeConfirm('Payment exceeds quote?','Total payments ('+fmt(totalAfter)+') exceed quoted amount ('+fmt(o.quote)+'). Continue anyway?',doAdd,'warn');
     return;
   }
   doAdd();

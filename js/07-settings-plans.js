@@ -678,7 +678,7 @@ function saveGirviEntry(_ltvConfirmed){
     safeConfirm('Loan is '+Math.round(principal/_mkt*100)+'% of the gold value',
       'Loan \u20b9'+Math.round(principal).toLocaleString('en-IN')+' against gold worth \u20b9'+Math.round(_mkt).toLocaleString('en-IN')+
       ' at the current rate. The usual limit is '+Math.round(GIRVI_LTV_WARN*100)+'%. Continue anyway?',
-      function(){ saveGirviEntry(true); }, true);
+      function(){ saveGirviEntry(true); }, 'warn');
     return;
   }
 

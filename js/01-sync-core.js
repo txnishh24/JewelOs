@@ -781,10 +781,12 @@ function safeConfirm(title, msg, onOk, danger){
   if(!overlay) { if(onOk) onOk(); return; } // fallback if DOM not ready
   titleEl.textContent = title;
   msgEl.textContent   = msg;
-  okBtn.style.background = danger
-    ? 'linear-gradient(135deg,#7f1d1d,var(--danger))'
-    : 'linear-gradient(135deg,var(--gold-dark),var(--gold))';
-  okBtn.style.color = danger ? '#fff' : '#1a1200';
+  okBtn.style.background = danger==='warn'
+    ? 'linear-gradient(135deg,var(--warning),#a0630e)'
+    : danger
+      ? 'linear-gradient(135deg,#7f1d1d,var(--danger))'
+      : 'linear-gradient(135deg,var(--gold-dark),var(--gold))';
+  okBtn.style.color = (danger==='warn' || danger) ? '#fff' : '#1a1200';
   overlay.style.display = 'flex';
   function cleanup(){ overlay.style.display='none'; okBtn.onclick=null; cancelBtn.onclick=null; }
   okBtn.onclick     = function(){ cleanup(); if(onOk) onOk(); };
@@ -1663,7 +1665,7 @@ function submitSalePayment(saleId){
   }
 
   if(amount > t.bal + 1){
-    safeConfirm('Payment exceeds balance?','This payment ('+fmt(amount)+') is more than the outstanding balance ('+fmt(t.bal)+'). Continue anyway?',doSubmit,true);
+    safeConfirm('Payment exceeds balance?','This payment ('+fmt(amount)+') is more than the outstanding balance ('+fmt(t.bal)+'). Continue anyway?',doSubmit,'warn');
     return;
   }
   doSubmit();

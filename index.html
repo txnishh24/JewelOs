@@ -117,9 +117,14 @@
   --text-xs:11px;   --text-sm:12px;   --text-base:14px;  --text-md:15px;
   --text-lg:18px;   --text-xl:22px;   --text-2xl:26px;   --text-3xl:32px;
 
-  /* Modal overlay — redesign Phase 1, shared by .modal-bg and .modal-overlay */
+  /* Modal overlay — redesign Phase 1. NOT YET applied to .modal-bg/.modal-overlay
+     (that's a deliberate later change, since it will visibly alter both overlays'
+     current darkness). z-index tokens were deliberately dropped here: the real
+     stack is a 12-value ladder (500/900/901/950/955/960/965/970/1100/1150/1500/2000)
+     for girvi's nested-modal chain and standalone dialogs — a single base+stacked
+     pair can't represent that without colliding with values already in use, and
+     the plan calls for leaving that ordering alone, not collapsing it. */
   --modal-overlay-color:rgba(24,22,14,.78);
-  --z-modal:900; --z-modal-stacked:960;
 }
 
 /* Breakpoint convention (redesign Phase 1) — plain CSS can't read custom
@@ -337,11 +342,11 @@ body{
 }
 .btn-gold:hover{background:linear-gradient(135deg,var(--gold),var(--gold-light));box-shadow:var(--shadow-gold);}
 .btn-warning{
-  background:linear-gradient(135deg,var(--warning),#a8690f);
+  background:linear-gradient(135deg,var(--warning),#a0630e);
   color:#fff;border-color:transparent;font-weight:600;
   box-shadow:0 2px 8px rgba(138,78,12,.25);
 }
-.btn-warning:hover{background:linear-gradient(135deg,#a8690f,var(--warning));}
+.btn-warning:hover{background:linear-gradient(135deg,#a0630e,var(--warning));}
 .btn-dark{
   background:linear-gradient(135deg,#18160e,#242118);
   color:#e8d49a;border-color:rgba(201,163,78,.2);font-weight:500;
@@ -528,7 +533,7 @@ tr:hover td{background:var(--gold-bg);}
 .bar-s{height:100%;background:linear-gradient(90deg,var(--silver-dark),var(--silver));border-radius:4px;transition:width .7s var(--ease);}
 
 /* ── BOTTOM NAV ──────────────────────────────────── */
-.bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,#1e1c12,#18160e);border-top:1px solid rgba(201,163,78,.16);z-index:200;padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 -4px 20px rgba(0,0,0,.25);}
+.bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,#1e1c12,#18160e);border-top:1px solid rgba(201,163,78,.16);z-index:200;padding-bottom:calc(64px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 20px rgba(0,0,0,.25);}
 .bnav-inner{display:flex;}
 .bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 7px;background:transparent;border:none;color:#5a5244;font-family:inherit;cursor:pointer;transition:color var(--t1);font-size:10px;font-weight:600;letter-spacing:.04em;}
 .bnav-btn:hover,.bnav-btn.active{color:var(--gold);}
@@ -736,6 +741,7 @@ html.dev .dev-only{display:block!important;}
 }
 .auth-btn:hover{opacity:.9;}
 .auth-err{font-size:12px;color:#ef4444;text-align:center;margin-top:8px;min-height:18px;}
+.auth-info{color:var(--gold-dark);}
 .auth-link{font-size:12px;color:var(--text3);text-align:center;margin-top:12px;}
 .auth-link a{color:var(--gold);cursor:pointer;text-decoration:none;font-weight:600;}
 

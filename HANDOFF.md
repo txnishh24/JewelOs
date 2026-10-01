@@ -55,6 +55,52 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5, Opus-reviewed) (luxury redesign cross-cutting fixes: safeConfirm amber state, "Signing in..." text, Netlify-badge nav padding; no screens touched yet, no zip)
+
+Followed up on the Opus review of the Phase 1 token commit (f573cfd) before continuing —
+full findings logged in `dynamic-dreaming-jellyfish.md`. Verdict was GO; fixed the two
+code-level bugs it found immediately:
+- `.btn-warning`'s gradient end color was white-on-`#a8690f` at 4.48:1, just under WCAG AA.
+  Changed to `#a0630e` (4.90:1, passes) in both `index.html` and the matching literal in
+  `safeConfirm()`'s inline-style branch (`js/01-sync-core.js`).
+- `--z-modal`/`--z-modal-stacked` (900/960) didn't match the app's real z-index ladder and
+  risked colliding with values already in use (900 is already `#girvi-modal` and
+  `#save-error-banner`). Deleted — never actually needed since the plan already says to
+  leave z-index ordering alone.
+Three plan-document gaps the review found (not code bugs) are now logged as explicit
+owned follow-ups in the plan file itself, not just this entry.
+
+**Then implemented the three cross-cutting fixes from the plan:**
+- `safeConfirm(title,msg,onOk,danger)` (`js/01-sync-core.js:775-794`): added a third
+  `danger==='warn'` state (amber, `.btn-warning`'s colors) alongside the existing
+  `true`/`false`. Updated the 4 call sites that were misusing `danger=true` for
+  non-destructive "continue anyway" warnings, now passing `'warn'`:
+  `js/01-sync-core.js:1668`, `js/09-purchases.js:1171`, `js/04-orders-detail.js:212`,
+  `js/07-settings-plans.js:681` (careful here — that call site also has an unrelated
+  `saveGirviEntry(true)` in the same line; only the trailing `danger` argument changed,
+  the girvi-save argument is untouched).
+- "Signing in..." no longer renders in error-red: `js/05-auth-login.js` now toggles
+  `errEl.className` to `'auth-err auth-info'` before the loading message and resets to
+  `'auth-err'` at the top of the `.catch` block, so every genuine error path still renders
+  red. New `.auth-info{color:var(--gold-dark);}` rule added next to `.auth-err` in
+  `index.html`.
+- `.bnav`'s `padding-bottom` now reserves 64px for the Netlify badge's footprint
+  (`calc(64px + env(safe-area-inset-bottom,0px))`) so bottom-nav buttons stay tappable
+  above it. Per your explicit decision, the badge's own dead CSS selector was NOT touched
+  — it stays visible, this only pads around it.
+
+**Verified:** `check.bat` — 318/318 tests pass (unchanged), zero new AST findings (538
+classes defined now vs 537, exactly the one new `.auth-info`; 431 used vs 430, exactly
+matching). `backup-check`/`roundtrip` clean. Diff touches only `index.html` and the 5 JS
+files listed above — nothing in Girvi's ledger logic, GST/billing math, or auth itself was
+changed, only the confirm-dialog's color and the login screen's loading-text styling.
+
+**Not yet done:** all 10 screen passes from the plan, still waiting for "go."
+
+→ FOR COWORK: nothing — FYI only.
+
+---
+
 ### 2026-10-01 · Claude Code (Sonnet 5) (luxury redesign Phase 1: design tokens only, index.html :root; no screens touched yet, no zip)
 
 Full plan (approved by Tanish, plan-mode session) is saved at
