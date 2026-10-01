@@ -1313,6 +1313,14 @@ function deductSoldStock(items, sale){
 // *separate* click after the first one already completed).
 var _saleSubmitLock = false;
 
+// How much "Paying now" exceeds what is still due after old gold and an
+// earlier advance. 0 when it fits; ₹1 slack for rounding.
+function saleOverpaidBy(sale){
+  var now = (sale.nowPaying && sale.nowPaying.amount) || 0;
+  var due = Math.max(0, (sale.lockedGrand||0) - ((sale.oldGold&&sale.oldGold.value)||0) - ((sale.prevAdvance&&sale.prevAdvance.amount)||0));
+  return now > due + 1 ? now - due : 0;
+}
+
 function recordSale(){
   if(!subGuard('recording a sale')) return;
   if(_saleSubmitLock){ toast('Sale already being recorded — please wait'); return; }
@@ -1361,6 +1369,13 @@ function recordSale(){
       else if(wantQty>p.qty){toast('Only '+p.qty+' of '+p.name+' left in stock');ok=false;}
     });
     if(!ok)return;
+  }
+  // QA 1 Oct P0-2: \u20b999,999 "Paying now" on a \u20b956,650 bill went into the
+  // Day Book as cash. Girvi and Orders already guard this; refuse it here.
+  var _over = saleOverpaidBy(sale);
+  if(_over > 0){
+    toast('\u26a0 Paying now is \u20b9'+Math.round(_over).toLocaleString('en-IN')+' more than the bill due. Enter only what the shop keeps (give back the change).');
+    return;
   }
   if(sale.invNo && invNoInUse(sale.invNo)){
     toast('\u26a0 Invoice '+sale.invNo+' already exists. Clear the Invoice No. box to get the next number.');

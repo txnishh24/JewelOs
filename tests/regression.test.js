@@ -2887,6 +2887,69 @@ test('girvi type:interest posts in; type:refund posts out', function(){
   assert(t.out === 1500, 'refund out: ' + t.out);
 });
 
+test('QA 1 Oct P0-1: every Pay-dialog type (general/partial/full/interest) posts cash in to the Day Book', function(){
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,
+    payments:[
+      { id:'p1', amount:25000, mode:'Cash', type:'general', date:'2026-09-05' },
+      { id:'p2', amount:2000,  mode:'Cash', type:'partial', date:'2026-09-05' },
+      { id:'p3', amount:1000,  mode:'Cash', type:'interest', date:'2026-09-05' },
+      { id:'p4', amount:7000,  mode:'Cash', type:'full',    date:'2026-09-05' }
+    ] }];
+  var t = a.dbAutoTotals('2026-09-05');
+  assert(t.in === 35000, 'expected 35000 in, got ' + t.in);
+});
+
+test('QA 1 Oct P0-1: Reports net cash uses the Day Book rule — penalty/waiver not cash, refund out', function(){
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,
+    payments:[
+      { id:'p1', amount:5000, mode:'Cash', type:'general', date:'2026-09-05' },
+      { id:'p2', amount:250,  mode:'Cash', type:'penalty', date:'2026-09-05' },
+      { id:'p3', amount:300,  mode:'Waiver', type:'waiver', date:'2026-09-05' },
+      { id:'p4', amount:1000, mode:'Cash', type:'refund',  date:'2026-09-05' }
+    ] }];
+  var cf = a.calcCashFlow(new Date('2026-09-01'), new Date('2026-09-30T23:59:59'));
+  assert(cf.girviIn === 4000, 'expected girviIn 4000, got ' + cf.girviIn);
+});
+
+test('QA 1 Oct P0-2: a sale refuses "Paying now" above what is due after old gold and advance', function(){
+  var a = loadApp();
+  var s = { lockedGrand:56650, nowPaying:{amount:99999}, oldGold:{value:0}, prevAdvance:{amount:0} };
+  assert(a.saleOverpaidBy(s) === 43349, 'overpay by 43349, got ' + a.saleOverpaidBy(s));
+  s.nowPaying.amount = 56650;
+  assert(a.saleOverpaidBy(s) === 0, 'exact payment is fine');
+  s.oldGold.value = 10000; s.prevAdvance.amount = 6650;
+  s.nowPaying.amount = 40000;
+  assert(a.saleOverpaidBy(s) === 0, 'fits what is due after old gold + advance');
+  s.nowPaying.amount = 41000;
+  assert(a.saleOverpaidBy(s) === 1000, 'old gold + advance count toward the bill');
+});
+
+test('QA 1 Oct P0-2: Edit Bill refuses payments above the bill and leaves the bill untouched', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
+    payStatus:'full', gst:0, discount:0, making:0, diamond:0,
+    items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
+    nowPaying:{amount:10000, mode:'Cash'}, splitPayments:[{amount:10000, mode:'Cash'}] }];
+  a._editBillId = 's1';
+  var vals = { 'ebsp-amt-0':'25000', 'ebsp-mode-0':'Cash', 'eb-disc':'0', 'eb-gst':'0', 'eb-advance':'0', 'eb-oldgold':'0' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(/^ebsp-amt-/.test(id) && !vals[id]) return null; // ends the split-row loop
+    if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+    return _o(id);
+  };
+  var saved = false; a.saveToCloud = function(){ saved = true; };
+  a.saveEditBill();
+  var s = a.S.sales[0];
+  assert(!saved, 'an overpaid edit must not be saved');
+  assert(s.advance === 10000 && !s.editHistory && s.splitPayments[0].amount === 10000, 'bill must be restored: ' + JSON.stringify(s));
+  vals['ebsp-amt-0'] = '10000';
+  a.saveEditBill();
+  assert(saved, 'an edit that fits the bill still saves');
+});
+
 test('girvi type:penalty with mode:Cash posts no line — it is a charge, not cash received', function(){
   var a = loadApp();
   a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,

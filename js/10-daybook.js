@@ -227,7 +227,9 @@ function dbAutoLines(dateKey){
       if(day !== dateKey) return;
       if(!p.amount || p.amount <= 0) return;
       var type = p.type || 'payment'; // legacy entries predate the type field
-      if(type !== 'payment' && type !== 'interest' && type !== 'refund') return;
+      // Deny-list, not allow-list: the Pay dialog saves general/partial/full
+      // too (QA 1 Oct P0-1), and every one of those is cash in.
+      if(type === 'penalty' || type === 'waiver') return;
       var gDir = (type === 'refund') ? 'out' : 'in';
       var gCat = (type === 'refund') ? 'girvi-refund' : 'girvi-repayment';
       var gLabel = 'Loan '+(g.grvNo||'')+(type==='refund' ? ' refund' : '');

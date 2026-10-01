@@ -1081,6 +1081,7 @@ function calcEditTotal(){
 function saveEditBill(){
   var sale = S.sales.find(function(x){return x.id===_editBillId;});
   if(!sale) return;
+  var _beforeEdit = JSON.stringify(sale); // restored if the edit is refused below
   // Save version snapshot before editing
   if(!sale.editHistory) sale.editHistory=[];
   sale.editHistory.push({
@@ -1127,6 +1128,13 @@ function saveEditBill(){
   sale.lastEditedAt = new Date().toISOString();
   var t=calcSaleTotals(sale);
   sale.lockedGrand=Math.round(t.grand);
+  // QA 1 Oct P0-2, same rule as recordSale: payments above the bill are refused.
+  var _over = saleOverpaidBy({lockedGrand:sale.lockedGrand, nowPaying:{amount:splitAdv}, oldGold:{value:og}, prevAdvance:{amount:prevAdvSave}});
+  if(_over > 0){
+    S.sales[S.sales.indexOf(sale)] = JSON.parse(_beforeEdit);
+    toast('⚠ Payments are ₹'+Math.round(_over).toLocaleString('en-IN')+' more than the bill. Enter only what the shop keeps.');
+    return;
+  }
   if(t.bal<=0) sale.payStatus='full';
   saveToCloud(function(err){
     if(!err){
@@ -1369,8 +1377,9 @@ function calcCashFlow(fromDate, toDate){
     }
     (g.payments||[]).forEach(function(p){
       var pd = new Date(p.date||p.ts);
-      if(pd >= from && pd <= to){
-        girviIn += parseFloat(p.amount)||0;
+      // Same rule as the Day Book (C2): penalty/waiver are not cash, refund is cash out.
+      if(pd >= from && pd <= to && p.type !== 'penalty' && p.type !== 'waiver'){
+        girviIn += (p.type === 'refund' ? -1 : 1) * (parseFloat(p.amount)||0);
       }
     });
   });
