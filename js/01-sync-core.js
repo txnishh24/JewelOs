@@ -116,6 +116,16 @@ function loadFromCloud(callback){
     if(record.nextPurchaseBillNo> 0) S.nextPurchaseBillNo= record.nextPurchaseBillNo;
     migrateLockRates();
     normaliseData();
+    // Offline bills (02-ui-inactivity-modals.js) go onto the fresh cloud data, then save.
+    var _replayed = (typeof replayOfflineSales==='function') ? replayOfflineSales() : 0;
+    if(_replayed > 0){
+      saveToCloud(function(err){
+        if(err) return; // still in the outbox; the next load replays it again
+        pruneOfflineOutbox();
+        toast('\u2705 '+_replayed+' offline bill'+(_replayed===1?'':'s')+' synced');
+      });
+    }
+    if(typeof invPoolTopUp==='function') setTimeout(invPoolTopUp, 2000);
     setSyncStatus('ok', 'Live ●');
     if(callback) callback(null);
   })

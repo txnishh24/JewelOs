@@ -1447,6 +1447,72 @@ function recordSale(){
   _commitSaleTransaction(sale);
 }
 
+// ── OFFLINE BILLING (Tanish 1 Oct) ──────────────────────────────────
+// Each phone keeps INV_POOL_SIZE invoice numbers reserved from the server
+// counter (so they are unique across devices). EVERY sale takes the next one
+// from the pool first -- that keeps one phone's series consecutive -- and the
+// pool refills in the background while online. With no internet the sale is
+// applied on this phone as usual and waits in an outbox. Every successful cloud load replays the outbox onto the fresh data
+// and saves; an entry leaves the outbox only once the cloud has that sale.
+// Reserved numbers a phone never uses become gaps, which the series already
+// allows; duplicates stay impossible.
+var INV_POOL_SIZE = 5; // ponytail: 5 offline bills per phone per outage; raise if shops need more
+var _invPoolFilling = false;
+function _lsList(key){ try{ var v=JSON.parse(localStorage.getItem(key)||'[]'); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
+function _lsPut(key, v){ try{ localStorage.setItem(key, JSON.stringify(v)); return true; }catch(e){ return false; } }
+function invPoolKey(){ return shopScopedKey('jewelos_inv_pool'); }
+function saleOutboxKey(){ return shopScopedKey('jewelos_sale_outbox'); }
+function invPoolTopUp(){
+  if(_invPoolFilling || !navigator.onLine) return;
+  var pool = _lsList(invPoolKey()).filter(function(n){ return !invNoInUse(n); });
+  _lsPut(invPoolKey(), pool);
+  if(pool.length >= INV_POOL_SIZE) return;
+  _invPoolFilling = true;
+  allocInvNo(function(err, invNo){
+    _invPoolFilling = false;
+    if(err) return;
+    var cur = _lsList(invPoolKey()); cur.push(invNo); _lsPut(invPoolKey(), cur);
+    invPoolTopUp();
+  });
+}
+function takePoolInvNo(){
+  var pool = _lsList(invPoolKey()).filter(function(n){ return !invNoInUse(n); });
+  var n = pool.shift() || null;
+  _lsPut(invPoolKey(), pool);
+  return n;
+}
+// Called by loadFromCloud right after S holds the cloud's data. Sales the
+// cloud already has leave the outbox; the rest are applied to S. Returns how
+// many were applied (the caller then saves).
+function replayOfflineSales(){
+  var box = _lsList(saleOutboxKey());
+  if(!box.length) return 0;
+  var inCloud = function(e){ return S.sales.some(function(x){ return x.id===e.sale.id; }); };
+  var pending = box.filter(function(e){ return !inCloud(e); });
+  if(pending.length !== box.length) _lsPut(saleOutboxKey(), pending);
+  pending.forEach(function(e){
+    S.sales.push(e.sale);
+    if(e.mode!=='custom') deductSoldStock(e.items||[], e.sale);
+    var o = e.order ? (S.orders||[]).find(function(x){ return x.id===e.order; }) : null;
+    if(o && !o.billedSaleId){
+      o.status='delivered'; o.linkedSale=true; o.billedSaleId=e.sale.id; o.billedInvNo=e.sale.invNo;
+      if(!o.statusHistory) o.statusHistory=[];
+      o.statusHistory.push({status:'delivered',date:e.sale.createdAt||new Date().toISOString(),note:'Converted to sale '+e.sale.invNo+' (offline)'});
+    }
+    var n = parseInt(String(e.sale.invNo||'').replace(/^INV-0*/i,''),10);
+    if(n > 0) S.nextInvNo = Math.max(S.nextInvNo, n+1);
+    if(typeof upsertCustomer==='function') upsertCustomer(e.sale.customer, e.sale.phone, { addr:e.sale.addr||'', gstin:e.sale.custGSTIN||'' });
+  });
+  return pending.length;
+}
+function offlineSalesPending(){ return _lsList(saleOutboxKey()).length; }
+// After a save that carried the replayed sales has landed: they are in the cloud now.
+function pruneOfflineOutbox(){
+  var box = _lsList(saleOutboxKey());
+  var left = box.filter(function(e){ return !S.sales.some(function(x){ return x.id===e.sale.id; }); });
+  if(left.length !== box.length) _lsPut(saleOutboxKey(), left);
+}
+
 // F3: a blank invoice number is fetched from the server counter here, at
 // save time, holding the submit lock so a double-tap can't fetch two.
 // The form state the commit needs is captured HERE, before the network hop:
@@ -1467,8 +1533,22 @@ function _commitSaleTransaction(sale){
     }
   }
   if(sale.invNo){ run(); return; }
+  var pooled = takePoolInvNo();
+  if(pooled){
+    sale.invNo = pooled;
+    ctx.issuedNo = parseInt(pooled.slice(4), 10);
+    if(!navigator.onLine){ sale.offline = true; ctx.offline = true; }
+    run();
+    return;
+  }
+  function runOffline(){
+    _saleSubmitLock = false;
+    toast('\u26a0 No internet, and no offline invoice numbers are left on this phone. Connect once to reserve more.');
+  }
+  if(!navigator.onLine){ runOffline(); return; }
   _saleSubmitLock = true;
   allocInvNo(function(err, invNo){
+    if(err && err.message === 'counter-unavailable'){ runOffline(); return; }
     if(err){
       _saleSubmitLock = false;
       toast(err.message === 'counter-behind'
@@ -1549,9 +1629,32 @@ function _commitSaleTransactionNow(sale, ctx){
     deductSoldStock(saleItemsForStock, sale);
   }
 
+  if(ctx.offline){
+    var box = _lsList(saleOutboxKey());
+    box.push({ sale: sale, mode: ctx.mode,
+      items: saleItemsForStock.filter(function(x){ return x.pid; }).map(function(x){ return { pid:x.pid, qty:x.qty }; }),
+      order: linkedOrder ? ctx.order : null });
+    _saleSubmitLock = false;
+    if(!_lsPut(saleOutboxKey(), box)){
+      // Phone storage full: nothing durable holds this sale, so undo it.
+      S.sales = S.sales.filter(function(x){ return x.id !== sale.id; });
+      toast('\u26a0 Phone storage is full. Sale not recorded.');
+      return;
+    }
+    if(typeof saveCache==='function') saveCache();
+    upsertCustomer(sale.customer, sale.phone, { addr: sale.addr||'', gstin: sale.custGSTIN||'' });
+    if(linkedOrder){ if(_pendingOrderConversion===ctx.order) _pendingOrderConversion=null; if(typeof renderOrders==='function') renderOrders(); }
+    clearSale();
+    renderDash();
+    toast('\u2705 Saved offline: '+sale.invNo+'. It will sync when the internet is back.');
+    setTimeout(function(){switchTab('dashboard');},900);
+    return;
+  }
+
   saveToCloud(function(err){
     _saleSubmitLock = false;
     if(!err){
+      invPoolTopUp();
       upsertCustomer(sale.customer, sale.phone, { addr: sale.addr||'', gstin: sale.custGSTIN||'' });
       if(linkedOrder){ if(_pendingOrderConversion===ctx.order) _pendingOrderConversion=null; if(typeof renderOrders==='function') renderOrders(); }
       clearSale();

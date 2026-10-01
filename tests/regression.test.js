@@ -1288,6 +1288,7 @@ function earlierLandedApp(storedIdFrom){
       var stored = Object.assign({}, sent, { _v:12, _saveId: storedIdFrom === 'first' ? firstId : 'other-device' });
       return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ ok:false, conflict:true, data:stored }); } });
     }
+    if(opts && opts.method === 'POST') return Promise.reject(new Error('no counter here')); // the offline-number pool refill, not a load
     gets++;
     return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ _v:12, sales:[{ id:'landed' }] } }); } });
   };
@@ -3097,6 +3098,54 @@ test('Bill preview: Edit / Refund / Delete act on the bill that was showing, aft
   a.invoiceBillAction(function(id){ got = id; });
   assert(got === 's9', 'action got ' + got);
   assert(a.CURRENT_SALE_FOR_PDF === null, 'preview should be closed first');
+});
+
+function offlineApp(online){
+  var a = loadApp();
+  a.navigator.onLine = online;
+  a.UI.saleMode = 'custom';
+  a.saved = 0; a.saveToCloud = function(cb){ a.saved++; if(cb) cb(null); };
+  a.setTimeout = function(){ return 1; };
+  return a;
+}
+function offlineSale(id){ return { id:id, customer:'Walk-in', phone:'', items:[{ name:'Ring', weight:1, qty:1, lockedRate:7200 }], lockedGrand:7200, createdAt:'2026-10-01T10:00:00Z' }; }
+
+test('Offline billing: with no internet a sale takes a reserved number, stays on the phone and waits in the outbox', function(){
+  var a = offlineApp(false);
+  a.localStorage.setItem(a.invPoolKey(), JSON.stringify(['INV-050','INV-051']));
+  a._commitSaleTransaction(offlineSale('off1'));
+  assert(a.saved === 0, 'must not try the cloud while offline');
+  assert(a.S.sales.length === 1 && a.S.sales[0].invNo === 'INV-050' && a.S.sales[0].offline === true, 'sale on phone: ' + JSON.stringify(a.S.sales));
+  assert(a.offlineSalesPending() === 1, 'outbox should hold it');
+  assert(JSON.parse(a.localStorage.getItem(a.invPoolKey())).join() === 'INV-051', 'number taken from the pool');
+});
+
+test('Offline billing: no internet and no reserved numbers left -> refused, nothing recorded', function(){
+  var a = offlineApp(false);
+  a._commitSaleTransaction(offlineSale('off2'));
+  assert(a.S.sales.length === 0 && a.offlineSalesPending() === 0, 'nothing may be recorded');
+  assert(a._saleSubmitLock === false, 'submit lock must be released');
+});
+
+test('Offline billing: back online, the outbox is replayed onto fresh cloud data exactly once', function(){
+  var a = offlineApp(true);
+  a.S.products = [{ id:'p1', name:'Ring', qty:1, weight:5, status:'available', metal:'gold', purity:'22K' }];
+  var sale = offlineSale('off3'); sale.invNo = 'INV-060';
+  a.localStorage.setItem(a.saleOutboxKey(), JSON.stringify([{ sale:sale, mode:'stock', items:[{ pid:'p1', qty:1 }], order:null }]));
+  assert(a.replayOfflineSales() === 1, 'one sale to replay');
+  assert(a.S.sales.some(function(s){ return s.id === 'off3'; }), 'sale applied');
+  assert(a.S.products[0].qty === 0 && a.S.products[0].status === 'sold', 'stock deducted on the fresh data');
+  // Next load: the cloud now has it, so it leaves the outbox and is not applied again.
+  assert(a.replayOfflineSales() === 0 && a.offlineSalesPending() === 0, 'must not replay twice');
+  assert(a.S.sales.filter(function(s){ return s.id === 'off3'; }).length === 1, 'no duplicate sale');
+});
+
+test('Offline billing: an online sale also takes the next reserved number, so one phone\'s series stays consecutive', function(){
+  var a = offlineApp(true);
+  a.localStorage.setItem(a.invPoolKey(), JSON.stringify(['INV-070']));
+  a._commitSaleTransaction(offlineSale('on1'));
+  assert(a.S.sales[0].invNo === 'INV-070' && !a.S.sales[0].offline, 'online sale from the pool: ' + JSON.stringify(a.S.sales[0]));
+  assert(a.saved === 1 && a.offlineSalesPending() === 0, 'saved to the cloud, not the outbox');
 });
 
 test('girvi type:penalty with mode:Cash posts no line — it is a charge, not cash received', function(){

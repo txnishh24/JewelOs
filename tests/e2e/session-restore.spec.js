@@ -91,6 +91,11 @@ test.describe('reopening the app (F1 / R1)', () => {
 
   test('token expired while closed: login with a reason, no PIN, no store-proxy call', async ({ page }) => {
     await login(page);
+    // batch44: after a load the app reserves offline invoice numbers in the
+    // background. Let that finish first, so only calls made by the reopen count.
+    await page.waitForFunction(() => {
+      try { return JSON.parse(localStorage.getItem(invPoolKey()) || '[]').length >= INV_POOL_SIZE; } catch (e) { return false; }
+    }, null, { timeout: 30000 });
     const calls = watchStoreProxy(page);
     await reopen(page, { expired: true });
     await expect(page.locator('#auth-email')).toBeVisible({ timeout: 10000 });

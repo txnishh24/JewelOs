@@ -59,7 +59,12 @@ test.describe('sale', () => {
     await page.locator('#panel-sales').getByRole('button', { name: /record & sync sale/i }).click();
 
     // Back on the dashboard: today's sales total should have picked this up.
-    await expect(page.getByText('Saved', { exact: false })).toBeVisible({ timeout: 15000 });
+    // Wait for THIS sale's confirmation, then for the app's own return to the
+    // dashboard (a 0.9 s timer after every sale). Waiting on the generic 'Saved'
+    // could pass on an earlier save, and the timer then switched the Day Book
+    // tab we had just opened back to the dashboard.
+    await expect(page.getByText(/Sale recorded! Invoice/)).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#panel-dashboard')).toHaveClass(/active/, { timeout: 5000 });
 
     // Confirm it auto-posted to Day Book as a cash-in line, not silently dropped
     // (this is the specific bug this app has had before — see docs/TESTING-STRATEGY.md).
@@ -105,7 +110,12 @@ test.describe('sale', () => {
     await expect(page.getByText('✓ Fully Settled', { exact: true })).toBeVisible();
 
     await page.locator('#panel-sales').getByRole('button', { name: /record & sync sale/i }).click();
-    await expect(page.getByText('Saved', { exact: false })).toBeVisible({ timeout: 15000 });
+    // Wait for THIS sale's confirmation, then for the app's own return to the
+    // dashboard (a 0.9 s timer after every sale). Waiting on the generic 'Saved'
+    // could pass on an earlier save, and the timer then switched the Day Book
+    // tab we had just opened back to the dashboard.
+    await expect(page.getByText(/Sale recorded! Invoice/)).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('#panel-dashboard')).toHaveClass(/active/, { timeout: 5000 });
 
     await goToTab(page, 'daybook');
     await expect(page.getByText(/Also today:.*UPI, Card or Bank/i)).toBeVisible({ timeout: 10000 });
