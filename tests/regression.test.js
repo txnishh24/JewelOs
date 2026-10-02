@@ -1241,6 +1241,69 @@ testAsync('a 401 on save with a non-JSON body still prompts for the password, no
   });
 });
 
+// Opus review, 2 Oct: the watchdog can still force-free isSaving while a
+// save's attempt is genuinely still in flight (that is exactly the case it
+// exists to recover from). Once that happens a second, independent
+// saveToCloud() can start. Without a per-call lock token, the first
+// (stale) call's eventual late answer could clear the SECOND call's lock,
+// wipe its _unconfirmedSaveIds, or stamp its own older server version over
+// the version the second call already confirmed.
+testAsync('a save freed early by the watchdog cannot clear a newer save\'s lock, wipe its tracking, or roll back its version', function(){
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  var resolveFirst, putCount = 0;
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      putCount++;
+      if(putCount === 1){
+        // Never resolves on its own -- simulates the hung request the
+        // watchdog had to free the lock for.
+        return new Promise(function(resolve){ resolveFirst = resolve; });
+      }
+      return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ ok:true, data:{ _v:7 } }); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  var secondResult = 'pending';
+  a.saveToCloud(function(){});
+  return flushAll().then(function(){
+    assert(a.isSaving === true, 'the first save should be holding the lock while its request is stuck');
+    // Simulate exactly what the watchdog does (00-config-state.js) after 70s.
+    a.isSaving = false; a._isSavingSetAt = 0; a._saveLockToken = null;
+    a.saveToCloud(function(err){ secondResult = err ? err.message : 'saved'; });
+    return flushAll(16);
+  }).then(function(){
+    assert(secondResult === 'saved', 'the newer save must complete normally, got ' + secondResult);
+    assert(a.isSaving === false, 'the newer save must have released its own lock');
+    assert(a._loadedVersion === 7, 'the newer save\'s confirmed version must be in effect, got ' + a._loadedVersion);
+    // Now let the stale first attempt's response finally land.
+    resolveFirst({ status:200, ok:true, json:function(){ return Promise.resolve({ ok:true, data:{ _v:99 } }); } });
+    return flushAll(16);
+  }).then(function(){
+    assert(a.isSaving === false, 'a late response from the superseded save must not mark the lock busy again');
+    assert(a._loadedVersion === 7, 'a stale, superseded save landing late must not overwrite the version the newer save already confirmed, got ' + a._loadedVersion);
+  });
+});
+
+testAsync('a callback that throws is called exactly once, and does not cause the save to be resent', function(){
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  var puts = 0, calls = 0;
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      puts++;
+      return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ ok:true, data:{ _v:5 } }); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  a.saveToCloud(function(err){ calls++; throw new Error('a bug in the caller, not in saveToCloud'); });
+  return flushAll(16).then(function(){
+    assert(calls === 1, 'the callback must be called exactly once, got ' + calls);
+    assert(puts === 1, 'a callback that throws must not cause the save to be resent, got ' + puts + ' PUT(s)');
+    assert(a.isSaving === false, 'the lock must still be released even though the callback threw');
+  });
+});
+
 testAsync('a save on a stalled connection gives up after its retries instead of hanging forever', function(){
   var a = loadApp();
   a.SAAS.sessionToken = 'tok';

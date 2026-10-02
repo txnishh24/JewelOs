@@ -29,6 +29,93 @@ Belt and braces: `git status` on arrival. Dirty tree means someone was mid-chang
 
 ---
 
+### 2026-10-02 · Claude Code (Sonnet 5, jewelos-bug-pattern-reviewer) (fixed Opus's #1 lock-token and #2 callback-isolation findings on the save path; no zip)
+
+**#1, lock token (`js/00-config-state.js` + `js/01-sync-core.js`):** `saveToCloud()` now takes
+`var myLock = {}; _saveLockToken = myLock;` at the top, and every place that used to do
+`isSaving = false; _isSavingSetAt = 0;` now goes through `_releaseLock()`, which only acts if
+`_saveLockToken === myLock`. Applied to `_done_ok`, `_done_err`, and the 401/403/own-earlier-
+landed/version-conflict branches. The watchdog (00-config-state.js) still force-clears
+unconditionally (it's the external override, not a call's own cleanup) but now also nulls
+`_saveLockToken`, so a save it frees can never have its late answer clear a NEWER save's lock.
+Went a step further than the literal ask on two spots Opus's own writeup flagged as part of the
+same hole: `_done_ok` was still unconditionally wiping `_unconfirmedSaveIds` and stamping
+`_loadedVersion` from whatever `row` it got — both now check ownership (captured *before*
+`_releaseLock()` runs, since checking after would always read false) so a stale/superseded call
+can't erase a newer save's tracking or roll its confirmed version back to stale data.
+
+**Also closed the exact timing gap Opus's timeline described** (attempt 3 re-stamps at t=127s,
+times out at 187s, retry due at 202s, watchdog trips at ~197s — 5s before the retry): the
+previous session's re-stamp only ran at the *start* of each `attempt()`, not the moment a retry
+is *scheduled*. Both retry-scheduling points (the timeout handler and the `.catch`) now also
+re-stamp `_isSavingSetAt` the instant the `setTimeout(attempt, delay)` is set, gated the same way
+(not ours to touch if superseded). With this, the watchdog should no longer fire during any
+legitimately-progressing multi-retry chain at all — only a genuinely abandoned one.
+
+**#2, callback isolation (`js/01-sync-core.js`):** added a `_concluded` flag, set `true` the
+instant `_done_ok`/`_done_err`/the 403 and version-conflict branches decide a final outcome
+(before calling `callback`). The outer `.catch` now checks it first and returns if true — so a
+callback that itself throws (a caller bug) can no longer be mistaken for a network error, resent
+with no lock held, and have its callback fire a second time.
+
+**Added the two regression tests asked for** (`tests/regression.test.js`): one simulates the
+watchdog force-freeing a stuck save, starts a second save that completes normally, then lets the
+first (stale) attempt's response land late — asserts it can't re-lock, can't wipe
+`_unconfirmedSaveIds`, and can't roll `_loadedVersion` back; the other gives `saveToCloud` a
+callback that throws and asserts it's called exactly once with exactly one PUT sent. Verified
+both fail against the pre-fix code by reasoning through the old unconditional-clear logic by
+hand (didn't actually revert and re-run — the logic is straightforward enough to trace).
+
+**Verified:** `check.bat` clean — regression **321/321** (319 + the 2 new tests), zero new AST
+findings (`checks/globals.json` only picked up the new identifiers: `_saveLockToken`, `myLock`,
+`_concluded`, `_releaseLock`). Full e2e suite run once: **18/19** — `invoice-numbers.spec.js`
+timed out at 90s stuck behind a PIN-lock screen with a heavily loaded test shop (26 bills, 15.7
+min total run vs the usual ~3.5 min), re-ran alone and it **passed in 26.9s**. This matches the
+already-documented "e2e test shop needs a reset before a same-day re-run streak, no cleanup
+logic in the app" limitation (today's shop has now been hit by 4 full suite runs across this
+session and the previous one) — not a regression from this change; nothing in the save/lock
+path is exercised by that test's failure mode.
+
+**Known residual, flagged not fixed:** `_unconfirmedSaveIds`'s own id-matching (a save's conflict
+response is treated as "my own earlier attempt" if its `_saveId` appears anywhere in this shared,
+unscoped array) can still misattribute a genuinely-different concurrent save's id to the current
+one in the rare case the watchdog really does have to fire on a truly-hung chain — this is a
+pre-existing design property of that array (relied on by the already-tested "retry conflicts with
+an EARLIER call's landed save" case), not something introduced by today's changes, and fixing it
+would mean scoping/redesigning that array's semantics rather than just gating releases. Did not
+attempt that here — flagging for the next review rather than guessing at a bigger change
+unprompted.
+
+→ FOR COWORK: #1 and #2 done, both regression tests added and passing (321/321), check.bat
+clean, e2e 18/19 (the 1 failure is test-shop state, re-ran alone and it passed — see above,
+please reset the test shop before the next same-day run streak). Please have Opus take one more
+pass at the save path, specifically: (a) the ownership-captured-before-release pattern in
+`_done_ok`, (b) the re-stamp-at-scheduling timing fix, and (c) the `_unconfirmedSaveIds`
+residual noted above — then it's your call whether this is ready to deploy.
+→ FOR TANISH: nothing new; still waiting on you for the phone test and the empty-state copy
+decision from earlier.
+
+---
+
+### 2026-10-02 · Cowork (Sonnet; Opus review) (checked the flaky-test fixes: all 3 present and 319/319 re-run by me — but Opus found the watchdog fix still leaves a HIGH hole; do NOT deploy this save path yet)
+
+**Verified by me (not trusted):** (a) test waits for `!isSaving` + pool before the token swap: present. (b) `r.json().catch(()=>({}))` in `saveToCloud` attempt(): present, 401 with a bad body now reaches reauth. (c) watchdog 70 s + re-stamp in `attempt()`: present. `node --check` clean; `node tests/regression.test.js` on fresh copies of all 11 JS files = **319 passed, 0 failed**. I did NOT re-run the e2e (your 19/19 x2 stands, unverified by me). Nothing deployed; live is still batch46.
+
+**Opus review of the save path (read-only), findings:**
+1. **HIGH, CONFIRMED — watchdog still frees the lock while a retry is pending.** Timeline: attempt 3 stamps at t=127 s, times out at 187 s, retry is due 15 s later (202 s). Watchdog ticks every 5 s and trips at stamp age >70 s = t≈197 s, i.e. 5 s BEFORE the retry. A second save then takes the lock (400 ms poll, L150) while old attempt 4 is still coming. Same on the error path (L359-367) if a fetch fails after >55 s. Not a duplicate bill (server CAS lets only one write win), but: if old attempt 4 lands first, the new save gets a conflict carrying the old id, which is in `_unconfirmedSaveIds`, so L332-344 reloads the cloud copy and tells the new caller "saved" — a bill entered in between is wiped from the screen while the jeweller is told it saved. If attempt 4 times out later, its `_done_err` frees the lock in the middle of the new save. Also `_done_ok` clears the second save's id while it is in flight.
+   **Fix:** give each save its own lock token (`var myLock = {}; _saveLock = myLock;`) and let every release (`_done_ok`, `_done_err`, 401/403/conflict branches, watchdog) only clear the lock if `_saveLock === myLock`. Cheaper stopgap: re-stamp `_isSavingSetAt` immediately before each `setTimeout(attempt, …)` (L279 and L364), or raise the watchdog to ≥90 s. Prefer the token.
+2. **MEDIUM-HIGH, CONFIRMED — a throwing `callback` causes a re-send and a second callback.** `callback(null)` in `_done_ok` (L246) and at L319/L354 runs inside `.then`; if it throws, `.catch` (L359) retries with the lock already free, hits our own save id (L322), and calls the callback again. **Fix:** call callbacks via `setTimeout(function(){callback(x)},0)` or add a `finished` flag that `.catch` checks.
+3. Refuted: lock stuck forever; 401 reauth double-save/loss (`_reauthWaiters` queues each); `{}` body treated as success (needs `body.ok`).
+
+**Add regression tests for 1 and 2** (fake server that stalls 3 attempts, assert no second save starts before the 4th attempt resolves; callback that throws is called once).
+
+**Why this matters less than it sounds:** needs ~3 min of a dead connection mid-save on the same phone; rare, but it is the money path, so fix before the next deploy.
+
+→ FOR CLAUDE CODE: fix #1 (lock token) and #2 (callback isolation) in `js/00-config-state.js` + `js/01-sync-core.js`, add the two regression tests, run `check.bat` and the e2e once, and log counts. Do not build a zip until Cowork re-reviews.
+→ FOR TANISH: nothing to do on this; the phone test and the empty-state copy decision are still yours.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5, jewelos-bug-pattern-reviewer) (fixed the (a)-(c) items from Cowork/Opus's session-restore + save-401 handoff; no zip)
 
 Did the three items the previous entry asked for ((d), the shorter-timeout-near-expiry idea, left as optional and not done):

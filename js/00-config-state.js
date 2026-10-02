@@ -30,22 +30,39 @@ var AUTO_REFRESH_MS = 60000;
 var refreshTimer = null;
 var isSaving = false;
 var _isSavingSetAt = 0;
+// Which in-flight saveToCloud() call currently owns the lock (an object
+// identity, not a string, so it can never collide). Set by saveToCloud
+// itself; only that same call's own release logic may clear isSaving --
+// see _releaseLock() in 01-sync-core.js (Opus review, 2 Oct).
+var _saveLockToken = null;
 
 // Watchdog: auto-release isSaving if stuck for more than 70 seconds.
 // Was 30s, below saveToCloud's own SAVE_TIMEOUT_MS (60s per attempt in
 // 01-sync-core.js) -- the watchdog could free the lock mid-attempt, letting
 // a second save start while the first was still in flight (Cowork/Opus
 // review, 2 Oct). 70s leaves the 60s attempt timeout room to fire first.
-// saveToCloud's attempt() re-stamps _isSavingSetAt on every retry (not just
-// the initial call), so this threshold only ever has to cover ONE attempt's
-// worst case, not the full multi-retry chain (bug-pattern review, 2 Oct --
-// an unconditional 70s would otherwise fire mid-retry on a save that is
-// still making legitimate progress across its up-to-4 attempts).
+// saveToCloud's attempt() re-stamps _isSavingSetAt on every retry AND the
+// instant each retry is scheduled (not just when it starts), so this
+// threshold only ever has to cover ONE attempt's own timeout, not the full
+// multi-retry chain -- a flat bump alone still tripped ~5s before a
+// scheduled retry (Opus review, 2 Oct).
+//
+// This is a last-resort force-free for a genuinely abandoned chain (a
+// crashed tab, an uncaught exception, the device sleeping through its own
+// timers) -- it is not expected to fire during a normal, even slow,
+// multi-retry save. _saveLockToken is cleared unconditionally here (not
+// token-gated, unlike every release inside saveToCloud itself): this is an
+// external override, not the original call's own cleanup, and clearing it
+// is what lets a NEW saveToCloud() call take the lock cleanly. Any late
+// response from the save this just freed can then no longer clear the new
+// call's lock or touch its _unconfirmedSaveIds (see _releaseLock() in
+// 01-sync-core.js).
 setInterval(function(){
   if(isSaving && _isSavingSetAt > 0 && (Date.now() - _isSavingSetAt) > 70000){
     console.warn('[JewelOS] isSaving stuck for 70s — auto-releasing lock');
     isSaving = false;
     _isSavingSetAt = 0;
+    _saveLockToken = null;
     setSyncStatus('err','Save lock reset');
   }
 }, 5000);

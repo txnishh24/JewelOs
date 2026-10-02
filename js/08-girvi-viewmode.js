@@ -1475,7 +1475,7 @@ function cloudDiag(silent){
       + "<pre style=\"white-space:pre-wrap;margin:0;\">" + escHtml(log.join("\n")) + "</pre>"
       + "<div style=\"margin-top:14px;display:flex;gap:8px;\">"
         + "<button onclick=\"this.closest('.diag-wrap').remove()\" style=\"padding:8px 18px;background:#7c3aed;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;\">Close</button>"
-        + "<button onclick=\"isSaving=false;setSyncStatus('ok','Lock reset');toast('isSaving reset');this.closest('.diag-wrap').remove()\" style=\"padding:8px 18px;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;\">Reset Save Lock</button>"
+        + "<button onclick=\"isSaving=false;_saveLockToken=null;setSyncStatus('ok','Lock reset');toast('isSaving reset');this.closest('.diag-wrap').remove()\" style=\"padding:8px 18px;background:#dc2626;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;\">Reset Save Lock</button>"
       + "</div>"
       + "</div>";
     d.className = "diag-wrap";
@@ -1570,6 +1570,7 @@ function cloudDiag(silent){
 function resetSaveLock(){
   isSaving = false;
   _isSavingSetAt = 0;
+  _saveLockToken = null;
   setSyncStatus('ok', 'Lock reset');
   toast('\u2705 Save lock reset.');
   setTimeout(function(){ saveCache(); saveToCloud(function(err){ if(!err) toast('\u2705 Data synced successfully'); }); }, 300);
