@@ -19,6 +19,46 @@ and Claude Code does not read the brain folder at all.
 
 ---
 
+### 2026-10-02 · Claude Code (Sonnet 5, Phase 2 of premium redesign — shell) (done, checks pass, live-verified at desktop width, awaiting Tanish's go-ahead for Phase 3)
+
+**Phase 2 scope (presentation-only):** login/signup, header, bottom/side nav, dashboard. Files
+touched: `index.html` (markup/CSS only), `js/05-auth-login.js`, `js/06-inventory-stock.js`
+(both JS edits were byte-exact Python read-modify-write, each asserted to occur exactly once,
+specifically to avoid corrupting nearby `\uXXXX` escapes — see `skills/jewelos-dev-rules.md`).
+No ids, function names, onclick targets, or logic changed; Girvi untouched.
+
+**JS edit (both files):** removed the literal UTF-8 `' →'` suffix from 10 `cta:` button-label
+strings across `buildTodayActions()` (6 sites) and `renderOnboarding()` (4 sites) — text only,
+the `tab:` targets and click handlers are unchanged.
+
+**Checks:** `node --check` on all 11 files clean; `tests/regression.test.js` 321/321 passed;
+all 9 `checks/*.js` AST scripts ran clean against this diff (only pre-existing, already-
+documented false positives, none touching the 3 files above).
+
+**Live walkthrough** (real app via `tests/e2e/static-server.js`, not a synthetic page — logged
+into the permanent E2E test shop, Tanish logged in himself since the password is in the
+permission-blocked `.env.test`): confirmed live at ~1536px — login screen, side-rail nav,
+header buttons, Dashboard onboarding checklist ("Change PIN", no arrow), Today's Actions
+("Manage orders", no arrow), "More details & reports" gold-purity bars (flat, no gradient),
+signup form ("Start Your Shop", no arrow), forgot-password form ("Send reset code", no arrow,
+"← Back to sign in" correctly left untouched).
+
+**Not verified this session:**
+- **375px mobile width** — `resize_window` reports success but does not actually change the
+  viewport in this browser session (confirmed `window.innerWidth` stuck at 1536 on two separate
+  tabs). Bottom nav / header-ellipsis behaviour at the app's 639px breakpoint is code-reviewed
+  only, not seen live. Needs a real narrow-viewport check (e.g. via the project's own Playwright
+  run, which does use a 393px project) before calling mobile confirmed.
+- Reset-password step 2 ("Reset password" button, needs a real emailed code) and the onboarding
+  wizard's "Start Managing My Shop" button (reachable only via a fresh signup — skipped rather
+  than creating a throwaway account in the shared test shop) — both carry the identical
+  arrow-removal edit as the sites above, code-reviewed but not clicked live.
+
+→ FOR COWORK: nothing — FYI only. Presentation-only, no logic/data/Girvi touched. (Unrelated:
+the staff Day Book tab bug from the Phase 0 entry above is still open and still not mine to fix.)
+
+---
+
 ### 2026-10-02 · Claude Code (Opus 5.5, Phase 0 audit for premium redesign) (bug found and flagged, not fixed — out of scope for this redesign)
 
 **Bug (logic, not touched):** `js/05-auth-login.js:628` — the staff-hide tab index list is

@@ -1720,7 +1720,7 @@ function buildTodayActions(){
     actions.push({type:'urgent',icon:'🔴',
       title: overdueG.length+' girvi loan'+(overdueG.length>1?'s':'')+' overdue',
       sub:   fmt(amt)+' outstanding + penalties accruing daily',
-      cta:   'View Girvi →', tab:'girvi'});
+      cta:   'View Girvi', tab:'girvi'});
   }
 
   // 2. Girvi due in 7 days
@@ -1729,7 +1729,7 @@ function buildTodayActions(){
     actions.push({type:'warning',icon:'⏰',
       title: dueSoon.length+' girvi'+(dueSoon.length>1?'s':'')+' due within 7 days',
       sub:   dueSoon.map(function(g){return g.grvNo+' ('+escHtml(g.customer)+')';}).join(', '),
-      cta:   'Send reminders →', tab:'girvi'});
+      cta:   'Send reminders', tab:'girvi'});
   }
 
   // 3. Pending payments > 30 days
@@ -1739,7 +1739,7 @@ function buildTodayActions(){
     actions.push({type:'urgent',icon:'💸',
       title: overduePay.length+' payment'+(overduePay.length>1?'s':'')+' overdue 30+ days',
       sub:   fmt(payAmt)+' uncollected',
-      cta:   'Follow up →', tab:'customers'});
+      cta:   'Follow up', tab:'customers'});
   }
 
   // 4. Orders past delivery
@@ -1750,7 +1750,7 @@ function buildTodayActions(){
     actions.push({type:'urgent',icon:'📦',
       title: lateOrders.length+' order'+(lateOrders.length>1?'s':'')+' past delivery date',
       sub:   lateOrders.map(function(o){return o.ordNo+' \u2013 '+escHtml(o.customer);}).join(', '),
-      cta:   'Manage orders →', tab:'orders'});
+      cta:   'Manage orders', tab:'orders'});
   }
 
   // 5. Orders due today
@@ -1761,7 +1761,7 @@ function buildTodayActions(){
     actions.push({type:'warning',icon:'🎁',
       title: todayOrders.length+' order'+(todayOrders.length>1?'s':'')+' due for delivery today',
       sub:   todayOrders.map(function(o){return escHtml(o.customer);}).join(', '),
-      cta:   'Mark delivered →', tab:'orders'});
+      cta:   'Mark delivered', tab:'orders'});
   }
 
   // 6. High LTV girvi
@@ -1770,7 +1770,7 @@ function buildTodayActions(){
     actions.push({type:'warning',icon:'⚠️',
       title: highLTV.length+' high-risk girvi (LTV > 85%)',
       sub:   'Gold value barely covers loan. Consider calling for early repayment.',
-      cta:   'Review loans →', tab:'girvi'});
+      cta:   'Review loans', tab:'girvi'});
   }
 
   // 7. If all clear — show positive

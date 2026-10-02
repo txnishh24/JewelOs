@@ -126,21 +126,21 @@ function renderOnboarding(){
       label:'Set today\'s gold rates',
       done: ratesConfirmed(),
       action: function(){ switchTab('inventory'); setTimeout(function(){ var el=document.getElementById('rate-g24'); if(el){ el.focus(); el.select(); }},300); },
-      cta:'Set rates →'
+      cta:'Set rates'
     },
     {
       id:'product',
       label:'Add your first product',
       done: (S.products||[]).length > 0,
       action: function(){ switchTab('inventory'); setTimeout(function(){ var el=document.getElementById('add-btn'); if(el) el.click(); },300); },
-      cta:'Add product →'
+      cta:'Add product'
     },
     {
       id:'sale',
       label:'Record your first sale',
       done: (S.sales||[]).length > 0,
       action: function(){ switchTab('sales'); },
-      cta:'Record sale →'
+      cta:'Record sale'
     },
     {
       id:'pin',
@@ -157,7 +157,7 @@ function renderOnboarding(){
       // never existed -- PIN entry is a full-screen numeric keypad, not a
       // text field. The real entry point is pinShowChange().
       action: function(){ switchTab('settings'); setTimeout(function(){ if(typeof pinShowChange==='function') pinShowChange(); },300); },
-      cta:'Change PIN →'
+      cta:'Change PIN'
     }
   ];
 

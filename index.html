@@ -183,55 +183,96 @@ body{
 
 /* ── TOPBAR ──────────────────────────────────────── */
 .topbar{
-  background:linear-gradient(108deg,#18160e 0%,#242118 52%,#18160e 100%);
-  padding:0 1.4rem 0 1.1rem;
+  background:var(--ink);
+  padding:0 var(--space-3);
   display:flex;align-items:center;justify-content:space-between;
-  height:62px;position:sticky;top:0;z-index:200;
-  border-bottom:1px solid rgba(201,163,78,.18);
-  box-shadow:0 2px 24px rgba(0,0,0,.3);
+  flex-wrap:nowrap;gap:var(--space-2);
+  height:var(--topbar-h);position:sticky;top:0;z-index:200;
+  border-bottom:1px solid rgba(255,255,255,.08);
+  box-shadow:none;
 }
-.logo-wrap{display:flex;align-items:center;gap:12px;min-width:0;flex:1 1 auto;margin-right:8px;}
+.logo-wrap{display:flex;align-items:center;gap:var(--space-2);min-width:0;flex:1 1 auto;overflow:hidden;}
 /* QA P2-20: a long shop name ran under the header buttons at 375px. It now shrinks and ends in "…". */
-.logo-wrap>div{min-width:0;}
-.logo-name,.logo-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.logo-wrap>div{min-width:0;flex:1 1 auto;overflow:hidden;}
+.logo-name,.logo-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
 /* On a phone the three header buttons show their icon only (the title is the tooltip),
    so the shop name has room. #sync-label stays: it is where "Saved ✓" shows. */
-@media(max-width:480px){.hdr-lbl{display:none;}.topbar{padding-left:.8rem;padding-right:.8rem;}}
-.logo-svg{width:38px;height:38px;flex-shrink:0;filter:drop-shadow(0 0 8px rgba(201,163,78,.3));}
-.logo-name{
-  font-family:'Cormorant Garamond',Georgia,serif;
-  font-size:20px;font-weight:600;color:#e8d49a;letter-spacing:.06em;line-height:1.1;
+@media(max-width:480px){
+  .hdr-lbl{display:none;}
+  .topbar{padding-left:var(--space-2);padding-right:var(--space-2);}
+  #sync-label{display:none;}
+  .logo-name{font-size:18px;}
+  .logo-svg{width:28px;height:28px;}
 }
-.logo-name span{font-style:italic;color:var(--gold);}
-.logo-sub{font-size:9px;color:#6a5c48;letter-spacing:.18em;text-transform:uppercase;margin-top:1px;}
+.topbar-actions{display:flex;align-items:center;gap:var(--space-1);flex:0 0 auto;}
+.logo-svg{width:32px;height:32px;flex-shrink:0;}
+.logo-name{
+  font-family:var(--font-display);
+  font-size:var(--text-xl);font-weight:600;color:var(--on-ink);letter-spacing:.02em;line-height:1.15;
+}
+.logo-name span{font-style:normal;color:var(--gold);}
+.logo-sub{font-size:10px;color:var(--on-ink-muted);letter-spacing:.12em;text-transform:uppercase;margin-top:1px;}
+
+.topbar-btns{display:flex;align-items:center;gap:5px;}
+.hdr-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  min-height:var(--tap);min-width:var(--tap);padding:0 10px;
+  background:transparent;border:none;border-radius:var(--radius);
+  color:var(--on-ink-muted);font-size:11px;font-weight:600;
+  font-family:inherit;cursor:pointer;transition:all var(--t1);
+}
+.hdr-btn:hover,.hdr-btn:focus-visible{color:var(--on-ink);background:rgba(255,255,255,.06);}
 
 /* ── SYNC ────────────────────────────────────────── */
-.sync-dot{width:6px;height:6px;border-radius:50%;background:#3a3428;transition:background .4s;}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--ink4);transition:background .4s;}
 .sync-dot.ok{background:var(--success);}
 .sync-dot.err{background:var(--danger);}
-.sync-dot.syncing{background:var(--gold);animation:pdot 1.2s ease-in-out infinite;}
+.sync-dot.syncing{background:var(--gold);}
 @keyframes pdot{0%,100%{opacity:1;}50%{opacity:.3;}}
-.sync-bar{position:fixed;top:62px;left:0;right:0;height:2px;z-index:199;overflow:hidden;pointer-events:none;}
-.sync-bar-inner{height:100%;width:0;background:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-light));transition:width .9s;}
+.sync-bar{position:fixed;top:var(--topbar-h);left:0;right:0;height:2px;z-index:199;overflow:hidden;pointer-events:none;}
+.sync-bar-inner{height:100%;width:0;background:var(--gold);transition:width .9s;}
+#sync-label{font-size:11px;color:var(--on-ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;}
 
-/* ── DESKTOP NAV TABS ────────────────────────────── */
+/* ── DESKTOP NAV TABS (restyled as a side rail at >=640px; .dtab markup/order/count
+   are matched by index in switchTab()/applyFeatureGates — never add/reorder/remove) ── */
 .dtabs{display:flex;gap:1px;align-items:center;}
 .dtab{
-  padding:7px 14px;border-radius:6px;font-size:12px;cursor:pointer;
-  border:none;background:transparent;color:#6a5c48;
+  padding:7px 14px;border-radius:var(--radius);font-size:12px;cursor:pointer;
+  border:none;background:transparent;color:var(--ink4);
   font-family:inherit;white-space:nowrap;font-weight:500;
   transition:all var(--t1);letter-spacing:.04em;
 }
-.dtab:hover{color:#e8d49a;background:rgba(255,255,255,.05);}
+.dtab:hover{color:var(--on-ink);background:rgba(255,255,255,.05);}
 .dtab.active{
-  background:linear-gradient(135deg,rgba(201,163,78,.22),rgba(201,163,78,.08));
-  color:#e8d49a;border:0.5px solid rgba(201,163,78,.3);
+  background:var(--ink2);
+  color:var(--on-ink);border:none;
 }
-@media(min-width:640px){.dtabs{display:flex;}}
+@media(min-width:640px){
+  .dtabs{
+    display:flex;flex-direction:column;align-items:stretch;gap:2px;
+    position:fixed;top:var(--topbar-h);left:0;bottom:0;width:var(--rail-w);
+    padding:var(--space-3) var(--space-2);background:var(--ink);
+    border-right:1px solid rgba(255,255,255,.06);
+    overflow-y:auto;z-index:190;
+  }
+  .dtab{
+    display:flex;align-items:center;min-height:var(--tap);
+    padding:0 var(--space-3);border-radius:var(--radius);border-left:2px solid transparent;
+    font-size:var(--text-base);text-align:left;
+  }
+  .dtab.active{border-left-color:var(--gold);}
+  body.demo-mode .dtabs,body.sub-banner-on .dtabs{top:calc(var(--topbar-h) + 34px);}
+}
+@media(min-width:640px) and (max-width:1023px){
+  :root{--rail-w:184px;}
+  .dtab{font-size:var(--text-sm);}
+}
 
 /* ── MAIN ────────────────────────────────────────── */
 .main{padding:1.2rem 1rem 5.5rem;max-width:1040px;margin:0 auto;}
 @media(min-width:800px){.main{padding:1.4rem 1.6rem 2rem;}}
+@media(min-width:640px){.main{margin-left:var(--rail-w);margin-right:0;}}
+@media print{.main{margin-left:0;}}
 .panel{display:none;}.panel.active{display:block;}
 
 /* ── METRIC CARDS ────────────────────────────────── */
@@ -277,8 +318,8 @@ body{
 /* ── STOCK BANNERS ───────────────────────────────── */
 .stock-banner{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:.9rem;}
 .sbox{border-radius:var(--radius-lg);padding:1.1rem 1.25rem;border:0.5px solid var(--border2);}
-.sbox-g{background:linear-gradient(135deg,var(--gold-bg),var(--gold-bg2));border-color:rgba(201,163,78,.3);}
-.sbox-s{background:linear-gradient(135deg,#f0f4f8,#e4ecf4);border-color:rgba(120,148,176,.22);}
+.sbox-g{background:var(--gold-bg);border-color:rgba(201,163,78,.3);}
+.sbox-s{background:var(--silver-bg);border-color:rgba(120,148,176,.22);}
 .sbox-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--gold-dark);margin-bottom:4px;}
 .sbox-wt{font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;font-weight:600;color:var(--gold-dark);}
 .sbox-s .sbox-title{color:var(--silver-dark);}
@@ -566,13 +607,13 @@ tr:hover td{background:var(--bg2);}
 .bar-row{margin-bottom:10px;}
 .bar-top{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;color:var(--ink3);}
 .bar-track{height:7px;background:var(--ivory3);border-radius:4px;overflow:hidden;}
-.bar-g{height:100%;background:linear-gradient(90deg,var(--gold-dark),var(--gold));border-radius:4px;transition:width .7s var(--ease);}
-.bar-s{height:100%;background:linear-gradient(90deg,var(--silver-dark),var(--silver));border-radius:4px;transition:width .7s var(--ease);}
+.bar-g{height:100%;background:var(--gold);border-radius:4px;transition:width .7s var(--ease);}
+.bar-s{height:100%;background:var(--silver);border-radius:4px;transition:width .7s var(--ease);}
 
 /* ── BOTTOM NAV ──────────────────────────────────── */
-.bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:linear-gradient(180deg,#1e1c12,#18160e);border-top:1px solid rgba(201,163,78,.16);z-index:200;padding-bottom:calc(64px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 20px rgba(0,0,0,.25);}
+.bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--ink);border-top:1px solid rgba(255,255,255,.08);z-index:200;padding-bottom:calc(64px + env(safe-area-inset-bottom,0px));box-shadow:none;}
 .bnav-inner{display:flex;}
-.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 7px;background:transparent;border:none;color:#5a5244;font-family:inherit;cursor:pointer;transition:color var(--t1);font-size:10px;font-weight:600;letter-spacing:.04em;}
+.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 7px;background:transparent;border:none;color:var(--on-ink-muted);font-family:inherit;cursor:pointer;transition:color var(--t1);font-size:10px;font-weight:600;letter-spacing:.04em;}
 .bnav-btn:hover,.bnav-btn.active{color:var(--gold);}
 .bnav-icon{font-size:20px;line-height:1;}
 .bnav-label{font-size:9px;text-transform:uppercase;letter-spacing:.05em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -740,13 +781,13 @@ html.dev .dev-only{display:block!important;}
 .auth-box{
   width:100%;max-width:400px;background:var(--card1);
   border-radius:20px;border:0.5px solid var(--border2);
-  padding:2rem 1.8rem;box-shadow:0 12px 60px rgba(0,0,0,.18);
+  padding:2rem 1.8rem;box-shadow:var(--shadow-lg);
 }
 .auth-logo{text-align:center;margin-bottom:1.5rem;}
 .auth-logo-mark{
-  width:56px;height:56px;background:linear-gradient(135deg,var(--gold-dark),var(--gold));
+  width:56px;height:56px;background:var(--ink);
   border-radius:14px;display:inline-flex;align-items:center;justify-content:center;
-  font-size:28px;margin-bottom:10px;box-shadow:0 4px 16px rgba(201,163,78,.35);
+  font-size:28px;margin-bottom:10px;box-shadow:var(--shadow-gold);
 }
 .auth-title{font-family:var(--font-display);font-size:var(--text-2xl);font-weight:600;margin-bottom:3px;}
 .auth-sub{font-size:var(--text-sm);color:var(--text3);}
@@ -764,7 +805,7 @@ html.dev .dev-only{display:block!important;}
 .auth-field input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,163,78,.15);}
 .auth-btn{
   width:100%;padding:14px;border-radius:11px;border:none;
-  background:linear-gradient(135deg,var(--gold-dark),var(--gold));
+  background:var(--gold);
   color:#1a1200;font-size:var(--text-md);font-weight:700;cursor:pointer;
   font-family:inherit;margin-top:4px;transition:opacity .15s;
   min-height:48px; -webkit-tap-highlight-color:transparent;
@@ -806,7 +847,7 @@ html.dev .dev-only{display:block!important;}
   position:fixed;top:0;right:0;bottom:0;left:0;background:var(--bg);z-index:1100;
   display:flex;align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto;
 }
-.onboard-box{width:100%;max-width:460px;background:var(--card1);border-radius:20px;border:0.5px solid var(--border2);padding:2rem 1.8rem;box-shadow:0 12px 60px rgba(0,0,0,.18);}
+.onboard-box{width:100%;max-width:460px;background:var(--card1);border-radius:20px;border:0.5px solid var(--border2);padding:2rem 1.8rem;box-shadow:var(--shadow-lg);}
 
 
 /* ── Top bar user info ── */
@@ -1446,7 +1487,7 @@ iframe.nl-badge-frame{display:none !important;}
     <div id="auth-login-form">
       <div class="auth-field"><label>Email</label><input id="auth-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
       <div class="auth-field"><label>Password</label><input id="auth-password" type="password" placeholder="Your password" autocomplete="current-password"></div>
-      <button class="auth-btn" onclick="saasLogin()">Sign In →</button>
+      <button class="auth-btn" onclick="saasLogin()">Sign In</button>
       <div class="auth-err" id="auth-login-err"></div>
       <div class="auth-link"><a onclick="showForgotPassword()">Forgot password?</a></div>
       <div id="auth-cloud-status" style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;"></div>
@@ -1459,7 +1500,7 @@ iframe.nl-badge-frame{display:none !important;}
       <div class="auth-field"><label>Password</label><input id="signup-password" type="password" placeholder="Min 8 characters" autocomplete="new-password"></div>
       <div class="auth-field"><label>Shop Name</label><input id="signup-shop" type="text" placeholder="e.g. Sri Sai Jewellers"></div>
       <div class="auth-field"><label>City</label><input id="signup-city" type="text" placeholder="e.g. Mumbai"></div>
-      <button class="auth-btn" onclick="saasSignup()">Start Your Shop →</button>
+      <button class="auth-btn" onclick="saasSignup()">Start Your Shop</button>
       <div class="auth-err" id="auth-signup-err"></div>
       <div class="auth-link" style="font-size:11px;color:var(--text3);">No card needed to sign up</div>
       <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:8px;line-height:1.6;">
@@ -1474,14 +1515,14 @@ iframe.nl-badge-frame{display:none !important;}
     <div id="auth-forgot-form" style="display:none;">
       <div id="forgot-step-email">
         <div class="auth-field"><label>Email</label><input id="forgot-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
-        <button class="auth-btn" id="forgot-request-btn" onclick="forgotPasswordRequestCode()">Send reset code →</button>
+        <button class="auth-btn" id="forgot-request-btn" onclick="forgotPasswordRequestCode()">Send reset code</button>
         <div class="auth-err" id="forgot-err"></div>
       </div>
       <div id="forgot-step-code" style="display:none;">
         <input type="hidden" id="forgot-code-email">
         <div class="auth-field"><label>6-digit code</label><input id="forgot-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456"></div>
         <div class="auth-field"><label>New password</label><input id="forgot-new-password" type="password" placeholder="Min 8 characters" autocomplete="new-password"></div>
-        <button class="auth-btn" id="forgot-reset-btn" onclick="forgotPasswordSubmitReset()">Reset password →</button>
+        <button class="auth-btn" id="forgot-reset-btn" onclick="forgotPasswordSubmitReset()">Reset password</button>
         <div class="auth-err" id="forgot-code-err"></div>
       </div>
       <div class="auth-link"><a onclick="cancelForgotPassword()">← Back to sign in</a></div>
@@ -1510,7 +1551,7 @@ iframe.nl-badge-frame{display:none !important;}
     </div>
     <div class="auth-field"><label>GSTIN (optional)</label><input id="ob-gstin" type="text" placeholder="22AAAAA0000A1Z5" style="text-transform:uppercase"></div>
     <!-- F5: USD/AED options removed -- nothing in the app used them; JewelOS is rupees + GST. -->
-    <button class="auth-btn" onclick="saasOnboardSave()" style="margin-top:8px;">Start Managing My Shop →</button>
+    <button class="auth-btn" onclick="saasOnboardSave()" style="margin-top:8px;">Start Managing My Shop</button>
     <div class="auth-err" id="ob-err"></div>
   </div>
 </div>
@@ -1579,35 +1620,27 @@ iframe.nl-badge-frame{display:none !important;}
   <div class="logo-wrap">
     <svg class="logo-svg" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
       <circle cx="19" cy="19" r="18" fill="#0e0d0a"/>
-      <circle cx="19" cy="19" r="17.2" fill="none" stroke="url(#gr)" stroke-width="1.6"/>
+      <circle cx="19" cy="19" r="17.2" fill="none" stroke="#c9a84c" stroke-width="1.6"/>
       <circle cx="19" cy="2.5" r="1" fill="#c9a84c" opacity="0.8"/><circle cx="19" cy="35.5" r="1" fill="#c9a84c" opacity="0.8"/>
       <circle cx="2.5" cy="19" r="1" fill="#c9a84c" opacity="0.8"/><circle cx="35.5" cy="19" r="1" fill="#c9a84c" opacity="0.8"/>
-      <polygon points="19,7 26,16 19,20 12,16" fill="url(#gf1)"/>
-      <polygon points="19,20 26,16 28,25 19,31" fill="url(#gf2)"/>
-      <polygon points="19,20 12,16 10,25 19,31" fill="url(#gf3)"/>
-      <polygon points="10,25 19,31 28,25 19,20" fill="url(#gf4)"/>
-      <line x1="19" y1="14" x2="19" y2="9.5" stroke="#ffe88a" stroke-width="0.7" opacity="0.5"/>
-      <defs>
-        <linearGradient id="gr" x1="0" y1="0" x2="38" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#e8d49a"/><stop offset="50%" stop-color="#c9a84c"/><stop offset="100%" stop-color="#8a6a1f"/></linearGradient>
-        <linearGradient id="gf1" x1="12" y1="7" x2="26" y2="20" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#ffe060"/><stop offset="100%" stop-color="#c9a84c"/></linearGradient>
-        <linearGradient id="gf2" x1="26" y1="16" x2="19" y2="31" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#c9a84c"/><stop offset="100%" stop-color="#7a5c18"/></linearGradient>
-        <linearGradient id="gf3" x1="12" y1="16" x2="19" y2="31" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#b89438"/><stop offset="100%" stop-color="#6a4e14"/></linearGradient>
-        <linearGradient id="gf4" x1="10" y1="25" x2="28" y2="25" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#8a6a1f"/><stop offset="50%" stop-color="#e0b84a"/><stop offset="100%" stop-color="#8a6a1f"/></linearGradient>
-      </defs>
+      <polygon points="19,7 26,16 19,20 12,16" fill="#c9a84c"/>
+      <polygon points="19,20 26,16 28,25 19,31" fill="#a3833a"/>
+      <polygon points="19,20 12,16 10,25 19,31" fill="#8f7230"/>
+      <polygon points="10,25 19,31 28,25 19,20" fill="#8a6a1f"/>
     </svg>
     <div>
       <div class="logo-name" id="header-shop-name"><span>JewelOS</span></div>
       <div class="logo-sub" id="header-user-info">Loading...</div>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-    <div style="display:flex;align-items:center;gap:5px;">
+  <div class="topbar-actions">
+    <div class="topbar-btns">
       <div class="sync-dot" id="sync-dot"></div>
-      <button onclick="forceSync()" title="Force sync" aria-label="Sync" style="background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.12);border-radius:100px;padding:5px 12px;color:#9a8c78;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.18s;" onmouseover="this.style.background='rgba(201,168,76,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">&#9729;<span class="hdr-lbl"> Sync</span></button>
+      <button class="hdr-btn" onclick="forceSync()" title="Force sync" aria-label="Sync">&#9729;<span class="hdr-lbl"> Sync</span></button>
 
-      <button onclick="switchTab('settings')" title="Settings & account" aria-label="Settings" style="background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.12);border-radius:100px;padding:5px 12px;color:#9a8c78;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.18s;" onmouseover="this.style.background='rgba(201,168,76,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">&#9881;<span class="hdr-lbl"> Settings</span></button>
-      <button onclick="saasLogout()" title="Sign out" aria-label="Sign out" style="background:rgba(255,255,255,0.06);border:0.5px solid rgba(255,255,255,0.12);border-radius:var(--radius-pill);padding:5px 12px;color:var(--text3);font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;transition:all 0.18s;" onmouseover="this.style.background='rgba(168,49,42,0.15)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'">&#128682;<span class="hdr-lbl"> Sign Out</span></button>
-      <span id="sync-label" style="font-size:10px;color:#7a6c5a;font-weight:600;letter-spacing:0.04em;"></span>
+      <button class="hdr-btn" onclick="switchTab('settings')" title="Settings & account" aria-label="Settings">&#9881;<span class="hdr-lbl"> Settings</span></button>
+      <button class="hdr-btn" onclick="saasLogout()" title="Sign out" aria-label="Sign out">&#128682;<span class="hdr-lbl"> Sign Out</span></button>
+      <span id="sync-label"></span>
     </div>
     <nav class="dtabs" id="dtabs">
       <button class="dtab active" onclick="switchTab('dashboard')">Dashboard</button>
@@ -1629,7 +1662,7 @@ iframe.nl-badge-frame{display:none !important;}
 <div id="panel-dashboard" class="panel active">
 
   <!-- ONBOARDING CHECKLIST — shown only for new shops -->
-  <div id="onboarding-checklist" style="display:none;background:linear-gradient(135deg,#fffbea,#fff8e7);border:1px solid rgba(201,168,76,0.35);border-radius:var(--radius-lg);padding:1rem 1.2rem;margin-bottom:.85rem;">
+  <div id="onboarding-checklist" style="display:none;background:var(--gold-bg);border:1px solid rgba(201,168,76,0.35);border-radius:var(--radius-lg);padding:1rem 1.2rem;margin-bottom:.85rem;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <div style="font-size:13px;font-weight:700;color:var(--gold-dark);">👋 Welcome! Set up your shop in 4 steps</div>
       <button onclick="document.getElementById('onboarding-checklist').style.display='none'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;">✕</button>
