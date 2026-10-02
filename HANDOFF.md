@@ -19,6 +19,43 @@ and Claude Code does not read the brain folder at all.
 
 ---
 
+### 2026-10-03 · Claude Code (Sonnet 5, Phase 5 of premium redesign — Day Book) (done, checks pass, live-verified; NOW released — **all 5 phases of the premium redesign plan now complete**)
+
+Same token-hygiene pass as Phases 3-4, scoped to Day Book. Repointed 2 stale
+pre-redesign gold `rgba()` literals in `10-daybook.js` (the "Paid out / Received"
+divider in the by-person grouped view, and the "Day closed" card border) — found by
+grepping all three known old-gold variants across the file; these were the only two.
+
+Day Book turned out to need the least work of any phase: it has **no dedicated CSS
+section of its own** in `index.html` (unlike Girvi) — it's built entirely on the
+shared/generic components (`.card`, metric-label headers, `.fg` form labels, the
+`.btn` system) that Phase 1 and Phase 3 already fixed, so it inherited those fixes
+automatically without any Day-Book-specific work needed. Its standalone print
+template (the day-close receipt, plain grayscale `<style>` block, `window.print()`)
+never carried the app's gold branding to begin with, so correctly nothing to touch
+there — same restraint as leaving the Orders/Purchases print templates alone in
+Phase 3.
+
+**Checks:** `node --check` clean, regression suite 321/321 (pre-commit hook re-ran
+it), AST checks unchanged (same pre-existing false positives). Live-verified via
+Playwright against the real e2e test shop: Day view (close match to
+`redesign-shots/daybook/`), Month view (cash-flow chart, days list, "By Person"
+grouping), and the Add Entry modal at 375/768/1440 — no mockup exists for the
+latter two, checked for internal design-system consistency instead.
+
+**The premium redesign is now done end to end** — Phase 1 (tokens) → 2 (shell) →
+3 (Stock/Sales/Orders/Purchases/Reports/Settings) → 4 (Girvi) → 5 (Day Book), plus
+the mobile bottom-nav bug fix in between. Girvi's interest engine and Day Book's
+cash-derivation/Close-Day logic were never touched at any point — every change
+across all 5 phases was CSS/markup/color-literal only.
+
+→ FOR COWORK: nothing — FYI only. The whole premium-redesign branch is now
+presentation-complete across every screen; Day Book logic untouched. Next step (not
+mine to decide) is probably Tanish reviewing the branch end-to-end before any merge
+to `main`.
+
+---
+
 ### 2026-10-03 · Claude Code (Sonnet 5, Phase 4 of premium redesign — Girvi) (done, checks pass, live-verified; NOW released)
 
 Same token-hygiene pass as Phase 3, scoped to Girvi this time: repointed 78 stale
