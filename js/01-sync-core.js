@@ -146,6 +146,35 @@ function loadFromCloud(callback){
 // Save ids sent but never confirmed by a success (see the conflict check in
 // saveToCloud). Cleared by any confirmed save; at most 20 kept.
 var _unconfirmedSaveIds = [];
+
+// Opus review, 3 Oct (finding B): a conflict response's _saveId being "one
+// this device has seen" (in _unconfirmedSaveIds) is not proof the landed
+// data is safe to treat as THIS save's own success -- a stale call that
+// raced ahead (see the lock-token guards in saveToCloud below) can leave ITS
+// saveId in the array while a genuinely different, newer save (with new
+// records the stale call never had) is the one asking. Only the generic
+// id-bearing arrays this app actually saves are checked; anything missing
+// from the landed data means this save's content did not make it, so it
+// must not be reported as a success.
+function _landedDataMissingMyContent(mine, landed){
+  var arrays = ['products','sales','orders','girvi','customers','purchases'];
+  for(var i=0; i<arrays.length; i++){
+    var k = arrays[i];
+    var mineArr = (mine && mine[k]) || [];
+    var landedArr = (landed && landed[k]) || [];
+    for(var j=0; j<mineArr.length; j++){
+      var id = mineArr[j] && mineArr[j].id;
+      if(id === undefined) continue;
+      var found = false;
+      for(var m=0; m<landedArr.length; m++){
+        if(landedArr[m] && landedArr[m].id === id){ found = true; break; }
+      }
+      if(!found) return true;
+    }
+  }
+  return false;
+}
+
 function saveToCloud(callback){
   if(isSaving){ setTimeout(function(){ saveToCloud(callback); }, 400); return; }
   if(saasReauthPending()){
@@ -218,6 +247,14 @@ function saveToCloud(callback){
   var saveId = Date.now().toString(36) + Math.random().toString(36).slice(2);
   _unconfirmedSaveIds.push(saveId);
   if(_unconfirmedSaveIds.length > 20) _unconfirmedSaveIds.shift();
+  // Opus review, 3 Oct (finding A): captured ONCE, when this call starts --
+  // not re-read from the live _loadedVersion on every retry. A stale call
+  // (its lock freed early by the watchdog, see myLock above) whose attempt()
+  // still fires after a NEWER save has already landed and moved
+  // _loadedVersion forward would otherwise send that NEWER version as its own
+  // expectedVersion, pass the server's compare-and-swap check with its own
+  // OLD data, and overwrite the newer save server-side.
+  var expectedVersionAtStart = _loadedVersion || 0;
   var dataPayload = {
     _saveId:     saveId,
     products:    S.products,
@@ -284,6 +321,15 @@ function saveToCloud(callback){
   }
 
   function attempt(){
+    // Opus review, 3 Oct (finding A): if the watchdog already freed this
+    // call's lock (phone-sleep / stuck-save recovery) and a NEWER
+    // saveToCloud() has since taken it, this call must not fire another
+    // network attempt at all. Resolve once, as an honest error, and stop --
+    // the newer save owns the slot now, and will report its own outcome.
+    if(_saveLockToken !== myLock){
+      if(!_concluded){ _concluded = true; if(callback) callback(new Error('save superseded by a newer save')); }
+      return;
+    }
     // Re-stamp on every retry, not just the initial call above -- otherwise
     // the watchdog (00-config-state.js) measures time since saveToCloud was
     // FIRST called, not since this attempt started, and fires mid-retry on
@@ -323,7 +369,7 @@ function saveToCloud(callback){
     fetch(SB_FUNCTIONS + '/store-proxy', {
       method: 'PUT',
       headers: Object.assign({}, SB_HEADERS, { 'x-session-token': (typeof SAAS!=='undefined' && SAAS.sessionToken) || '' }),
-      body: JSON.stringify({ data: dataPayload, expectedVersion: _loadedVersion || 0 })
+      body: JSON.stringify({ data: dataPayload, expectedVersion: expectedVersionAtStart })
     })
     .then(function(r){
       if(timedOut) return null;
@@ -339,6 +385,17 @@ function saveToCloud(callback){
     .then(function(res){
       if(!res || timedOut) return; // this attempt already timed out and was retried
       clearTimeout(timer); // only now: the body can stall after the headers
+      // Opus review, 3 Oct (finding B): this request was sent before anyone
+      // knew it was stale -- the guard at the top of attempt() only stops a
+      // SCHEDULED retry, not a fetch already in flight. Whatever the server
+      // just said, a newer save now owns this device's save slot: do not let
+      // this response touch _loadedVersion or _unconfirmedSaveIds, and do not
+      // let its own _saveId (now sitting in _unconfirmedSaveIds) be mistaken
+      // by some OTHER call for its own earlier landed attempt.
+      if(_saveLockToken !== myLock){
+        if(!_concluded){ _concluded = true; if(callback) callback(new Error('save superseded by a newer save')); }
+        return;
+      }
       if(res.body && res.body.ok){
         _done_ok(res.body);
         return;
@@ -348,6 +405,13 @@ function saveToCloud(callback){
       // signs in again, then send it on the new token. See loadFromCloud's
       // 401 above for why this is not the cancellable saasLogout().
       if(res.status === 401){
+        // Opus review, 3 Oct (finding D): mark concluded before releasing the
+        // lock and handing off to saasRequireReauth -- if that call throws
+        // (a bug in a reauth callback, a missing DOM element), the throw
+        // lands in the .catch() below indistinguishable from a network
+        // error; without this it would retry with the lock already
+        // released, an uncontrolled second attempt holding nothing.
+        _concluded = true;
         _releaseLock();
         saasRequireReauth(function(){ saveToCloud(callback); }, res.body && res.body.reason);
         return;
@@ -372,7 +436,16 @@ function saveToCloud(callback){
       // timed out while the first attempt had in fact landed. The cloud
       // holds that landed version: load it, report success (so the form
       // clears instead of inviting a re-entry), and say what happened.
-      if(res.body && res.body.conflict && res.body.data && _unconfirmedSaveIds.indexOf(res.body.data._saveId) !== -1){
+      //
+      // Opus review, 3 Oct (finding B): recognizing the saveId is not enough
+      // -- a stale call's leftover saveId can sit in _unconfirmedSaveIds
+      // while a genuinely different, newer save (this one, with content the
+      // stale call never had, e.g. a new bill) is the one asking. Only take
+      // this recovery path if the landed data actually contains everything
+      // THIS save intended to persist; otherwise it falls through to the
+      // real-conflict branch below, same as an unrecognized saveId would.
+      if(res.body && res.body.conflict && res.body.data && _unconfirmedSaveIds.indexOf(res.body.data._saveId) !== -1
+         && !_landedDataMissingMyContent(dataPayload, res.body.data)){
         console.warn('[JewelOS] save conflict was an earlier save of ours that landed');
         _concluded = true;
         // Check ownership BEFORE releasing -- _releaseLock() clears

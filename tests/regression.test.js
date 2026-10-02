@@ -1285,6 +1285,89 @@ testAsync('a save freed early by the watchdog cannot clear a newer save\'s lock,
   });
 });
 
+testAsync('a stale call\'s retry (freed by the watchdog) cannot resend after a newer save has landed, and the newer save\'s content survives', function(){
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  var timers = [];
+  a.setTimeout = function(f, ms){ timers.push({ f:f, ms:ms }); return timers.length; };
+  a.clearTimeout = function(){};
+  // A tiny fake server: version + stored document, the same compare-and-
+  // swap rule as store-proxy (a PUT only lands if expectedVersion matches).
+  var server = { v:3, data:{ sales:[{ id:'X' }], nextInvNo:5 } };
+  var puts = 0, retryTimer;
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      puts++;
+      if(puts === 1) return Promise.reject(new Error('network blip')); // A's first attempt
+      var body = JSON.parse(opts.body);
+      if(body.expectedVersion !== server.v){
+        return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ ok:false, conflict:true, data:Object.assign({ _v:server.v, _saveId:'someone-else' }, server.data) }); } });
+      }
+      server.v++;
+      server.data = body.data;
+      return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ ok:true, data:Object.assign({ _v:server.v }, body.data) }); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:server.data }); } });
+  };
+  a._loadedVersion = 3;
+  a.S.sales = [{ id:'X' }]; a.S.nextInvNo = 5; // A's view when it starts
+  var aResult = 'pending', bResult = 'pending';
+  a.saveToCloud(function(err){ aResult = err ? err.message : 'saved'; });
+  return flushAll().then(function(){
+    assert(puts === 1, 'expected A\'s first PUT attempt, got ' + puts);
+    // attempt() also schedules its own SAVE_TIMEOUT_MS (60000) watchdog timer
+    // alongside the 2000ms retry -- this mock's clearTimeout is a no-op, so
+    // both sit in `timers`; pick out the retry specifically.
+    retryTimer = timers.filter(function(t){ return t.ms === 2000; })[0];
+    assert(retryTimer, 'A\'s failed attempt should have scheduled a 2000ms retry, got timers: ' + JSON.stringify(timers.map(function(t){ return t.ms; })));
+    // Watchdog frees A's lock (simulating a stuck/abandoned save -- e.g. the
+    // phone slept through the retry delay).
+    a.isSaving = false; a._isSavingSetAt = 0; a._saveLockToken = null;
+    // B starts with NEW content (bill Y) and lands normally.
+    a.S.sales = [{ id:'X' }, { id:'Y' }]; a.S.nextInvNo = 6;
+    a.saveToCloud(function(err){ bResult = err ? err.message : 'saved'; });
+    return flushAll(16);
+  }).then(function(){
+    assert(bResult === 'saved', 'B must complete normally, got ' + bResult);
+    assert(server.v === 4, 'the server must have advanced exactly once (B\'s save), got v=' + server.v);
+    assert(server.data.sales.length === 2, 'the server must hold both bills after B, got ' + JSON.stringify(server.data.sales));
+    // Now let A's stale retry actually fire.
+    retryTimer.f();
+    return flushAll(16);
+  }).then(function(){
+    assert(puts === 2, 'A\'s stale retry must not have sent a new PUT, got ' + puts + ' total PUT(s)');
+    assert(aResult !== 'saved', 'A\'s own callback must not report success once superseded, got ' + aResult);
+    assert(server.v === 4, 'A\'s stale retry must not have touched the server after B landed, got v=' + server.v);
+    assert(server.data.sales.length === 2, 'bill Y must still be on the server, got ' + JSON.stringify(server.data.sales));
+    assert(server.data.nextInvNo === 6, 'the invoice counter must not have gone backwards, got ' + server.data.nextInvNo);
+  });
+});
+
+testAsync('a conflict carrying an earlier call\'s leftover _saveId must not report success when this save\'s own new content is missing from the landed data', function(){
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  // Pretend an earlier (stale) call already left its saveId in the tracking
+  // array without ever clearing it -- exactly what a superseded call does
+  // per the lock-token guards above.
+  a._unconfirmedSaveIds = ['earlier-saveid-A'];
+  a.S.sales = [{ id:'X' }, { id:'Y' }]; // this save's own new content: bill Y
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      // The server says the earlier call's data (old saveId, bill X only)
+      // is what's currently stored -- this save's own bill Y never landed.
+      return Promise.resolve({ status:409, ok:false, json:function(){
+        return Promise.resolve({ ok:false, conflict:true, data:{ _v:9, _saveId:'earlier-saveid-A', sales:[{ id:'X' }] } });
+      } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ sales:[{ id:'X' }] } }); } });
+  };
+  var result = 'pending';
+  a.saveToCloud(function(err){ result = err ? err.message : 'saved'; });
+  return flushAll(16).then(function(){
+    assert(result === 'version-conflict', 'bill Y is missing from the landed data -- this must be a real conflict, not a false success, got ' + result);
+  });
+});
+
 testAsync('a callback that throws is called exactly once, and does not cause the save to be resent', function(){
   var a = loadApp();
   a.SAAS.sessionToken = 'tok';
