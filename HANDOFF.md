@@ -15,7 +15,7 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> nobody
+> Claude Code — merging premium-redesign into main (Tanish's instruction) — since 3 Oct
 
 ---
 
