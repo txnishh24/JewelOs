@@ -19,6 +19,45 @@ and Claude Code does not read the brain folder at all.
 
 ---
 
+### 2026-10-03 · Claude Code (Sonnet 5, Phase 4 of premium redesign — Girvi) (done, checks pass, live-verified; NOW released)
+
+Same token-hygiene pass as Phase 3, scoped to Girvi this time: repointed 78 stale
+pre-redesign `rgba(201,168,76,*)` literals to the new palette (`rgba(179,146,87,*)`)
+across `index.html`'s Girvi CSS (edit modal, ledger, search chips, document upload,
+reminder tags, collection-efficiency bar, new-Girvi wizard), `08-girvi-viewmode.js`,
+`07-settings-plans.js` (which also owns Girvi list/item rendering per the file table),
+and the Girvi-account summary `03-billing-numbers.js` renders inside the Customer
+Timeline modal. Confirmed via two independent greps that this exact rgb variant
+appears nowhere outside Girvi scope in these four files before doing a file-wide
+replace (safe here, unlike Phase 3 where several old-gold variants were mixed
+across different screens and needed per-line targeting).
+
+Unlike Phase 3, found **no** form-label/table-header/button-color gaps — Girvi's
+own CSS (`#girvi-modal label`, `.ge-fg label`, flat gold buttons) was already built
+to the established design-system pattern before this pass. So this phase was
+color-literal cleanup only, nothing structural.
+
+Left untouched, deliberately: PIN/loading/inactivity's own old-gold variant
+(`201,163,78` — a different literal, still its own out-of-scope phase), Day Book's
+2 occurrences (Phase 5), and `.girvi-cp`'s raw-hex dark gradient background
+(matches its mockup as-is — same restraint as leaving Stock's `.rate-bar` gradient
+alone in Phase 3, not a token-rename regression).
+
+**Checks:** `node --check` clean, regression suite 321/321 (pre-commit hook re-ran
+it), AST checks unchanged (same pre-existing false positives). Live-verified via
+Playwright against the real e2e test shop: Girvi list view at 375/768/1440 (close
+match to `redesign-shots/girvi/`), plus the new-Girvi wizard, edit modal, and ledger
+detail view — no mockup exists for those three (only top-level screens got
+screenshotted), so checked them for internal consistency with the rest of the
+design system instead of a pixel diff.
+
+→ FOR COWORK: nothing — FYI only. Presentation-only, Girvi interest engine/ledger
+logic untouched — only CSS color literals and the two JS files' inline style
+strings that carry those literals. Phase 5 (Day Book) is next whenever Tanish
+gives the go-ahead.
+
+---
+
 ### 2026-10-03 · Claude Code (Sonnet 5, mobile bottom-nav floating bug) (fixed, checks pass, live-verified; NOW released)
 
 Tanish reported: on mobile, the bottom nav buttons sit "floating little above" the
