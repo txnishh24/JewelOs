@@ -19,6 +19,48 @@ and Claude Code does not read the brain folder at all.
 
 ---
 
+### 2026-10-03 · Claude Code (Sonnet 5, final check.bat + verify-ui pass on premium-redesign branch) (all green; read-only, nothing changed; NOW released)
+
+Ran the two checks CLAUDE.md requires before calling a build done, across the whole
+branch (Phases 1-5 + the bottom-nav fix, not just the latest phase):
+
+**`check.bat`** (all 3 steps): `node --check` on all 11 files clean. Regression suite
+**321/321**. All AST checks (`scope`/`handlers`/`ids`/`css`/`loadorder`/`backup-check`/
+`roundtrip`/`making-basis`) show only the same pre-existing documented false
+positives as every prior session (html2canvas/TextEncoder/Razorpay external globals,
+a handful of implicit globals, the three print-template `window.onload` strings,
+two pre-existing unstyled-class siblings, assorted `#id-` prefix lookups) — nothing
+new, nothing on a line any of the 5 phases touched. `backup-check` and `roundtrip`
+both clean.
+
+**`tests/e2e/` (`npm run test:e2e`)**, the persisted Playwright suite (login, sale,
+Girvi, Day Book): **18/19**, `invoice-numbers.spec.js` failed on `#panel-dashboard`
+not getting `.active` in time — re-ran it alone and it **passed**. This is a known,
+previously-documented flaky test (see this file's history: "18/19 ... 19/19 on
+re-run of the one failure" shows up multiple times before this redesign ever
+started), not a regression — I never touched `switchTab()` or the `.panel`/
+`.panel.active` CSS rule in any of the 5 phases.
+
+**Ad-hoc verify-ui walk** (Playwright, real e2e test shop, not confirmed-destructive
+actions): opened the Day Book **Close Day modal** live and screenshotted it (clean —
+uppercase "CASH COUNTED" label, flat gold button) — **deliberately did not confirm
+the close**, since that would have actually closed the shared permanent test shop's
+day and could break other sessions' Day Book state; dismissed it instead. Also
+triggered the sale-item SKU autocomplete on the Record Sale form and confirmed the
+dropdown renders cleanly.
+
+**Net result: the premium-redesign branch is verified clean and ready for Tanish's
+own review** — no regressions found in any phase, the one e2e failure is
+pre-existing and unrelated, and every screen the redesign touched has now been
+either pixel-diffed against `redesign-shots/` or checked for design-system
+consistency at least once across this session's work.
+
+→ FOR COWORK: nothing — FYI only. Read-only verification pass, no code changed.
+Branch `premium-redesign` is presentation-complete and check-clean; merge timing to
+`main` is Tanish's call, not something decided here.
+
+---
+
 ### 2026-10-03 · Claude Code (Sonnet 5, Phase 5 of premium redesign — Day Book) (done, checks pass, live-verified; NOW released — **all 5 phases of the premium redesign plan now complete**)
 
 Same token-hygiene pass as Phases 3-4, scoped to Day Book. Repointed 2 stale
