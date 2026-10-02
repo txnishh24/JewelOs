@@ -35,53 +35,80 @@
 /* font-display:swap — system font shown immediately while web fonts load */
 
 :root {
-  /* Gold palette */
-  --gold:#c9a34e;   --gold-light:#e8d49a;  --gold-dark:#8a6a1f;
-  --gold-bg:#fdf8f0; --gold-bg2:#f5eace;
+  /* Premium redesign v2 — a quiet, old-money jeweller's showroom: midnight ink,
+     parchment, antique gold used only as a sparse, flat accent. Variable NAMES
+     are kept stable across the v1 (batch46) redesign so the ~390 existing
+     var(...) call sites across index.html and js/ keep resolving; only the
+     VALUES move. New names are called out where they appear. */
+
+  /* Gold — fill-only; never run a gradient through it */
+  --gold:#b39257;     --gold-light:#c2a167;  --gold-dark:#7d5f26;
+  --gold-deep:#6b5220; --gold-bg:#f6f0e2;    --gold-bg2:#efe5cf;
+  --gold-mist:var(--gold-bg2);
+  --gold-ink:var(--gold-dark);      /* NEW: explicit name for "text-safe gold" */
+  --gold-line:rgba(179,146,87,.6);  /* solid-leaning gold, for the one deliberate rule per screen */
 
   /* Ivory / Parchment */
-  --ivory:#faf7f1;  --ivory2:#f3ece0;  --ivory3:#e8ddd0;
+  --ivory:#f8f6f1;  --ivory2:#f1eee6;  --ivory3:#e7e2d7;
 
-  /* Matte ink */
-  --ink:#18160e;  --ink2:#2e2a1e;  --ink3:#5c5244;
-  --ink4:#9a8e7c;  --ink5:#c8bfb0;
+  /* Midnight ink */
+  --ink:#141b2d;  --ink2:#1d2538;  --ink3:#4a4f5c;
+  --ink4:#6a6458;  --ink5:#a7aebd;
 
   /* Surfaces */
-  --surface:#ffffff; --bg:#faf7f1; --bg2:#f3ece0; --bg3:#e8ddd0;
+  --surface:#fffefb; --bg:#f8f6f1; --bg2:#f1eee6; --bg3:#e7e2d7;
 
   /* Text */
-  --text:#18160e; --text2:#5c5244; --text3:#9a8e7c;
+  --text:#141b2d; --text2:#4a4f5c; --text3:#6a6458;
 
-  /* Semantic — muted luxury */
-  --danger:#a8312a;   --danger-bg:#fdf3f2;  --danger-soft:rgba(168,49,42,.07);
-  --success:#1c6040;  --success-bg:#f0f8f4; --success-soft:rgba(28,96,64,.07);
-  --warning:#8a4e0c;  --warning-bg:#fef8f0; --warning-soft:rgba(138,78,12,.07);
-  --info:#1a4a8a;     --info-bg:#f0f5fd;    --info-soft:rgba(26,74,138,.07);
+  /* NEW: text/fill pairs for the two chrome colours gold and ink sit on top of */
+  --on-gold:var(--ink);        /* text on a gold fill — 5.8:1 */
+  --on-ink:#f3eee2;            /* text on an ink fill — 15:1 */
+  --on-ink-muted:#a7aebd;      /* secondary text on an ink fill — 7.5:1 */
 
-  /* Borders */
-  --border:rgba(160,140,90,.14);
-  --border2:rgba(160,140,90,.26);
-  --border3:rgba(160,140,90,.42);
-  --border-gold:rgba(201,163,78,.35);
+  /* Semantic — muted luxury (unchanged hexes; already pass 6–8:1) */
+  --danger:#a8312a;   --danger-bg:#fdf3f2;  --danger-soft:rgba(168,49,42,.08);
+  --success:#1c6040;  --success-bg:#f0f8f4; --success-soft:rgba(28,96,64,.08);
+  --warning:#8a4e0c;  --warning-bg:#fef8f0; --warning-soft:rgba(138,78,12,.08);
+  --info:#1a4a8a;     --info-bg:#f0f5fd;    --info-soft:rgba(26,74,138,.08);
 
-  /* Silver */
+  /* NEW: WhatsApp — brand green is a fill/hairline only; its own text is too low-contrast */
+  --wa:#25d366; --wa-ink:#075e54;
+
+  /* Silver (metal, not UI chrome) */
   --silver:#9eafc2;  --silver-dark:#4a6070;
+  --silver-bg:#f0f4f8; --silver-line:rgba(74,96,112,.22); /* NEW */
 
-  /* Radius */
-  --radius:10px;  --radius-lg:18px;  --radius-xl:26px;
+  /* Borders — navy-tinted hairlines, not gold-tinted (gold stays sparse) */
+  --border:rgba(20,27,45,.10);
+  --border2:rgba(20,27,45,.16);
+  --border3:rgba(20,27,45,.28);
+  --border-gold:rgba(179,146,87,.45);
 
-  /* Shadows */
-  --shadow:0 2px 8px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
-  --shadow-md:0 4px 16px rgba(0,0,0,.08),0 1px 4px rgba(0,0,0,.04);
-  --shadow-lg:0 8px 32px rgba(0,0,0,.10),0 2px 8px rgba(0,0,0,.05);
-  --shadow-gold:0 0 0 1px rgba(201,163,78,.2),0 4px 20px rgba(201,163,78,.1);
+  /* NEW: one scrim for photo captions / delete overlays (not modal backdrops) */
+  --scrim:rgba(20,27,45,.6);
 
-  /* Motion */
+  /* NEW: muted categorical set for charts — gold and ink plus four quiet neutrals */
+  --chart-1:var(--gold); --chart-2:var(--ink);   --chart-3:#7a8ca3;
+  --chart-4:#9c6b5a;     --chart-5:#5e7f6b;      --chart-6:#b9a27a;
+
+  /* Radius — graded by hierarchy so not everything shares one radius */
+  --radius-sm:4px;  --radius:8px;  --radius-lg:12px;  --radius-xl:16px;
+  --radius-full:999px;
+  --radius-pill:var(--radius-full);
+
+  /* Elevation — two levels only. L1 for resting surfaces, L2 for modals/sheets. */
+  --shadow:0 1px 2px rgba(20,27,45,.06);
+  --shadow-md:var(--shadow);
+  --shadow-lg:0 12px 32px rgba(20,27,45,.14);
+  --shadow-gold:none; /* no glow; kept defined so existing call sites resolve to nothing */
+
+  /* Motion — fades and slides only, 150–200ms */
   --ease:cubic-bezier(.4,0,.2,1);
-  --t1:.14s var(--ease); --t2:.24s var(--ease); --t3:.38s var(--ease);
+  --t1:.15s var(--ease); --t2:.2s var(--ease); --t3:var(--t2);
 
   /* Aliases for platinum-theme vars used in edit bill JS */
-  --b1:rgba(160,140,90,.10); --b2:rgba(160,140,90,.20);
+  --b1:var(--border); --b2:var(--border2);
   --ch-gold-d:var(--gold-dark); --ch0:var(--ivory);
   --ch5:var(--text3); --ch6:var(--text2);
   --em4:var(--success); --err:var(--danger); --err-bg:var(--danger-bg);
@@ -89,42 +116,39 @@
   --surf2:var(--bg2);
 
   /* ── Component surface vars (used throughout) ─────── */
-  --card1:#ffffff;          /* primary card background   */
-  --card2:#f5f0e8;          /* secondary card / input bg */
+  --card1:var(--surface);   /* primary card background   */
+  --card2:var(--ivory2);    /* secondary card / input bg */
   --text1:var(--ink);       /* primary text              */
   --ink1:var(--ink);        /* heading text alias        */
   --border-success:rgba(28,96,64,.3);
 
-  /* Refined gold tones — redesign Phase 1 */
-  --gold-deep:#9c7a2e;   /* darker accent for hover/active, between --gold and --gold-dark */
-  --gold-mist:#f1e4c0;   /* pale gold wash for subtle card tints */
-  --gold-line:rgba(201,163,78,.5); /* crisper accent border than --border-gold */
+  /* Spacing — 8px grid (--space-1 is a documented half-step for icon/text gaps) */
+  --space-1:4px;  --space-2:8px;  --space-3:16px;  --space-4:24px;
+  --space-5:32px; --space-6:48px; --space-7:64px;  --space-8:var(--space-7);
 
-  /* Spacing scale — redesign Phase 1, applied incrementally as components are touched */
-  --space-1:4px;  --space-2:8px;  --space-3:12px;  --space-4:16px;
-  --space-5:20px; --space-6:24px; --space-7:32px;  --space-8:48px;
+  /* NEW: tap targets and shell chrome sizing, read by later phases */
+  --tap:44px;
+  --topbar-h:56px; --nav-h:56px; --rail-w:224px;
 
-  /* Radius extension — redesign Phase 1 */
-  --radius-sm:8px;
-  --radius-full:100px;
-  --radius-pill:var(--radius-full);
-
-  /* Typography — redesign Phase 1. Font loading (@import above) is unchanged;
-     these just name the two stacks already in use so new/touched selectors
-     can reference one name instead of repeating the literal stack. */
+  /* Typography. Font loading (@import above) is unchanged; these name the two
+     stacks already in use so selectors reference one name instead of the
+     literal stack. */
   --font-display:'Cormorant Garamond',Georgia,'Times New Roman',serif;
   --font-body:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  --text-xs:11px;   --text-sm:12px;   --text-base:14px;  --text-md:15px;
-  --text-lg:18px;   --text-xl:22px;   --text-2xl:26px;   --text-3xl:32px;
 
-  /* Modal overlay — redesign Phase 1. NOT YET applied to .modal-bg/.modal-overlay
-     (that's a deliberate later change, since it will visibly alter both overlays'
-     current darkness). z-index tokens were deliberately dropped here: the real
-     stack is a 12-value ladder (500/900/901/950/955/960/965/970/1100/1150/1500/2000)
-     for girvi's nested-modal chain and standalone dialogs — a single base+stacked
-     pair can't represent that without colliding with values already in use, and
-     the plan calls for leaving that ordering alone, not collapsing it. */
-  --modal-overlay-color:rgba(24,22,14,.78);
+  /* Type scale — 5 real sizes; --text-xs/-lg/-3xl kept as aliases so existing
+     call sites keep resolving without a find-and-replace across every file. */
+  --text-xs:var(--text-sm);  --text-sm:12px;      --text-base:14px;
+  --text-md:16px;            --text-lg:var(--text-md);
+  --text-xl:22px;            --text-2xl:28px;     --text-3xl:var(--text-2xl);
+
+  /* Modal overlay — now applied (Phase 1) to modal family A: .modal-bg. z-index
+     tokens were deliberately not introduced: the real stack is a 12-value ladder
+     (500/900/901/950/955/960/965/970/1100/1150/1500/2000) for girvi's nested-modal
+     chain and standalone dialogs — a single base+stacked pair can't represent that
+     without colliding with values already in use, and the plan calls for leaving
+     that ordering alone, not collapsing it. */
+  --modal-overlay-color:rgba(20,27,45,.55);
 }
 
 /* Breakpoint convention (redesign Phase 1) — plain CSS can't read custom
@@ -146,6 +170,7 @@ html,body{height:100%;width:100%;}
 body{
   font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   background:var(--ivory);color:var(--ink);font-size:14px;line-height:1.6;
+  font-variant-numeric:tabular-nums; /* every money/weight figure gets fixed-width digits for free */
   overscroll-behavior:none;-webkit-tap-highlight-color:transparent;
   touch-action:pan-y; /* restrict native touch handling to vertical scroll only —
     stops the browser's edge-swipe-back gesture from hijacking horizontal
@@ -232,18 +257,19 @@ body{
 .metric-sub{font-size:11px;color:var(--text3);margin-top:6px;}
 
 /* ── CARDS ───────────────────────────────────────── */
+/* The one card style used everywhere: a hairline border and a single soft
+   (L1) shadow. No hover lift — the card is a resting surface, not a button. */
 .card{
   background:var(--surface);border-radius:var(--radius-lg);
-  border:0.5px solid var(--border2);padding:1.25rem;
-  margin-bottom:.9rem;box-shadow:var(--shadow);
-  transition:box-shadow var(--t2);
+  border:1px solid var(--border);padding:var(--space-3);
+  margin-bottom:var(--space-3);box-shadow:var(--shadow);
 }
-.card:hover{box-shadow:var(--shadow-md);}
+@media(min-width:768px){.card{padding:var(--space-4);}}
 .card-title{
-  font-family:'Cormorant Garamond',Georgia,serif;
-  font-size:17px;font-weight:600;color:var(--ink);
-  margin-bottom:1rem;display:flex;align-items:center;
-  justify-content:space-between;gap:8px;letter-spacing:.02em;
+  font-family:var(--font-display);
+  font-size:var(--text-xl);font-weight:600;color:var(--ink);
+  margin-bottom:var(--space-3);display:flex;align-items:center;
+  justify-content:space-between;gap:8px;
 }
 .two-col{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:.9rem;}
 @media(min-width:600px){.two-col{grid-template-columns:1fr 1fr;}}
@@ -328,102 +354,111 @@ body{
 }
 
 /* ── BUTTONS ─────────────────────────────────────── */
+/* One button system: secondary is the base .btn; the rest are modifiers.
+   Primary (.btn-gold) is flat gold fill — no gradient, no glow. Danger/warning
+   stay quieter than primary, per the brief. All variants resolve through
+   tokens, so this is the one place the whole app's button look changes. */
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  padding:9px 18px;border-radius:var(--radius);font-size:13px;font-weight:500;
-  cursor:pointer;border:0.5px solid var(--border2);background:var(--surface);
-  color:var(--ink);font-family:inherit;transition:all var(--t1);white-space:nowrap;
+  min-height:var(--tap);padding:9px 18px;border-radius:var(--radius);
+  font-size:var(--text-base);font-weight:500;
+  cursor:pointer;border:1px solid var(--border2);background:var(--surface);
+  color:var(--ink);font-family:inherit;white-space:nowrap;
+  transition:background var(--t1),border-color var(--t1);
 }
-.btn:hover{background:var(--ivory2);border-color:var(--border3);}
-.btn:active{transform:scale(.97);}
+.btn:hover{background:var(--bg2);border-color:var(--border3);}
+.btn:active{background:var(--bg3);}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
 .btn-gold{
-  background:linear-gradient(135deg,var(--gold-dark),var(--gold));
-  color:var(--ink);border-color:transparent;font-weight:600;
-  box-shadow:0 2px 8px rgba(201,163,78,.25);
+  min-height:48px;
+  background:var(--gold);color:var(--on-gold);border-color:transparent;font-weight:600;
 }
-.btn-gold:hover{background:linear-gradient(135deg,var(--gold),var(--gold-light));box-shadow:var(--shadow-gold);}
-.btn-warning{
-  background:linear-gradient(135deg,var(--warning),#a0630e);
-  color:#fff;border-color:transparent;font-weight:600;
-  box-shadow:0 2px 8px rgba(138,78,12,.25);
-}
-.btn-warning:hover{background:linear-gradient(135deg,#a0630e,var(--warning));}
-.btn-dark{
-  background:linear-gradient(135deg,#18160e,#242118);
-  color:#e8d49a;border-color:rgba(201,163,78,.2);font-weight:500;
-}
-.btn-dark:hover{background:linear-gradient(135deg,#242118,#302c1e);}
-.btn-danger{color:var(--danger);border-color:rgba(168,49,42,.25);background:transparent;}
+.btn-gold:hover{background:var(--gold-light);}
+.btn-gold:active{background:var(--gold-deep);}
+.btn-warning{color:var(--warning);border-color:rgba(138,78,12,.35);background:transparent;font-weight:500;}
+.btn-warning:hover{background:var(--warning-bg);}
+.btn-dark{background:var(--surface);color:var(--ink);border-color:var(--border2);font-weight:500;}
+.btn-dark:hover{background:var(--bg2);}
+.btn-danger{color:var(--danger);border-color:rgba(168,49,42,.35);background:transparent;}
 .btn-danger:hover{background:var(--danger-bg);}
-.btn-success{color:var(--success);border-color:rgba(28,96,64,.25);background:transparent;}
+.btn-success{color:var(--success);border:none;background:transparent;}
 .btn-success:hover{background:var(--success-bg);}
-.btn-info{color:var(--info);border-color:rgba(26,74,138,.22);background:transparent;}
+.btn-info{color:var(--info);border:none;background:transparent;}
 .btn-info:hover{background:var(--info-bg);}
-.btn-sm{padding:5px 12px;font-size:12px;border-radius:7px;min-height:32px;}
-.btn-xs{padding:3px 8px;font-size:11px;border-radius:6px;min-height:28px;}
+.btn-sm{min-height:var(--tap);padding:5px 12px;font-size:var(--text-sm);border-radius:var(--radius-sm);}
+.btn-xs{min-height:var(--tap);padding:3px 8px;font-size:var(--text-sm);border-radius:var(--radius-sm);}
 .btn-full{width:100%;}
 
 /* ── FORMS ───────────────────────────────────────── */
+/* One form-field style, used everywhere. 48px tall and 16px text on phones
+   (so Safari doesn't auto-zoom on focus); 44px / 14px from the tablet
+   breakpoint up. Focus is ink, not gold — gold stays for the sparse moments
+   (primary actions, totals), not every field a shop owner taps. */
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .fg{display:flex;flex-direction:column;gap:4px;}
-.fg label{font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.07em;}
+.fg label{font-size:var(--text-sm);color:var(--text2);font-weight:500;letter-spacing:.01em;}
 input,select,textarea{
-  width:100%;padding:9px 12px;background:var(--ivory);
-  border:0.5px solid var(--border2);border-radius:var(--radius);
-  font-size:13px;color:var(--ink);font-family:inherit;
-  transition:border-color var(--t1),box-shadow var(--t1);
+  width:100%;min-height:48px;padding:9px 12px;background:var(--surface);
+  border:1px solid var(--border2);border-radius:var(--radius);
+  font-size:var(--text-md);color:var(--ink);font-family:inherit;
+  transition:border-color var(--t1);
   -webkit-appearance:none;appearance:none;
 }
+@media(min-width:641px){
+  input,select,textarea{min-height:var(--tap);font-size:var(--text-base);}
+}
 input[type="checkbox"],input[type="radio"]{
-  width:16px;height:16px;flex:0 0 auto;padding:0;
+  width:16px;height:16px;flex:0 0 auto;padding:0;min-height:0;
   -webkit-appearance:checkbox;appearance:checkbox;accent-color:var(--gold);
 }
 input:focus,select:focus,textarea:focus{
-  outline:none;border-color:var(--border-gold);background:var(--surface);
-  box-shadow:0 0 0 3px rgba(201,163,78,.1);
+  outline:2px solid var(--ink);outline-offset:1px;
+  border-color:var(--ink);background:var(--surface);
 }
 select{
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6' fill='%239a8e7c'/%3E%3C/svg%3E");
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6' fill='%236a6458'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 10px center;
   padding-right:30px;cursor:pointer;
 }
 .isuf{
-  display:flex;align-items:stretch;border:0.5px solid var(--border2);
-  border-radius:var(--radius);overflow:hidden;background:var(--ivory);
+  display:flex;align-items:stretch;border:1px solid var(--border2);
+  border-radius:var(--radius);overflow:hidden;background:var(--surface);
 }
-.isuf input{border:none;border-radius:0;background:transparent;box-shadow:none;}
-.isuf:focus-within{border-color:var(--border-gold);box-shadow:0 0 0 3px rgba(201,163,78,.1);background:var(--surface);}
+.isuf input{border:none;border-radius:0;background:transparent;}
+.isuf:focus-within{border-color:var(--ink);}
 .suf{
-  padding:0 10px;font-size:11px;color:var(--text3);font-weight:700;
-  background:var(--ivory3);display:flex;align-items:center;
-  border-left:0.5px solid var(--border2);white-space:nowrap;
+  padding:0 10px;font-size:var(--text-sm);color:var(--text3);font-weight:600;
+  background:var(--bg2);display:flex;align-items:center;
+  border-left:1px solid var(--border2);white-space:nowrap;
 }
-.divider{height:0.5px;background:linear-gradient(90deg,transparent,var(--border2),transparent);margin:1rem 0;}
+.divider{height:1px;background:var(--border2);margin:var(--space-4) 0;}
 
 /* ── BADGES ──────────────────────────────────────── */
-.badge{display:inline-block;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600;white-space:nowrap;}
-.bg-gold{background:var(--gold-bg);color:var(--gold-dark);border:0.5px solid rgba(201,163,78,.3);}
-.bg-silver{background:#f0f4f8;color:var(--silver-dark);border:0.5px solid rgba(120,148,176,.3);}
+/* One badge/pill spec: a soft semantic fill carries the colour, but the label
+   text is what actually says the status — colour is never the only signal. */
+.badge{display:inline-block;padding:2px 8px;border-radius:var(--radius-pill);font-size:var(--text-sm);font-weight:500;white-space:nowrap;}
+.bg-gold{background:var(--gold-bg);color:var(--gold-ink);}
+.bg-silver{background:var(--silver-bg);color:var(--silver-dark);}
 .bg-red{background:var(--danger-bg);color:var(--danger);}
 .bg-green{background:var(--success-bg);color:var(--success);}
 .bg-blue{background:var(--info-bg);color:var(--info);}
 .bg-amber{background:var(--warning-bg);color:var(--warning);}
-.bg-purple{background:#f3f0fd;color:#5840b0;}
-.version-tag{background:var(--info-bg);color:var(--info);font-size:11px;padding:2px 8px;border-radius:6px;margin-left:8px;font-weight:600;}
+.bg-purple{background:var(--bg2);color:var(--ink3);}
+.version-tag{background:var(--info-bg);color:var(--info);font-size:var(--text-sm);padding:2px 8px;border-radius:var(--radius-pill);margin-left:8px;font-weight:500;}
 
 /* ── TABLE ───────────────────────────────────────── */
-.tbl-wrap{overflow-x:auto;border-radius:var(--radius);border:0.5px solid var(--border2);}
-table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px;}
+.tbl-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;font-size:var(--text-base);min-width:520px;}
 th{
-  text-align:left;font-size:9.5px;font-weight:700;color:var(--text3);
-  padding:10px 14px;background:var(--ivory2);
-  border-bottom:0.5px solid var(--border2);text-transform:uppercase;
-  letter-spacing:.1em;white-space:nowrap;
+  text-align:left;font-size:var(--text-sm);font-weight:500;color:var(--text2);
+  padding:var(--space-2) var(--space-3);background:transparent;
+  border-bottom:1px solid var(--border2);white-space:nowrap;
 }
-td{padding:11px 14px;border-bottom:0.5px solid var(--border);color:var(--ink);vertical-align:middle;}
-.num{font-variant-numeric:tabular-nums;text-align:right;font-weight:600;}
+td{padding:var(--space-2) var(--space-3);min-height:48px;border-bottom:1px solid var(--border);color:var(--ink);vertical-align:middle;}
+.num{text-align:right;font-weight:500;}
 tr:last-child td{border-bottom:none;}
-tr:hover td{background:var(--gold-bg);}
+tr:hover td{background:var(--bg2);}
 .sold-row td{opacity:.5;}
 .status-avail{
   background:var(--success-bg);color:var(--success);border:0.5px solid rgba(28,96,64,.25);
@@ -554,17 +589,27 @@ html.dev .dev-only{display:block!important;}
 @media(max-width:639px){.bnav{display:block;}.dtabs{display:none;}}
 
 /* ── MODALS ──────────────────────────────────────── */
-.modal-bg{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(24,22,14,.7);z-index:500;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(3px);}
+/* Modal chrome family A (ord/pwd/invoice/edit/edit-bill/cust modals). No
+   per-modal header tint, no blur backdrop, two elevation levels only.
+   Becomes a bottom sheet under 640px so it never fights the keyboard. */
+.modal-bg{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:var(--modal-overlay-color);z-index:500;align-items:center;justify-content:center;padding:1rem;}
 .modal-bg.open{display:flex;}
-.modal{background:var(--surface);border-radius:var(--radius-xl);width:100%;max-width:600px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 12px 60px rgba(0,0,0,.22),0 0 0 0.5px rgba(201,163,78,.15);}
-.modal-header{padding:1.2rem 1.4rem;border-bottom:0.5px solid var(--border2);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:linear-gradient(135deg,var(--gold-bg),var(--surface));border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
-.modal-header h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:18px;font-weight:600;color:var(--ink);letter-spacing:.02em;}
-.modal-close{background:var(--ivory2);border:0.5px solid var(--border2);border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;transition:all var(--t1);}
-.modal-close:hover{background:var(--ivory3);color:var(--ink);}
-.modal-body{padding:1.4rem;overflow-y:auto;}
+.modal{background:var(--surface);border-radius:var(--radius-xl);width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);}
+.modal-header{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
+.modal-header h2{font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);}
+.modal-close{background:transparent;border:none;border-radius:50%;width:var(--tap);height:var(--tap);font-size:var(--text-md);cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center;transition:background var(--t1);}
+.modal-close:hover{background:var(--bg2);color:var(--ink);}
+.modal-body{padding:var(--space-4);overflow-y:auto;}
+@media(max-width:640px){
+  .modal-bg{align-items:flex-end;padding:0;}
+  .modal{max-width:100%;max-height:92vh;max-height:92dvh;border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
+}
 
 /* ── TOAST ───────────────────────────────────────── */
-.toast{position:fixed;bottom:5.5rem;left:50%;transform:translateX(-50%) translateY(14px);background:linear-gradient(135deg,#18160e,#242118);color:#e8d49a;padding:10px 22px;border-radius:18px;font-size:13px;font-weight:500;z-index:9999;opacity:0;pointer-events:none;transition:all .22s var(--ease);white-space:normal;width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;text-align:center;line-height:1.4;box-shadow:0 4px 24px rgba(0,0,0,.3),0 0 0 0.5px rgba(201,163,78,.18);letter-spacing:.03em;}
+/* Note: bottom offset assumes the shrunk 56px bottom nav landing in Phase 2
+   (shell). Until then this may sit a little close to the current, taller
+   bnav on phones — cosmetic only, resolved once Phase 2 ships. */
+.toast{position:fixed;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 16px);left:50%;transform:translateX(-50%) translateY(8px);background:var(--ink);color:var(--on-ink);padding:10px 22px;border-radius:var(--radius);font-size:var(--text-base);font-weight:500;z-index:9999;opacity:0;pointer-events:none;transition:opacity var(--t2),transform var(--t2);white-space:normal;width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;text-align:center;line-height:1.4;box-shadow:var(--shadow-lg);}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 @media(min-width:640px){.toast{bottom:1.5rem;}}
 
@@ -577,8 +622,8 @@ html.dev .dev-only{display:block!important;}
 .loading-sub{font-size:12px;color:#5a5244;letter-spacing:.08em;}
 
 /* ── EMPTY STATE ─────────────────────────────────── */
-.empty{text-align:center;padding:3rem 1rem;color:var(--text3);}
-.empty-icon{font-size:44px;display:block;margin-bottom:12px;opacity:.4;}
+.empty{text-align:center;padding:var(--space-6) var(--space-3);color:var(--text3);font-size:var(--text-base);}
+.empty-icon{font-size:32px;display:block;margin-bottom:12px;opacity:.7;}
 
 /* ── PIN SCREEN ──────────────────────────────────── */
 #pin-screen{position:fixed;top:0;right:0;bottom:0;left:0;background:linear-gradient(160deg,#18160e 0%,#2a1e0a 55%,#16120a 100%);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 2rem calc(2rem + 64px) 2rem;touch-action:manipulation;}
@@ -599,27 +644,10 @@ html.dev .dev-only{display:block!important;}
 .pin-shake{animation:shake .38s;}
 @keyframes shake{0%,100%{transform:translateX(0);}20%{transform:translateX(-9px);}40%{transform:translateX(9px);}60%{transform:translateX(-5px);}80%{transform:translateX(5px);}}
 /* ── GIRVI FORM ENHANCEMENTS ────────────────────────────────────── */
-#girvi-modal input:focus,
-#girvi-modal select:focus,
-#girvi-modal textarea:focus{
-  outline:none;
-  border-color:var(--gold) !important;
-  box-shadow:0 0 0 3px rgba(201,168,76,.18);
-}
-#girvi-modal input,
-#girvi-modal select,
-#girvi-modal textarea{
-  background:var(--card1) !important;
-  color:var(--ink) !important;
-  border:1.5px solid rgba(201,168,76,.35) !important;
-  border-radius:10px;
-  padding:9px 12px;
-  font-size:14px;
-  font-family:inherit;
-  width:100%;
-  box-sizing:border-box;
-  transition:border-color .15s,box-shadow .15s;
-}
+/* The old duplicate input/select/textarea override (gold border + focus ring)
+   is removed here in Phase 1 so Girvi's fields pick up the one global form-
+   field style instead of a second, parallel one. Everything else in this
+   block (labels, section headers) is Girvi's own look and stays for Phase 4. */
 #girvi-modal label{
   font-size:10px;
   font-weight:700;
@@ -636,19 +664,20 @@ html.dev .dev-only{display:block!important;}
   border-bottom:1px solid rgba(201,168,76,.25);
 }
 /* ── LOADING SKELETONS ───────────────────────────────────────────── */
-@keyframes shimmer{0%{background-position:-468px 0}100%{background-position:468px 0}}
+/* The gradient fill stays (it's a neutral placeholder texture, not metallic
+   gold) but the looping shimmer animation is gone, per the brief's "no
+   bouncing or looping animations" rule. */
 .skeleton{
   background:linear-gradient(90deg,var(--card2) 25%,var(--card1) 50%,var(--card2) 75%);
   background-size:936px 100%;
-  animation:shimmer 1.4s ease-in-out infinite;
   border-radius:var(--radius);
 }
-.skel-line{height:14px;margin-bottom:8px;border-radius:4px;}
+.skel-line{height:14px;margin-bottom:8px;border-radius:var(--radius-sm);}
 .skel-line.short{width:60%;}
 .skel-line.medium{width:80%;}
 .skel-line.full{width:100%;}
-.skel-card{padding:14px;border-radius:var(--radius-lg);border:0.5px solid var(--border2);margin-bottom:10px;}
-.skel-row{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border2);}
+.skel-card{padding:var(--space-3);border-radius:var(--radius-lg);border:1px solid var(--border);margin-bottom:10px;}
+.skel-row{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}
 .skel-circle{width:36px;height:36px;border-radius:50%;flex-shrink:0;}
 
 .pin-change-btn{background:transparent;border:0.5px solid rgba(201,163,78,.2);border-radius:100px;padding:9px 22px;color:#6a5c48;font-size:11px;cursor:pointer;font-family:inherit;letter-spacing:.08em;text-transform:uppercase;transition:all .2s;touch-action:manipulation;}
@@ -697,7 +726,6 @@ html.dev .dev-only{display:block!important;}
   .modal-header{display:none!important;}
   .modal-body{padding:0!important;}
 }
-@media(min-width:640px){.show{opacity:1;transform:translateX(-50%) translateY(0);}}
 /* ═══════════════════════════════════════════════════════════════
    JEWELOS SAAS — Auth, Onboarding, Multi-tenant UI
 ════════════════════════════════════════════════════════════════ */
@@ -1338,9 +1366,9 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 
 /* ── Pagination ─────────────────────────────────────────────────── */
 .pg-bar { display:flex; align-items:center; gap:5px; padding:8px 0; flex-wrap:wrap; }
-.pg-bar .btn-sm { min-width:32px; min-height:32px; padding:5px 10px; font-size:12px; font-weight:600; border-radius:7px; cursor:pointer; border:1px solid var(--border2); background:var(--surface); color:var(--ink3); transition:all .15s; }
-.pg-bar .btn-sm:hover { background:var(--gold-bg); color:var(--gold-dark); border-color:var(--gold); }
-.pg-bar .btn-gold { background:var(--gold) !important; color:#fff !important; border-color:var(--gold) !important; }
+.pg-bar .btn-sm { min-width:var(--tap); min-height:var(--tap); padding:5px 10px; font-size:var(--text-sm); font-weight:500; border-radius:var(--radius-sm); cursor:pointer; border:1px solid var(--border2); background:var(--surface); color:var(--ink3); transition:background .15s,border-color .15s; }
+.pg-bar .btn-sm:hover { background:var(--bg2); color:var(--ink); border-color:var(--border3); }
+.pg-bar .btn-gold { background:var(--gold) !important; color:var(--on-gold) !important; border-color:var(--gold) !important; }
 .pg-info { font-size:11px; color:var(--text3); margin-left:4px; }
 
 
@@ -2908,7 +2936,7 @@ iframe.nl-badge-frame{display:none !important;}
   </div>
 </nav>
 <!-- Safe confirm modal — replaces all window.confirm() -->
-<div id="safe-confirm-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.72);z-index:10001;align-items:center;justify-content:center;padding:1.5rem;backdrop-filter:blur(3px);">
+<div id="safe-confirm-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.72);z-index:10001;align-items:center;justify-content:center;padding:1.5rem;">
   <div style="background:var(--surface);border-radius:20px;width:100%;max-width:380px;padding:1.5rem;box-shadow:0 12px 60px rgba(0,0,0,.4);border:0.5px solid var(--border2);">
     <div id="safe-confirm-title" style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--ink);"></div>
     <div id="safe-confirm-msg" style="font-size:13px;color:var(--text2);margin-bottom:1.4rem;line-height:1.6;"></div>
@@ -2919,7 +2947,7 @@ iframe.nl-badge-frame{display:none !important;}
   </div>
 </div>
 <!-- Login expired mid-work: sign in again in place, pending saves wait (js/05-auth-login.js saasRequireReauth). No Cancel: the only other way out is Sign out. -->
-<div id="reauth-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.85);z-index:10002;align-items:center;justify-content:center;padding:1.5rem;backdrop-filter:blur(3px);">
+<div id="reauth-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.85);z-index:10002;align-items:center;justify-content:center;padding:1.5rem;">
   <div style="background:var(--surface);border-radius:20px;width:100%;max-width:380px;padding:1.5rem;box-shadow:0 12px 60px rgba(0,0,0,.4);border:0.5px solid var(--border2);">
     <div style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--ink);">&#128274; Your login has expired</div>
     <div id="reauth-msg" style="font-size:13px;color:var(--text2);margin-bottom:1rem;line-height:1.6;">Enter your password to continue. What you were saving is kept and saves as soon as you are back in &mdash; don't close the app until then.</div>

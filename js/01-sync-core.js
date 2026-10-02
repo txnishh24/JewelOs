@@ -853,11 +853,11 @@ function safeConfirm(title, msg, onOk, danger){
   titleEl.textContent = title;
   msgEl.textContent   = msg;
   okBtn.style.background = danger==='warn'
-    ? 'linear-gradient(135deg,var(--warning),#a0630e)'
+    ? 'var(--warning)'
     : danger
-      ? 'linear-gradient(135deg,#7f1d1d,var(--danger))'
-      : 'linear-gradient(135deg,var(--gold-dark),var(--gold))';
-  okBtn.style.color = (danger==='warn' || danger) ? '#fff' : '#1a1200';
+      ? 'var(--danger)'
+      : 'var(--gold)';
+  okBtn.style.color = (danger==='warn' || danger) ? 'var(--on-ink)' : 'var(--on-gold)';
   overlay.style.display = 'flex';
   function cleanup(){ overlay.style.display='none'; okBtn.onclick=null; cancelBtn.onclick=null; }
   okBtn.onclick     = function(){ cleanup(); if(onOk) onOk(); };
