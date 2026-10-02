@@ -625,7 +625,7 @@ function applyFeatureGates(){
       if(btn) btn.style.display = 'none';
       // Also hide desktop tab
       document.querySelectorAll('.dtab').forEach(function(el,i){
-        var tabs = ['dashboard','inventory','sales','orders','girvi','customers','reports','settings'];
+        var tabs = ['dashboard','inventory','sales','orders','girvi','customers','reports','daybook','settings'];
         if(tabs[i]===t) el.style.display='none';
       });
     });

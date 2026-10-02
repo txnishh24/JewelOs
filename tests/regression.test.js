@@ -2353,6 +2353,25 @@ test('restoring a backup cannot create or change a team member', function(){
   });
 });
 
+test('applyFeatureGates() hides the desktop tab at the right index -- the array must list all 9 tabs in DOM order', function(){
+  // Bug (Phase 0 audit, 2 Oct): this array was missing 'daybook' (8 entries for
+  // 9 real .dtab elements), so every index from 'reports' on was off by one --
+  // staff lost Day Book (hidden by the misindexed 'settings' lookup) and kept
+  // Settings (never actually hidden). Fixed 3 Oct; this pins the correct order
+  // so it can't silently drift from the real desktop tab order in index.html
+  // (also duplicated correctly in 02-ui-inactivity-modals.js) ever again.
+  var fs = require('fs'), path = require('path');
+  var src = fs.readFileSync(path.join(__dirname, '..', 'js', '05-auth-login.js'), 'utf-8');
+  var fn = src.slice(src.indexOf('function applyFeatureGates('));
+  fn = fn.slice(0, fn.indexOf('\nfunction '));
+  var m = fn.match(/var tabs\s*=\s*\[([^\]]+)\]/);
+  assert(m, 'applyFeatureGates() no longer defines the desktop tab-order array as expected');
+  var tabs = m[1].split(',').map(function(s){ return s.trim().replace(/^'|'$/g, ''); });
+  var expected = ['dashboard','inventory','sales','orders','girvi','customers','reports','daybook','settings'];
+  assert(tabs.join(',') === expected.join(','),
+    'staff tab-hide index array does not match the real 9-tab desktop order: ' + tabs.join(','));
+});
+
 // ── Bugs 7 and 8: dashboard profit colour, and stale chrome (17 Sep) ────
 console.log('\nDashboard and chrome (17 Sep):');
 
