@@ -15,7 +15,71 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> Claude Code — premium visual redesign (presentation-only, phased, no logic changes) — since 2 Oct 19:35
+> nobody
+
+---
+
+### 2026-10-03 · Claude Code (Sonnet 5, Phase 3 of premium redesign — Stock/Sales/Orders/Purchases/Reports/Settings) (done, checks pass, live-verified via Playwright against the real e2e test shop at 375/768/1440; NOW released)
+
+**Scope read off `redesign-shots/`** (10 screen folders, 3 breakpoints each) plus the Phase 1
+commit note's "covered by Phases 2-5" list: dashboard+sign-in = Phase 2 (done), Girvi is
+explicitly Phase 4 (code comment in `index.html`), Day Book = Phase 5 by elimination. That
+leaves exactly 6 for Phase 3: Stock, Sales, Orders, Purchases, Reports, Settings. Said this
+assumption out loud before starting; no correction came back.
+
+**What changed (all presentation-only, verified line-by-line against the surrounding
+function/markup before touching it, to keep Girvi/Day Book/print-receipt/PIN-loading-
+inactivity-overlay out of it — none of those were touched):**
+
+1. ~40 stale pre-redesign gold/silver `rgba()` literals repointed to the new palette.
+   Phase 1 renamed the `--gold`/`--silver` *tokens* (old `#c9a34e`/120,148,176 → new
+   `#b39257`/74,96,112) but these were hand-typed literals, not `var()` call sites, so
+   they never picked up the rename. Found via `grep` for the three old-gold rgb variants
+   that have accumulated over the app's history. Two were stray Phase-2 leftovers
+   (dashboard onboarding checklist, login focus ring) — fixed as a drive-by since they're
+   the identical bug class.
+2. `.fg label` (generic form-field labels, used everywhere) and `th` (generic table
+   headers) now get the uppercase/letter-spaced/muted treatment every other label-like
+   element in the design system already has (`.rate-item label`, `.metric-label`,
+   `#girvi-modal label`) and that every mockup shows. Phase 1's form/table pass didn't
+   carry this over. Both are single shared rules — fixed once, cascades correctly to
+   every screen (including Girvi/Day Book) without touching their markup.
+3. New `.btn-ink` class (solid dark fill) for the "+ Add product" / "+ New Order" /
+   "+ Add Purchase Bill" header buttons — confirmed against two separate mockups
+   (stock mobile, purchases desktop) as solid dark, not the light `.btn-dark` these
+   were rendering as. Left `.btn-dark` itself untouched (still used by Girvi/Day Book's
+   WhatsApp-share buttons and two other call sites with no mockup evidence either way) —
+   deliberately not bleeding into their phases.
+
+**Checks:** `node --check` all 11 files clean, regression suite 321/321 (pre-commit hook
+re-ran it), all 9 `checks/*.js` AST scripts show only the same pre-existing documented
+false positives (none on changed lines), `backup-check`/`roundtrip`/`making-basis` all
+PASS. Live-verified with a throwaway Playwright script (reusing `tests/e2e/fixtures/
+testShop.js`'s real login, not a synthetic page) against the permanent E2E test shop —
+screenshotted Stock, Sales, Orders, Purchases, Reports, Settings at 375/768/1440 and
+diffed by eye against `redesign-shots/`; all six now closely match.
+
+**Not done / open questions:**
+- Didn't touch Customers (no mockup exists for it in `redesign-shots/` — assumed
+  out of scope entirely, not just deferred).
+- `.btn-dark`'s other two call sites (`02-ui-inactivity-modals.js` cancel-row toggle,
+  `09-purchases.js` "Save Change" dialog button) have no mockup evidence — left as
+  light buttons. If Tanish wants them dark too, say so and it's a one-line class swap.
+- Two gold-ish color families I deliberately did NOT touch because they were never the
+  named `--gold`/`--silver` token value, just independently-chosen ad-hoc hex
+  (`#fef9ec`/`#eef2f6` purity-badge backgrounds in `02-ui-inactivity-modals.js:301`,
+  and a third "old silver" variant `168,180,192` next to it) — fixing those would be a
+  judgment call about a *different* pre-existing inconsistency, not the Phase-1-rename
+  cleanup this batch was scoped to.
+- Mobile (375px) is now actually eyeballed live (previous session's Playwright
+  `resize_window` limitation didn't block this session's approach — it logs in at
+  375 from the start instead of resizing down), but it's still a diff against a static
+  mockup PNG, not Tanish's thumb on a real phone.
+
+→ FOR COWORK: nothing — FYI only. Presentation-only, no logic/data/Girvi/Day Book touched.
+Phase 4 (Girvi) and Phase 5 (Day Book) are next whenever Tanish gives the go-ahead — the
+unrelated staff Day Book tab bug flagged in the Phase 0 entry below is still open and still
+not this phase's to fix.
 
 ---
 
