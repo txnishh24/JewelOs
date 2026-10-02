@@ -117,7 +117,7 @@ function renderPurchases(){
   // Add button + form
   html += '<div class="card">'+
     '<div class="card-title"><span>'+(pbUI.editId?'Edit Purchase Bill':'Purchase Bills')+'</span>'+
-    '<button class="btn btn-dark" onclick="pbToggleForm()" id="pb-add-btn">+ Add Purchase Bill</button></div>'+
+    '<button class="btn btn-ink" onclick="pbToggleForm()" id="pb-add-btn">+ Add Purchase Bill</button></div>'+
     '<div id="pb-form" style="display:none;">'+pbFormHtml()+'</div>'+
     '</div>';
 
@@ -342,7 +342,7 @@ function pbFormHtml(){
     // Individual-mode item entry list
     '<div id="pb-items-section" style="margin-top:10px;display:none;">'+
       '<div id="pb-items-list"></div>'+
-      '<button type="button" onclick="pbAddItem()" style="padding:7px 14px;border-radius:9px;border:1px dashed var(--gold-dark);background:rgba(201,168,76,.06);color:var(--gold-dark);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">+ Add Item</button>'+
+      '<button type="button" onclick="pbAddItem()" style="padding:7px 14px;border-radius:9px;border:1px dashed var(--gold-dark);background:rgba(179,146,87,.06);color:var(--gold-dark);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">+ Add Item</button>'+
     '</div>'+
     // Bulk-mode: the original single "Total Items" field
     '<div id="pb-bulk-items-wrap" class="fg" style="margin-top:10px;display:none;"><label>Total Items (identical pieces)</label><input type="number" id="pb-f-items" placeholder="0"/></div>'+
@@ -451,7 +451,7 @@ function pbItemCard(i,item){
   var SPURITY=['999 Pure','925 Sterling','800','Silver Plated'];
 
   var card=document.createElement('div');
-  card.style.cssText='background:var(--card2);border:1.5px solid rgba(201,168,76,.25);border-radius:12px;padding:12px 13px;margin-bottom:10px;';
+  card.style.cssText='background:var(--card2);border:1.5px solid rgba(179,146,87,.25);border-radius:12px;padding:12px 13px;margin-bottom:10px;';
 
   var hdr=document.createElement('div');
   hdr.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';

@@ -222,7 +222,7 @@ function setMetal(m){
   if(document.getElementById('add-form').style.display!=='none'){
     document.getElementById('add-form').style.display='none';
     document.getElementById('add-btn').textContent='+ Add product';
-    document.getElementById('add-btn').className='btn btn-dark';
+    document.getElementById('add-btn').className='btn btn-ink';
   }
   renderInv();
 }
@@ -298,7 +298,7 @@ function renderInv(){
       var sold=p.status==='sold';
       var returned=p.status==='returned';
       var mv=mktVal(p);
-      var pbg=isG?'background:#fef9ec;color:var(--gold-dark);border:1px solid rgba(201,168,76,0.3)':'background:#eef2f6;color:var(--silver-dark);border:1px solid rgba(168,180,192,0.35)';
+      var pbg=isG?'background:#fef9ec;color:var(--gold-dark);border:1px solid rgba(179,146,87,0.3)':'background:#eef2f6;color:var(--silver-dark);border:1px solid rgba(168,180,192,0.35)';
       var safePhoto=(p.photo&&(p.photo.startsWith('http://')||p.photo.startsWith('https://')))?p.photo:'';
       var photoHtml=safePhoto?'<a href="'+safePhoto+'" target="_blank" class="photo-link">&#128247; View</a>':'<span style="color:var(--text3);font-size:11px">&#8212;</span>';
       var statusBadge=sold?'<span class="badge bg-red">&#128308; Sold</span>':returned?'<span class="badge" style="background:#fff4e0;color:#a86a00;border:1px solid rgba(168,106,0,0.3);">&#128269; Returned</span>':'<span class="badge bg-green">&#128994; Avail</span>';
@@ -458,7 +458,7 @@ function toggleAdd(){
   var show=f.style.display==='none';
   f.style.display=show?'block':'none';
   b.textContent=show?'X Close':'+ Add product';
-  b.className=show?'btn btn-danger':'btn btn-dark';
+  b.className=show?'btn btn-danger':'btn btn-ink';
   if(show) fillPurities();
 }
 
@@ -726,7 +726,7 @@ function renderSaleItems(){
     // Product info bar + deductions (shown when product is selected)
     if(p){
       var info=document.createElement('div');
-      info.style.cssText='margin-top:8px;font-size:var(--text-sm);color:var(--ink2);background:var(--gold-bg);padding:11px 13px;border-radius:var(--radius);border:0.5px solid rgba(201,168,76,0.25);';
+      info.style.cssText='margin-top:8px;font-size:var(--text-sm);color:var(--ink2);background:var(--gold-bg);padding:11px 13px;border-radius:var(--radius);border:0.5px solid rgba(179,146,87,0.25);';
 
       // Top row: name, purity, gross weight, rate
       var topRow=document.createElement('div');
@@ -748,7 +748,7 @@ function renderSaleItems(){
 
       // ── Deduction box ──────────────────────────────────────────────
       var dbox=document.createElement('div');
-      dbox.style.cssText='background:rgba(201,168,76,0.05);border:0.5px dashed rgba(201,168,76,0.35);border-radius:var(--radius);padding:9px 11px;margin-bottom:9px;';
+      dbox.style.cssText='background:rgba(179,146,87,0.05);border:0.5px dashed rgba(179,146,87,0.35);border-radius:var(--radius);padding:9px 11px;margin-bottom:9px;';
 
       var dtitle=document.createElement('div');
       dtitle.style.cssText='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);margin-bottom:8px;';
@@ -1841,12 +1841,12 @@ function refreshCustomItemDisplay(i,item){
   var ltDiv=document.getElementById('csi-total-'+i);
   if(ltDiv){
     if(gross>0){
-      ltDiv.style.cssText='margin-top:10px;background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.2);border-radius:var(--radius);padding:10px 12px;';
+      ltDiv.style.cssText='margin-top:10px;background:rgba(179,146,87,0.06);border:1px solid rgba(179,146,87,0.2);border-radius:var(--radius);padding:10px 12px;';
       ltDiv.innerHTML=
         '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:3px;"><span>Gold value ('+item.purity+' \u00d7 '+fmtW(net)+')</span><span>'+fmt(gvAmt)+'</span></div>'+
         (mkAmt>0?'<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:3px;"><span>Making ('+fmt(parseFloat(item.making)||0)+'/g)</span><span>'+fmt(mkAmt)+'</span></div>':'')+
         (scAmt>0?'<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:3px;"><span>Stone / Diamond</span><span>'+fmt(scAmt)+'</span></div>':'')+
-        '<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;color:var(--gold-dark);border-top:1px solid rgba(201,168,76,0.2);padding-top:6px;margin-top:4px;"><span>Item Total</span><span>'+fmt(lineTotal)+'</span></div>';
+        '<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;color:var(--gold-dark);border-top:1px solid rgba(179,146,87,0.2);padding-top:6px;margin-top:4px;"><span>Item Total</span><span>'+fmt(lineTotal)+'</span></div>';
     } else { ltDiv.innerHTML=''; ltDiv.style.cssText=''; }
   }
 }

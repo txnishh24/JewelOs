@@ -81,7 +81,7 @@ function showOrderDetail(ordId){
   var ledger=o.ledger||(o.advance>0?[{txnId:'LEG-legacy',type:'advance',amount:o.advance,mode:o.payment||'Cash',date:o.createdAt,note:'Legacy entry'}]:[]);
   if(ledger.length){
     var ledgerList=document.createElement('div');
-    ledgerList.style.cssText='border-top:0.5px solid rgba(201,163,78,.2);padding-top:10px;';
+    ledgerList.style.cssText='border-top:0.5px solid rgba(179,146,87,.2);padding-top:10px;';
     ledger.forEach(function(txn){
       var row=document.createElement('div');
       row.className='ord-ledger-row';
@@ -109,7 +109,7 @@ function showOrderDetail(ordId){
   // Add payment button
   if(o.status!=='delivered'&&o.status!=='cancelled'){
     var addPayBtn=document.createElement('div');
-    addPayBtn.style.cssText='margin-top:12px;padding-top:12px;border-top:0.5px solid rgba(201,163,78,.2);';
+    addPayBtn.style.cssText='margin-top:12px;padding-top:12px;border-top:0.5px solid rgba(179,146,87,.2);';
     addPayBtn.innerHTML=
       '<div class="ord-section-label" style="margin-bottom:8px;">Add Payment</div>'+
       '<div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px;">'+

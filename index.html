@@ -318,8 +318,8 @@ body{
 /* ── STOCK BANNERS ───────────────────────────────── */
 .stock-banner{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:.9rem;}
 .sbox{border-radius:var(--radius-lg);padding:1.1rem 1.25rem;border:0.5px solid var(--border2);}
-.sbox-g{background:var(--gold-bg);border-color:rgba(201,163,78,.3);}
-.sbox-s{background:var(--silver-bg);border-color:rgba(120,148,176,.22);}
+.sbox-g{background:var(--gold-bg);border-color:rgba(179,146,87,.3);}
+.sbox-s{background:var(--silver-bg);border-color:rgba(74,96,112,.22);}
 .sbox-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--gold-dark);margin-bottom:4px;}
 .sbox-wt{font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;font-weight:600;color:var(--gold-dark);}
 .sbox-s .sbox-title{color:var(--silver-dark);}
@@ -332,7 +332,7 @@ body{
 .rate-bar{
   background:linear-gradient(108deg,#18160e,#242118 50%,#18160e);
   border-radius:var(--radius-lg);padding:.9rem 1.25rem;margin-bottom:.9rem;
-  border:0.5px solid rgba(201,163,78,.2);
+  border:0.5px solid rgba(179,146,87,.2);
 }
 .rate-bar-title{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:8px;font-weight:700;}
 .rate-inputs{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;}
@@ -341,11 +341,11 @@ body{
 .rate-iw{display:flex;align-items:center;gap:4px;}
 .rate-iw input{
   width:82px;padding:5px 8px;background:rgba(255,255,255,.08);
-  border:0.5px solid rgba(201,163,78,.3);border-radius:7px;
+  border:0.5px solid rgba(179,146,87,.3);border-radius:7px;
   font-size:13px;font-weight:600;color:#e8d49a;font-family:inherit;text-align:right;
   transition:border-color var(--t1);
 }
-.rate-iw input:focus{outline:none;border-color:rgba(201,163,78,.6);background:rgba(255,255,255,.12);}
+.rate-iw input:focus{outline:none;border-color:rgba(179,146,87,.6);background:rgba(255,255,255,.12);}
 .rate-unit{font-size:11px;color:var(--gold);}
 .rate-save{
   margin-left:auto;padding:7px 18px;
@@ -367,9 +367,9 @@ body{
    nothing ever added .active, so both tabs used to render unselected. The
    .mtab.<x> form keeps the selected rule at the same specificity as .mtab:hover
    and later in the sheet, so hovering the selected tab does not flip its colour. */
-.mtab:hover{background:#f0f4f8;color:var(--silver-dark);border-color:rgba(120,148,176,.3);}
-.mtab.mtab-g{background:var(--gold-bg);color:var(--gold-dark);border-color:rgba(201,163,78,.35);}
-.mtab.mtab-s{background:#f0f4f8;color:var(--silver-dark);border-color:rgba(120,148,176,.3);}
+.mtab:hover{background:var(--silver-bg);color:var(--silver-dark);border-color:rgba(74,96,112,.3);}
+.mtab.mtab-g{background:var(--gold-bg);color:var(--gold-dark);border-color:rgba(179,146,87,.35);}
+.mtab.mtab-s{background:var(--silver-bg);color:var(--silver-dark);border-color:rgba(74,96,112,.3);}
 
 /* ── PILLS ───────────────────────────────────────── */
 .pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.9rem;}
@@ -379,7 +379,7 @@ body{
   font-family:inherit;font-weight:500;transition:all var(--t1);
 }
 .pill:hover{border-color:var(--border-gold);color:var(--ink);}
-.pill.active{background:var(--gold-bg);color:var(--gold-dark);border-color:rgba(201,163,78,.4);font-weight:600;}
+.pill.active{background:var(--gold-bg);color:var(--gold-dark);border-color:rgba(179,146,87,.4);font-weight:600;}
 
 /* ── SEARCH ROW ──────────────────────────────────── */
 .search-row{display:flex;gap:8px;margin-bottom:.9rem;flex-wrap:wrap;}
@@ -391,7 +391,7 @@ body{
 .search-row input{flex:1;min-width:160px;}
 .search-row input:focus,.search-row select:focus{
   outline:none;border-color:var(--border-gold);
-  box-shadow:0 0 0 3px rgba(201,163,78,.1);
+  box-shadow:0 0 0 3px rgba(179,146,87,.1);
 }
 
 /* ── BUTTONS ─────────────────────────────────────── */
@@ -421,6 +421,12 @@ body{
 .btn-warning:hover{background:var(--warning-bg);}
 .btn-dark{background:var(--surface);color:var(--ink);border-color:var(--border2);font-weight:500;}
 .btn-dark:hover{background:var(--bg2);}
+/* Solid-ink variant for the header-row "+ Add X" actions (Stock/Orders/Purchases,
+   confirmed against redesign-shots) -- a separate class from .btn-dark so the
+   other seven screens still using .btn-dark (Girvi/Day Book WhatsApp-share,
+   assorted toggle/dialog buttons) are untouched until their own phase. */
+.btn-ink{background:var(--ink);color:var(--on-ink);border-color:var(--ink);font-weight:600;}
+.btn-ink:hover{background:var(--ink2);}
 .btn-danger{color:var(--danger);border-color:rgba(168,49,42,.35);background:transparent;}
 .btn-danger:hover{background:var(--danger-bg);}
 .btn-success{color:var(--success);border:none;background:transparent;}
@@ -438,7 +444,7 @@ body{
    (primary actions, totals), not every field a shop owner taps. */
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .fg{display:flex;flex-direction:column;gap:4px;}
-.fg label{font-size:var(--text-sm);color:var(--text2);font-weight:500;letter-spacing:.01em;}
+.fg label{font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
 input,select,textarea{
   width:100%;min-height:48px;padding:9px 12px;background:var(--surface);
   border:1px solid var(--border2);border-radius:var(--radius);
@@ -492,8 +498,9 @@ select{
 .tbl-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);}
 table{width:100%;border-collapse:collapse;font-size:var(--text-base);min-width:520px;}
 th{
-  text-align:left;font-size:var(--text-sm);font-weight:500;color:var(--text2);
-  padding:var(--space-2) var(--space-3);background:transparent;
+  text-align:left;font-size:10px;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.07em;
+  padding:var(--space-2) var(--space-3);background:var(--bg2);
   border-bottom:1px solid var(--border2);white-space:nowrap;
 }
 td{padding:var(--space-2) var(--space-3);min-height:48px;border-bottom:1px solid var(--border);color:var(--ink);vertical-align:middle;}
@@ -515,29 +522,29 @@ tr:hover td{background:var(--bg2);}
 /* ── SALE SUMMARY BOX ────────────────────────────── */
 .sum-box{
   background:linear-gradient(135deg,var(--gold-bg),var(--ivory2));
-  border:0.5px solid rgba(201,163,78,.28);border-radius:var(--radius-lg);
+  border:0.5px solid rgba(179,146,87,.28);border-radius:var(--radius-lg);
   padding:1.1rem 1.2rem;margin-top:1rem;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
 }
 .sum-row{
   display:flex;justify-content:space-between;font-size:13px;
-  padding:5px 0;border-bottom:0.5px solid rgba(201,163,78,.12);color:var(--ink3);
+  padding:5px 0;border-bottom:0.5px solid rgba(179,146,87,.12);color:var(--ink3);
 }
 .sum-row:last-of-type{border-bottom:none;}
 .sum-total{
   display:flex;justify-content:space-between;
   font-family:'Cormorant Garamond',Georgia,serif;
   font-size:20px;font-weight:600;color:var(--gold-dark);
-  padding:10px 0;margin-top:6px;border-top:0.5px solid rgba(201,163,78,.3);
+  padding:10px 0;margin-top:6px;border-top:0.5px solid rgba(179,146,87,.3);
 }
 
 /* ── SALE ITEM CARDS ─────────────────────────────── */
 .sale-card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;}
 .custom-item-card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
 .item-num{font-size:10px;font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.08em;}
-.deduct-box{background:rgba(201,163,78,.05);border:0.5px dashed rgba(201,163,78,.32);border-radius:var(--radius);padding:10px 12px;margin-top:10px;}
+.deduct-box{background:rgba(179,146,87,.05);border:0.5px dashed rgba(179,146,87,.32);border-radius:var(--radius);padding:10px 12px;margin-top:10px;}
 .deduct-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:8px;}
-.wt-calc-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--ink3);padding:7px 0;border-top:0.5px dashed rgba(201,163,78,.28);margin-top:7px;}
+.wt-calc-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--ink3);padding:7px 0;border-top:0.5px dashed rgba(179,146,87,.28);margin-top:7px;}
 .wt-calc-net{font-weight:700;font-size:14px;color:var(--gold-dark);}
 
 /* ── MODE TOGGLE ─────────────────────────────────── */
@@ -750,7 +757,7 @@ html.dev .dev-only{display:block!important;}
 .ord-tl-label{font-size:13px;font-weight:600;color:var(--ink);}
 .ord-tl-date{font-size:11px;color:var(--text3);}
 .ord-tl-note{font-size:11px;color:var(--text3);font-style:italic;margin-top:1px;}
-.ord-payment-section{background:linear-gradient(135deg,var(--gold-bg),var(--ivory2));border:0.5px solid rgba(201,163,78,.28);border-radius:var(--radius-lg);padding:14px 16px;margin:10px 0;}
+.ord-payment-section{background:linear-gradient(135deg,var(--gold-bg),var(--ivory2));border:0.5px solid rgba(179,146,87,.28);border-radius:var(--radius-lg);padding:14px 16px;margin:10px 0;}
 .ord-ledger-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:13px;}
 .ord-ledger-row:last-child{border-bottom:none;}
 .ledger-amt{font-weight:600;color:var(--success);}
@@ -802,7 +809,7 @@ html.dev .dev-only{display:block!important;}
   background:var(--card2);color:var(--text1);
   font-size:16px;font-family:inherit;
 }
-.auth-field input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,163,78,.15);}
+.auth-field input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(179,146,87,.15);}
 .auth-btn{
   width:100%;padding:14px;border-radius:11px;border:none;
   background:var(--gold);
@@ -1662,7 +1669,7 @@ iframe.nl-badge-frame{display:none !important;}
 <div id="panel-dashboard" class="panel active">
 
   <!-- ONBOARDING CHECKLIST — shown only for new shops -->
-  <div id="onboarding-checklist" style="display:none;background:var(--gold-bg);border:1px solid rgba(201,168,76,0.35);border-radius:var(--radius-lg);padding:1rem 1.2rem;margin-bottom:.85rem;">
+  <div id="onboarding-checklist" style="display:none;background:var(--gold-bg);border:1px solid rgba(179,146,87,0.35);border-radius:var(--radius-lg);padding:1rem 1.2rem;margin-bottom:.85rem;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <div style="font-size:13px;font-weight:700;color:var(--gold-dark);">👋 Welcome! Set up your shop in 4 steps</div>
       <button onclick="document.getElementById('onboarding-checklist').style.display='none'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;">✕</button>
@@ -1772,7 +1779,7 @@ iframe.nl-badge-frame{display:none !important;}
   <div class="card">
     <div class="card-title">
       <span id="add-form-title">Add Gold Product</span>
-      <button class="btn btn-dark" onclick="toggleAdd()" id="add-btn">+ Add product</button>
+      <button class="btn btn-ink" onclick="toggleAdd()" id="add-btn">+ Add product</button>
       <button class="btn btn-sm" onclick="openBarcodeLabels()" title="Print barcode labels for available stock" style="margin-left:6px;">&#127991; Labels</button>
     </div>
     <div id="add-form" style="display:none">
@@ -1875,11 +1882,11 @@ iframe.nl-badge-frame{display:none !important;}
       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text2);margin-bottom:12px;">&#128176; Payment Details</div>
 
       <!-- OLD GOLD EXCHANGE -->
-      <div style="background:linear-gradient(135deg,rgba(201,168,76,0.08),rgba(201,168,76,0.04));border:1px solid rgba(201,168,76,0.25);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;">
+      <div style="background:linear-gradient(135deg,rgba(179,146,87,0.08),rgba(179,146,87,0.04));border:1px solid rgba(201,168,76,0.25);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;">
         <!-- Old Gold header + mode toggle -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gold-dark);">&#9851; Old Gold / Exchange</div>
-          <div style="display:flex;gap:0;border:1px solid rgba(201,168,76,0.35);border-radius:6px;overflow:hidden;">
+          <div style="display:flex;gap:0;border:1px solid rgba(179,146,87,0.35);border-radius:6px;overflow:hidden;">
             <button id="og-mode-direct" onclick="setOgMode('direct')"
               style="padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:var(--gold);color:#1a1814;font-family:inherit;">
               &#8377; Direct Amount
@@ -2025,7 +2032,7 @@ iframe.nl-badge-frame{display:none !important;}
     <div class="card-title">
       &#128221; Custom Orders
       <span style="font-size:11px;font-weight:400;color:var(--text3);">Production tracking</span>
-      <button class="btn btn-dark" onclick="toggleOrdForm()" id="ord-add-btn">+ New Order</button>
+      <button class="btn btn-ink" onclick="toggleOrdForm()" id="ord-add-btn">+ New Order</button>
     </div>
 
     <div id="ord-form" style="display:none;">
@@ -2072,7 +2079,7 @@ iframe.nl-badge-frame{display:none !important;}
 
       <!-- INITIAL ADVANCE -->
       <div class="ord-section-label" style="margin-top:4px;">Initial Advance Payment</div>
-      <div style="background:var(--gold-bg);border:0.5px solid rgba(201,163,78,.28);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;">
+      <div style="background:var(--gold-bg);border:0.5px solid rgba(179,146,87,.28);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;">
         <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">
           <div class="fg"><label>Amount (&#8377;)</label><input id="of-adv-amt" type="number" inputmode="decimal" placeholder="0" oninput="calcOrdEst()"/></div>
           <div class="fg"><label>Mode</label>
@@ -2177,7 +2184,7 @@ iframe.nl-badge-frame{display:none !important;}
   <div class="metrics" id="rep-metrics"></div>
 
   <!-- GSTR-1 EXPORT CARD -->
-  <div class="card" style="border:1px solid rgba(201,163,76,0.3);">
+  <div class="card" style="border:1px solid rgba(179,146,87,0.3);">
     <div class="card-title">📋 GST Filing Export
       <span style="font-size:11px;font-weight:400;color:var(--text3);">GSTR-1 compatible CSV</span>
     </div>
@@ -2759,7 +2766,7 @@ iframe.nl-badge-frame{display:none !important;}
       <div class="card-title">📋 Message Templates</div>
       <div id="set-wa-templates"></div>
     </div>
-    <div class="card" style="border:1px solid rgba(201,163,76,0.3);">
+    <div class="card" style="border:1px solid rgba(179,146,87,0.3);">
       <div class="card-title">📧 Email Digest (Automated)
         <span style="font-size:11px;font-weight:400;color:var(--text3);">Runs daily at 9am even when app is closed</span>
       </div>
