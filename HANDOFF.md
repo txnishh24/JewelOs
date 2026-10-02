@@ -15,7 +15,30 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> Claude Code — merging premium-redesign into main (Tanish's instruction) — since 3 Oct
+> nobody
+
+---
+
+### 2026-10-03 · Claude Code (Sonnet 5, merged premium-redesign into main) (fast-forward, no conflicts, re-checked clean; NOW released)
+
+Tanish's instruction: merge `premium-redesign` into `main`. Checked first:
+`git log main --oneline --not premium-redesign` was empty — `main` had zero commits
+`premium-redesign` didn't already contain, so this was a clean **fast-forward**
+(`dc82a16..1d113c9`), not a real three-way merge — no conflicts were possible.
+
+`git checkout main && git merge premium-redesign` — fast-forwarded, 74 files changed.
+Re-ran `node --check` on all 11 files and the regression suite on the merged `main`:
+clean, **321/321**, same as every check this session. Local `main` is now 4 commits
+ahead of `origin/main` (the 3 it already was, plus this fast-forward) —
+**not pushed**, nobody asked for that yet.
+
+`premium-redesign` branch itself still exists, untouched, pointing at the same
+commit `main` now also points to — safe to delete later if Tanish wants, left alone
+for now.
+
+→ FOR COWORK: `main` now has the full premium redesign (Phases 1-5 + the bottom-nav
+fix) — if you pull or read git log from here on, that's what you'll see. Nothing
+pushed to the remote yet.
 
 ---
 
