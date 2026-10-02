@@ -618,7 +618,14 @@ tr:hover td{background:var(--bg2);}
 .bar-s{height:100%;background:var(--silver);border-radius:4px;transition:width .7s var(--ease);}
 
 /* ── BOTTOM NAV ──────────────────────────────────── */
-.bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--ink);border-top:1px solid rgba(255,255,255,.08);z-index:200;padding-bottom:calc(64px + env(safe-area-inset-bottom,0px));box-shadow:none;}
+/* padding-bottom is JUST the safe-area inset (home-indicator gesture strip on
+   notched phones) -- it used to be calc(64px + the inset), a stray extra 64px
+   that left the buttons sitting in the top half of a too-tall bar with a dead
+   gap underneath them before the real screen edge (Tanish, 3 Oct: "floating
+   a little above"). --nav-h (56px) already describes the bar's real height
+   elsewhere (see .toast's offset below) -- this bar should just hug its
+   buttons' natural height, not add a second nav-height's worth of padding. */
+.bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--ink);border-top:1px solid rgba(255,255,255,.08);z-index:200;padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:none;}
 .bnav-inner{display:flex;}
 .bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 7px;background:transparent;border:none;color:var(--on-ink-muted);font-family:inherit;cursor:pointer;transition:color var(--t1);font-size:10px;font-weight:600;letter-spacing:.04em;}
 .bnav-btn:hover,.bnav-btn.active{color:var(--gold);}
