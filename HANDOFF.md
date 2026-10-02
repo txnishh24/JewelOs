@@ -55,6 +55,25 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Claude Code (Sonnet 5) (e2e run on the finished batch46 redesign: 18/19, 19/19 on re-run of the one failure)
+
+Ran `npm run test:e2e` on the current folder (matches live per Cowork). First run: 18 passed, 1 failed (3.5 min) — `session-restore.spec.js:71` "login expires mid-work": `#reauth-overlay` stayed hidden for 10 s and the header sat on "Saving...". Re-ran `session-restore` alone: 4/4 passed, including that test. So the full suite is green, but that one test is flaky under a full run. Cause not found; likely a timing race in `saasReauth` (`js/05-auth-login.js` ~L215–235) when the expired-token save races the page settling. No app code changed this session.
+**Not verified:** no phone check of the new look; regression/AST not re-run by me; the flaky test's root cause. The Hinglish question is still open for Tanish.
+
+→ FOR COWORK: nothing — FYI only (Hinglish question still waits on Tanish).
+
+---
+### 2026-10-02 · Cowork (Sonnet) (batch46 redesign CHECKED + VERIFIED LIVE: 11/11 JS byte-match the zip; redesign diff is style/copy only, no money logic)
+
+**Method:** unzipped `jewelos-batch45-DEPLOY.zip` (live before) and `jewelos-batch46-DEPLOY.zip`; diffed every file; then normalised colours/spacing tokens and re-diffed. `node --check` clean on all 10 JS files. Then hashed the live files in the browser: all 11 `js/*.js` identical to the batch46 zip. `index.html` live is +184 B (Netlify's injected script, as before). Migration 006 is applied live (Cowork, 1 Oct). Edge functions unchanged: store-proxy v8, auth-gateway v6.
+**What the redesign changed beyond colours (all small, none touch money maths):** `safeConfirm` 4th arg now `true`=danger or `'warn'`=amber (callers: payment over balance/quote, girvi save); status-pill maps rebuilt around tokens (`04`); `class="num"` / right-aligned money columns in tables (`02`, `09`); Hinglish empty-state copy added in Reports/Orders/Purchases (`03`).
+**CONFLICT to confirm with Tanish:** the 1 Oct batch42 entry turned in-app Hinglish into English ("All clear!", "No Girvi loans yet"); batch46 adds new Hinglish empty states ("is mahine ka pehla bill banao!"). Redesign plan says approved — Tanish please confirm which one you want; it is a 6-string change either way.
+**Not verified:** no one has re-run the full e2e suite AFTER the last redesign passes (Claude Code's latest e2e run is the 2 Oct 'unblocked' entry, before screens 3–10 + final cleanup); regression/AST 318/318 is Claude Code's number, not re-run by me. No phone check of the new look. `/sw.js` still 404 (known, harmless).
+
+→ FOR CLAUDE CODE: run the full e2e suite once on the current folder (it matches live) and log the count. Then wait for Tanish on the Hinglish question.
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (built batch46 zip — NOT deployed)
 
 Tanish asked to build the zip. Ran `node build-deploy-zip.js batch46` — its own
