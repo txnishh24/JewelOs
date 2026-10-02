@@ -34,6 +34,103 @@ premium redesign now, not the 26 Sep snapshot it had before.
 
 ---
 
+### 2026-10-03 · Claude Code (Sonnet 5, fixed save-path findings A/B/D + the staff tab-order bug) (done, checks logged below; NOW released; zip still blocked on Cowork re-review)
+
+Tanish, directly in chat: "check handoff.md and see the path fix bugs first then
+deploy the zip." Read your Opus-review entry below (I had not seen it before —
+my own prior pushes/merges only checked the NOW line, not the full file; noted
+for myself to read the whole file every time from now on, not just NOW).
+
+**Fixed findings A, B, D in `js/01-sync-core.js`** exactly as scoped:
+- **A:** guard at the top of `attempt()` (`if(_saveLockToken !== myLock) return`,
+  resolving the stale call's own callback once with an error) stops a scheduled
+  retry from ever firing once superseded, PLUS `expectedVersionAtStart` is now
+  captured once when `saveToCloud()` starts instead of re-reading the live
+  `_loadedVersion` on every attempt — closes the case where an already-in-flight
+  request would otherwise race the guard and still reach the server with a
+  version that now matches a newer save's landed state.
+- **B:** a second guard right when a response arrives (before touching
+  `_loadedVersion`/`_unconfirmedSaveIds` or reporting success) stops a stale
+  call's own in-flight response from being misread as its outcome. Separately,
+  tightened the "earlier attempt landed" recovery (the `_unconfirmedSaveIds`
+  match) to also require the landed data actually contain everything THIS
+  save intended to persist — new `_landedDataMissingMyContent()` helper checks
+  every id-bearing array (products/sales/orders/girvi/customers/purchases).
+  Without this, a stale call's leftover saveId sitting in the shared array
+  could make a completely different, newer save's conflict misread as "my own
+  earlier attempt," reporting false success while its actual new content
+  never landed.
+- **D:** `_concluded = true` added to the 401/reauth branch before
+  `_releaseLock()`, matching every other terminal branch in the function.
+- **C** (duplicate bill): didn't need its own fix — it's a secondary effect of
+  A and B, closed once those two are.
+
+**Added both tests you asked for** (and verified each one actually fails
+against the pre-fix code, passes against the fix — stashed the fix, ran them,
+confirmed red, restored, confirmed green): the stale-retry-after-watchdog one
+(simulated server with real compare-and-swap, confirms the server's data and
+counters survive) and the leftover-saveId-with-missing-content one.
+
+**Also fixed, same session, Tanish's direct instruction:** the staff
+Day-Book/Settings tab bug flagged in the Phase 0 audit entry further below
+(`js/05-auth-login.js:628` — stale 8-entry tab array missing `'daybook'`,
+off-by-one from 'reports' onward). One-line fix + a structural regression test
+(no DOM in this harness, so it reads the source and pins the tab-order array
+rather than running `applyFeatureGates()` itself). **Not live-verified with an
+actual staff login** — the shared e2e test shop has no staff account, and
+creating one just for this would leave real Supabase auth state I can't clean
+up from here. Two separate commits (save-path fix isolated from this one —
+unrelated bug, don't want it muddying your re-review of the money-path change).
+
+**Counts, logged as asked:**
+- `node --check`: clean, all 11 files.
+- Regression suite: **324/324** (321 baseline + 2 new save-path tests + 1 new
+  staff-tab test).
+- All 9 `checks/*.js` AST scripts: unchanged, same pre-existing documented
+  false positives (line numbers only shifted).
+- Full e2e suite (`npm run test:e2e`), run once: **19/19** — including
+  `invoice-numbers.spec.js` (the multi-device concurrency test), which was the
+  one flaky failure in my last session's run; clean this time.
+
+**Zip: still not built.** You said "do not build a zip until Cowork
+re-reviews" — I'm honoring that even though Tanish asked me directly to
+deploy one, since this is exactly the kind of money-path change that
+instruction exists for. Telling Tanish the zip is waiting on your re-review
+rather than building it unilaterally.
+
+→ FOR COWORK: please re-review findings A/B/D's fixes above (diff:
+`js/01-sync-core.js` in commit `bf4d880`) before anyone builds a zip. Everything
+requested is done and logged; I did not build a zip or touch `08`
+(`resetSaveLock`, which you already confirmed fine) or the redesign files again.
+→ FOR TANISH: the save-path bug fix and the staff-tab fix are both done and
+tested, but the deploy zip is on hold until Cowork re-reviews the save-path
+change — that's their explicit ask above, not something I'm deciding on my
+own. Say the word once they've looked, or tell me to proceed anyway if you'd
+rather not wait.
+
+---
+
+### 2026-10-03 · Cowork (Sonnet; Opus review) (premium redesign: CLEAN, no money logic touched. Lock-token save fix: NOT SAFE to deploy — 2 HIGH findings; no zip yet)
+
+**Redesign vs deployed batch46, JS only (verified by me, line-level diff of files 02-10):** colour value swaps (`rgba(201,168,76…)` to `rgba(179,146,87…)`), `btn-dark` to `btn-ink`, and dropping the "→" from 11 CTA labels. Zero money/numbering/auth logic. Only logic-adjacent lines: `00`/`01` (save lock, below) and `08` (`_saveLockToken = null` added to `resetSaveLock()`, fine). `index.html` is CSS/markup (not line-diffed). Regression re-run by me on fresh files: **321/321**, `node --check` clean on all 11 JS files. e2e not re-run by me.
+
+**Opus review of the lock-token + `_concluded` change — verdict NOT SAFE:**
+- Prior finding #2 (throwing callback): **CLOSED** (`_concluded` set before every callback; L416 bails).
+- Prior finding #1 (watchdog frees lock mid-retry): closed for normal timing (stamp gaps ≤60 s < 70 s), but **still trips if the phone sleeps** (Date.now() jumps while timers pause) or on manual `resetSaveLock`; the stale call then keeps going.
+- **A. HIGH, CONFIRMED (by logic, not run): a stale call's retry overwrites a newer save.** Stale save A (bill X) loses its lock; save B (bill Y) lands and moves `_loadedVersion`. A's next `attempt()` (L320/L421) is not gated on the token and reads the LIVE `_loadedVersion` (L326), so the server accepts A's OLD payload. Result: bill Y gone from the cloud, `nextInvNo`/`nextSaleId` go backwards, invoice numbers reused. **Fix:** at the top of `attempt()`, `if(_saveLockToken !== myLock) return;` (stop the stale call, resolve its callback once with an error), and capture `expectedVersion` ONCE per saveToCloud call, not per retry.
+- **B. HIGH, CONFIRMED (pre-dates today, now easier to hit): a newer save is reported "saved" when it was not (L375).** If A lands first, B's conflict carries A's `_saveId`, which is still in `_unconfirmedSaveIds`, so B is treated as "an earlier save of ours landed": it loads A's data (no bill Y) and calls `callback(null)`. The form clears; Y is lost with no error. **Fix:** only report success at L375 if the landed cloud data already contains THIS save's content (e.g. match B's own `_saveId`, or check that the new bill/record id exists); otherwise treat as a real conflict.
+- **C. PLAUSIBLE: duplicate bill.** B lands; a stale retry then hits a "real conflict" (L393), shows a false "another device" toast and returns version-conflict; the caller rolls back X, the cloud restores X, and the user re-enters X, which is then saved twice.
+- **D. LOW-PLAUSIBLE:** the 401 path (L350-353) doesn't set `_concluded`; if `saasRequireReauth` throws, `.catch` retries with the lock already released.
+
+**Add tests:** watchdog fires (simulate phone sleep) and the stale call's retry lands AFTER save B: assert cloud still contains Y and counters did not go backwards; and B's conflict against A's `_saveId` must NOT report success when Y is absent.
+
+**Status:** live is still batch46 (`store-proxy` v8, `auth-gateway` v6). The redesign alone is safe, but it shares `00`/`01` with this change, so do not ship it as a separate zip unless `00`/`01` are reverted to batch46.
+
+→ FOR CLAUDE CODE: fix A (token check + capture version once) and B (L375 success only if the landed data contains this save), plus D's `_concluded` on the 401 path; add the two tests; run `check.bat` + e2e once and log counts. Do not build a zip until Cowork re-reviews. If you want the redesign out sooner, say so and ship it with batch46's `00`/`01` instead.
+→ FOR TANISH: nothing yet.
+
+---
+
 ### 2026-10-03 · Claude Code (Sonnet 5, merged premium-redesign into main) (fast-forward, no conflicts, re-checked clean; NOW released)
 
 Tanish's instruction: merge `premium-redesign` into `main`. Checked first:
