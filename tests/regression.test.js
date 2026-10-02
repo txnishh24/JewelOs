@@ -1217,6 +1217,30 @@ testAsync('the load path passes the server reason too ("expired" on a live-looki
   });
 });
 
+// Cowork/Opus review, 2 Oct: a 401 with a non-JSON body (a proxy or
+// captive-portal page instead of store-proxy's own JSON) used to make
+// r.json() reject before the status was ever read, so the save path treated
+// a real session expiry as a network error -- 3 retries, then 'Save failed'
+// with no reauth prompt and the sale rolled back.
+testAsync('a 401 on save with a non-JSON body still prompts for the password, not a generic save failure', function(){
+  var a = loadApp();
+  a.SAAS.user = { id:'u1', email:'o@shop.in', name:'Owner' };
+  a.SAAS.shop = { id:'shop1', name:'Test Shop' };
+  a.SAAS.sessionToken = 'dead';
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts.method === 'PUT'){
+      return Promise.resolve({ status:401, ok:false, json:function(){ return Promise.reject(new Error('Unexpected token < in JSON')); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  var result = 'pending';
+  a.saveToCloud(function(err){ result = err ? err.message : 'saved'; });
+  return flushAll().then(function(){
+    assert(a.saasReauthPending() === true, 'a non-JSON 401 body must still read as a session-expired prompt, not a network error');
+    assert(result === 'pending', 'the caller must not be told to roll back on a 401, got ' + result);
+  });
+});
+
 testAsync('a save on a stalled connection gives up after its retries instead of hanging forever', function(){
   var a = loadApp();
   a.SAAS.sessionToken = 'tok';

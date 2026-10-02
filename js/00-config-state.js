@@ -31,10 +31,19 @@ var refreshTimer = null;
 var isSaving = false;
 var _isSavingSetAt = 0;
 
-// Watchdog: auto-release isSaving if stuck for more than 30 seconds
+// Watchdog: auto-release isSaving if stuck for more than 70 seconds.
+// Was 30s, below saveToCloud's own SAVE_TIMEOUT_MS (60s per attempt in
+// 01-sync-core.js) -- the watchdog could free the lock mid-attempt, letting
+// a second save start while the first was still in flight (Cowork/Opus
+// review, 2 Oct). 70s leaves the 60s attempt timeout room to fire first.
+// saveToCloud's attempt() re-stamps _isSavingSetAt on every retry (not just
+// the initial call), so this threshold only ever has to cover ONE attempt's
+// worst case, not the full multi-retry chain (bug-pattern review, 2 Oct --
+// an unconditional 70s would otherwise fire mid-retry on a save that is
+// still making legitimate progress across its up-to-4 attempts).
 setInterval(function(){
-  if(isSaving && _isSavingSetAt > 0 && (Date.now() - _isSavingSetAt) > 30000){
-    console.warn('[JewelOS] isSaving stuck for 30s — auto-releasing lock');
+  if(isSaving && _isSavingSetAt > 0 && (Date.now() - _isSavingSetAt) > 70000){
+    console.warn('[JewelOS] isSaving stuck for 70s — auto-releasing lock');
     isSaving = false;
     _isSavingSetAt = 0;
     setSyncStatus('err','Save lock reset');

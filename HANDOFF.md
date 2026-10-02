@@ -29,6 +29,50 @@ Belt and braces: `git status` on arrival. Dirty tree means someone was mid-chang
 
 ---
 
+### 2026-10-02 · Claude Code (Sonnet 5, jewelos-bug-pattern-reviewer) (fixed the (a)-(c) items from Cowork/Opus's session-restore + save-401 handoff; no zip)
+
+Did the three items the previous entry asked for ((d), the shorter-timeout-near-expiry idea, left as optional and not done):
+
+**(a) test fix, `tests/e2e/session-restore.spec.js`:** the 'login expires mid-work' test now
+waits for `!isSaving && invoice pool filled` before swapping the token — same wait test 4
+already used, now applied here too — so it can't race a background save that
+`migrateLockRates()` (`01-sync-core.js:117`) may have queued on the post-login load. Ran the
+full suite twice: **19/19 both times**, including this test.
+
+**(b) save-path gap, `js/01-sync-core.js` (`saveToCloud`'s `attempt()`, ~line 279):** a 401
+with a non-JSON body used to make `r.json()` reject before the status was ever read, so a
+real session expiry fell into the generic network-error `.catch`, retried 3x, then
+'Save failed' with no reauth prompt. Fixed by tolerating a bad body on any status
+(`r.json().catch(function(){return {};})`) rather than special-casing 401 — simpler, and the
+real HTTP status still reaches the existing 401/403/conflict handling unchanged. Added a
+regression test (`tests/regression.test.js`, "a 401 on save with a non-JSON body still
+prompts for the password, not a generic save failure").
+
+**(c) watchdog, `js/00-config-state.js`:** raised `isSaving`'s stuck-lock watchdog from 30s to
+70s, since a single save attempt can legitimately run up to `SAVE_TIMEOUT_MS` = 60s before
+its own retry logic kicks in — the 30s watchdog could free the lock mid-attempt and let a
+second save start while the first was still in flight.
+
+**Caught by `jewelos-bug-pattern-reviewer` before this went out:** the first version of (c)
+only bumped the number, but `saveToCloud` can retry up to 3 times (`delays = [2000, 5000,
+15000]`, each followed by another up-to-60s attempt) — legitimately ~4 minutes worst case,
+well past 70s. A flat 70s watchdog would still fire mid-retry and reintroduce the exact
+double-submit risk this was meant to fix, just later. Fixed properly: `attempt()` now
+re-stamps `_isSavingSetAt = Date.now()` on every retry, not just the initial call, so the
+watchdog measures time-since-last-attempt-started rather than time-since-saveToCloud-was-
+first-called — 70s now only has to cover one attempt, regardless of how many retries happen.
+
+**Verified:** `check.bat` clean (regression 319/319, incl. the new test; roundtrip/backup-check
+pass). Full e2e suite run twice from the repo root, **19/19 both times**, ~3.5 min each. Did
+not re-run a third Opus pass myself (no Opus session available from here) — see hand-back.
+
+→ FOR COWORK: (a)-(c) done, (d) (shorter attempt timeout near token expiry) left undone as
+optional per your note. Please ask Opus for the review you flagged before Tanish deploys —
+specifically the re-stamp fix for the watchdog/retry interaction above, since bug-pattern
+review already caught one real gap in my first pass at it and this is the login/save path.
+
+---
+
 ## WAITING ON TANISH
 
 Neither Claude can decide these. Don't re-litigate them each session; just surface them.
@@ -55,6 +99,22 @@ Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 or re-add tier UI.
 
 ---
+### 2026-10-02 · Cowork (Sonnet; Opus root-cause review) (flaky `session-restore.spec.js:71`: most likely a TEST race, but 2 real reauth gaps found — please fix)
+
+**Opus (reasoning only; did not run the spec, no node_modules in its sandbox, trace overwritten):**
+- 'Saving...' is set only at `01:178`; a 401 turns it into 'Sign in to save' (`05:229`). So the overlay was never shown-then-hidden: the 401 handler did not run within 10 s. Either the test's save queued behind another save, or its request stalled.
+- **Likely cause (medium confidence): test race.** Every cloud load runs `migrateLockRates()` (`01:117`) which saves if any bill line has locked rate 0 — on the never-cleared test shop that can fire on every load. A background save is then in flight when the test swaps the token (spec ~line 75) and calls `saveToCloud`, which waits in the `isSaving` 400 ms loop (`01:150`). If the live write of the big blob is slow (>10 s) the test fails. A real expiring token cannot be swapped under a save already sent, so this exact sequence is a test artifact.
+**REAL product gaps (high confidence they exist):**
+1. 401 with a non-JSON body (proxy, captive portal): the save path checks status only after `r.json()` succeeds (`01:279-296`) -> treated as a network error -> 3 retries -> 'Save failed' -> sale rolled back, NO overlay. The load path already handles it (`01:58`). Fix: at ~`01:280` `if(r.status===401) return r.json().catch(function(){return {};}).then(function(b){return {status:401,body:b};});`
+2. Stalled network at the moment the token expires: user sees 'Saving...' with no prompt for ~62 s (60 s attempt timeout, then retry gets 401). Not stuck forever, but poor. Consider a shorter attempt timeout when the token's `exp` is within a few minutes / already past.
+3. Watchdog (`00:31`) frees the save lock at 30 s but each save attempt can wait 60 s, so two saves can overlap. Raise the watchdog above 60 s.
+**Test fix:** before the token swap, `await page.waitForFunction(function(){return !isSaving;})` and wait for the invoice-number pool to fill (as test 4 does). **Deterministic repro:** `page.route` on the store-proxy PUT holding the first request 15 s; start a save on the valid token, swap the token, save again -> overlay assertion fails every time (should pass after the test fix).
+**Caveat:** Opus read the files Cowork had staged; `02`/`03` there were 30 Sep copies (no `invPoolTopUp`/`INV_POOL_SIZE`), so it could not check whether the offline invoice-number pool's own store-proxy calls take part in the race. Claude Code has the real files.
+
+→ FOR CLAUDE CODE: (a) fix the test per above and make it deterministic; (b) fix gap 1 (non-JSON 401 on the save path) with a regression test; (c) raise the watchdog above 60 s (gap 3); (d) gap 2 optional. Run the full e2e suite twice and log counts. Ask Cowork for an Opus review before Tanish deploys (this is the login/save path).
+
+---
+
 ### 2026-10-02 · Claude Code (Sonnet 5) (e2e run on the finished batch46 redesign: 18/19, 19/19 on re-run of the one failure)
 
 Ran `npm run test:e2e` on the current folder (matches live per Cowork). First run: 18 passed, 1 failed (3.5 min) — `session-restore.spec.js:71` "login expires mid-work": `#reauth-overlay` stayed hidden for 10 s and the header sat on "Saving...". Re-ran `session-restore` alone: 4/4 passed, including that test. So the full suite is green, but that one test is flaky under a full run. Cause not found; likely a timing race in `saasReauth` (`js/05-auth-login.js` ~L215–235) when the expired-token save races the page settling. No app code changed this session.

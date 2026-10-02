@@ -255,6 +255,13 @@ function saveToCloud(callback){
   }
 
   function attempt(){
+    // Re-stamp on every retry, not just the initial call above -- otherwise
+    // the watchdog (00-config-state.js) measures time since saveToCloud was
+    // FIRST called, not since this attempt started, and fires mid-retry on
+    // a save that is still making legitimate progress (bug-pattern review,
+    // 2 Oct: 3 retries at up to 60s each can legitimately run ~4x longer
+    // than one attempt's own timeout).
+    _isSavingSetAt = Date.now();
     // store-proxy does the compare-and-swap server-side now: it only
     // accepts the write if expectedVersion still matches what's stored,
     // and auto-creates the row on a shop's very first save. A 409 with
@@ -278,7 +285,14 @@ function saveToCloud(callback){
     })
     .then(function(r){
       if(timedOut) return null;
-      return r.json().then(function(body){ return { status: r.status, body: body }; });
+      // A 401 (or any non-2xx) can come back with a non-JSON body (a proxy
+      // or captive-portal page instead of store-proxy's own response) --
+      // r.json() then rejected before the status was ever looked at, so
+      // this fell into the generic .catch below as a network error, retried
+      // 3x, then 'Save failed' with no reauth prompt even on a real session
+      // expiry (Cowork/Opus review, 2 Oct). Tolerate the bad body and keep
+      // the status either way.
+      return r.json().catch(function(){ return {}; }).then(function(body){ return { status: r.status, body: body }; });
     })
     .then(function(res){
       if(!res || timedOut) return; // this attempt already timed out and was retried

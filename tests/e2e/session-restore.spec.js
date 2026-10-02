@@ -70,6 +70,15 @@ test.describe('reopening the app (F1 / R1)', () => {
 
   test('login expires mid-work: a save waits for the password, then goes through', async ({ page }) => {
     await login(page);
+    // Opus review 2 Oct: a post-login load can trigger migrateLockRates()'s
+    // own background save (01-sync-core.js); if that's still in flight when
+    // the token is swapped below, this test's own saveToCloud() call queues
+    // behind it in the isSaving 400ms loop, and can miss the 10s overlay
+    // deadline -- a test race, not a product bug. Wait for any such save to
+    // finish first, same as test 4 already does for the invoice-number pool.
+    await page.waitForFunction(() => {
+      try { return !isSaving && JSON.parse(localStorage.getItem(invPoolKey()) || '[]').length >= INV_POOL_SIZE; } catch (e) { return false; }
+    }, null, { timeout: 30000 });
     // Simulate the 6 h running out while the app is open: the server now
     // rejects the token this tab holds.
     await page.evaluate(() => { SAAS.sessionToken = 'expired.token'; });
