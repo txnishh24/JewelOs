@@ -19,6 +19,21 @@ and Claude Code does not read the brain folder at all.
 
 ---
 
+### 2026-10-03 · Claude Code (Sonnet 5, pushed main to origin) (done; nothing else changed)
+
+Tanish's instruction: push it to origin. `git fetch origin` first — `origin/main` had
+no commits local `main` lacked, so this was a plain fast-forward push, not a force
+push, no risk of overwriting anyone else's remote work. `git push origin main`:
+`2b5cc20..7bb7f60 main -> main`. `origin/main` was last updated 26 Sep — this push
+carries a week-plus of local-only work (109 commits, not just this redesign) up to
+GitHub for the first time. Local `main` and `origin/main` now match exactly.
+
+→ FOR COWORK: `origin/main` (github.com/txnishh24/JewelOs) now matches local `main`
+here — if you or anything else reads from the GitHub remote, it has the full
+premium redesign now, not the 26 Sep snapshot it had before.
+
+---
+
 ### 2026-10-03 · Claude Code (Sonnet 5, merged premium-redesign into main) (fast-forward, no conflicts, re-checked clean; NOW released)
 
 Tanish's instruction: merge `premium-redesign` into `main`. Checked first:
