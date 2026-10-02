@@ -19,6 +19,31 @@ and Claude Code does not read the brain folder at all.
 
 ---
 
+### 2026-10-03 · Claude Code (Sonnet 5, mobile bottom-nav floating bug) (fixed, checks pass, live-verified; NOW released)
+
+Tanish reported: on mobile, the bottom nav buttons sit "floating little above" the
+bottom of the screen, imperfectly. Root cause: `.bnav`'s `padding-bottom` was
+`calc(64px + env(safe-area-inset-bottom,0px))` — a stray extra `64px` on top of the
+safe-area inset, pre-dating this redesign (confirmed via `git show` on the pre-redesign
+commit, so not something Phase 1/2/3 introduced). That put the nav buttons in the top
+~48px of a ~112px-tall bar, with the bar's own dark background filling a dead ~64px
+strip below them before the real screen edge.
+
+Measured live with a throwaway Playwright script (390×844 viewport, real e2e test shop):
+`.bnav` bounding box went from height 112px (buttons occupying only the top 47px) to
+height 48px (buttons filling it almost exactly) after removing the stray `64px`. `--nav-h`
+(56px) already describes this bar's intended height elsewhere (`.toast`'s bottom offset
+uses it correctly) — `.bnav` itself just needed to stop adding a second one.
+
+One-line CSS fix (`index.html`, `.bnav` rule, BOTTOM NAV section) — `padding-bottom` is
+now just `env(safe-area-inset-bottom,0px)`. `node --check` clean, regression suite
+321/321, `css.js` AST check unchanged (same pre-existing false positives, none new).
+Live-verified at 375/390px against the real e2e test shop.
+
+→ FOR COWORK: nothing — FYI only. One-line CSS fix, no logic/data touched.
+
+---
+
 ### 2026-10-03 · Claude Code (Sonnet 5, Phase 3 of premium redesign — Stock/Sales/Orders/Purchases/Reports/Settings) (done, checks pass, live-verified via Playwright against the real e2e test shop at 375/768/1440; NOW released)
 
 **Scope read off `redesign-shots/`** (10 screen folders, 3 breakpoints each) plus the Phase 1
