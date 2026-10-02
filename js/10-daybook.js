@@ -814,7 +814,7 @@ function _dbPaintByPerson(fromKey, toKey){
         '</div>'+
         '<div style="text-align:right;font-size:11px;color:var(--text3);">'+grp.entries.length+' entr'+(grp.entries.length===1?'y':'ies')+'</div>'+
       '</div>'+
-      '<div style="display:flex;gap:16px;flex-wrap:wrap;padding:8px 0;border-top:0.5px solid rgba(201,168,76,.14);border-bottom:0.5px solid rgba(201,168,76,.14);margin-bottom:6px;">'+
+      '<div style="display:flex;gap:16px;flex-wrap:wrap;padding:8px 0;border-top:0.5px solid rgba(179,146,87,.14);border-bottom:0.5px solid rgba(179,146,87,.14);margin-bottom:6px;">'+
         '<div><div style="font-size:10px;color:var(--text3);">Paid out</div><div style="font-weight:700;color:var(--danger);">'+fmt(grp.totalOut)+'</div></div>'+
         '<div><div style="font-size:10px;color:var(--text3);">Received</div><div style="font-weight:700;color:var(--success);">'+fmt(grp.totalIn)+'</div></div>'+
       '</div>'+
@@ -891,7 +891,7 @@ function _dbPaintDay(){
 
   if(v.closed){
     var diffTxt = v.diff===0 ? 'matched exactly' : (v.diff<0 ? 'short by '+fmt(-v.diff) : 'excess of '+fmt(v.diff));
-    html += '<div class="card" style="border:1px solid rgba(201,163,76,0.3);">'+
+    html += '<div class="card" style="border:1px solid rgba(179,146,87,0.3);">'+
       '<div class="card-title">🔒 Day closed</div>'+
       '<div style="font-size:12px;color:var(--text2);">Counted '+fmt(v.counted)+' — '+diffTxt+'.</div>'+
       (dbDayKey(v.close.ts)===dbToday() ? '<button class="btn btn-sm" style="margin-top:8px;" onclick="dbOpenCorrectModal()">Correct today\'s count</button>' : '')+
