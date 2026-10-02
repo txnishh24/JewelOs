@@ -188,10 +188,10 @@ function gfRenderItemCard(idx){
     var act = t.label===(item.type||'Ring');
     return '<button data-idx="'+idx+'" data-type="'+t.label+'" onclick="gfSetItemType(parseInt(this.dataset.idx),this.dataset.type)" '+
       'style="padding:5px 10px;border-radius:100px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;'+
-      'border:1px solid '+(act?'var(--gold)':'var(--border)')+';background:'+(act?'rgba(201,168,76,.15)':'transparent')+';'+
+      'border:1px solid '+(act?'var(--gold)':'var(--border)')+';background:'+(act?'rgba(179,146,87,.15)':'transparent')+';'+
       'color:'+(act?'var(--gold-dark)':'var(--text2)')+';">'+t.icon+' '+t.label+'</button>';
   }).join('');
-  return '<div id="gf-item-card-'+idx+'" style="background:var(--card1);border:1.5px solid rgba(201,168,76,.22);border-radius:13px;padding:12px;margin-bottom:10px;">'+
+  return '<div id="gf-item-card-'+idx+'" style="background:var(--card1);border:1.5px solid rgba(179,146,87,.22);border-radius:13px;padding:12px;margin-bottom:10px;">'+
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;">'+
       '<span style="font-size:10px;font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.07em;">Item '+(idx+1)+'</span>'+
       (GF_ITEMS.length>1?'<button onclick="gfRemoveItem('+idx+')" style="padding:2px 10px;border-radius:var(--radius-pill);border:1px solid rgba(168,49,42,.3);background:var(--danger-soft);color:var(--danger);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">&#10005; Remove</button>':'')+
@@ -201,16 +201,16 @@ function gfRenderItemCard(idx){
       '<div style="font-size:10px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Description</div>'+
       '<input type="text" placeholder="e.g. Ladies 22K gold chain with pendant" value="'+escHtml(item.desc||'')+'" '+
         'data-idx="'+idx+'" oninput="GF_ITEMS[parseInt(this.dataset.idx)].desc=this.value;" '+
-        'style="width:100%;box-sizing:border-box;padding:8px 11px;border-radius:9px;border:1.5px solid rgba(201,168,76,.3);background:var(--bg);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">'+
+        'style="width:100%;box-sizing:border-box;padding:8px 11px;border-radius:9px;border:1.5px solid rgba(179,146,87,.3);background:var(--bg);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'+
       '<div>'+
         '<div style="font-size:10px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Metal</div>'+
-        '<select data-idx="'+idx+'" onchange="gfSetItemMetal(parseInt(this.dataset.idx),this.value)" style="width:100%;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(201,168,76,.3);background:var(--bg);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">'+metOpts+'</select>'+
+        '<select data-idx="'+idx+'" onchange="gfSetItemMetal(parseInt(this.dataset.idx),this.value)" style="width:100%;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(179,146,87,.3);background:var(--bg);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">'+metOpts+'</select>'+
       '</div>'+
       '<div>'+
         '<div style="font-size:10px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Purity</div>'+
-        '<select data-idx="'+idx+'" onchange="GF_ITEMS[parseInt(this.dataset.idx)].purity=this.value;gfUpdateSummary();" style="width:100%;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(201,168,76,.3);background:var(--bg);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">'+purOpts+'</select>'+
+        '<select data-idx="'+idx+'" onchange="GF_ITEMS[parseInt(this.dataset.idx)].purity=this.value;gfUpdateSummary();" style="width:100%;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(179,146,87,.3);background:var(--bg);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">'+purOpts+'</select>'+
       '</div>'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'+
@@ -218,22 +218,22 @@ function gfRenderItemCard(idx){
         '<div style="font-size:10px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Gross Wt (g)</div>'+
         '<input type="number" step="0.01" min="0" placeholder="0.00" inputmode="decimal" value="'+(item.grossWt||'')+'" '+
           'data-idx="'+idx+'" oninput="GF_ITEMS[parseInt(this.dataset.idx)].grossWt=parseFloat(this.value)||0;gfUpdateSummary();" '+
-          'style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(201,168,76,.3);background:var(--bg);color:var(--ink);font-size:15px;font-family:inherit;font-weight:700;outline:none;">'+
+          'style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(179,146,87,.3);background:var(--bg);color:var(--ink);font-size:15px;font-family:inherit;font-weight:700;outline:none;">'+
       '</div>'+
       '<div>'+
         '<div style="font-size:10px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Net Wt (g)</div>'+
         '<input type="number" step="0.01" min="0" placeholder="0.00" inputmode="decimal" value="'+(item.netWt||'')+'" '+
           'data-idx="'+idx+'" oninput="GF_ITEMS[parseInt(this.dataset.idx)].netWt=parseFloat(this.value)||0;" '+
-          'style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(201,168,76,.3);background:var(--bg);color:var(--ink);font-size:14px;font-family:inherit;font-weight:600;outline:none;">'+
+          'style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(179,146,87,.3);background:var(--bg);color:var(--ink);font-size:14px;font-family:inherit;font-weight:600;outline:none;">'+
       '</div>'+
       '<div>'+
         '<div style="font-size:10px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Pieces</div>'+
         '<input type="number" min="1" value="'+(item.qty||1)+'" '+
           'data-idx="'+idx+'" oninput="GF_ITEMS[parseInt(this.dataset.idx)].qty=parseInt(this.value)||1;gfUpdateSummary();" '+
-          'style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(201,168,76,.3);background:var(--bg);color:var(--ink);font-size:15px;font-family:inherit;font-weight:700;outline:none;">'+
+          'style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(179,146,87,.3);background:var(--bg);color:var(--ink);font-size:15px;font-family:inherit;font-weight:700;outline:none;">'+
       '</div>'+
     '</div>'+
-    (mktVal>0?'<div style="margin-top:8px;padding:6px 10px;background:rgba(201,168,76,.07);border-radius:8px;display:flex;justify-content:space-between;align-items:center;">'+
+    (mktVal>0?'<div style="margin-top:8px;padding:6px 10px;background:rgba(179,146,87,.07);border-radius:8px;display:flex;justify-content:space-between;align-items:center;">'+
       '<span style="font-size:11px;color:var(--text3);">Market value</span>'+
       '<span style="font-size:13px;font-weight:700;color:var(--gold-dark);">&#8377;'+Math.round(mktVal).toLocaleString('en-IN')+'</span></div>':'')+
   '</div>';
@@ -632,7 +632,7 @@ function girviAutoCalc(){
       // it said "Total Payable" next to "No fixed term" -- say what it is.
       (dur?'<div class="girvi-preview-row"><span>Due Date</span><span style="color:var(--gold);font-weight:700;">'+dueStr+'</span></div>':
            '<div class="girvi-preview-row"><span>Due Date</span><span>No fixed term</span></div>')+
-      '<div class="girvi-preview-row" style="border-top:1px solid rgba(201,168,76,.2);margin-top:6px;padding-top:6px;font-weight:700;"><span>'+(dur?'Total Payable':'Payable if repaid at 6 months')+'</span><span style="color:var(--gold);">\u20b9'+Math.round(payable).toLocaleString('en-IN')+'</span></div>';
+      '<div class="girvi-preview-row" style="border-top:1px solid rgba(179,146,87,.2);margin-top:6px;padding-top:6px;font-weight:700;"><span>'+(dur?'Total Payable':'Payable if repaid at 6 months')+'</span><span style="color:var(--gold);">\u20b9'+Math.round(payable).toLocaleString('en-IN')+'</span></div>';
     prevF.style.display='';
   }
 }
@@ -1013,7 +1013,7 @@ function girviLoanCardHTML(g){
                   ' &bull; '+(it.purity||'')+' '+(it.metal||'')+(_cw?' &bull; '+_cw+'g':'')+' &bull; Mkt: &#8377;'+
                   Math.round(getRate(it.metal||'gold',it.purity||'22K')*_cw).toLocaleString('en-IN')+'</div>';
               }
-              return '<div class="girvi-card-item"><span style="background:rgba(201,168,76,.15);color:var(--gold-dark);font-weight:700;font-size:10px;padding:1px 6px;border-radius:8px;margin-right:4px;">'+_ci.length+' items</span>'+
+              return '<div class="girvi-card-item"><span style="background:rgba(179,146,87,.15);color:var(--gold-dark);font-weight:700;font-size:10px;padding:1px 6px;border-radius:8px;margin-right:4px;">'+_ci.length+' items</span>'+
                 _cw.toFixed(2)+'g &bull; '+_ci.map(function(it){return it.type||'Item';}).join(', ')+'</div>';
             })()+
           '</div>'+
@@ -1160,7 +1160,7 @@ function openGirviDetail(gid){
           '<input id="gd-adj-amount" type="number" step="100" value="'+(g.adjustedAmount!=null?Math.round(g.adjustedAmount):'')+'"'+
             ' placeholder="'+Math.round(calcTotal)+'"'+
             ' oninput="gdPreviewAdj('+Math.round(calcTotal)+')"'+
-            ' style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:9px;border:1.5px solid var(--gold);background:rgba(201,168,76,.05);color:var(--text1);font-size:15px;font-weight:800;font-family:inherit;">'+
+            ' style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:9px;border:1.5px solid var(--gold);background:rgba(179,146,87,.05);color:var(--text1);font-size:15px;font-weight:800;font-family:inherit;">'+
         '</div>'+
       '</div>'+
       (adjDiff!==0?'<div id="gd-adj-diff" style="font-size:12px;color:'+(adjDiff<0?'var(--success)':'var(--warning)')+';font-weight:600;margin-bottom:8px;">'+
@@ -1296,7 +1296,7 @@ function openGirviDetail(gid){
         return '<div style="background:var(--card2);border-radius:11px;padding:11px 13px;">'+
           '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">🪙 '+_its.length+' Items · '+_twD.toFixed(2)+'g</div>'+
           _its.map(function(it){
-            return '<div style="font-size:12px;padding:3px 0;border-bottom:0.5px solid rgba(201,168,76,.1);">'+
+            return '<div style="font-size:12px;padding:3px 0;border-bottom:0.5px solid rgba(179,146,87,.1);">'+
               '<span style="font-weight:700;">'+escHtml(it.type||'Item')+(it.qty>1?' ×'+it.qty:'')+'</span>'+
               '<span style="color:var(--text3);"> '+(it.purity||'')+' '+(it.metal||'')+((it.weight||it.grossWt)?' '+(it.weight||it.grossWt)+'g':'')+'</span>'+
             '</div>';
@@ -1305,7 +1305,7 @@ function openGirviDetail(gid){
       })()+
     '</div>'+
     // ── Feature 3: Full duration & interest breakdown ──────────────────
-    '<div style="background:linear-gradient(135deg,rgba(201,168,76,.06),rgba(201,168,76,.02));border:0.5px solid rgba(201,168,76,.2);border-radius:12px;padding:14px;margin-bottom:14px;">'+
+    '<div style="background:linear-gradient(135deg,rgba(179,146,87,.06),rgba(179,146,87,.02));border:0.5px solid rgba(179,146,87,.2);border-radius:12px;padding:14px;margin-bottom:14px;">'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">'+
         '<div style="text-align:center;">'+
           '<div style="font-size:18px;font-weight:800;color:var(--gold);">₹'+Math.round(_ledger.principal).toLocaleString('en-IN')+'</div>'+
@@ -1520,7 +1520,7 @@ function openGirviPayment(gid){
       // silently became advance interest. Offer what is actually due.
       (Math.round(interest)>0?'<button onclick="setPayAmt('+Math.round(interest)+')" style="padding:5px 11px;border-radius:100px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Interest due \u20b9'+Math.round(interest).toLocaleString('en-IN')+'</button>':'')+
       '<button onclick="setPayAmt('+Math.round(outstanding/2)+')" style="padding:5px 11px;border-radius:100px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Half \u20b9'+Math.round(outstanding/2).toLocaleString('en-IN')+'</button>'+
-      '<button onclick="setPayAmt('+Math.round(outstanding)+')" style="padding:5px 11px;border-radius:100px;border:1px solid var(--gold);background:rgba(201,168,76,.1);color:var(--gold);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Full \u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</button>'+
+      '<button onclick="setPayAmt('+Math.round(outstanding)+')" style="padding:5px 11px;border-radius:100px;border:1px solid var(--gold);background:rgba(179,146,87,.1);color:var(--gold);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Full \u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</button>'+
     '</div>'+
     // Amount input
     '<div style="position:relative;margin-bottom:9px;">'+

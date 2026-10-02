@@ -681,7 +681,7 @@ function showCustHistory(encKey){
     });
   if(_cGirvi.length){
     var gSection=document.createElement('div');
-    gSection.style.cssText='margin-top:14px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.18);border-radius:12px;padding:12px;';
+    gSection.style.cssText='margin-top:14px;background:rgba(179,146,87,.04);border:1px solid rgba(179,146,87,.18);border-radius:12px;padding:12px;';
     var gActive=_cGirvi.filter(function(g){return g.status!=='closed';});
     var gClosed=_cGirvi.filter(function(g){return g.status==='closed';});
     var gTotalOut=gActive.reduce(function(s,g){return s+girviOutstanding(g);},0);
@@ -690,7 +690,7 @@ function showCustHistory(encKey){
     gSection.innerHTML=
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'+
         '<div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;">🪙 Girvi Account — '+_cGirvi.length+' Loan'+(_cGirvi.length===1?'':'s')+'</div>'+
-        (_custRecord?'<button onclick="event.stopPropagation();closeModal(\'cust-modal\');addGirviLoanForCustomer(\''+_custRecord.id+'\');" style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--gold-dark);background:rgba(201,168,76,.1);color:var(--gold-dark);cursor:pointer;font-family:inherit;font-weight:700;">+ Add Loan</button>':'')+
+        (_custRecord?'<button onclick="event.stopPropagation();closeModal(\'cust-modal\');addGirviLoanForCustomer(\''+_custRecord.id+'\');" style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--gold-dark);background:rgba(179,146,87,.1);color:var(--gold-dark);cursor:pointer;font-family:inherit;font-weight:700;">+ Add Loan</button>':'')+
       '</div>'+
       '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;">'+
         '<div><div style="font-size:10px;color:var(--text3);">Active</div><div style="font-weight:700;color:var(--warning);">'+gActive.length+'</div></div>'+

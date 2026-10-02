@@ -143,7 +143,7 @@ function renderGirviByCustomer(search, filter, metalFilter){
         var its = Array.isArray(g.items)&&g.items.length ? g.items : (g.item?[g.item]:[]);
         var itemDesc = its.length===1 ? (its[0].desc||its[0].type||'Item') : (its.length+' items');
         var statusBadge = girviStatusBadge(g.status);
-        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:12px;background:rgba(0,0,0,0.02);margin-bottom:6px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background=\'rgba(201,168,76,.07)\'" onmouseout="this.style.background=\'rgba(0,0,0,0.02)\'" onclick="event.stopPropagation();openGirviDetail(\''+g.id+'\')">'+
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:12px;background:rgba(0,0,0,0.02);margin-bottom:6px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background=\'rgba(179,146,87,.07)\'" onmouseout="this.style.background=\'rgba(0,0,0,0.02)\'" onclick="event.stopPropagation();openGirviDetail(\''+g.id+'\')">'+
           '<div><span style="font-weight:700;font-size:12px;">'+g.grvNo+'</span> '+statusBadge+
           '<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+escHtml(itemDesc)+' &bull; '+fmtDate(g.startDate)+'</div></div>'+
           '<div style="text-align:right;"><div style="font-weight:700;font-size:13px;">\u20b9'+Math.round(g.status==='closed'?g.principal:girviOutstanding(g)).toLocaleString('en-IN')+'</div></div>'+
@@ -151,7 +151,7 @@ function renderGirviByCustomer(search, filter, metalFilter){
       }).join('');
 
     var custIdAttr = grp.custId || '';
-    return '<div class="girvi-card" style="cursor:default;border-radius:16px;border-color:rgba(201,168,76,.14);">'+
+    return '<div class="girvi-card" style="cursor:default;border-radius:16px;border-color:rgba(179,146,87,.14);">'+
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;padding:14px 16px 0;">'+
         '<div>'+
           '<div style="font-weight:700;font-size:15px;">👤 '+escHtml(grp.customer||'Unknown')+'</div>'+
@@ -161,14 +161,14 @@ function renderGirviByCustomer(search, filter, metalFilter){
           '<div style="font-size:11px;color:var(--text3);">'+grp.activeCount+' active &bull; '+grp.closedCount+' closed &bull; '+grp.totalItems+' items</div>'+
         '</div>'+
       '</div>'+
-      '<div style="display:flex;gap:16px;flex-wrap:wrap;margin:0 16px 12px;padding:10px 0;border-top:0.5px solid rgba(201,168,76,.14);border-bottom:0.5px solid rgba(201,168,76,.14);">'+
+      '<div style="display:flex;gap:16px;flex-wrap:wrap;margin:0 16px 12px;padding:10px 0;border-top:0.5px solid rgba(179,146,87,.14);border-bottom:0.5px solid rgba(179,146,87,.14);">'+
         '<div><div style="font-size:10px;color:var(--text3);">Total Loan</div><div style="font-weight:700;">\u20b9'+Math.round(grp.totalLoan).toLocaleString('en-IN')+'</div></div>'+
         '<div><div style="font-size:10px;color:var(--text3);">Interest Due</div><div style="font-weight:700;color:var(--warning);">\u20b9'+Math.round(grp.totalInterest).toLocaleString('en-IN')+'</div></div>'+
         '<div><div style="font-size:10px;color:var(--text3);">Outstanding</div><div style="font-weight:700;color:var(--danger);">\u20b9'+Math.round(grp.totalOutstanding).toLocaleString('en-IN')+'</div></div>'+
       '</div>'+
       '<div style="padding:0 16px;">'+entriesHtml+'</div>'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin:8px 16px 14px;gap:8px;">'+
-        (custIdAttr?'<button onclick="event.stopPropagation();addGirviLoanForCustomer(\''+custIdAttr+'\')" style="font-size:11px;padding:5px 14px;border-radius:20px;border:1px solid var(--gold-dark);background:rgba(201,168,76,.1);color:var(--gold-dark);cursor:pointer;font-family:inherit;font-weight:700;transition:background .15s;" onmouseover="this.style.background=\'rgba(201,168,76,.2)\'" onmouseout="this.style.background=\'rgba(201,168,76,.1)\'">+ Add Loan</button>':'<span></span>')+
+        (custIdAttr?'<button onclick="event.stopPropagation();addGirviLoanForCustomer(\''+custIdAttr+'\')" style="font-size:11px;padding:5px 14px;border-radius:20px;border:1px solid var(--gold-dark);background:rgba(179,146,87,.1);color:var(--gold-dark);cursor:pointer;font-family:inherit;font-weight:700;transition:background .15s;" onmouseover="this.style.background=\'rgba(179,146,87,.2)\'" onmouseout="this.style.background=\'rgba(179,146,87,.1)\'">+ Add Loan</button>':'<span></span>')+
         (custIdAttr?'<button onclick="event.stopPropagation();showCustomerEditModal(\''+custIdAttr+'\')" style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--border2);background:var(--card2);color:var(--text2);cursor:pointer;font-family:inherit;transition:opacity .15s;" onmouseover="this.style.opacity=\'.8\'" onmouseout="this.style.opacity=\'1\'">✏️ Edit Customer</button>':'')+
       '</div>'+
     '</div>';
@@ -323,7 +323,7 @@ var _v20_renderGirvi_installed = false;
           (_cw?' \u2022 '+_cw.toFixed(2)+'g':'')+
           ' \u2022 Mkt: \u20b9'+Math.round(getRate(it0.metal||'gold',it0.purity||'22K')*girviItemWt(it0)*(parseInt(it0.qty)||1)).toLocaleString('en-IN')+'</div>';
       } else {
-        itemHtml='<div class="girvi-card-item"><span style="background:rgba(201,168,76,.15);color:var(--gold-dark);font-weight:700;font-size:10px;padding:1px 6px;border-radius:8px;margin-right:4px;">'+_allIt.length+' items</span>'+_cw.toFixed(2)+'g \u2022 '+_allIt.map(function(it){ return it.type||'Item'; }).join(', ')+'</div>';
+        itemHtml='<div class="girvi-card-item"><span style="background:rgba(179,146,87,.15);color:var(--gold-dark);font-weight:700;font-size:10px;padding:1px 6px;border-radius:8px;margin-right:4px;">'+_allIt.length+' items</span>'+_cw.toFixed(2)+'g \u2022 '+_allIt.map(function(it){ return it.type||'Item'; }).join(', ')+'</div>';
       }
 
       var actionsHtml;
@@ -487,7 +487,7 @@ function geItemCard(i,item){
   var SPURITY=['999 Pure','925 Sterling','800','Silver Plated'];
 
   var card=document.createElement('div');
-  card.style.cssText='background:var(--card2);border:1.5px solid rgba(201,168,76,.25);border-radius:12px;padding:12px 13px;margin-bottom:10px;';
+  card.style.cssText='background:var(--card2);border:1.5px solid rgba(179,146,87,.25);border-radius:12px;padding:12px 13px;margin-bottom:10px;';
 
   var hdr=document.createElement('div');
   hdr.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
@@ -538,7 +538,7 @@ function geItemCard(i,item){
   var mktVal=mktRate*girviItemWt(item);
   if(mktVal>0){
     var mv=document.createElement('div');
-    mv.style.cssText='font-size:11px;color:var(--gold-dark);font-weight:600;margin-top:6px;background:rgba(201,168,76,.08);border-radius:6px;padding:5px 8px;';
+    mv.style.cssText='font-size:11px;color:var(--gold-dark);font-weight:600;margin-top:6px;background:rgba(179,146,87,.08);border-radius:6px;padding:5px 8px;';
     mv.innerHTML='\ud83d\udcca Mkt Val: \u20b9'+Math.round(mktVal).toLocaleString('en-IN')+' &nbsp;\u2022&nbsp; 70% LTV: \u20b9'+Math.round(mktVal*0.7).toLocaleString('en-IN');
     card.appendChild(mv);
   }
@@ -937,7 +937,7 @@ function openGirviRenewalModal(gid){
   var penObj=girviOutstandingWithPenalty(g);
   var body=document.getElementById('grn-body');
   body.innerHTML=
-    '<div style="background:var(--gold-bg);border:0.5px solid rgba(201,168,76,.25);border-radius:12px;padding:14px;margin-bottom:14px;">'+
+    '<div style="background:var(--gold-bg);border:0.5px solid rgba(179,146,87,.25);border-radius:12px;padding:14px;margin-bottom:14px;">'+
       '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;font-weight:700;">Current Loan Summary</div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;">'+
         '<div><span style="color:var(--text3);">Principal:</span> <strong>\u20b9'+Math.round(g.principal).toLocaleString('en-IN')+'</strong></div>'+
@@ -1067,7 +1067,7 @@ function openGirviReceiptModal(gid, receiptType){
   // ── Customer-facing headline: no interest math, just three numbers ──
   var prevOutstanding = lastPay ? outstanding + (lastPay.interestPortion||0) + (lastPay.principalPortion||0) : outstanding;
   var customerHeadline =
-    '<div style="background:var(--gold-bg);border:0.5px solid rgba(201,168,76,.3);border-radius:8px;padding:10px 12px;margin-bottom:12px;">'+
+    '<div style="background:var(--gold-bg);border:0.5px solid rgba(179,146,87,.3);border-radius:8px;padding:10px 12px;margin-bottom:12px;">'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;font-size:12px;">'+
         '<div><div style="color:var(--text3);text-transform:uppercase;font-size:9px;font-family:Inter,sans-serif;">Outstanding Before</div><strong>\u20b9'+Math.round(prevOutstanding).toLocaleString('en-IN')+'</strong></div>'+
         (lastPay?'<div><div style="color:var(--text3);text-transform:uppercase;font-size:9px;font-family:Inter,sans-serif;">Amount Received</div><strong style="color:var(--success);">\u20b9'+Math.round(lastPay.amount).toLocaleString('en-IN')+'</strong></div>':'<div></div>')+
