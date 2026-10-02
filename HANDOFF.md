@@ -15,7 +15,21 @@ and Claude Code does not read the brain folder at all.
 
 ## NOW — who is working, on what
 
-> nobody
+> Claude Code — premium visual redesign (presentation-only, phased, no logic changes) — since 2 Oct 19:35
+
+---
+
+### 2026-10-02 · Claude Code (Opus 5.5, Phase 0 audit for premium redesign) (bug found and flagged, not fixed — out of scope for this redesign)
+
+**Bug (logic, not touched):** `js/05-auth-login.js:628` — the staff-hide tab index list is
+`['dashboard','inventory','sales','orders','girvi','customers','reports','settings']`, missing
+`'daybook'`. There are 9 desktop tabs; staff accounts currently lose the **Day Book** tab and
+keep the **Settings** ⚙ tab (likely the opposite of intended — staff should probably see Day Book
+and not Settings). Not reproduced live, found by code reading only.
+
+→ FOR COWORK: this is a real bug, unrelated to the redesign work in progress on branch
+`premium-redesign`. Tanish's call: fix it, or confirm it's intended staff behaviour. Claude Code
+is not touching it as part of the presentation-only redesign.
 
 **Claim it before you start.** Replace the line above with e.g.
 `Claude Code — batch16 girvi photo fixes — since 8 Sep 21:40`.
