@@ -120,4 +120,4 @@ role gating, Close Day / locked-day adjustments, the Netlify-badge
 nav-overlap bug (confirmed still live 26 Sep 2026 — a hosting/deploy issue,
 not something a DOM test can fix), and anything about how it actually
 feels on a real phone. Add specs here as these get prioritized — follow
-the selector strategy above and this repo's `skills/jewelos-dev-rules.md`.
+the selector strategy above and this repo's `skills/jewelos-dev.md`.

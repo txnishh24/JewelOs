@@ -6,9 +6,10 @@ description: Use when verifying a UI change, or before any release, once check.b
 # Verifying JewelOS in a browser
 
 `check.bat` tests syntax, math, and dead references. It does not open a screen. This
-closes that gap using the Playwright MCP tools (`mcp__plugin_playwright_playwright__*`)
-already available in this environment — actually load and click the app instead of
-reading code and assuming it renders.
+closes that gap using whichever Playwright MCP tools are available in your environment
+(the exact tool-name prefix differs between Claude Code and Cowork's device bridge —
+check your own tool list rather than assuming a specific name) — actually load and
+click the app instead of reading code and assuming it renders.
 
 This is the ad-hoc, exploratory version of that check — for the specific flow a
 change touches, right now, in this session. `tests/e2e/` (`npm run test:e2e`) is the

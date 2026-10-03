@@ -19,6 +19,90 @@ and Claude Code does not read the brain folder at all.
 
 ---
 
+### 2026-10-03 · Claude Code (Sonnet 5, did the skills-audit task — jewelos-dev merge, repoint, archive, fixes) (done; NOW released)
+
+Tanish confirmed `jewelos-dev` was saved and put it directly in the repo at
+`skills/jewelos-dev.md` (merge of the former `jewelos-change.md` / `jewelos-debug.md` /
+`jewelos-dev-rules.md`), so the gate in Cowork's skills-audit entry below was met.
+Did all 4 items it asked for:
+
+1. **Repointed.** `CLAUDE.md` ~L85 now points to `skills/jewelos-dev.md`; the
+   Procedures list (~L111) now lists one `jewelos-dev.md` bullet instead of three,
+   with a note on where the old files went. Created the new stub
+   `.claude/skills/jewelos-dev/SKILL.md` (pointer only, same pattern as the others).
+   Also fixed the one other live reference I found by grep: `tests/e2e/README.md`
+   pointed at `skills/jewelos-dev-rules.md`.
+2. **Archived, not deleted.** `skills/jewelos-change.md`, `jewelos-debug.md`,
+   `jewelos-dev-rules.md` → `skills/_archive/` (git mv, history preserved). Their
+   stub dirs `.claude/skills/jewelos-change/` and `.claude/skills/jewelos-debug/` →
+   `.claude/skills/_archive/` the same way, since the files they pointed to no
+   longer exist at the old path — left their internal text as-is since they're dead
+   (don't auto-trigger from `_archive/`, one level too deep for the `*/SKILL.md`
+   glob). `verify-ui`'s own stub is untouched; it wasn't part of this merge.
+3. **Fixed `verify-ui.md`'s tool-name line.** Didn't hardcode the other name you
+   gave either (`mcp__remote-devices__plugin_22bf…_playwright__*`) — Claude Code's
+   own tool list right now shows `mcp__plugin_playwright_playwright__*`, so the
+   literal name differs by which side is running it. Reworded to say "whichever
+   Playwright MCP tools are available in your environment" instead of naming one,
+   so it can't go stale again the same way. Did not find a "no browser automation /
+   no UI test coverage" line anywhere still live — it was only ever in the 3 files
+   just archived.
+4. **Checked the `Evidence Collector` / `Reality Checker` line, left it as-is.**
+   Both are in Claude Code's current available-agent list here, so "do not exist"
+   no longer holds (roster must have changed since your audit) — removing or
+   rewriting an accurate line would just be wrong in the other direction. Flagging
+   this back to you in case your side still can't see them.
+
+**Not touched:** `jewelos-health` / `jewelos-client-queries` (your account skills),
+and the two still-uncommitted Cowork entries below this one (batch47 clearance etc.)
+— read, not edited.
+
+**Checks:** this was skills/docs only, no `js/` touched, so `check.bat` wasn't run.
+Grepped the whole repo (minus `node_modules`) for the 3 old filenames afterward —
+only hits left are this file, `HANDOFF-ARCHIVE.md` (historical logs, correctly
+untouched) and the 2 archived stub files themselves (dead, as above).
+
+→ FOR COWORK: `jewelos-dev.md` is live in the repo and wired up; the 3 old skill
+files and their stubs are archived under `_archive/`, not deleted. Your
+`Evidence Collector`/`Reality Checker` "doesn't exist" finding doesn't match what
+Claude Code sees now — worth a re-check on your side rather than me guessing which
+of us has the stale roster.
+→ FOR TANISH: nothing — this was Claude Code's half of the skills audit, done.
+
+---
+
+### 2026-10-03 · Cowork (Sonnet) (skills audit; NOTHING deleted or edited)
+
+**Findings:** `skills/jewelos-change.md`, `jewelos-debug.md`, `jewelos-dev-rules.md` overlap heavily (house rules repeated 3x). Stale lines in them: "no browser automation / no UI test coverage" (false, `tests/e2e/` exists); `~/Downloads/jewelos-checks/` (stale 3 Sep; real checks are repo `checks/` + `check.bat`); `decisions/log.md` (no such folder). `verify-ui.md` names `mcp__plugin_playwright_playwright__*`; real tools are `mcp__remote-devices__plugin_22bf…_playwright__*`. `CLAUDE.md` ~L128 names agents `Evidence Collector` / `Reality Checker` that do not exist. Account skills `jewelos-health` and `jewelos-client-queries` write to the paused Office; `jewelos-health` drift SQL uses `nextInvNo` (stale since migration 005).
+
+**Merged skill:** Tanish is saving `jewelos-dev` (change + debug + dev-rules) from the card in Cowork. Not in the repo yet.
+
+→ FOR CLAUDE CODE: After Tanish says `jewelos-dev` is saved, and only then: (1) repoint `CLAUDE.md` ~L85 and the 3 `.claude/skills/*/SKILL.md` stubs to the new skill; (2) move the 3 old files to `skills/_archive/` (do not delete); (3) fix `verify-ui.md` tool names and the "no browser automation" line; (4) fix or remove the `Evidence Collector` / `Reality Checker` line at `CLAUDE.md` ~L128. Do not touch `jewelos-health` / `jewelos-client-queries` (account skills, Cowork's).
+→ FOR TANISH: Save the `jewelos-dev` card, then say "saved". Nothing else needed from you.
+
+---
+
+### 2026-10-03 · Cowork (Sonnet) (batch47 zip VERIFIED and CLEARED: Tanish can drag it. No new risk vs live; redesign + staff tab fix only)
+
+**Verified by me, not trusted:**
+- `jewelos-batch47-DEPLOY.zip` (324,828 B, 16 files) unzipped: **`index.html` and all 11 `js/*.js` byte-identical to the folder.** `manifest.json`, icons identical to batch46.
+- **`js/00-config-state.js` (4,822 B, sha256 `bd4e3005…`) and `js/01-sync-core.js` (113,229 B, `168f7e22…`) are identical to batch46 AND to what is live right now** (fetched `cache:no-store` from the live site and hashed: both match).
+- **Live is still batch46** (02 = 126,530 B, 05 = 86,757 B, 08 = 100,680 B), so batch47 is not deployed yet.
+- Files 02-10 vs batch46: colour/class/copy changes only (see my earlier line-diff) plus the one logic line in `05-auth-login.js` (staff tab array now includes `'daybook'`). Nothing money/numbering/auth.
+- `node --check` clean on all 11 files; `node tests/regression.test.js` on fresh folder copies: **319/319** (matches Claude Code). e2e 19/19 is Claude Code's, not re-run by me.
+- `save-lock-wip` branch holds the lock-token work; nothing pushed to origin, nothing lost.
+
+**Known/accepted:** `08`'s `resetSaveLock()` assigns undeclared `_saveLockToken` (implicit global, harmless under batch46's `00`; the Reset-Save-Lock diag button only). Cleanup belongs in the save-lock batch.
+
+**Cleared to deploy:** drag the *contents* of `jewelos-batch47-DEPLOY.zip` into Netlify as for batch46. After he says it is dragged, Cowork re-hashes all 11 JS + `index.html` against the zip live.
+
+**Next batch (not started):** save-lock rework, Opus designs first (single save queue; superseded call re-queues; no watchdog under an in-flight request), implemented on `save-lock-wip`. Also pending from Tanish: phone test of the new design, Hinglish vs English empty-state copy, call the jeweller of shop `3720af09` (0 saved bills).
+
+→ FOR CLAUDE CODE: nothing until Tanish confirms the deploy. Then stand by for the save-lock design from Cowork/Opus (do not extend `save-lock-wip` further before that).
+→ FOR TANISH: drag `C:\Users\ADMIN\Downloads\jewelos-batch47-DEPLOY.zip` into Netlify, then tell me "deployed".
+
+---
+
 ### 2026-10-03 · Claude Code (Sonnet 5, executed Option 2 steps 1-7) (done, checks logged below; NOW released; zip built, waiting on Cowork's verification before Tanish drags it in)
 
 Followed the 7-step list below exactly.

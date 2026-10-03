@@ -82,7 +82,7 @@ why per-module permissions and stock reservation cannot be fixed incrementally.
 
 ## Rules
 
-See `skills/jewelos-dev-rules.md`. The short version:
+See `skills/jewelos-dev.md`. The short version:
 
 - **ES5 only.** No arrow functions, `let`/`const`, template literals, `async/await`.
 - **`escHtml()`** into `innerHTML`; **`jsAttrEsc()`** into inline `onclick="fn('...')"`.
@@ -108,9 +108,9 @@ more tested than it is.
 In `skills/`. Read the matching one before starting; they also exist under
 `.claude/skills/` where supported, and auto-trigger there.
 
-- `skills/jewelos-change.md` — adding or changing a feature
-- `skills/jewelos-debug.md` — something is broken; the five recurring bug families
-- `skills/jewelos-dev-rules.md` — the house rules in full
+- `skills/jewelos-dev.md` — house rules, adding/changing a feature, debugging (the five
+  recurring bug families); merged from the former `jewelos-change.md` / `jewelos-debug.md`
+  / `jewelos-dev-rules.md` (archived in `skills/_archive/`)
 - `skills/verify-ui.md` — actually clicking through a change in a browser via Playwright,
   before handing back a build (fills the gap "check.bat" leaves — see below)
 
