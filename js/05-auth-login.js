@@ -1650,7 +1650,7 @@ function runInsightEngine(){
   var custRevMap = {};
   S.sales.forEach(function(s){
     var k = s.customer+(s.phone?'_'+s.phone:'');
-    custRevMap[k] = (custRevMap[k]||0) + calcSaleTotals(s).grand;
+    custRevMap[k] = (custRevMap[k]||0) + (calcSaleTotals(s).grand - calcRefundAdj(s).amount); // H2: net of refunds
   });
   var topCustomers = Object.entries(custRevMap).sort(function(a,b){return b[1]-a[1];}).slice(0,3);
   if(topCustomers.length >= 3){

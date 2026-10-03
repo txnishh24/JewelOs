@@ -61,7 +61,7 @@ function showPdfReport(){
       (function(){
         var cm = buildCustMap ? buildCustMap() : {};
         var custs = Object.values(cm).map(function(c){
-          return {name:c.name,rev:c.sales.reduce(function(s,x){return s+calcSaleTotals(x).grand;},0),count:c.sales.length};
+          return {name:c.name,rev:c.sales.reduce(function(s,x){return s+(calcSaleTotals(x).grand-calcRefundAdj(x).amount);},0),count:c.sales.length}; // H2: net of refunds
         }).sort(function(a,b){return b.rev-a.rev;}).slice(0,5);
         return custs.map(function(c,i){
           return pdfRow((i+1)+'. '+c.name, fmt(c.rev)+' ('+plural(c.count,'order')+')','#333',false);

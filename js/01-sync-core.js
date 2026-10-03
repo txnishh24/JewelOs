@@ -1416,18 +1416,22 @@ function calcItemProfit(item){
 }
 
 // ── SALE-LEVEL PROFIT ────────────────────────────────────────────────
+// Cost of one sold item line (metal + stone; no making — see calcItemProfit()
+// for why making is excluded, charging it as a cost the bill never billed
+// turned a normal sale into a loss of exactly mcRate x weight). Shared by
+// calcSaleProfit() and calcRefundAdj() (H2) so a returned item's cost
+// reversal always matches what it was originally charged as.
+function saleItemCost(i){
+  var p = S.products.find(function(x){ return x.id===i.pid; });
+  var costRate = (p && p.costRate > 0) ? p.costRate : getItemRate(i);
+  var stoneCost= (parseFloat(i.stoneCost)||0) * (i.qty||1);
+  return costRate * (parseFloat(i.weight)||0) * (i.qty||1) + stoneCost;
+}
+
 function calcSaleProfit(sale){
   var t         = calcSaleTotals(sale);
   var itemsCost = 0;
-  (sale.items||[]).forEach(function(i){
-    var p = S.products.find(function(x){ return x.id===i.pid; });
-    var costRate = (p && p.costRate > 0) ? p.costRate : getItemRate(i);
-    // No making cost here — see calcItemProfit(). Charging p.mcRate as a cost
-    // while the bill never billed it is what turned a normal sale into a loss
-    // of exactly mcRate x weight.
-    var stoneCost= (parseFloat(i.stoneCost)||0) * (i.qty||1);
-    itemsCost += costRate * (parseFloat(i.weight)||0) * (i.qty||1) + stoneCost;
-  });
+  (sale.items||[]).forEach(function(i){ itemsCost += saleItemCost(i); });
   // Revenue = grand total (locked)
   // Cost    = metal cost + making cost + stone cost
   // Profit  = Revenue - Cost - GST (GST is govt's money, not ours)
@@ -1436,6 +1440,31 @@ function calcSaleProfit(sale){
   var profit    = revenue - itemsCost - gstPaid;
   var margin    = revenue > 0 ? (profit / revenue * 100) : 0;
   return { revenue:revenue, cost:itemsCost, gstPaid:gstPaid, profit:profit, margin:margin };
+}
+
+// H2 (3 Oct QA): what refunds dated in [from,to] take back from this sale
+// (omit from/to for every refund ever). A refund amount is GST-inclusive (it
+// is capped at the invoice total), so its GST share is worked back out at
+// the sale's own rate, not re-derived from the locked total — that still
+// works even if lockedGrand has drifted from the item-computed gstAmt.
+// cost is the cost of whichever items actually came back with those refunds.
+function calcRefundAdj(sale, from, to){
+  var amount=0, cost=0, g=parseFloat(sale.gst)||0, items=sale.items||[];
+  var tagged=[]; (sale.refunds||[]).forEach(function(r){ (r.items||[]).forEach(function(i){ tagged.push(i); }); });
+  // Refunds issued before this fix never recorded which items came back --
+  // only the sale-level returnedItemIdx did. Attribute those to the first
+  // refund so their cost is reversed exactly once, on some real refund date,
+  // rather than not at all.
+  var legacy=(sale.returnedItemIdx||[]).filter(function(i){ return tagged.indexOf(i)===-1; });
+  (sale.refunds||[]).forEach(function(r, n){
+    var d=new Date(r.date);
+    if((from && d<from) || (to && d>to)) return;
+    amount += parseFloat(r.amount)||0;
+    var idx = r.items || (n===0 ? legacy : []);
+    idx.forEach(function(i){ if(items[i]) cost += saleItemCost(items[i]); });
+  });
+  var gst = amount*g/(100+g);
+  return {amount:amount, gst:gst, cost:cost, profit:-(amount-gst)+cost};
 }
 
 // ── CASH FLOW ENGINE ─────────────────────────────────────────────────
@@ -1492,7 +1521,16 @@ function calcCashFlow(fromDate, toDate){
     expenses = dbRound(expenses + e.amount);
   });
 
-  var netCash = cashIn + girviIn - girviOut - expenses; // old-gold trade-in excluded — not a real cash movement
+  // H2: a refund belongs to the date it was actually paid out, same rule as
+  // Day Book -- checked across every sale, not just ones made in this window,
+  // since a sale from an earlier window can be refunded inside this one.
+  var refundsOut = 0;
+  S.sales.forEach(function(s){
+    if(!s.refunds || !s.refunds.length) return;
+    refundsOut += calcRefundAdj(s, from, to).amount;
+  });
+
+  var netCash = cashIn + girviIn - girviOut - expenses - refundsOut; // old-gold trade-in excluded — not a real cash movement
   return {
     expenses: expenses,
     cashIn:   cashIn,
@@ -1500,6 +1538,7 @@ function calcCashFlow(fromDate, toDate){
     credit:   credit,
     girviOut: girviOut,
     girviIn:  girviIn,
+    refundsOut: refundsOut,
     netCash:  netCash,
     capitalStuck: credit + Math.max(0, girviOut - girviIn)
   };
@@ -1853,7 +1892,13 @@ function _submitRefund(saleId) {
     _refundSubmitLock = true;
     if(!sale.refunds) sale.refunds=[];
     var refId=(typeof crypto.randomUUID==='function')?crypto.randomUUID():'REF-'+String(Date.now()).slice(-6);
-    sale.refunds.push({id:refId,amount:amount,mode:mode,reason:reason,note:note,date:new Date().toISOString(),by:(SAAS&&SAAS.user?(SAAS.user.name||SAAS.user.email):'staff')});
+    // H2: which items THIS refund returns, so calcRefundAdj can reverse
+    // their cost on the date this specific refund happened, not guess later.
+    var newIdx = checkedIdx.filter(function(idx){
+      var item=(sale.items||[])[idx];
+      return item && (sale.returnedItemIdx||[]).indexOf(idx)===-1;
+    });
+    sale.refunds.push({id:refId,amount:amount,mode:mode,reason:reason,note:note,date:new Date().toISOString(),by:(SAAS&&SAAS.user?(SAAS.user.name||SAAS.user.email):'staff'),items:newIdx});
     var totalR=(sale.refunds||[]).reduce(function(s,r){return s+r.amount;},0);
     sale.refundStatus = totalR>=t.grand-1 ? 'full' : 'partial';
 
@@ -1866,7 +1911,7 @@ function _submitRefund(saleId) {
     // regardless of what happened to the source product afterward.
     if(!sale.returnedItemIdx) sale.returnedItemIdx=[];
     var createdCount=0;
-    checkedIdx.forEach(function(idx){
+    newIdx.forEach(function(idx){
       var item=(sale.items||[])[idx];
       if(!item || sale.returnedItemIdx.indexOf(idx)!==-1) return;
       var product={
@@ -2058,6 +2103,8 @@ function calcDayBookExpenses(year, month){
   return { total: total, byCat: byCat };
 }
 function calcMonthProfit(year, month){
+  var monthStart = new Date(year, month, 1);
+  var monthEnd   = new Date(year, month+1, 0, 23, 59, 59);
   var sales = S.sales.filter(function(s){
     var d=new Date(s.date); return d.getFullYear()===year && d.getMonth()===month;
   });
@@ -2069,9 +2116,21 @@ function calcMonthProfit(year, month){
     totalProfit  += p.profit;
     totalGST     += p.gstPaid;
   });
+  // H2: a refund belongs to the month it was PAID, not the month of the
+  // sale (same rule a real GST credit note follows, and the one Day Book
+  // already uses) -- so every sale is checked, not just this month's.
+  var totalRefunds=0, totalRefundGst=0;
+  S.sales.forEach(function(s){
+    if(!s.refunds || !s.refunds.length) return;
+    var adj = calcRefundAdj(s, monthStart, monthEnd);
+    totalRevenue   -= adj.amount;
+    totalCost      -= adj.cost;
+    totalGST       -= adj.gst;
+    totalProfit    += adj.profit;
+    totalRefunds   += adj.amount;
+    totalRefundGst += adj.gst;
+  });
   // Add girvi interest income for the month
-  var monthStart = new Date(year, month, 1);
-  var monthEnd   = new Date(year, month+1, 0, 23, 59, 59);
   (S.girvi||[]).forEach(function(g){
     // Use the ledger walk's per-payment interest/principal split (computed
     // at the time each payment actually happened) instead of comparing
@@ -2088,7 +2147,7 @@ function calcMonthProfit(year, month){
   });
   var margin = totalRevenue>0 ? (totalProfit/totalRevenue*100) : 0;
   var expenses = calcDayBookExpenses(year, month);
-  return { revenue:totalRevenue, cost:totalCost, profit:totalProfit, gst:totalGST, margin:margin, count:sales.length, expenses:expenses, netProfit: totalProfit-expenses.total };
+  return { revenue:totalRevenue, cost:totalCost, profit:totalProfit, gst:totalGST, margin:margin, count:sales.length, expenses:expenses, netProfit: totalProfit-expenses.total, refunds:totalRefunds, refundGst:totalRefundGst };
 }
 
 function calcAllTimeProfit(){
@@ -2097,6 +2156,13 @@ function calcAllTimeProfit(){
     var p=calcSaleProfit(s);
     totalRevenue += p.revenue;
     totalProfit  += p.profit;
+  });
+  // H2: every refund ever, whatever its date -- no month window to filter by here.
+  S.sales.forEach(function(s){
+    if(!s.refunds || !s.refunds.length) return;
+    var adj = calcRefundAdj(s);
+    totalRevenue -= adj.amount;
+    totalProfit  += adj.profit;
   });
   // Add girvi interest income, same as calcMonthProfit -- otherwise the
   // all-time figure is sales-only and can read lower than a single month

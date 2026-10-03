@@ -4106,6 +4106,129 @@ test('calcAllTimeProfit includes girvi interest, same as calcMonthProfit (batch2
   assert(at.profit >= 1200, 'interest is pure profit — expected it in all-time profit, got ' + at.profit);
 });
 
+// ── H2 (3 Oct QA): refunds into Revenue/GST/Profit/Net Cash ──────────────
+console.log('\nH2 — refunds reach Reports:');
+
+function h2Fixture(){
+  var a = loadApp();
+  a.S.products = [{ id:'p1', costRate:9000 }];
+  // 10g @ rate 10000 -> gv 100000, 3% GST -> gstAmt 3000, grand 103000 --
+  // lockedGrand matches the item math exactly so t.grand is unambiguous.
+  a.S.sales = [{ id:'s1', invNo:'INV-1', date:'2026-09-05', gst:3, discount:0, making:0, diamond:0,
+    lockedGrand:103000, advance:103000, payStatus:'full',
+    items:[{ pid:'p1', name:'Ring', metal:'gold', purity:'22K', weight:10, qty:1, lockedRate:10000, making:0, diamond:0 }] }];
+  return a;
+}
+
+test('QA 3 Oct H2: a full refund removes the sale from Revenue/GST/Profit, cost untouched (no item returned)', function(){
+  var a = h2Fixture();
+  var base = a.calcMonthProfit(2026, 8);
+  a.S.sales[0].refunds = [{ id:'r1', amount:103000, mode:'Cash', date:'2026-09-10T10:00:00.000Z', items:[] }];
+  var mp = a.calcMonthProfit(2026, 8);
+  assert(Math.abs((base.revenue - mp.revenue) - 103000) < 0.05, 'revenue should fall by 103000, fell by ' + (base.revenue-mp.revenue));
+  assert(Math.abs((base.gst - mp.gst) - 3000) < 0.05, 'GST should fall by 3000, fell by ' + (base.gst-mp.gst));
+  assert(base.cost === mp.cost, 'cost must be unchanged when nothing is returned, got ' + base.cost + ' vs ' + mp.cost);
+  assert(Math.abs((base.profit - mp.profit) - 100000) < 0.05, 'profit should fall by 100000, fell by ' + (base.profit-mp.profit));
+});
+
+test('QA 3 Oct H2: a full refund WITH the item returned also reverses its cost -- the sale nets to zero profit', function(){
+  var a = h2Fixture();
+  a.S.sales[0].refunds = [{ id:'r1', amount:103000, mode:'Cash', date:'2026-09-10T10:00:00.000Z', items:[0] }];
+  var mp = a.calcMonthProfit(2026, 8);
+  assert(Math.abs(mp.revenue) < 0.05, 'revenue nets to 0 once fully refunded, got ' + mp.revenue);
+  assert(Math.abs(mp.gst) < 0.05, 'GST nets to 0, got ' + mp.gst);
+  assert(Math.abs(mp.cost) < 0.05, 'cost nets to 0 once the item comes back, got ' + mp.cost);
+  assert(Math.abs(mp.profit) < 0.05, 'the sale must net to zero profit, got ' + mp.profit);
+});
+
+test('QA 3 Oct H2: a partial refund reduces Revenue/GST/Profit proportionally', function(){
+  var a = h2Fixture();
+  var base = a.calcMonthProfit(2026, 8);
+  a.S.sales[0].refunds = [{ id:'r1', amount:51500, mode:'Cash', date:'2026-09-10T10:00:00.000Z', items:[] }];
+  var mp = a.calcMonthProfit(2026, 8);
+  assert(Math.abs((base.revenue - mp.revenue) - 51500) < 0.05, 'revenue falls by 51500, fell by ' + (base.revenue-mp.revenue));
+  assert(Math.abs((base.gst - mp.gst) - 1500) < 0.05, 'GST falls by 1500, fell by ' + (base.gst-mp.gst));
+  assert(Math.abs((base.profit - mp.profit) - 50000) < 0.05, 'profit falls by 50000, fell by ' + (base.profit-mp.profit));
+});
+
+test('QA 3 Oct H2: a refund belongs to the month it was actually paid, not the month of the sale', function(){
+  var a = h2Fixture();
+  var sepBase = a.calcMonthProfit(2026, 8);
+  a.S.sales[0].refunds = [{ id:'r1', amount:51500, mode:'Cash', date:'2026-10-02T10:00:00.000Z', items:[] }];
+  var sep = a.calcMonthProfit(2026, 8);
+  var oct = a.calcMonthProfit(2026, 9);
+  assert(sep.revenue === sepBase.revenue && sep.gst === sepBase.gst, 'September must be untouched by an October refund');
+  assert(Math.abs(oct.revenue - (-51500)) < 0.05, 'October should show the refund as negative revenue (no sales of its own), got ' + oct.revenue);
+  assert(Math.abs(oct.gst - (-1500)) < 0.05, 'October GST should be -1500, got ' + oct.gst);
+});
+
+test('QA 3 Oct H2: calcCashFlow nets out a refund dated inside its window, leaves it out otherwise', function(){
+  var a = h2Fixture();
+  var base = a.calcCashFlow('2026-09-01','2026-09-30');
+  a.S.sales[0].refunds = [{ id:'r1', amount:51500, mode:'Cash', date:'2026-09-10T10:00:00.000Z', items:[] }];
+  var sep = a.calcCashFlow('2026-09-01','2026-09-30');
+  assert(sep.refundsOut === 51500, 'refundsOut should equal the refund, got ' + sep.refundsOut);
+  assert(Math.abs((base.netCash - sep.netCash) - 51500) < 0.05, 'netCash should fall by exactly the refund, fell by ' + (base.netCash-sep.netCash));
+  var aug = a.calcCashFlow('2026-08-01','2026-08-31');
+  assert(aug.refundsOut === 0, 'a window that excludes the refund date must show 0, got ' + aug.refundsOut);
+});
+
+test('QA 3 Oct H2: calcAllTimeProfit nets out every refund ever, regardless of date', function(){
+  var a = h2Fixture();
+  var base = a.calcAllTimeProfit();
+  a.S.sales[0].refunds = [{ id:'r1', amount:103000, mode:'Cash', date:'2020-01-01T00:00:00.000Z', items:[] }]; // long before the sale -- date doesn't matter here
+  var at = a.calcAllTimeProfit();
+  assert(Math.abs((base.revenue - at.revenue) - 103000) < 0.05, 'all-time revenue should fall by the full refund regardless of its date');
+  assert(Math.abs((base.profit - at.profit) - 100000) < 0.05, 'all-time profit should fall by 100000');
+});
+
+test('QA 3 Oct H2: a legacy refund (no items array) still reverses the returned item\'s cost', function(){
+  var a = h2Fixture();
+  var base = a.calcMonthProfit(2026, 8);
+  a.S.sales[0].refunds = [{ id:'r1', amount:103000, mode:'Cash', date:'2026-09-10T10:00:00.000Z' }]; // no items[] -- a pre-fix refund
+  a.S.sales[0].returnedItemIdx = [0];
+  var mp = a.calcMonthProfit(2026, 8);
+  assert(Math.abs((base.cost - mp.cost) - 90000) < 0.05, 'the legacy-returned item\'s cost must still be reversed, fell by ' + (base.cost-mp.cost));
+});
+
+test('QA 3 Oct H2: mixing an old legacy refund with a new item-tagged refund never double-counts a returned item\'s cost', function(){
+  var a = h2Fixture();
+  var base = a.calcMonthProfit(2026, 8);
+  // r1 is old-format (no items[]) but is NOT the one that returned the item --
+  // r2 (new-format) is the one that actually tags item 0. The legacy fallback
+  // must not ALSO attribute item 0's cost to r1 just because r1 came first.
+  a.S.sales[0].refunds = [
+    { id:'r1', amount:60000, mode:'Cash', date:'2026-09-08T10:00:00.000Z' },
+    { id:'r2', amount:43000, mode:'Cash', date:'2026-09-12T10:00:00.000Z', items:[0] }
+  ];
+  a.S.sales[0].returnedItemIdx = [0];
+  var mp = a.calcMonthProfit(2026, 8);
+  assert(Math.abs((base.cost - mp.cost) - 90000) < 0.05, 'the returned item\'s cost must be reversed exactly once, not per refund, fell by ' + (base.cost-mp.cost));
+});
+
+test('QA 3 Oct H2: a Memo Bill (0% GST) refund has zero GST to reverse', function(){
+  var a = h2Fixture();
+  a.S.sales[0].gst = 0;
+  a.S.sales[0].lockedGrand = 100000;
+  var base = a.calcMonthProfit(2026, 8);
+  a.S.sales[0].refunds = [{ id:'r1', amount:100000, mode:'Cash', date:'2026-09-10T10:00:00.000Z', items:[] }];
+  var mp = a.calcMonthProfit(2026, 8);
+  assert(base.gst === mp.gst, 'GST must be unaffected when the sale itself had none, got ' + base.gst + ' vs ' + mp.gst);
+});
+
+test('QA 3 Oct H2: QA\'s own repro number -- a 106348 refund reduces revenue and net cash by exactly that', function(){
+  var a = h2Fixture();
+  a.S.sales[0].lockedGrand = 200000;
+  a.S.sales[0].advance = 200000;
+  var baseMp = a.calcMonthProfit(2026, 8);
+  var baseCf = a.calcCashFlow('2026-09-01','2026-09-30');
+  a.S.sales[0].refunds = [{ id:'r1', amount:106348, mode:'Cash', date:'2026-09-15T10:00:00.000Z', items:[] }];
+  var mp = a.calcMonthProfit(2026, 8);
+  var cf = a.calcCashFlow('2026-09-01','2026-09-30');
+  assert(Math.abs((baseMp.revenue - mp.revenue) - 106348) < 0.05, 'revenue should fall by exactly 106348, fell by ' + (baseMp.revenue-mp.revenue));
+  assert(Math.abs((baseCf.netCash - cf.netCash) - 106348) < 0.05, 'net cash should fall by exactly 106348, fell by ' + (baseCf.netCash-cf.netCash));
+});
+
 test('every DB_CATS key has an icon and a color — no undefined fallback (spec §9)', function(){
   var a = loadApp();
   Object.keys(a.DB_CATS).forEach(function(k){

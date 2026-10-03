@@ -511,7 +511,7 @@ function showCustHistory(encKey){
   });
   if(!custSales.length && !_custRecord) return; // nothing at all under this key
   var first=custSales[0] || {customer:_custRecord.name, phone:_custRecord.phone};
-  var totalSpent=custSales.reduce(function(s,x){return s+calcSaleTotals(x).grand;},0);
+  var totalSpent=custSales.reduce(function(s,x){return s+(calcSaleTotals(x).grand-calcRefundAdj(x).amount);},0); // H2: net of refunds
   var totalBal=custSales.reduce(function(s,x){return s+calcSaleTotals(x).bal;},0);
   var totalWt=custSales.reduce(function(s,x){return s+x.items.reduce(function(a,i){return a+i.weight*i.qty;},0);},0);
 
@@ -1116,9 +1116,9 @@ function renderReports(){
   // ── Key metrics row ──
   var rm=document.getElementById('rep-metrics');
   if(rm) rm.innerHTML=
-    '<div class="metric"><div class="metric-label">Revenue</div><div class="metric-value" style="color:var(--gold-dark)">'+fmt(mProfit.revenue)+'</div><div class="metric-sub">'+plural(monthSales.length,'bill')+' + girvi interest</div></div>'+
+    '<div class="metric"><div class="metric-label">Revenue</div><div class="metric-value" style="color:var(--gold-dark)">'+fmt(mProfit.revenue)+'</div><div class="metric-sub">'+plural(monthSales.length,'bill')+' + girvi interest'+(mProfit.refunds>0?' − '+fmt(mProfit.refunds)+' refunds':'')+'</div></div>'+
     '<div class="metric"><div class="metric-label">Profit</div><div class="metric-value" style="color:'+(mProfit.netProfit>=0?'var(--success)':'var(--danger)')+'">'+fmt(mProfit.netProfit)+'</div><div class="metric-sub">net of expenses</div></div>'+
-    '<div class="metric"><div class="metric-label">GST Collected</div><div class="metric-value">'+fmt(mProfit.gst)+'</div><div class="metric-sub">govt portion</div></div>'+
+    '<div class="metric"><div class="metric-label">GST Collected</div><div class="metric-value">'+fmt(mProfit.gst)+'</div><div class="metric-sub">govt portion'+(mProfit.refundGst>0?'<br>Net of '+fmt(mProfit.refundGst)+' GST on refunds. Not in the GSTR-1 export — issue credit notes separately.':'')+'</div></div>'+
     '<div class="metric"><div class="metric-label">Cash In</div><div class="metric-value" style="color:var(--success)">'+fmt(cf.cashIn)+'</div><div class="metric-sub">actual collected</div></div>'+
     '<div class="metric"><div class="metric-label">Credit Given</div><div class="metric-value" style="color:var(--danger)">'+fmt(cf.credit)+'</div><div class="metric-sub">pending this month</div></div>'+
     '<div class="metric"><div class="metric-label">Net Cash</div><div class="metric-value" style="color:'+(cf.netCash>=0?'var(--success)':'var(--danger)')+'">'+fmt(cf.netCash)+'</div><div class="metric-sub">in \u2212 out</div></div>';
