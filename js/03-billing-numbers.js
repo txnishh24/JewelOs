@@ -129,7 +129,7 @@ function shareWhatsApp(){
   msg += '*GRAND TOTAL: ' + fmt(t.grand) + '*' + nl;
   if(s.oldGold&&s.oldGold.value>0) msg += '\u2851 Old Gold ('+s.oldGold.purity+' '+fmtW(s.oldGold.weight)+'): -'+fmt(s.oldGold.value)+nl;
   if(s.prevAdvance&&s.prevAdvance.amount>0) msg += '\u2713 Advance paid ('+s.prevAdvance.mode+'): -'+fmt(s.prevAdvance.amount)+nl;
-  if(s.nowPaying&&s.nowPaying.amount>0) msg += '\u{1F4B3} Paid now ('+s.nowPaying.mode+'): -'+fmt(s.nowPaying.amount)+nl;
+  if(s.nowPaying&&s.nowPaying.amount>0) msg += '\uD83D\uDCB3 Paid now ('+s.nowPaying.mode+'): -'+fmt(s.nowPaying.amount)+nl;
   if(t.bal>0) msg += '*Balance Due: ' + fmt(t.bal) + '*' + nl;
   else msg += '\u2705 Fully Settled' + nl;
   msg += '--------------------------------' + nl;
@@ -1575,10 +1575,10 @@ function saveOrder(_pastDateOk){
 // ALL_STATUSES pipeline the timeline iterates in showOrderDetail:
 // new -> progress -> ready -> delivered, plus cancelled.
 var ORD_STATUS = {
-  'new':       { label:'New',        icon:'\u{1F4DD}', cls:'ord-st-new'  },
-  'progress':  { label:'In Making',  icon:'\u{1F528}', cls:'ord-st-prog' },
-  'ready':     { label:'Ready',      icon:'\u{1F514}', cls:'ord-st-rdy'  },
-  'delivered': { label:'Delivered',  icon:'\u{1F4E6}', cls:'ord-st-dlv'  },
+  'new':       { label:'New',        icon:'\uD83D\uDCDD', cls:'ord-st-new'  },
+  'progress':  { label:'In Making',  icon:'\uD83D\uDD28', cls:'ord-st-prog' },
+  'ready':     { label:'Ready',      icon:'\uD83D\uDD14', cls:'ord-st-rdy'  },
+  'delivered': { label:'Delivered',  icon:'\uD83D\uDCE6', cls:'ord-st-dlv'  },
   'cancelled': { label:'Cancelled',  icon:'\u2716',    cls:'ord-st-cxl'  }
 };
 

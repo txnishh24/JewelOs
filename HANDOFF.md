@@ -80,6 +80,64 @@ or re-add tier UI.
 
 ## LOG (newest first)
 
+### 2026-10-03 · Claude Code (Sonnet) — fixed the 2 pre-existing ES5 violations, Opus-approved
+
+Tanish said "fix those then" after I explained the ES5 rule and the two violations found earlier today. Both fixed, both verified clean, no app behavior changed.
+
+1. **`03-billing-numbers.js`** — turned out to be **5** `\u{XXXXX}` ES6 codepoint escapes, not 1 (acorn only reports the first parse error it hits, so fixing #1 exposed #2-5 at the ORD_STATUS icon map, lines 1578-1581). Each replaced with its exact UTF-16 surrogate-pair equivalent (`\u{1F4B3}` → `💳`, etc. — verified by computing `String.fromCodePoint` and comparing). Decodes to the byte-identical emoji. No logic touched.
+2. **`05-auth-login.js:715`** — removed `async` from `sendStaffInvite`. Turned out my own earlier flag was wrong on the premise: the function never had an `await` anywhere — it already ran its async work via `.then()/.catch()` — so `async` was pure decoration. This was a 1-word deletion, not the refactor I'd expected.
+
+Because I'd flagged #2 for Opus review in the previous entry (auth-adjacent, per MODEL-POLICY §8) and that flag hadn't been cleared, I didn't close it on my own say-so even after confirming it looked safe. Ran three checks in sequence, not in parallel with judgment skipped:
+- `jewelos-bug-pattern-reviewer` (Sonnet): verified both diffs behavior-preserving, correctly refused to self-approve the auth-adjacent one and asked for the Opus sign-off the standing flag called for.
+- `jewelos-test-runner`: 319+26 tests pass, `check.bat` clean (same documented false positives as baseline). One test (`cowork-live-check.js`) fails, but proved pre-existing and unrelated by stashing both edits and reproducing the identical failure against unmodified `main`.
+- Opus (`AI-Generated Code Security Auditor`, model override): read the function, the global error handlers, and `supabase/functions/auth-gateway/index.ts` itself. **Verdict: approve as closed** — confirmed byte-identical behavior (return value, synchronous-throw timing, error handling all unchanged) and no auth/security impact (server-side authorization unchanged, temp password handling unchanged).
+
+**Backlog items the Opus pass surfaced, not fixed (pre-existing, not from this change):**
+- No double-submit guard on "Send Invite" — two fast taps *could* both pass the duplicate-email check against the read-modify-write users blob before either save lands. Low likelihood (owner-only, needs near-simultaneous taps). Fix like `saasSignup` already does: disable the button while the request is in flight.
+- `String.prototype.includes` (`05-auth-login.js:721`) and `Object.assign` (`04-orders-detail.js:1945`) are ES2015 *methods*, not syntax — they don't fail an ES5 parse (that's why the new hook didn't catch them) but are worth knowing about if a target device's JS engine is old enough to lack them. Not urgent; the app already depends on `fetch`, and anything with `fetch` has both.
+
+`check.bat` clean, all 11 modules `node --check` clean, all 11 modules now genuinely ES5-clean (verified by parsing each at `ecmaVersion: 5` with the hook's own logic). Committing both files + this entry.
+
+→ FOR COWORK: nothing — FYI only, no app behavior changed, this was a syntax-compliance fix with full review trail above.
+→ FOR TANISH: nothing needed now. The 2 backlog items above (double-submit guard, ES2015 methods) are low-priority — say if you want either picked up.
+
+---
+
+### 2026-10-03 · Claude Code (Sonnet) — added 2 hooks (ES5 enforcement, block new module files); found 2 pre-existing ES5 violations
+
+Tanish asked for an automation-recommender pass over the repo, then to build the two hooks it found missing. Tooling only — did not touch `js/*.js` app code or read the Cowork QA entry below until after finishing.
+
+1. **`.claude/hooks/js-guard.js` (PostToolUse, existing hook extended):** now also parses the edited `js/*.js` file at `ecmaVersion: 5` with the `acorn` already bundled in `checks/node_modules` — arrow functions, `let`/`const`, template literals, `async/await` all fail to parse at ES5, so this is free and has zero false positives from comments/strings (a real parser, not regex). Scoped to only block a violation the edit itself introduced: it diffs against `git show HEAD:<file>` first, so the two pre-existing violations below don't block unrelated future edits to those files.
+2. **`.claude/hooks/block-new-module.js` (new, PreToolUse on `Write`):** blocks creating a new `js/<number>-name.js` file (existing numbered modules can still be edited freely) with a message pointing at the CLAUDE.md rule that this needs Tanish's explicit sign-off.
+
+Both tested directly via stdin simulation (new module blocked, existing module/unrelated file allowed, edit-introduced arrow function blocked, pre-existing debt not blocked) — see transcript if you want the repro commands. `check.bat` still passes clean, same known false positives as before.
+
+**Found while building check #1 — not fixed, just flagging:** two lines already in the shipped code aren't actually ES5.
+- `03-billing-numbers.js:132` — `\u{1F4B3}` is an ES6 codepoint escape; ES5 only has 4-hex `\uXXXX`. Trivial, behavior-preserving fix is the UTF-16 surrogate pair (`💳`) instead — did not touch it since CLAUDE.md flags this file's unicode escapes as needing byte-exact edits and this wasn't the asked task.
+- `05-auth-login.js:715` — `async function sendStaffInvite(){...}` is a real `async function`, not just a string issue. Converting it to ES5 (promise chains instead of `await`) is a real refactor of an auth-adjacent function, not something to do silently — flagging for whoever picks this up next, Opus per MODEL-POLICY given it's auth-adjacent.
+
+Neither is a reported bug (both predate any of this), just rule violations the new hook would have caught if it existed earlier.
+
+→ FOR COWORK: nothing — FYI only, this was tooling, no app behavior changed.
+→ FOR TANISH: say if/when you want the two ES5 violations above fixed (the emoji one is trivial; the async one needs a real pass). Not urgent, not a live bug.
+
+---
+
+### 2026-10-03 · Cowork (Sonnet) — QA report in `jewelos-qa/` read; C1 CONFIRMED in code, C2 NOT confirmed
+
+Tanish ran a Playwright QA pass on live (batch47) against a throwaway shop; report is `jewelos-qa/01..06`. I read all six and checked the two Criticals against batch47 code. I did not re-run the QA.
+
+**C1 (edited bill keeps stale grand total) — CONFIRMED by reading code, money-integrity.** `saveEditBill` (`01-sync-core.js` ~L1161-1163) does `var t=calcSaleTotals(sale); sale.lockedGrand=Math.round(t.grand);` but `calcSaleTotals` (`02-ui-inactivity-modals.js` L70-71) returns `sale.lockedGrand` as `grand` whenever it is > 0. So the "re-lock" assigns the OLD lockedGrand back to itself; a discount/item edit never changes the total. Result matches QA: printed taxable+GST disagree with GRAND TOTAL, phantom balance with a Remind button, refund pre-fills the old total, Reports revenue vs GST disagree.
+
+**C2 (silent loss on session expiry) — NOT confirmed.** `saveToCloud` on a 401 holds the caller's callback and calls `saasRequireReauth(function(){ saveToCloud(callback); })`, and `saveRates` only toasts "saved & synced" inside `if(!err)`. By code the toast cannot fire before the re-sent save lands. QA's "toast then server overwrote 160 with 155" may be a test artefact (token invalidated by hand) or a path I did not read (re-auth callback not firing / cache-only "Offline" mode). Needs a real repro before any change.
+
+**Unverified by me (taken from the report):** H1 negative/absurd weights accepted, H2 refunds not in Reports/GST/Net Cash (and return-to-stock unticked, no Card refund mode), H4 audit log nearly empty, M3 stale on-screen totals, M7 Reports overflow at 390px, M8 Reports vs Day Book "Cash In" mismatch. Report is one compressed session, staff roles / two-staff / slow network / print / shop isolation NOT TESTED; its 4/10 and price opinion are the tester's judgement, not measured.
+
+→ FOR CLAUDE CODE: (1) C1 first, Opus for the design (money integrity): the fix is to recompute from lines on edit (clear/ignore lockedGrand before `calcSaleTotals`, or compute `calcGrand` separately), plus a regression test: record a bill, edit discount, assert printed total = taxable + GST and balance 0. Check `lockedGrand` consumers (`02` L1357 due calc, `01` L1123 history) and whether already-edited live bills carry a wrong stored `lockedGrand` (needs a data-fix decision from Tanish before any production write). (2) Try to reproduce C2 locally against `store-proxy` with an expired token, report what actually happens. (3) H1 weight validation and H2 refund→Reports are the next candidates; do not start them before C1.
+→ FOR TANISH: One thing: say "go" on C1 as the next batch (it blocks any real jeweller). Also the QA shop "QA Test Jewellers (TEST - delete me)" is still on live; say "delete the QA shop" and I will remove it from Supabase after you confirm.
+
+---
+
 ### 2026-10-03 · Claude Code — condensed this file (read this before trusting the shorter LOG below)
 
 This file was 2637 lines / 84 LOG entries; it's now ~400. A read-only audit (fork, this

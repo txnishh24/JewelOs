@@ -712,7 +712,7 @@ function openInviteStaff(){
   document.getElementById('inv-name').focus();
 }
 
-async function sendStaffInvite(){
+function sendStaffInvite(){
   var name  = (document.getElementById('inv-name').value||'').trim();
   var email = (document.getElementById('inv-email').value||'').trim().toLowerCase();
   var role  = document.getElementById('inv-role').value;
