@@ -157,6 +157,7 @@ function _saasSessionExpired(){
 // they're a per-device lock, not shop data.
 function _clearDeviceSession(){
   try{ clearPinSession(); }catch(e){} // before SAAS.shop is nulled — its key is shop-scoped
+  try{ _clearUnsynced(); }catch(e){} // same reason — ssj_unsynced is shop-scoped too (C2)
   var keys = [AUTH_KEY, USERS_KEY, SHOPS_KEY, 'ssj_cache', 'ssj_last_save', 'ssj_last_cloud_load'];
   for(var i = 0; i < keys.length; i++){ try{ localStorage.removeItem(keys[i]); }catch(e){} }
   SAAS.sessionToken = null;

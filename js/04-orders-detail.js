@@ -496,9 +496,14 @@ function toggleOrdForm(){
 function closeOrdModal(){document.getElementById('ord-modal').classList.remove('open');}
 
 // ─── CACHE ────────────────────────────────────────────────────────────────
+// C2: returns whether the cache actually ended up a faithful copy of S.
+// saveToCloud() only writes its unsynced-save marker when this is true --
+// a marker sitting over a stale cache (quota exceeded, private-mode
+// localStorage, etc.) would get pushed on the next load and silently put
+// the shop back to that stale snapshot, undoing anything saved since.
 function saveCache(){
   try{
-    if(!Array.isArray(S.products)||!Array.isArray(S.sales)) return;
+    if(!Array.isArray(S.products)||!Array.isArray(S.sales)){ try{ _clearUnsynced(); }catch(e){} return false; }
     // FIX: cache is tagged with the shop it belongs to. Without this, any
     // account created/logged into on a device that previously held another
     // shop's cache would render that other shop's data on first paint,
@@ -515,7 +520,12 @@ function saveCache(){
       nextPurchaseId:S.nextPurchaseId||1,nextPurchaseBillNo:S.nextPurchaseBillNo||1
     }));
     try{ localStorage.setItem('ssj_last_save', Date.now().toString()); } catch(e){}
-  }catch(e){console.warn('Cache save failed:',e.message||e);}
+    return true;
+  }catch(e){
+    console.warn('Cache save failed:',e.message||e);
+    try{ _clearUnsynced(); }catch(e2){}
+    return false;
+  }
 }
 
 // ─── DATA NORMALISATION (FIX-06) ────────────────────────────────────────────
@@ -1307,6 +1317,10 @@ function doStartApp(){
     if(loadEl) loadEl.classList.remove('hidden');
     var msg = document.getElementById('loading-msg');
     if(msg) msg.textContent = 'Loading your data...';
+    // C2 guard: no accepted cache means S holds only empty defaults. A stale
+    // unsynced-save marker left over from a wiped session must never make
+    // this load think IT has something worth pushing over the real shop data.
+    try{ _clearUnsynced(); }catch(e){}
     loadFromCloud(function(err){
       if(loadEl) loadEl.classList.add('hidden');
       try{normaliseData();}catch(e){}

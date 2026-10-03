@@ -1236,6 +1236,308 @@ testAsync('a save on a stalled connection gives up after its retries instead of 
   });
 });
 
+// C2 (3 Oct QA, confirmed by reproducing it): loadFromCloud() used to overwrite
+// S.rates (and everything else) from the server with zero check for an
+// unsynced local change -- a rate edit held for re-auth, abandoned by a
+// reload instead of completing the password prompt, was silently replaced
+// by the server's stale value. Fixed with a shop-scoped localStorage marker
+// ("ssj_unsynced") that survives a reload; loadFromCloud pushes it first,
+// checked against the version it was based on, instead of blindly loading
+// over it. Opus-designed and reviewed (including a redirect on the 403
+// case, and suppressing a double-GET on a real conflict).
+
+testAsync('C2: a save held for re-auth survives a REAL reload (cache on disk, not memory) and pushes the right data on the next load', function(){
+  var a = reauthApp('ok');
+  a._loadedVersion = 5;
+  a.S.rates = { g24:7000, g22:6400, g18:5200, g14:4100, sil:160, setAt:'2026-10-03T10:00:00.000Z' };
+  a.saveToCloud(function(){}); // dead token -> 401 -> held for reauth; saveCache() + the marker are written before the 401 even arrives
+  return flushAll().then(function(){
+    assert(a.saasReauthPending() === true, 'should be waiting for the password');
+    var pend = JSON.parse(a.localStorage.getItem(a._unsyncedKey()));
+    assert(pend && pend.v === 5, 'marker should record the version this save was based on, got ' + JSON.stringify(pend));
+    // Simulate an ACTUAL reload: wipe S to something else, then restore it
+    // ONLY from the on-disk cache -- proving the push below reads what
+    // survived on disk, not a value that happened to still be in memory.
+    a._reauthPending = false;
+    a._loadedVersion = 0;
+    a.SAAS.sessionToken = a.newTok;
+    a.S.rates = { g24:0, g22:0, g18:0, g14:0, sil:0 };
+    var loaded = a.loadCache();
+    assert(loaded === true, 'the cache must have actually been written before the 401');
+    assert(a.S.rates.sil === 160, 'reloading from cache must recover the pending rate, got ' + a.S.rates.sil);
+    var puts = [];
+    var gets = 0;
+    a.fetch = function(url, opts){
+      if(String(url).indexOf('/store-proxy') !== -1 && opts && opts.method === 'PUT'){
+        puts.push({ token:(opts.headers||{})['x-session-token'], body:JSON.parse(opts.body) });
+        return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ ok:true, data:{ _v:6 } }); } });
+      }
+      if(String(url).indexOf('/store-proxy') !== -1){
+        gets++;
+        return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ rates:{g24:7000,g22:6400,g18:5200,g14:4100,sil:160,setAt:'2026-10-03T10:00:00.000Z'}, _v:6 } }); } });
+      }
+      return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+    };
+    var result = 'pending';
+    a.loadFromCloud(function(err){ result = err ? err.message : 'ok'; });
+    return flushAll(16).then(function(){
+      assert(puts.length === 1 && puts[0].token === a.newTok, 'the push should carry the fresh token, puts: ' + JSON.stringify(puts.map(function(p){ return p.token; })));
+      assert(puts[0].body.data.rates.sil === 160, 'the pushed body must carry the pending rate, got ' + JSON.stringify(puts[0].body.data.rates));
+      assert(puts[0].body.expectedVersion === 5, 'the push must be checked against the version it was based on, got ' + puts[0].body.expectedVersion);
+      assert(gets === 1, 'exactly one GET should follow a successful push, got ' + gets);
+      assert(a.S.rates.sil === 160, 'the local figure must win since nobody else touched the server, got ' + a.S.rates.sil);
+      assert(a.localStorage.getItem(a._unsyncedKey()) === null, 'the marker must be cleared once confirmed');
+      assert(result === 'ok', 'the load should report success, got ' + result);
+    });
+  });
+});
+
+testAsync('C2: a cache write that fails (quota exceeded, private mode) never leaves a marker that could push a stale snapshot', function(){
+  var a = reauthApp('ok');
+  a.S.rates = { g24:7000, g22:6400, g18:5200, g14:4100, sil:160, setAt:'2026-10-03T10:00:00.000Z' };
+  var realSetItem = a.localStorage.setItem.bind(a.localStorage);
+  a.localStorage.setItem = function(key, val){
+    if(key === 'ssj_cache') throw new Error('QuotaExceededError');
+    return realSetItem(key, val);
+  };
+  a.saveToCloud(function(){}); // the 401 doesn't even matter here -- saveCache() failing must block the marker before any network call
+  return flushAll().then(function(){
+    assert(a.localStorage.getItem(a._unsyncedKey()) === null, 'no marker may exist over a cache that failed to write, got ' + a.localStorage.getItem(a._unsyncedKey()));
+  });
+});
+
+test('C2: saveCache() itself clears any existing marker the moment it fails to write', function(){
+  var a = loadApp();
+  a.SAAS.user = { id:'u1', email:'o@shop.in' };
+  a.SAAS.shop = { id:'shop1', name:'Test Shop' };
+  a.localStorage.setItem(a._unsyncedKey(), JSON.stringify({ v:3, id:'abc' }));
+  var realSetItem = a.localStorage.setItem.bind(a.localStorage);
+  a.localStorage.setItem = function(key, val){
+    if(key === 'ssj_cache') throw new Error('QuotaExceededError');
+    return realSetItem(key, val);
+  };
+  var ok = a.saveCache();
+  assert(ok === false, 'saveCache() must report its own failure');
+  assert(a.localStorage.getItem(a._unsyncedKey()) === null, 'a marker must not survive a failed cache write');
+});
+
+testAsync('C2: an offline phone with a pending push stays put instead of burning through retries every poll', function(){
+  var a = reauthApp('ok');
+  a.S.rates = { g24:7000, g22:6400, g18:5200, g14:4100, sil:160, setAt:'2026-10-03T10:00:00.000Z' };
+  a.localStorage.setItem(a._unsyncedKey(), JSON.stringify({ v:0, id:'whatever' }));
+  a.navigator.onLine = false;
+  var puts = 0, gets = 0;
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts && opts.method === 'PUT'){ puts++; }
+    else if(String(url).indexOf('/store-proxy') !== -1){ gets++; }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  var result = 'pending';
+  a.loadFromCloud(function(err){ result = err ? err.message : 'ok'; });
+  return flushAll(8).then(function(){
+    assert(puts === 0 && gets === 0, 'an offline phone must not even attempt the push or a GET, got puts=' + puts + ' gets=' + gets);
+    assert(result === 'offline', 'the caller should be told why, got ' + result);
+    assert(a.localStorage.getItem(a._unsyncedKey()) !== null, 'the marker must survive so the online listener can push it later');
+  });
+});
+
+testAsync('C2: a real conflict from a deferred push loads the other device\'s data exactly once, no false error', function(){
+  var a = reauthApp('ok');
+  a.S.rates = { g24:7000, g22:6400, g18:5200, g14:4100, sil:160, setAt:'2026-10-03T10:00:00.000Z' };
+  a.localStorage.setItem(a._unsyncedKey(), JSON.stringify({ v:5, id:'stale-save-id' })); // as if written by an earlier, now-abandoned saveToCloud()
+  a._loadedVersion = 0;
+  var toasts = []; a.toast = function(msg){ toasts.push(msg); };
+  var gets = 0;
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts && opts.method === 'PUT'){
+      return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ conflict:true, data:{ _saveId:'someone-elses-save', rates:{g24:7000,g22:6400,g18:5200,g14:4100,sil:155,setAt:'2026-10-01T00:00:00.000Z'}, _v:9 } }); } });
+    }
+    if(String(url).indexOf('/store-proxy') !== -1){
+      gets++;
+      return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ rates:{g24:7000,g22:6400,g18:5200,g14:4100,sil:155,setAt:'2026-10-01T00:00:00.000Z'}, _v:9 } }); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  var result = 'pending';
+  a.loadFromCloud(function(err){ result = err ? err.message : 'ok'; });
+  return flushAll(16).then(function(){
+    assert(gets === 1, 'exactly one GET should follow a real conflict (the conflict handler\'s own load, not a second one from the wrapper), got ' + gets);
+    assert(result === 'ok', 'a real conflict must not be reported as a load error to the caller, got ' + result);
+    assert(a.S.rates.sil === 155, 'the other device\'s data must win on a real conflict, got ' + a.S.rates.sil);
+    assert(a.localStorage.getItem(a._unsyncedKey()) === null, 'the marker must be cleared, not retried forever');
+    assert(toasts.some(function(t){ return /another device/.test(t); }), 'the real-conflict toast must still show, got ' + JSON.stringify(toasts));
+  });
+});
+
+testAsync('C2: a push whose answer was lost but actually landed is recognized as our own, no false conflict toast', function(){
+  var a = reauthApp('ok');
+  a.S.rates = { g24:7000, g22:6400, g18:5200, g14:4100, sil:160, setAt:'2026-10-03T10:00:00.000Z' };
+  a.localStorage.setItem(a._unsyncedKey(), JSON.stringify({ v:5, id:'my-lost-answer-id' }));
+  a._loadedVersion = 0;
+  var toasts = []; a.toast = function(msg){ toasts.push(msg); };
+  var gets = 0;
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts && opts.method === 'PUT'){
+      return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ conflict:true, data:{ _saveId:'my-lost-answer-id', rates:{g24:7000,g22:6400,g18:5200,g14:4100,sil:160,setAt:'2026-10-03T10:00:00.000Z'}, _v:6 } }); } });
+    }
+    if(String(url).indexOf('/store-proxy') !== -1){
+      gets++;
+      return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ rates:{g24:7000,g22:6400,g18:5200,g14:4100,sil:160,setAt:'2026-10-03T10:00:00.000Z'}, _v:6 } }); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  var result = 'pending';
+  a.loadFromCloud(function(err){ result = err ? err.message : 'ok'; });
+  return flushAll(16).then(function(){
+    assert(!toasts.some(function(t){ return /another device/.test(t); }), 'must not show the real-conflict toast for our own save, got ' + JSON.stringify(toasts));
+    assert(toasts.some(function(t){ return /earlier save had gone through/.test(t); }), 'should show the "earlier save landed" toast instead, got ' + JSON.stringify(toasts));
+    assert(gets === 2, '"earlier save landed" runs its own load, then the wrapper loads once more -- one extra GET is accepted, got ' + gets);
+    assert(result === 'ok', 'should report success, got ' + result);
+    assert(a.S.rates.sil === 160, 'our own landed save must be reflected, got ' + a.S.rates.sil);
+    assert(a.localStorage.getItem(a._unsyncedKey()) === null, 'the marker must be cleared');
+  });
+});
+
+testAsync('C2: if the push itself cannot reach the server, stay on the local copy -- no GET, marker kept for next time', function(){
+  var a = reauthApp('ok');
+  a.S.rates = { g24:7000, g22:6400, g18:5200, g14:4100, sil:160, setAt:'2026-10-03T10:00:00.000Z' };
+  a.localStorage.setItem(a._unsyncedKey(), JSON.stringify({ v:0, id:'whatever' }));
+  var timers = [], puts = 0, gets = 0;
+  a.setTimeout = function(f, ms){ timers.push({ f:f, ms:ms }); return timers.length; };
+  a.clearTimeout = function(){};
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts && opts.method === 'PUT'){ puts++; return new Promise(function(){}); } // never answers
+    if(String(url).indexOf('/store-proxy') !== -1){ gets++; }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  var result = 'pending';
+  a.loadFromCloud(function(err){ result = err ? err.message : 'ok'; });
+  return flushAll().then(function(){
+    for(var guard = 0; guard < 20 && timers.length; guard++){ var t = timers.shift(); t.f(); }
+    return flushAll();
+  }).then(function(){
+    assert(puts === 4, 'expected the first try plus 3 retries, got ' + puts);
+    assert(gets === 0, 'a failed push must not be followed by a GET, got ' + gets);
+    assert(a.S.rates.sil === 160, 'must stay on the local copy, got ' + a.S.rates.sil);
+    assert(result === 'save timed out', 'the caller must be told why the load did not happen, got ' + result);
+    // saveToCloud rewrites the marker with its own fresh save id on every attempt
+    // (expected -- only the version matters for the next retry), so check
+    // existence/version here, not the original id.
+    var pend = JSON.parse(a.localStorage.getItem(a._unsyncedKey()));
+    assert(pend && pend.v === 0, 'the marker must survive so the next load retries the push, got ' + JSON.stringify(pend));
+  });
+});
+
+testAsync('C2 shop-wipe guard: first boot with no accepted cache clears a stale marker before loading, never pushes', function(){
+  var a = reauthApp('ok');
+  a.SAAS.sessionToken = a.newTok; // a valid session; nothing wrong with auth here
+  // No ssj_cache was written -- loadCache() returns false, same as a brand-new
+  // device or a cache rejected for belonging to a different shop. S therefore
+  // holds only fresh empty defaults.
+  a.localStorage.setItem(a._unsyncedKey(), JSON.stringify({ v:999, id:'stale-from-another-shop-or-session' }));
+  var puts = 0, gets = 0;
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts && opts.method === 'PUT'){ puts++; return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ ok:true, data:{_v:1} }); } }); }
+    if(String(url).indexOf('/store-proxy') !== -1){ gets++; }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  a.doStartApp();
+  return flushAll(16).then(function(){
+    assert(puts === 0, 'an empty/default shop must never be pushed over real data, got ' + puts + ' PUT(s)');
+    assert(gets === 1, 'the normal GET load should still happen, got ' + gets);
+    assert(a.localStorage.getItem(a._unsyncedKey()) === null, 'the stale marker must be cleared');
+  });
+});
+
+test('C2 shop-wipe guard: signing out clears the unsynced marker along with everything else shop-scoped', function(){
+  var a = loadApp();
+  a.SAAS.user = { id:'u1', email:'o@shop.in' };
+  a.SAAS.shop = { id:'shop1', name:'Test Shop' };
+  var key = a._unsyncedKey();
+  a.localStorage.setItem(key, JSON.stringify({ v:3, id:'abc' }));
+  assert(a.localStorage.getItem(key) !== null, 'sanity: marker is there before sign-out');
+  a._clearDeviceSession();
+  assert(a.localStorage.getItem(key) === null, 'the marker must not survive sign-out');
+});
+
+testAsync('C2: a 403 on the deferred push clears the marker and loads the cloud\'s real data anyway (this role can never push)', function(){
+  var a = reauthApp('ok');
+  a.S.rates = { g24:7000, g22:6400, g18:5200, g14:4100, sil:160, setAt:'2026-10-03T10:00:00.000Z' };
+  a.localStorage.setItem(a._unsyncedKey(), JSON.stringify({ v:0, id:'whatever' }));
+  var gets = 0;
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts && opts.method === 'PUT'){
+      return Promise.resolve({ status:403, ok:false, json:function(){ return Promise.resolve({ message:'Your account cannot save changes.' }); } });
+    }
+    if(String(url).indexOf('/store-proxy') !== -1){
+      gets++;
+      return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ rates:{g24:7000,g22:6400,g18:5200,g14:4100,sil:155,setAt:'2026-10-01T00:00:00.000Z'}, _v:9 } }); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  var result = 'pending';
+  a.loadFromCloud(function(err){ result = err ? err.message : 'ok'; });
+  return flushAll(16).then(function(){
+    assert(gets === 1, 'the GET must still happen after a 403, got ' + gets);
+    assert(a.S.rates.sil === 155, 'the cloud copy must win -- this role can never push the edit, got ' + a.S.rates.sil);
+    assert(result === 'ok', 'the load should report success, got ' + result);
+    assert(a.localStorage.getItem(a._unsyncedKey()) === null, 'the marker must be cleared');
+  });
+});
+
+testAsync('C2: a save that failed mid-session (no reload) still pushes on the NEXT load instead of being silently clobbered', function(){
+  var a = reauthApp('ok');
+  a.SAAS.sessionToken = a.newTok; // authenticated fine; this is a plain network failure, not a 401
+  a.S.rates = { g24:7000, g22:6400, g18:5200, g14:4100, sil:160, setAt:'2026-10-03T10:00:00.000Z' };
+  var timers = [];
+  a.setTimeout = function(f, ms){ timers.push({f:f, ms:ms}); return timers.length; };
+  a.clearTimeout = function(){};
+  var puts = 0;
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts && opts.method === 'PUT'){ puts++; return new Promise(function(){}); }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  a.saveToCloud(function(){}); // will exhaust retries and fail
+  return flushAll().then(function(){
+    for(var guard = 0; guard < 20 && timers.length; guard++){ var t = timers.shift(); t.f(); }
+    return flushAll();
+  }).then(function(){
+    assert(puts === 4, 'sanity: the save really did exhaust its retries, got ' + puts);
+    assert(a.localStorage.getItem(a._unsyncedKey()) !== null, 'the marker must still be there after a plain failed save');
+    // Now a later load runs (e.g. the auto-refresh timer), with the connection back:
+    var gets2 = 0, puts2 = 0;
+    a.fetch = function(url, opts){
+      if(String(url).indexOf('/store-proxy') !== -1 && opts && opts.method === 'PUT'){ puts2++; return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ ok:true, data:{_v:2} }); } }); }
+      if(String(url).indexOf('/store-proxy') !== -1){ gets2++; }
+      return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+    };
+    var result = 'pending';
+    a.loadFromCloud(function(err){ result = err ? err.message : 'ok'; });
+    return flushAll(16).then(function(){
+      assert(puts2 === 1, 'the next load must push the still-unsynced change, got ' + puts2);
+      assert(gets2 === 1, 'and then load the confirmed result, got ' + gets2);
+      assert(a.S.rates.sil === 160, 'the local figure must survive, got ' + a.S.rates.sil);
+      assert(result === 'ok', 'should report success, got ' + result);
+    });
+  });
+});
+
+testAsync('C2 baseline: with no unsynced marker, loadFromCloud just does its normal GET, no push', function(){
+  var a = reauthApp('ok');
+  var puts = 0, gets = 0;
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts && opts.method === 'PUT'){ puts++; }
+    else if(String(url).indexOf('/store-proxy') !== -1){ gets++; }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  var result = 'pending';
+  a.loadFromCloud(function(err){ result = err ? err.message : 'ok'; });
+  return flushAll(16).then(function(){
+    assert(puts === 0 && gets === 1, 'expected a plain GET only, got puts=' + puts + ' gets=' + gets);
+    assert(result === 'ok', 'should succeed, got ' + result);
+  });
+});
+
 // Opus review item 3 (30 Sep): a save whose answer was lost may have landed.
 function landedApp(conflictSaveId){
   var a = loadApp();

@@ -36,9 +36,33 @@ function _getShopRowKey(){
   return '';
 }
 
-function loadFromCloud(callback){
+function loadFromCloud(callback, skipPush){
   // Waiting for the user to sign in again — the token is known dead.
   if(saasReauthPending()){ if(callback) callback(new Error('unauthenticated')); return; }
+  // C2: a save from before a reload (or from any abandoned reauth wait) is
+  // still sitting unconfirmed. Push it first, checked against the version it
+  // was based on, instead of blindly overwriting it with whatever the cloud
+  // answers below. skipPush breaks the loop once that push's own follow-up
+  // load reaches this point again.
+  var _pendSave = skipPush ? null : _readUnsynced();
+  // Don't spend ~22s of retries on a push the browser already knows can't
+  // reach anywhere -- that would hold isSaving the whole time, queuing
+  // every real submit behind it, on every poll while offline. The 'online'
+  // listener already re-triggers a load once the connection comes back.
+  if(_pendSave && !navigator.onLine){ if(callback) callback(new Error('offline')); return; }
+  if(_pendSave && !isSaving){
+    _loadedVersion = _pendSave.v;
+    if(_pendSave.id) _unconfirmedSaveIds.push(_pendSave.id);
+    saveToCloud(function(err){
+      // The conflict branch above is already loading the cloud's version itself.
+      if(err && err.message === 'version-conflict'){ if(callback) callback(null); return; }
+      // Success, or this role can never push the edit either way — the cloud copy is the truth.
+      if(!err || err.message === 'forbidden'){ loadFromCloud(callback, true); return; }
+      // Any other failure (network/timeout): stay on this phone's copy, don't load over it.
+      if(callback) callback(err);
+    });
+    return;
+  }
   setSyncStatus('syncing','Syncing...');
   var done = false;
   var shopKey = _getShopRowKey();
@@ -146,6 +170,20 @@ function loadFromCloud(callback){
 // Save ids sent but never confirmed by a success (see the conflict check in
 // saveToCloud). Cleared by any confirmed save; at most 20 kept.
 var _unconfirmedSaveIds = [];
+
+// C2 (3 Oct QA, confirmed 3 Oct): a save sent but not yet confirmed. Survives
+// a reload, so the next loadFromCloud() pushes this phone's copy (checked
+// against the version it was based on) instead of silently replacing it
+// with the cloud's older one — which is what happened before this existed:
+// a rate change held pending re-authentication was lost outright if the
+// phone reloaded instead of completing the password prompt. Shop-scoped
+// (like every other per-shop local key) so a stale marker from a signed-out
+// shop can never make a different/empty shop's load think it has something
+// to push.
+function _unsyncedKey(){ return shopScopedKey('ssj_unsynced'); }
+function _readUnsynced(){ try{ return JSON.parse(localStorage.getItem(_unsyncedKey())||'null'); }catch(e){ return null; } }
+function _clearUnsynced(){ try{ localStorage.removeItem(_unsyncedKey()); }catch(e){} }
+
 function saveToCloud(callback){
   if(isSaving){ setTimeout(function(){ saveToCloud(callback); }, 400); return; }
   if(saasReauthPending()){
@@ -174,7 +212,7 @@ function saveToCloud(callback){
       }
     }catch(e){}
   })();
-  saveCache(); // local-first: always persist to localStorage before cloud attempt
+  var _cacheOk = saveCache(); // local-first: always persist to localStorage before cloud attempt
   setSyncStatus('syncing','Saving...');
   if(!SB_FUNCTIONS || !SB_KEY){
     isSaving = false;
@@ -197,6 +235,12 @@ function saveToCloud(callback){
   var saveId = Date.now().toString(36) + Math.random().toString(36).slice(2);
   _unconfirmedSaveIds.push(saveId);
   if(_unconfirmedSaveIds.length > 20) _unconfirmedSaveIds.shift();
+  // C2: marks this save as sent-but-unconfirmed, keyed to the version it's
+  // based on, so a reload before the server answers doesn't lose it. Only
+  // written when the cache write just above actually succeeded -- a marker
+  // over a stale cache (quota exceeded, etc.) would get pushed on the next
+  // load and silently put the shop back to that stale snapshot.
+  if(_cacheOk){ try{ localStorage.setItem(_unsyncedKey(), JSON.stringify({v:_loadedVersion||0, id:saveId})); }catch(e){} }
   var dataPayload = {
     _saveId:     saveId,
     products:    S.products,
@@ -238,6 +282,7 @@ function saveToCloud(callback){
 
   function _done_ok(row){
     _unconfirmedSaveIds = []; // the cloud now holds a save we know about
+    _clearUnsynced();
     isSaving = false;
     _isSavingSetAt = 0;
     if(row && row.data && typeof row.data._v === 'number') _loadedVersion = row.data._v;
@@ -302,6 +347,7 @@ function saveToCloud(callback){
         isSaving = false; _isSavingSetAt = 0;
         setSyncStatus('err','Not allowed');
         toast('\u26a0 ' + ((res.body && res.body.message) || 'Your account cannot save changes.'));
+        _clearUnsynced(); // this role can never push the edit; the cloud copy is the truth
         if(callback) callback(new Error('forbidden'));
         return;
       }
@@ -319,6 +365,7 @@ function saveToCloud(callback){
         console.warn('[JewelOS] save conflict was an earlier save of ours that landed');
         isSaving = false; _isSavingSetAt = 0;
         _unconfirmedSaveIds = [];
+        _clearUnsynced(); // before loadFromCloud, so it doesn't try to push again
         loadFromCloud(function(){
           normaliseData(); saveCache(); try{ renderDash(); }catch(e){}
           setSyncStatus('ok', 'Saved');
@@ -336,6 +383,7 @@ function saveToCloud(callback){
         setSyncStatus('err', 'Sync conflict');
         toast('\u26a0 Someone saved changes on another device just now. Loading their version — please redo your last action.');
         console.warn('[JewelOS] Real save conflict detected — refused to overwrite, reloading instead.');
+        _clearUnsynced(); // before loadFromCloud, so it doesn't try to push again
         loadFromCloud(function(){ normaliseData(); saveCache(); try{ renderDash(); }catch(e){} });
         if(callback) callback(new Error('version-conflict'));
         return;
