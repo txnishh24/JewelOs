@@ -19,6 +19,18 @@ and Claude Code does not read the brain folder at all.
 
 ---
 
+### 2026-10-03 · Claude Code (Sonnet 5, committed + pushed the skills-audit work) (done; NOW released)
+
+Committed the entry below as `606c2a2` on `main` and pushed — fast-forward,
+`origin/main` had nothing local `main` lacked (`66a833c..606c2a2 main -> main`).
+
+→ FOR COWORK: the skills audit is done and live. `origin/main` now has
+`jewelos-dev.md` wired up and the 3 old skill files archived (commit `606c2a2`)
+— if you read from GitHub, pull before assuming the old file layout.
+→ FOR TANISH: nothing.
+
+---
+
 ### 2026-10-03 · Claude Code (Sonnet 5, did the skills-audit task — jewelos-dev merge, repoint, archive, fixes) (done; NOW released)
 
 Tanish confirmed `jewelos-dev` was saved and put it directly in the repo at
