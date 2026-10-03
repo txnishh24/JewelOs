@@ -78,7 +78,24 @@ or re-add tier UI.
 
 ---
 
-## LOG (newest first)
+### 2026-10-03 · Claude Code (Sonnet) — H1 + M1 FIXED: negative and absurd gross/net weight are now refused on Add and Edit Product
+
+🟢/🟡 input validation (not a financial calculation, no Opus needed) — a pure sanity-check gap matching an already-established pattern elsewhere in the codebase (purchase bill weight fields already correctly reject negative; this was the two places that didn't).
+
+**Root cause:** `addProduct()` (02-ui-inactivity-modals.js) and `saveEditProd()` (03-billing-numbers.js) both only checked `if(!wt){toast('Enter weight');return;}` — `!wt` is only true for exactly `0`/`NaN`; `!(-5)` is `false` in JS, so a negative gross weight sailed straight through on both Add and Edit. Net weight had the same shape of gap: `if(netwt>0 && netwt>wt){...}` never even looks at a negative `netwt`, since `netwt>0` is already false. Matches QA's repro exactly (-5g gross AND net both saved) and M1 (99,999,999,999g accepted — same `!wt` gap, no upper bound either).
+
+**Fix, one place, both callers:** `productExtrasProblem(grossWt, stoneWt, wastagePct)` (01-sync-core.js) is already called by both `addProduct()` and `saveEditProd()` right after they read the weight — extended it to reject `grossWt < 0` and `grossWt > 10000` (a generous per-piece ceiling; input-typo guard, not a business rule, flag if a real jeweller ever needs more). Added an explicit `netwt < 0` check at each of the two call sites directly (net>gross was already call-site-local, not centralized, so kept that convention rather than changing the shared function's signature).
+
+**Checked and deliberately left alone:** purchase bill item weight (`pb-f-grosswt`/`pb-f-netwt`) already correctly checks `< 0` — not part of this bug. Girvi collateral items and custom sale-form items already silently *filter out* non-positive weight entries at save time (`grossWt>0` filter) rather than accepting a negative value — different code shape, not the "accepted and saved" failure QA found, so not touched. M4 ("0"-prefilled numeric inputs causing digit-prefix typos) is a separate UI/UX issue, different root cause — not fixed here, still open.
+
+**8 new regression tests** (search "QA 3 Oct H1" / "QA 3 Oct M1" in `tests/regression.test.js`): a `productExtrasProblem` unit test, 4 end-to-end `addProduct()` tests (negative gross+net, absurd, negative-net-alone, and a baseline confirming normal weights still save), 3 end-to-end `saveEditProd()` tests (same three failure shapes). **Caught my own test bug while verifying against the unmodified code**: the first version of the "saveEditProd negative gross weight" test passed even without the fix — not because the fix was redundant, but because a positive leftover net-weight value trivially satisfied the unrelated "net > gross" comparison when gross went negative, masking the real check. Fixed by setting net weight to 0 in that test so the fix under test is the only thing that can block the save. All 7 bug-reproducing tests then confirmed to fail against the unmodified code, and the baseline confirmed to still pass; restored, 341/341 clean.
+
+**Verification:** `node --check` all 11 modules clean; regression 341/341 (was 333 after C2, +8 new); all `checks/` scripts clean, same baseline false positives. No e2e run — Add/Edit Product isn't in the 10-spec e2e coverage list, and this is a pure logic change (no DOM/rendering touched).
+
+→ FOR COWORK: H1 and M1 are fixed, tested, and pushed. H2 (refunds not reflected in Reports/GST/Net Cash) from the same QA pass is next and still unstarted.
+→ FOR TANISH: Two small QA findings fixed — the app no longer accepts a negative or absurdly large weight when adding or editing a stock item. Nothing needs your decision on this one. M4 (the "0" pre-fill in number boxes making you type an extra digit) is still open if you want it picked up separately — it's a different, smaller fix.
+
+---
 
 ### 2026-10-03 · Claude Code (Sonnet, Opus-designed and -reviewed) — C2 FIXED: an unsynced save held for re-auth no longer gets silently clobbered by the next load
 

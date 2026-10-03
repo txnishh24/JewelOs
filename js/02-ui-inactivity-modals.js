@@ -473,6 +473,7 @@ function addProduct(){
   if(!huidCheck.ok){ toast('\u26a0 '+huidCheck.msg); document.getElementById('f-huid').focus(); return; }
   var neEl=document.getElementById('f-netwt');
   var netwt=neEl?parseFloat(neEl.value)||0:0;
+  if(netwt<0){toast('⚠ Net weight cannot be negative'); if(neEl) neEl.focus(); return;}
   if(netwt>0 && netwt>wt){toast('Net weight cannot be more than gross weight'); if(neEl) neEl.focus(); return;}
   var stoneWt=parseFloat((document.getElementById('f-stonewt')||{value:0}).value)||0;
   var wastagePct=parseFloat((document.getElementById('f-wastage')||{value:0}).value)||0;

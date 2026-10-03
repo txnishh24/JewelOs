@@ -3483,6 +3483,80 @@ test('Tanish 1 Oct: wastage % adds to a stock bill, and the preview and locked b
   assert(a.productExtrasProblem(10, 1, 8) === '' && a.productExtrasProblem(10, 0, 0) === '', 'normal values pass');
 });
 
+test('QA 3 Oct H1/M1: gross weight must be positive and realistic for a single piece', function(){
+  var a = loadApp();
+  assert(a.productExtrasProblem(-5, 0, 0), 'negative gross weight refused');
+  assert(a.productExtrasProblem(99999999999, 0, 0), 'an absurd gross weight is refused');
+  assert(a.productExtrasProblem(10000, 0, 0) === '', '10,000 g itself is still allowed');
+  assert(a.productExtrasProblem(5, 0, 0) === '', 'a normal weight is unaffected');
+});
+
+function addProductScenario(fieldOverrides){
+  var a = loadApp();
+  a.saveAttempts = 0;
+  a.saveToCloud = function(cb){ a.saveAttempts++; if(cb) cb(null); };
+  a.renderInv = function(){};
+  a.toggleAdd = function(){};
+  var values = { 'f-name':'Ring', 'f-wt':'5', 'f-netwt':'', 'f-huid':'', 'f-sku':'',
+                 'f-stonewt':'', 'f-wastage':'', 'f-costrate':'', 'f-mcrate':'',
+                 'f-photo':'', 'f-notes':'' };
+  Object.keys(fieldOverrides||{}).forEach(function(k){ values[k] = fieldOverrides[k]; });
+  var els = {};
+  Object.keys(values).forEach(function(id){ els[id] = { value: values[id], focus: function(){} }; });
+  els['f-cat'] = { value: 'Rings' };
+  els['f-purity'] = { value: '22K' };
+  var fallback = a.document.getElementById;
+  a.document.getElementById = function(id){ return els[id] || fallback(id); };
+  return a;
+}
+
+test('QA 3 Oct H1: a negative gross weight is refused and no product is added', function(){
+  var a = addProductScenario({ 'f-wt':'-5', 'f-netwt':'-5' });
+  a.addProduct();
+  assert(a.saveAttempts === 0 && a.S.products.length === 0, '-5 g gross (and net) must not create a product, attempts=' + a.saveAttempts + ' products=' + a.S.products.length);
+});
+
+test('QA 3 Oct M1: an absurd gross weight (99,999,999,999 g) is refused', function(){
+  var a = addProductScenario({ 'f-wt':'99999999999' });
+  a.addProduct();
+  assert(a.saveAttempts === 0 && a.S.products.length === 0, 'an absurd weight must not create a product');
+});
+
+test('QA 3 Oct H1: a negative net weight alone is refused even when gross weight is fine', function(){
+  var a = addProductScenario({ 'f-wt':'5', 'f-netwt':'-1' });
+  a.addProduct();
+  assert(a.saveAttempts === 0 && a.S.products.length === 0, 'a negative net weight must not create a product');
+});
+
+test('a realistic weight still adds a product normally', function(){
+  var a = addProductScenario({ 'f-wt':'5' });
+  a.addProduct();
+  assert(a.saveAttempts === 1 && a.S.products.length === 1 && a.S.products[0].weight === 5, 'a normal weight must still save, attempts=' + a.saveAttempts);
+});
+
+test('QA 3 Oct H1: saveEditProd() refuses a negative gross weight, the product is left unchanged', function(){
+  // ep-netwt must not be left positive here -- a positive net against a
+  // negative gross trivially satisfies the unrelated "net > gross" check
+  // below, which would block the save for the wrong reason and mask a
+  // missing negative-weight guard.
+  var a = editModalScenario({ 'ep-wt':'-5', 'ep-netwt':'0' });
+  a.saveEditProd();
+  assert(a.saveAttempts === 0, 'a negative gross weight must not save, attempts=' + a.saveAttempts);
+  assert(a.S.products[0].weight === 8.5, 'the product must be left exactly as it was, got ' + a.S.products[0].weight);
+});
+
+test('QA 3 Oct M1: saveEditProd() refuses an absurd gross weight', function(){
+  var a = editModalScenario({ 'ep-wt':'99999999999' });
+  a.saveEditProd();
+  assert(a.saveAttempts === 0, 'an absurd gross weight must not save');
+});
+
+test('QA 3 Oct H1: saveEditProd() refuses a negative net weight', function(){
+  var a = editModalScenario({ 'ep-netwt':'-1' });
+  a.saveEditProd();
+  assert(a.saveAttempts === 0, 'a negative net weight must not save');
+});
+
 test('Bill preview: Edit / Refund / Delete act on the bill that was showing, after closing it', function(){
   var a = loadApp();
   a.CURRENT_SALE_FOR_PDF = { id:'s9' };

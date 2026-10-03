@@ -874,8 +874,16 @@ function productMakingAmount(p, netWt){
   return (parseFloat(p.mcRate)||0)*(parseFloat(p.weight)||0)
        + (parseFloat(p.wastagePct)||0)/100*(netWt||0)*getRate(p.metal,p.purity);
 }
-// Product form checks for the new fields; returns words, or ''.
+// Product form checks; returns words, or ''. Both addProduct() and
+// saveEditProd() already call this right after reading grossWt, so this is
+// the one place that closes it for both: their own `if(!wt)` guard only
+// catches exactly 0/NaN, never a negative number (!(-5) is false in JS).
+// QA 3 Oct: -5 g gross and net both saved; 99,999,999,999 g also accepted.
+// 10,000 g is a generous ceiling for a single piece sold at a retail
+// counter -- this is an input-typo guard, not a business rule.
 function productExtrasProblem(grossWt, stoneWt, wastagePct){
+  if(grossWt < 0) return 'Gross weight cannot be negative';
+  if(grossWt > 10000) return 'Gross weight of one piece cannot be more than 10,000 g';
   if(stoneWt < 0 || stoneWt >= grossWt && stoneWt > 0) return 'Stone weight must be less than gross weight';
   if(wastagePct < 0 || wastagePct > 30) return 'Wastage must be between 0% and 30%';
   return '';

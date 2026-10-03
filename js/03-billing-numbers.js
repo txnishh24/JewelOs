@@ -834,6 +834,7 @@ function saveEditProd(){
   var _epStone=parseFloat((document.getElementById('ep-stonewt')||{value:0}).value)||0;
   var _epWast=parseFloat((document.getElementById('ep-wastage')||{value:0}).value)||0;
   var _epXp=productExtrasProblem(wt, _epStone, _epWast); if(_epXp){ toast('\u26a0 '+_epXp); return; }
+  if(_epNet<0){ toast('\u26a0 Net weight cannot be negative'); document.getElementById('ep-netwt').focus(); return; }
   if(_epNet>0 && _epNet>wt*Math.max(1,parseInt(p.qty,10)||1)+1e-9){ toast('Net weight cannot be more than gross weight'); document.getElementById('ep-netwt').focus(); return; } // QA 30 Sep
   var _snap = JSON.parse(JSON.stringify(p));
   p.name=name;
