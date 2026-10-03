@@ -2017,6 +2017,7 @@
   "sgst",
   "igst",
   "gstBreakdown",
+  "discFactor",
   "rows",
   "amtWords",
   "memoBanner",

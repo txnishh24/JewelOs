@@ -1853,6 +1853,22 @@ test('P0 item 2: the bill says "Tax Invoice" only when the shop GSTIN is valid',
   assert(good.indexOf('Tax Invoice') !== -1 && good.indexOf('27ABCDE1234F1Z0') !== -1, 'a valid GSTIN prints a Tax Invoice with the GSTIN');
 });
 
+test('QA 3 Oct M5: a discounted GST bill\'s printed line GST/Amount match the footer, not the pre-discount figure', function(){
+  var sale = { id:'s1', invNo:'INV-1', date:new Date().toISOString(), customer:'C', phone:'9',
+    items:[{ name:'Ring', purity:'22K', metal:'gold', weight:10, qty:1, lockedRate:10000, making:0, diamond:0 }],
+    gst:3, discount:1000 };
+  var t = app.calcSaleTotals(sale);
+  assert(t.taxable === 99000 && Math.round(t.gstAmt) === 2970, 'sanity: the footer\'s own figures should be 99000 taxable / 2970 GST, got ' + JSON.stringify(t));
+  var saved = app.SAAS.shop;
+  app.SAAS.shop = { name:'S', gstin:'27ABCDE1234F1Z0' };
+  var h = app.buildInvoiceHTML(sale, 'gst');
+  app.SAAS.shop = saved;
+  assert(h.indexOf(app.fmt(2970)) !== -1, 'the line\'s own GST column must show the discount-adjusted 2970, matching the footer');
+  assert(h.indexOf(app.fmt(3000)) === -1, 'the line must NOT show 3000 -- that\'s GST on the pre-discount amount, what the footer never actually charged');
+  assert(h.indexOf(app.fmt(101970)) !== -1, 'the line\'s own Amount column must show 101970 (99000 taxable + 2970 GST), matching the Grand Total');
+  assert(h.indexOf(app.fmt(103000)) === -1, 'the line must NOT show 103000 -- the pre-discount amount');
+});
+
 test('batch36: GSTIN check digit is verified (Cowork 1 Oct)', function(){
   assert(app.isValidGSTIN('27AAPFU0939F1ZV') && app.isValidGSTIN('29AAGCB7383J1Z4'), 'real GSTINs pass');
   assert(!app.isValidGSTIN('27AAPFU0939F1ZX'), 'a wrong check digit is rejected');

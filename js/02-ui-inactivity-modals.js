@@ -2004,12 +2004,23 @@ function buildInvoiceHTML(sale, billType){
     }
   }
 
+  // QA 3 Oct M5: each line's own GST/Amount used to be computed on its
+  // undiscounted taxableAmt, while the footer's GST (and Grand Total) is on
+  // calcSaleTotals()'s discount-adjusted t.taxable — a bill with any discount
+  // showed a different GST figure per line than the footer actually charged
+  // (line ₹3,158 vs footer ₹3,128 on a real ₹1,000-discount bill). Scaling
+  // every line by the same ratio the discount already reduced the whole
+  // subtotal by keeps "Gold Value"/"Making"/"Stone" (still the gross, undiscounted
+  // figures) and the one "Discount" row exactly as they were — it only makes
+  // the per-line GST/Amount columns agree with what the footer actually
+  // charges. A no-op whenever there's no discount (t.sub === t.taxable).
+  var discFactor = (t.sub>0) ? t.taxable/t.sub : 1;
   var rows = (sale.items||[]).map(function(i){
     var rate   = getItemRate(i);
     var netWt  = i.weight;
     var mkAmt  = itemMakingAmount(i);
     var dcAmt  = i.isCustom ? (i.diamond||0) : ((i.diamond&&i.diamond>0) ? i.diamond*i.qty : 0);
-    var taxableAmt = rate*netWt*i.qty + mkAmt + dcAmt;
+    var taxableAmt = (rate*netWt*i.qty + mkAmt + dcAmt) * discFactor;
     var gstItem= isGST ? Math.round(taxableAmt * gstRate / 100 * 100) / 100 : 0;
     var lineTotal = taxableAmt + gstItem;
     var wtDetail = '';

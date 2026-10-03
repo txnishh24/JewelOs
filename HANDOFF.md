@@ -78,6 +78,33 @@ or re-add tier UI.
 
 ---
 
+## LOG (newest first)
+
+### 2026-10-04 · Claude Code (Sonnet, Opus-reviewed) — M5 FIXED: a discounted bill's printed line items now agree with its own footer
+
+(risk) this changes a figure printed on an actual Tax Invoice, so per MODEL-POLICY's "risk beats size" it went through Opus review before shipping even though the diff is ~13 lines, same discipline as C1/C2/H2.
+
+**The bug, confirmed exactly against QA's repro numbers:** buildInvoiceHTML() (02-ui-inactivity-modals.js) computed each line item's own GST and Amount columns from that line's undiscounted taxable value, while the invoice's own footer (Grand Total, CGST/SGST breakdown) correctly used calcSaleTotals()'s discount-adjusted t.taxable. On any bill with both a discount and GST, the two disagreed. QA's exact numbers reproduce it precisely: subtotal Rs 1,05,250, discount Rs 1,000, 3% GST -> pre-discount line GST = 1,05,250x3% = Rs 3,157.50 ~= Rs 3,158 (the line); post-discount footer GST = (1,05,250-1,000)x3% = Rs 3,127.50 ~= Rs 3,128 (the footer) -- exactly QA's reported figures, and the Rs 30 gap is exactly 3% of the Rs 1,000 discount.
+
+**The fix:** one discFactor = t.taxable/t.sub (1 when there's no discount, so this is a no-op on the vast majority of bills), applied to each line's taxable amount before computing that line's GST/Amount -- reusing the exact same ratio calcSaleGSTBreakdown() already uses for the footer's own HSN rows (Opus confirmed this isn't a second, divergent implementation of the idea). Deliberately left the Rate/Making/Stone columns reading the raw per-item values, untouched -- those still match the footer's own undiscounted "Gold Value"/"Making"/"Stone" rows; only the derived GST and Amount columns change to agree with what's actually charged.
+
+**Opus confirmed this is the legally correct direction, not just internally consistent:** CGST Act s.15(3)(a) and Rule 46 require GST to be charged on the value net of a discount recorded at the time of sale -- the old pre-discount per-line GST was the non-compliant figure, not the fix. Also confirmed: a bill has exactly one GST rate for all metal/making/stone (calcSaleGSTBreakdown's own comment says per-part rates were deliberately removed), so applying one uniform discFactor across every line is safe -- there's no mixed-rate scenario anywhere in this codebase that would make that wrong.
+
+**Correction to my own claim, caught by Opus -- recording honestly:** I initially said the prorated line amounts "sum to t.taxable exactly." That's only true when a sale's bill-level making/diamond fields (separate from any per-item making/stone) are zero -- calcSaleTotals folds those into t.sub (hence t.taxable), but no line item includes them, so a bill that actually uses those two fields has never had its line items sum to the footer, before or after this fix. This is a separate, pre-existing gap (not introduced here, not fixed here) -- see below.
+
+**1 new regression test** (tests/regression.test.js, search "QA 3 Oct M5"): a single-item, Rs 1,000-discount, 3% GST bill, asserting the printed line shows the corrected 2970/101970 and NOT the old pre-discount 3000/103000. Confirmed to fail against the unmodified code. Opus confirmed a single-item case is sufficient -- a multi-item case would only exercise ordinary whole-rupee print rounding (+/-Rs 1-class, already an accepted tolerance elsewhere in this codebase), not a real defect, so not worth adding.
+
+**Verification:** node --check all 11 modules clean; regression 366/366 (was 365, +1 new); all checks/ scripts clean, same baseline, globals count unchanged. jewelos-bug-pattern-reviewer ran clean against the five families, independently hand-traced the same numbers, and confirmed (by grepping for taxableAmt/gstItem/discFactor across all of js/) there's no second, unpatched copy of the old pre-discount math anywhere else. jewelos-test-runner independently reproduced all counts.
+
+**Flagged, not fixed -- two pre-existing issues Opus found while reviewing, neither introduced or worsened by this change:**
+- **Bill-level making/diamond fields (separate from per-item making/stone, set via the sale form's s-making/s-diamond boxes) are counted in calcSaleTotals's t.sub but never appear on any printed line.** A bill that uses these two fields has never had its line items sum to the Grand Total -- a different, narrower version of the same "lines don't sum to the footer" family of bug M5 was about, still open. Needs its own investigation (does this field see real use? how should it print per-line vs. as its own row?) before touching it.
+- **lockedGrand drift.** The footer's Grand Total is t.grand, which uses sale.lockedGrand when set -- if that stored figure ever diverges from a fresh recalculation (the exact class of bug C1 fixed for the edit path specifically), the line items and the footer would disagree regardless of this fix. Not a new risk from this change.
+
+-> FOR COWORK: M5 is fixed, tested, and pushed. Flagging the bill-level making/diamond field gap above as a real, separate follow-up -- worth checking with Tanish whether those two form fields are actually used by real shops before deciding how to fix it.
+-> FOR TANISH: A printed GST bill with both a discount and tax now shows the same GST figure on each line as it does in the total at the bottom -- before, the line level showed a slightly higher number (the tax without your discount applied), which is both confusing and not what GST rules actually require. Nothing needs your decision on this one.
+
+---
+
 ### 2026-10-04 · Claude Code (Sonnet) — M8 FIXED: Category Intelligence now matches the Reports page's selected month; "Cash In" relabeled where it collided with Day Book's different metric of the same name
 
 🟢/🟡 (a date-window bug in a display function, plus a text relabel — no money-calculation formula changed, no Opus needed).
