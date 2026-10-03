@@ -1157,10 +1157,12 @@ function saveEditBill(){
   // The deduction % describes the old value; a retyped value no longer matches it.
   if(og>0) sale.oldGold={weight:sale.oldGold?sale.oldGold.weight:0, purity:sale.oldGold?sale.oldGold.purity:'', value:og,
     deductPct:(sale.oldGold&&sale.oldGold.value===og)?(sale.oldGold.deductPct||0):0};
-  // Recalculate and re-lock
+  // Recalculate and re-lock. lockedGrand is cleared first because calcSaleTotals()
+  // prefers an existing lock, which would just hand back the pre-edit total.
   sale.lastEditedAt = new Date().toISOString();
-  var t=calcSaleTotals(sale);
-  sale.lockedGrand=Math.round(t.grand);
+  sale.lockedGrand = 0;
+  sale.lockedGrand = Math.round(calcSaleTotals(sale).grand);
+  var t = calcSaleTotals(sale);   // second pass: bal measured against the new rounded lock
   // QA 1 Oct P0-2, same rule as recordSale: payments above the bill are refused.
   var _over = saleOverpaidBy({lockedGrand:sale.lockedGrand, nowPaying:{amount:splitAdv}, oldGold:{value:og}, prevAdvance:{amount:prevAdvSave}});
   if(_over > 0){
@@ -1175,7 +1177,7 @@ function saveEditBill(){
     toast('⚠ A GST bill needs a GST % (3% for jewellery).');
     return;
   }
-  if(t.bal<=0) sale.payStatus='full';
+  sale.payStatus = t.bal<=0 ? 'full' : (t.adv>0 ? 'advance' : 'pending');
   saveToCloud(function(err){
     if(!err){
       closeEditBillModal();

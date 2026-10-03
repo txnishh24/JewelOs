@@ -1622,7 +1622,7 @@ test('batch37 P2-14: a bill total is locked in whole rupees, as printed', functi
   assert(src.indexOf('var grand=Math.round(Math.max(0,taxable+taxable*gstPct/100));') !== -1, 'the saved lockedGrand is rounded');
   assert(src.indexOf('var grand=Math.round(Math.max(0,taxable+gstAmt));') !== -1, 'the live form total is rounded the same way');
   var s1 = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');
-  assert(s1.indexOf('sale.lockedGrand=Math.round(t.grand);') !== -1, 'an edited bill re-locks in whole rupees');
+  assert(s1.indexOf('sale.lockedGrand = Math.round(calcSaleTotals(sale).grand);') !== -1, 'an edited bill re-locks in whole rupees');
 });
 
 test('batch37 P2-16: Day Book refusals are words, not codes', function(){
@@ -2993,6 +2993,52 @@ test('Edit Bill refuses taking a GST bill down to 0% GST', function(){
   vals['eb-gst'] = '3';
   a.saveEditBill();
   assert(saved, 'keeping 3% saves');
+});
+
+test('C1: an edited bill re-locks to the NEW total, not the stale pre-edit one (discount)', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
+    payStatus:'full', gst:0, discount:0, making:0, diamond:0,
+    items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
+    nowPaying:{amount:10000, mode:'Cash'}, splitPayments:[{amount:10000, mode:'Cash'}] }];
+  a._editBillId = 's1';
+  // ₹1000 discount: the real new total is 9000, and the payment is reduced to match.
+  var vals = { 'ebsp-amt-0':'9000', 'ebsp-mode-0':'Cash', 'eb-disc':'1000', 'eb-gst':'0', 'eb-advance':'0', 'eb-oldgold':'0' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(/^ebsp-amt-/.test(id) && !vals[id]) return null;
+    if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+    return _o(id);
+  };
+  var saved = false; a.saveToCloud = function(){ saved = true; };
+  a.saveEditBill();
+  var s = a.S.sales[0];
+  assert(saved, 'a discount edit that still balances to 0 must save');
+  assert(s.lockedGrand === 9000, 'the bug left this stale at the pre-edit 10000; got ' + s.lockedGrand);
+  assert(a.calcSaleTotals(s).bal === 0, 'printed total (taxable+GST) must equal what was collected; balance got ' + a.calcSaleTotals(s).bal);
+});
+
+test('C1: an edited bill re-locks to the NEW total, not the stale pre-edit one (item weight raises it, payStatus degrades)', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
+    payStatus:'full', gst:0, discount:0, making:0, diamond:0,
+    items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
+    nowPaying:{amount:10000, mode:'Cash'}, splitPayments:[{amount:10000, mode:'Cash'}] }];
+  a._editBillId = 's1';
+  // A weight correction (1g -> 1.5g) raises the real total to 15000; the payment is unchanged at 10000.
+  var vals = { 'ebsp-amt-0':'10000', 'ebsp-mode-0':'Cash', 'eb-disc':'0', 'eb-gst':'0', 'eb-advance':'0', 'eb-oldgold':'0', 'ei-wt-0':'1.5' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(/^ebsp-amt-/.test(id) && !vals[id]) return null;
+    if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+    return _o(id);
+  };
+  var saved = false; a.saveToCloud = function(){ saved = true; };
+  a.saveEditBill();
+  var s = a.S.sales[0];
+  assert(saved, 'correcting a piece\'s weight upward still saves');
+  assert(s.lockedGrand === 15000, 'weight 1g->1.5g at locked rate 10000 should re-lock to 15000; got ' + s.lockedGrand);
+  assert(s.payStatus === 'advance', 'a status that can only ever be upgraded to "full" would stay stale here even though 5000 is now owed; got ' + s.payStatus);
 });
 
 test('QA 1 Oct #3: opening the Girvi Pay dialog leaves the sale form payment rows alone', function(){
