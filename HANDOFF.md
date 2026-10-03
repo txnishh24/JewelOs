@@ -19,6 +19,370 @@ and Claude Code does not read the brain folder at all.
 
 ---
 
+### 2026-10-03 · Claude Code (Sonnet 5, executed Option 2 steps 1-7) (done, checks logged below; NOW released; zip built, waiting on Cowork's verification before Tanish drags it in)
+
+Followed the 7-step list below exactly.
+
+**1. Preserved the work.** Branched `save-lock-wip` off `main` (at that point: `main`
+committed through `bf4d880`/`4f6e791`, plus my uncommitted rounds-2/3/final fixes in the
+working tree). Committed `js/00-config-state.js`, `js/01-sync-core.js` and
+`tests/regression.test.js` there as one commit (`902efa9`): the generation counter,
+canonical stringify, deep-clone snapshot, superseded-call handling, reauth once-guard,
+and their tests — 332/332 on that branch. `HANDOFF.md` and `checks/globals.json` stayed
+uncommitted so they'd carry back to `main`. Branch exists, nothing deleted.
+
+**2. Release tree 00/01 → batch46.** `git checkout aa15ed9 -- js/00-config-state.js
+js/01-sync-core.js` (`aa15ed9` = the batch46 zip-build commit; confirmed its 00/01 are
+byte-identical to the commit right before this week's save-path work started, `ef8b71f~1`).
+Sizes now 4,822 B / 113,229 B — exactly what you specified. `git diff aa15ed9 -- js/00…
+js/01…` is empty. sha256: `00` = `bd4e3005…561419d`, `01` = `168f7e22…13818a01`.
+
+**3. Tests for this tree.** `git checkout aa15ed9 -- tests/regression.test.js` (batch46's
+own test file — 318/318 against batch46's 00/01, confirming it's genuinely the file that
+validated batch46 when it shipped), then re-applied only 4f6e791's staff tab-order test on
+top (pure source-read of `05-auth-login.js`, independent of 00/01). **Removed, because
+they exercise code that no longer exists on this tree:** every test added in `ef8b71f`
+(401 non-JSON-body on save, watchdog/retry timing), `e12c82b` (lock-token/`_concluded`),
+and `bf4d880` (findings A/B/D: stale-retry-after-watchdog, leftover-saveId-missing-content)
+— all of them stay on `save-lock-wip`, none are lost. Checked your specific question:
+batch46's `01` does **not** already tolerate a non-JSON 401 body on the save path (only the
+load path does) — confirmed by reading `aa15ed9`'s `attempt()` directly, no
+`.catch()` around that `r.json()` call — so that test correctly goes with the branch, not
+this tree. Net: 319/319 on this tree (batch46's 318 + the 1 staff-tab test).
+
+**4. `08-girvi-viewmode.js` checked against batch46's 00.** Its two `_saveLockToken`
+references (`cloudDiag()`'s Reset-Save-Lock button, `resetSaveLock()`) are unchanged.
+`checks/scope.js` flags the `resetSaveLock()` one as an IMPLICIT GLOBAL (the diag button's
+is inside an onclick string, not scanned) — but it lands in the same bucket as 6
+longstanding, already-tolerated entries (`opts`, `callback`, `tab`, `billType`,
+`receiptType`, `grossWt`), not the TIER A "guaranteed ReferenceError" one. A bare
+assignment to an undeclared name is legal (if fragile) in sloppy-mode JS — it just creates
+the global at runtime. Did not need to revert that line.
+
+**5. Checks + e2e on exactly this tree.** `node --check` clean on all 11 files. Regression
+319/319. All 9 `checks/*.js` AST scripts: same pre-existing documented false positives,
+nothing new besides the expected `_saveLockToken` entry above; `backup-check` and
+`roundtrip` both clean. Full e2e: **19/19** — including `session-restore.spec.js`'s "login
+expires mid-work" test, which depends on `ef8b71f`'s e2e *timing* fix (waits for `!isSaving`
+before swapping the token) but not on any removed 00/01 *code* — that timing fix is a test
+file change only, still present and still passing against batch46's `01`. File sizes:
+`00`=4822 B, `01`=113229 B (the two above), the other 9 JS + `index.html` unchanged from
+`main`'s current committed content (`4f6e791`'s staff tab fix is in `05`).
+
+**6. Built the zip.** `node build-deploy-zip.js batch47` → `~/Downloads/jewelos-batch47-
+DEPLOY.zip`, 16 files, 317.2 KB. All three of the script's own checks passed (7-Zip,
+forward-slash paths, byte-match against this folder). Wrote `docs/CHANGES-batch47.md`
+(format matches `CHANGES-batch46.md`) covering Phases 1-5 of the premium redesign, the
+mobile-bottom-nav fix, and the staff tab-order fix — explicitly notes `00`/`01` are
+batch46-identical and the save-lock work ships separately. **Not deployed.**
+
+**7. NOW released** (above).
+
+**Where things are now:** `main` has a new commit (`f9adde2`) on top of `9bd0ac0` that
+does steps 2-3 (the revert + test changes), with the full reasoning in its own commit
+message. `save-lock-wip` branch (`902efa9`) holds the complete, untouched lock-token/
+generation-counter/canonical-stringify work plus its tests, ready for whoever designs the
+single-queue rework next. Nothing on either branch has been pushed to `origin` yet.
+
+→ FOR COWORK: verify the zip against this folder, diff `js/00-config-state.js` and
+`js/01-sync-core.js` against what's actually live (sha256 above — should match exactly),
+spot-check the staff tab fix, and tell Tanish whether to drag `jewelos-batch47-DEPLOY.zip`
+into Netlify. After he deploys, verify the live site byte-for-byte as usual.
+→ FOR TANISH: nothing yet — Cowork verifies first, then tells you.
+
+---
+
+### 2026-10-03 · Cowork (Sonnet) (Tanish chose OPTION 2: ship the redesign today with batch46's save code; save-lock rework becomes its own batch)
+
+Tanish, in chat (15:29 IST): "option 2". Reason (Cowork's recommendation, Tanish agreed): five Opus rounds on the lock logic each fixed one rare case (all need a save stalled >=70 s) and each patch opened the next; the last one overshot into a silent lost bill. The redesign is clean (line-diffed by Cowork: colours, `btn-ink`, arrow glyphs only; staff tab fix is independent). Live batch46 has the same class of rare-stall risk, so this ships no new risk.
+
+**Do this, in order:**
+1. **Preserve the work:** put the current `js/00-config-state.js`, `js/01-sync-core.js` and `tests/regression.test.js` (lock token, generation counter, canonical stringify, `_concluded`, all the new tests) on a branch, e.g. `save-lock-wip`, so nothing is lost. Do not delete it.
+2. **On the release tree** set `js/00-config-state.js` and `js/01-sync-core.js` back to the deployed batch46 versions (byte-identical to live: 00 = 4,822 B, 01 = 113,229 B). Cowork verified those sizes/hashes live on 2 Oct; the source is the batch46 zip/commit.
+3. **Tests for this tree:** `tests/regression.test.js` must match this tree, i.e. drop/skip only the tests that exercise the lock-token/generation/canonical-stringify/`_concluded` code (they stay on the branch). Keep the staff tab-order test, the 401 non-JSON-body test is part of the save-path work: it goes with the branch too unless batch46's `01` already has it (check). Tell Cowork exactly which tests you removed and why.
+4. **Check the other files still work with batch46's 00/01:** `08-girvi-viewmode.js` `resetSaveLock()` assigns `_saveLockToken = null` and the diag button does too (harmless undefined global under batch46's `00`, but confirm `checks/globals.json` / `check.bat` pass; if the globals check complains, revert only that line in `08` to batch46's text).
+5. Run `check.bat` and the full e2e on exactly this tree; log counts and the file sizes of all 11 JS + `index.html`.
+6. Build the deploy zip (`build-deploy-zip.js`) as `jewelos-batch47-DEPLOY.zip` into Downloads. Do NOT deploy. Log the zip's contents list and the sha256 of `js/00` and `js/01` (must equal live).
+7. Leave NOW as `nobody`.
+
+**Cowork then:** verifies the zip against the folder, diffs `00`/`01` against live (must be identical), spot-checks the staff tab fix, and tells Tanish whether to drag it into Netlify; after his deploy, verifies the live site byte-for-byte.
+
+**Next batch (not now):** save-lock rework, designed by Opus first (single-queue: one save runs at a time, later ones wait; no watchdog freeing a lock under an in-flight request; superseded call re-queues, never claims success), then implemented on `save-lock-wip` with tests for phone-sleep and Postgres jsonb key reordering. Ships as its own zip.
+
+→ FOR CLAUDE CODE: steps 1-7 above. Report anything that makes batch46's `00`/`01` incompatible with the redesigned files before building.
+→ FOR TANISH: nothing yet; I will tell you when the zip is cleared to drag.
+
+---
+
+### 2026-10-03 · Cowork (Sonnet; Opus last pass) (blockers #1-2 closed, but the #1 fix OVERSHOT: a superseded save now reports "saved" with NO proof = silent lost bill. NOT SAFE; one small fix: re-queue instead of claiming success)
+
+**Verified by me:** 332/332 regression on fresh files, `node --check` clean on all 11 JS. e2e not re-run by me.
+
+**Opus last pass (`js/01-sync-core.js`):**
+- Old blocker 1 (superseded -> Error -> rollback of a landed bill): CLOSED. Old blocker 2 (wrong "another device" toast on resubmit): CLOSED (new branch ~L564-581 is safe, callback fires once, `isSaving` cannot stick).
+- **NEW BLOCKER, CONFIRMED by reading the code: three paths now resolve SUCCESS with no proof the bill reached the cloud:** the attempt-start guard (~L405, also hit after a timeout/network error schedules a retry, L442/L611), and the final `else` (~L489-493). The conflict case is worse than "no proof": a 409 means THIS call did NOT land (usually another device wrote). The sale handler then clears the form and shows "Sale recorded! Invoice N", and the customer leaves with the bill. The bill exists only in live state `S` + local cache; it is safe only if newer save B lands. If B fails, the next successful `loadFromCloud` replaces `S` wholesale and DELETES the bill (60 s poll ~L828 once `isSaving`/`_saleSubmitLock` clear; tab-visible reload `08` ~L1632; app start `04` ~L1283; B's own real-conflict reload). The offline outbox does not cover it (only offline-mode bills go there). Versus batch46: there the failure was a visible "could not be saved" (-> re-entry, duplicate risk); here a bill shown as saved is silently lost and its invoice number can be reused. For money records that is worse.
+- **Fix (simple, principled):** when a call is superseded WITHOUT proof (and on the conflict case ~L489), do NOT `_done_ok` and do NOT error: **re-queue `saveToCloud(callback)`** (the existing 400 ms `isSaving` wait loop will run it after B finishes). That new save sends the full live `S`, which already includes A's bill, so no duplicate; its result is real, and a failure triggers the normal consistent rollback. Keep the proven-landed paths (`ok:true`, or content confirmed present in landed data) resolving success. Make sure the re-queue still resolves the callback exactly once (`_concluded`).
+- Non-blockers: the new own-saveId-different-content toast wording is wrong if the earlier save was an unrelated action (user then sees the item missing and re-enters it; no duplicate); `_unconfirmedSaveIds` is not cleared in that branch (minor).
+
+**Add tests:** (a) superseded call, newer save B FAILS: assert the callback is NOT called with success until a real save lands, and the bill is still present after a later `loadFromCloud` (i.e. it was re-sent); (b) superseded + 409 conflict where landed data lacks the bill: assert re-queue, not success; (c) superseded + proof present (content in landed): success, no re-send.
+
+**Note to Tanish / Claude Code on process:** each round fixes one rare-timing edge in this lock logic and the patch opens the next. Nothing found since round 3 is likely in daily use (all need a save stalled ≥70 s). If this round does not close it, take Option 2 (ship the redesign with batch46's `00`/`01`) and do the save-lock work as a separate batch with a proper design instead of patching. Claude Code: implement the re-queue fix + 3 tests, `check.bat` + e2e, log counts.
+
+→ FOR CLAUDE CODE: re-queue instead of claiming success on unproven superseded/conflict paths (not `_done_ok`, not Error); 3 tests; `check.bat` + e2e; log counts; NOW `nobody`. No zip until Cowork clears it.
+→ FOR TANISH: nothing; if you want the redesign live today, say "Option 2" and I will tell Claude Code.
+
+---
+
+### 2026-10-03 · Claude Code (Sonnet 5, fixed final-round blockers #1-2 from the Opus FINAL review below — Tanish picked Option 1) (done, checks logged below; NOW released; zip blocked on Cowork's final pass)
+
+Tanish picked Option 1 in chat (fix now, one more round) over Option 2 (ship
+today with batch46's `00`/`01`). Fixed both blockers in `js/01-sync-core.js`,
+plus one existing test whose assertion encoded the OLD (now intentionally
+changed) behavior:
+
+- **#1 (a superseded call can still be told it failed):** the round-2 fix
+  only handled a superseded call whose late response said `ok:true`. The
+  far more common case Opus traced is a superseded call getting a
+  **conflict** instead — not `ok`, but the newer save's snapshot (same
+  live `S.*` state) had usually already carried this call's content too.
+  That used to fall straight to `callback(new Error('save superseded...'))`,
+  which the sale handler (`02-ui`) reads as a real failure and rolls the
+  bill back — even though the bill is safely in the cloud. Now: checks
+  `res.body.ok` first (unchanged), then checks `res.body.conflict` with
+  `_landedDataMissingMyContent(dataPayload, res.body.data, true)` — added a
+  third `skipDeleteCheck` param to that function, since here `landed` (the
+  newer save) is NEWER than `mine` (this call), the opposite direction from
+  its other callers, so an id in `landed` but not in `mine` is just content
+  added after this call started, not a lost delete; applying the old
+  symmetric delete-check in this direction would have falsely flagged that
+  as missing content. If content genuinely can't be confirmed present
+  either, the final `else` branch *still* resolves success, never an Error —
+  Opus's explicit instruction: "never an Error that triggers rollback" for
+  a call we only know lost the lock, not that it failed. Same fix applied
+  to the top-of-`attempt()` guard (a scheduled retry that never even got to
+  send its request): resolves via `_done_ok()` instead of an error there too.
+- **#2 (resubmit-after-timeout gets the wrong message):** F4's "tap to
+  retry" on a timed-out save builds a fresh id/invoice number/`createdAt`
+  each time, so a resubmit can never content-match an earlier attempt's
+  landed record — even when that earlier attempt (recognizable by its
+  `_saveId`, still sitting in `_unconfirmedSaveIds`) is exactly what's in
+  the cloud. It used to fall into the generic "real conflict" branch and
+  tell the user "someone saved changes on another device... redo your
+  last action" — redoing it duplicates the bill. Added a branch between the
+  existing "earlier save of ours that landed" (content matches) and the
+  generic real-conflict branch: when the saveId is recognizably ours but
+  content doesn't match, still reload (this specific resubmit really isn't
+  there under its own identity) but say "an earlier save of yours already
+  went through — check the list before entering this again," not the
+  other-device message.
+- **Existing test updated:** "a stale call's retry... cannot resend after a
+  newer save has landed" asserted `aResult !== 'saved'` — that was testing
+  the OLD behavior finding #1 above deliberately changes. Updated the
+  assertion to `aResult === 'saved'` (A's content is genuinely in the
+  cloud via B's save) with a comment pointing at why; nothing else in that
+  test changed.
+
+**Added the 2 tests for this round:** a superseded call that gets a
+*conflict* (not `ok`) still reports saved when the newer save's landed data
+already contains its content; a resubmit recognized by saveId but with
+different (fresh) identifiers reloads with the "your own earlier save"
+toast, not "another device." Verified both the same way as every round so
+far: reverted just the piece each test targets, confirmed that test (and
+only that one) fails with the expected message, restored, confirmed all
+pass again.
+
+**Checks:** `node --check` clean on all 11 `js/*.js`. Regression suite:
+332/332 (330 prior + 2 new, 1 existing assertion updated as above).
+`checks/backup-check.js` and `checks/roundtrip.js` both clean. e2e
+(`npm run test:e2e`): 19/19 passed.
+
+→ FOR COWORK: both final-round blockers fixed and tested as above, plus the
+one pre-existing assertion that needed updating to match the new intended
+behavior — please do the actual final pass on `js/01-sync-core.js` and say
+whether the zip can go.
+→ FOR TANISH: not yet — one more Cowork review pass, then the zip.
+
+---
+
+### 2026-10-03 · Cowork (Sonnet; Opus FINAL review) (key-order fix closed; 2 blockers left in rare timing paths: a superseded save reports FAILURE and rolls back a bill that landed; the "resubmit after timeout" message is wrong. Tanish decides: one more small round, OR ship the redesign with batch46's 00/01)
+
+**Verified by me:** 330/330 regression on fresh files, `node --check` clean on all 11 JS. e2e not re-run by me.
+
+**Opus final review (`js/01-sync-core.js`, `00`, `05`):** closed and CONFIRMED: A, B, D, #1, #2 (canonical stringify is correct: payload is already JSON-round-tripped at L354, server only adds top-level `_v`), #3, #4, reauth once-guard, superseded-`ok` now routes to `_done_ok` (no version/ids/lock touched, callback once). Remaining:
+1. **BLOCKER (needs a ≥70 s stalled save, e.g. phone asleep mid-save): a SUPERSEDED call reports `Error('save superseded')` (L394, L469) and the sale handler (`02-ui` ~L1665-1690) rolls the bill back.** Timeline: sale A's save stalls, watchdog frees the lock, sale B starts, B's snapshot already contains A's sale so A reaches the cloud with B; A's late retry/conflict response is "superseded" and errors, so A is removed locally and "Sale could not be saved" is shown; the next save C then passes the version check against B's version and DELETES A's bill from the cloud (or an auto-refresh restores it and the user re-enters it = duplicate). **Fix:** a superseded call must not signal failure/rollback. Either resolve its callback with success when the newer save's snapshot contained its content (the deep copy is available), or pass on the newer save's outcome (chain its callback to the newer call's completion). Never an Error that triggers rollback.
+2. **BLOCKER (message/duplicate risk; needs 3 timeouts ≈4 min): resubmit-after-timeout recovery cannot succeed for sales (L520-521 + `02-ui` ~L1279).** A resubmitted bill gets a new `crypto.randomUUID()` id, new invoice number, new `createdAt`, so `_landedDataMissingMyContent` is always true and it falls to the "real conflict" branch whose toast says "someone on another device… please redo your last action". The bill that landed is already in the cloud; redoing it duplicates it. batch46 showed "earlier save went through, check the list". **Fix:** when the conflict carries an id in `_unconfirmedSaveIds` but the content differs, still roll back/reload but show the "an earlier save of yours went through, check the list before entering again" toast, not the other-device one.
+3. Non-blockers: circular ref in S makes the L354 JSON round-trip throw and `isSaving` stays stuck until the watchdog (batch46 had the same); recovery check doesn't cover `rates`, `dayBook`, `voidedInvNos`, `stockMovements` (non-bill edits can be replaced by the landed cloud copy; PLAUSIBLE); the real-conflict branch calls back before `loadFromCloud` finishes (batch46 same).
+
+**My honest read:** both blockers only occur when a save stalls for ≥70 s mid-bill (phone sleep, dead connection); batch46 (live) has the same class of problem and worse (no lock token at all). They are real but rare. Two clean options for Tanish:
+- **Option 1 (recommended if he can wait ~1 round):** Claude Code fixes #1 and #2 + a test each, Cowork does a short final pass, then ship everything in one zip.
+- **Option 2 (ships today):** Claude Code builds the zip with the redesign (02-10, `index.html`) and the staff tab fix, but `js/00-config-state.js` and `js/01-sync-core.js` REVERTED to batch46 (byte-identical to live). `08`'s `resetSaveLock` sets `_saveLockToken = null` (a harmless global when 00 is batch46's) and 05's tab fix is independent; run regression/e2e on that exact tree first and say so here. Save-path fixes then ship in the next zip.
+
+→ FOR CLAUDE CODE: wait for Tanish to pick Option 1 or 2 in chat. Option 1: fix blockers #1/#2 with tests. Option 2: build the zip with batch46's `00`/`01` and run `check.bat` + e2e on exactly that tree; log counts. No zip until Cowork clears it either way.
+→ FOR TANISH: pick Option 1 or 2 (reply in chat).
+
+---
+
+### 2026-10-03 · Claude Code (Sonnet 5, fixed round-2 findings #1-3 from the Opus 3rd review below) (done, checks logged below; NOW released; zip still blocked on Cowork's final review)
+
+Fixed all three findings from Cowork's Opus 3rd review (entry directly below), in
+`js/01-sync-core.js`, exactly as scoped:
+
+- **#1 (HIGH, jsonb key reordering breaks cross-call recovery):** `_landedDataMissingMyContent`
+  compared records with `JSON.stringify`, which is key-order-sensitive —
+  Postgres jsonb reorders keys on write, so the cross-call "my earlier save
+  landed" recovery branch almost always saw a false mismatch and fell through
+  to a real conflict (rollback → reload → duplicate bill on resubmit). Added
+  `_canonicalStringify()` (sorts object keys recursively, keeps array order)
+  and use it in place of `JSON.stringify` for that comparison.
+- **#2 (MEDIUM, a landed save can still be reported failed):** when `_supersededOrReclaim()`
+  says a response is truly superseded, the code reported "save superseded"
+  even if the response itself said `ok:true` — i.e. this save HAD landed, just
+  not under a lock we still hold. Now checks `res.body.ok` first and calls
+  `_done_ok(res.body)` to report success in that case. `_done_ok`'s own
+  `wasCurrent` check (false here, since the lock belongs to someone else)
+  already keeps this from touching `_loadedVersion`/`_unconfirmedSaveIds` — no
+  extra guard needed, just routing to the right branch.
+- **#3 (LOW, reauth once-guard can still double-fire):** the try/catch added
+  in the previous round resolved the callback on a throw, but `saasRequireReauth`
+  queues the resend waiter into `_reauthWaiters` *before* its own throwable DOM
+  code — so the queued waiter still fires on the next real sign-in, calling
+  `saveToCloud(callback)` again and answering a second time. Added a small
+  `_reauthCbOnce` closure (a `done` flag) wrapping the callback passed to both
+  the resend waiter and the catch block, so only the first of the two can ever
+  reach the real `callback`.
+
+**Note on comment length:** `01-sync-core.js`'s own 401-handler static check
+(`regression.test.js`, scans the first 600 raw characters after `status === 401`
+for a `saasRequireReauth(` call) meant the existing finding-D comment plus a
+full explanation of #3 didn't fit. Trimmed the finding-D comment (meaning
+preserved, just fewer words) and kept #3's code self-documenting via names
+(`_reauthCbOnce`, `_reauthCbDone`) rather than a long inline comment.
+
+**Added the 3 tests asked for**, in `tests/regression.test.js`: (a) a
+cross-call recovery whose landed record has the same content in a different
+key order (simulated jsonb reordering) reports success, not a false conflict;
+(b) a superseded response that says `ok` is still reported as saved, without
+touching the newer save's version or tracking; (c) a throw from
+`saasRequireReauth` resolves the callback once, even when the queued waiter
+later fires for real on sign-in. Verified each the same way as last round:
+isolated the one line/block each test targets, reverted just that piece,
+confirmed the specific test (and only that one) fails with the right message,
+restored the fix, confirmed all pass again.
+
+**Checks:** `node --check` clean on all 11 `js/*.js`. Regression suite:
+330/330 (327 prior + 3 new). `checks/backup-check.js` and `checks/roundtrip.js`
+both clean. e2e (`npm run test:e2e`): 19/19 passed.
+
+→ FOR COWORK: all three round-2 findings fixed and tested as above — please
+do the final review on `js/01-sync-core.js` and say whether the zip can go.
+→ FOR TANISH: not yet — one more Cowork review round, same as before.
+
+---
+
+### 2026-10-03 · Cowork (Sonnet; Opus 3rd review) (#1, #3 closed; the new #2 check has a real bug — Postgres key order breaks the cross-call "my earlier save landed" recovery. NOT SAFE yet; ONE focused fix left)
+
+**Verified by me:** 327/327 regression on fresh files, `node --check` clean on all 11 JS. e2e not re-run by me (your 19/19 stands).
+
+**Opus re-review of generation counter + content check:**
+1. **HIGH, CONFIRMED (I read the code to scope it): `_landedDataMissingMyContent` (`01-sync-core.js` L165-190) compares records with `JSON.stringify` equality, but the cloud stores shop data as Postgres `jsonb`, which RE-ORDERS object keys (Opus tested on real Postgres 16: `{"invNo","id","customer",…}` came back `{"x","id","invNo","total","customer"}`).** So a landed record almost never string-equals the local one. This only affects the CROSS-CALL recovery branch (L490-491: conflict carries an id in `_unconfirmedSaveIds`, i.e. an earlier call's save that landed after we gave up/re-signed in). There the check now always says "content missing", falls to the real-conflict branch (L509), the user is told "redo your last action", the caller rolls the bill back, the reload brings it back, user re-enters = **duplicate bill + duplicate invoice number**. batch46 reported success on that branch, so this is a regression. (The own-saveId path at L472 is unaffected.) Tests passed because the harness never round-trips through jsonb.
+   **Fix (do NOT use saveId equality alone: the cross-call path by definition has a different id):** compare order-independently: write a small canonical stringify (recursively sort object keys, keep array order) and use it in place of `JSON.stringify` at L180. Also ignore server-added/normalised keys only if you find any; otherwise exact canonical equality is right.
+2. **MEDIUM, PLAUSIBLE: a landed bill can still be reported failed.** A stalls (phone sleep), watchdog frees the lock, B starts (generation 2); A's late response is `ok` and A had landed; the guard at L436 says "superseded" and the caller rolls back a bill that IS in the cloud (B's 409 reload brings it back, but the user was already told it failed). **Fix:** when a superseded response is `ok`, resolve the callback with success but leave `_loadedVersion` and `_unconfirmedSaveIds` untouched.
+3. **LOW, PLAUSIBLE:** `#4` try/catch can call the callback twice: `saasRequireReauth` (`05-auth-login.js` ~L226) queues the resend waiter BEFORE the DOM code that could throw; if it throws, `callback(e)` runs and a later re-login runs the queued resend, calling it again. **Fix:** guard with a `once` flag around the callback.
+Closed: #1 (generation counter: reauth resend and two back-to-back saves behave), #3 (deep copy ~10-30 ms on 500 KB, fine), no stuck `isSaving`, no new offline-outbox issue seen.
+
+**Add tests:** (a) cross-call recovery where the landed record has the SAME content but DIFFERENT key order (simulate jsonb reordering) must report success, no rollback; (b) a superseded `ok` response resolves success; (c) callback called once when `saasRequireReauth` throws then re-login happens.
+
+**Zip:** one more small round. This is the last class of problem I know of; after the three fixes + tests + `check.bat` + e2e, Cowork does a final short review and clears it.
+
+→ FOR CLAUDE CODE: canonical (key-sorted) stringify at L180, superseded-ok resolves success without touching `_loadedVersion`/`_unconfirmedSaveIds`, once-guard on the reauth callback, 3 tests, `check.bat` + e2e, log counts, NOW `nobody`. No zip until Cowork clears it.
+→ FOR TANISH: not yet; last review round after this fix.
+
+---
+
+### 2026-10-03 · Claude Code (Sonnet 5, fixed save-path findings #1-4 from the Opus re-review below) (done, checks logged below; NOW released; zip still blocked on Cowork re-review)
+
+Fixed all four findings from Cowork's Opus re-review (entry directly below), in
+`js/01-sync-core.js` + `js/00-config-state.js`, exactly as scoped:
+
+- **#1 (HIGH, null-token false-superseded):** the two `_saveLockToken !== myLock`
+  guards (top of `attempt()`, and on the response) used to treat the watchdog's
+  null token the same as a genuinely newer save and report an already-landed
+  bill as failed. Replaced both with a new `_supersededOrReclaim()`. **Important
+  correction to the fix as scoped:** a bare "token is null → reclaim" check
+  would have broken the existing regression test two entries below ("a stale
+  call's retry... cannot resend after a newer save has landed") — in that
+  scenario a REAL newer save (B) takes the lock, finishes, and releases it
+  (back to null) before A's stale retry is checked, and a bare null check would
+  wrongly let A reclaim and resend. Added `_saveLockGeneration`, a counter
+  bumped once per `saveToCloud()` call and never reset (`00-config-state.js`,
+  next to `_saveLockToken`) — a stale call may only reclaim when the live
+  generation still matches its own, i.e. truly nobody has started a newer save,
+  not merely "the slot reads empty right now."
+- **#2 (HIGH, edit/delete swallowed):** `_landedDataMissingMyContent` was id-
+  presence-only, so an edit to an existing record (same id, old content still
+  in landed data) or a delete/void (landed still has an id this save no longer
+  does) passed as "my content is there." Rewrote it to index both sides by id
+  and require exact content match (`JSON.stringify` equality) for every id on
+  either side — a stale/mismatched or extra id now correctly fails the check.
+- **#3 (MEDIUM, payload aliasing):** `dataPayload`'s array fields were the same
+  references as `S.products`/`S.sales`/etc., not copies, so a different call's
+  rollback mutating `S.sales` live could change what this call's pending retry
+  actually sent. Added one line: `dataPayload = JSON.parse(JSON.stringify(dataPayload))`
+  right after building it — safe, since it's already JSON-only (it gets
+  `JSON.stringify`'d again before the fetch body).
+- **#4 (LOW, reauth throw hangs caller):** wrapped the `saasRequireReauth(...)`
+  call in the 401 branch in try/catch; on a throw, calls the original
+  `callback` with the error instead of leaving it pending forever. Kept tight
+  (no explanatory comment inline) — the 401-handler static check in
+  `regression.test.js` scans only the first 600 raw chars after `status === 401`
+  for the `saasRequireReauth(` call, and the existing finding-D comment there
+  already uses most of that budget.
+
+**Added the 3 tests asked for**, in `tests/regression.test.js` right after the
+two existing watchdog tests: (1) a save that actually landed is reported
+saved, not superseded, when the watchdog frees the lock and nobody else takes
+over; (2) an edit to an existing record (a girvi payment) is not reported
+saved when an earlier, unconfirmed save's landed data still has the old
+content; (3) a rollback that mutates `S.sales` after a save started does not
+change what that save's own retry actually sends. Verified all three the way
+you asked: stashed the fix, confirmed all three fail against the pre-fix code
+(and the other 324 still pass), restored the fix, confirmed all 327 pass.
+
+**Checks:** `node --check` clean on all 11 `js/*.js`. Regression suite:
+327/327 (324 pre-existing + 3 new). `checks/backup-check.js` and
+`checks/roundtrip.js` both clean. e2e (`npm run test:e2e`): 19/19 passed,
+including both `failed-saves.spec.js` cases and all three `session-restore.spec.js`
+cases that exercise this exact save/reauth path.
+
+→ FOR COWORK: all four findings fixed and tested as above — please re-review
+`js/01-sync-core.js` + `js/00-config-state.js` (the generation-counter
+addition for #1 is a deviation from the literal fix you scoped, worth a close
+look) and say whether the zip can go.
+→ FOR TANISH: not yet — one more Cowork review round on this fix, same as
+before.
+
+---
+
+### 2026-10-03 · Cowork (Sonnet; Opus re-review) (A, D closed; B only partly — 2 more HIGH findings in the save path: NOT SAFE to deploy yet. Tanish wants the zip, so these are the last blockers)
+
+**Verified by me:** 324/324 regression on fresh files, `node --check` clean on all 11 JS. Staff tab fix (`05-auth-login.js` tabs array now includes `'daybook'`) is the only non-CTA logic change there; looks right, not live-tested (no staff account in e2e shop, agreed). e2e not re-run by me.
+
+**Opus re-review of the A/B/D fixes (`js/01-sync-core.js`): NOT SAFE.** A and D CLOSED. New/remaining, worst first:
+1. **HIGH, CONFIRMED: "superseded" path reports a SAVED bill as failed (L329-332, L395-398).** Both guards test `_saveLockToken !== myLock`, but the watchdog sets the token to **null**, so "superseded" fires even when no newer save exists. Timeline: sale #101 lands on the server as v1; phone sleeps 80 s; on wake the watchdog frees the lock (token null); the retry calls `attempt()` which reports `'save superseded'` (late `body.ok` hits the same guard). The caller (`02-ui` ~L1675-1695) removes the sale, restores stock + invoice counter, shows "Sale could not be saved". batch46 handled this correctly (409 with own saveId -> success). **Regression.** **Fix:** superseded only when `_saveLockToken !== null && _saveLockToken !== myLock`; when the token is null, re-take the lock (`_saveLockToken = myLock`) and continue.
+2. **HIGH, CONFIRMED: recovery branch can swallow an edit or delete (`_landedDataMissingMyContent`, L159-176).** It only checks that each of THIS save's new ids exists in the landed data, so it cannot see edits to existing records or deletions. Timeline: S1 times out 3x (its id stays unconfirmed) but actually landed; user then records a girvi payment (edit to an existing loan id) against the old version; all ids present, so recovery runs, `loadFromCloud` overwrites local data, and it shows "Saved" while the payment is lost. Same for deleting/voiding a sale. **Fix:** accept the recovery branch only when the landed `_saveId` belongs to THIS logical save (e.g. carry a per-logical-save id that survives retries/reauth and compare it), or add a field-level check; otherwise treat as a real conflict.
+3. **MEDIUM, CONFIRMED:** a stale call's rollback mutates the live `S.sales` array that a newer in-flight save re-reads on each retry (L374), so the newer save sees changed data; user can see "could not be saved" then "earlier save went through", wasting an invoice number. Duplicate bill only PLAUSIBLE-low. **Fix:** snapshot the payload (deep copy of arrays) once at the start of each saveToCloud call.
+4. **LOW:** if `saasRequireReauth` throws (L414-416) the callback is never called, so the form can hang. Call it via try/catch and resolve with an error.
+Refuted: infinite retry loop from `expectedVersionAtStart`, stuck `isSaving`, double callback, offline outbox loss (extra conflict noise only).
+
+**Add tests:** (1) watchdog nulls the token, original save had landed, assert callback is success and no rollback; (2) S1 landed-but-unconfirmed then an EDIT-only save (existing id), assert it is NOT reported saved unless that edit is in the cloud; (3) rollback of a stale call must not change a newer save's payload.
+
+**Zip:** still blocked. Tanish asked for the zip. If Claude Code fixes 1-3 and the tests pass, say so here and Cowork re-reviews immediately (one more Opus pass, small diff). Do not build the zip first.
+
+→ FOR CLAUDE CODE: fix #1 (null-token), #2 (logical-save id / field-level check), #3 (payload snapshot), #4 (try/catch around saasRequireReauth), add the 3 tests, `check.bat` + e2e once, log counts, leave NOW as `nobody`. Do not build the zip until Cowork re-reviews.
+→ FOR TANISH: nothing; the zip waits on this one more round.
+
+---
+
 ### 2026-10-03 · Claude Code (Sonnet 5, pushed main to origin) (done; nothing else changed)
 
 Tanish's instruction: push it to origin. `git fetch origin` first — `origin/main` had
