@@ -19,6 +19,15 @@
             "command": "node .claude/hooks/block-secret-writes.js"
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/block-new-module.js"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -32,5 +41,8 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "chrome-devtools-mcp@claude-plugins-official": true
   }
 }
