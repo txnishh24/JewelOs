@@ -80,6 +80,27 @@ or re-add tier UI.
 
 ## LOG (newest first)
 
+### 2026-10-04 · Claude Code (Sonnet) — H4 FIXED: a central audit trail now covers bill edit, new sale, bill delete, product delete, orders, and rate changes
+
+🟢/🟡 instrumentation (pure logging, no money-calculation or ledger logic touched — no Opus needed).
+
+**What QA found, confirmed by reading the code:** `auditLog()` (`01-sync-core.js`) already existed and was already wired into refund/Girvi/Day Book actions, but these 7 real money-adjacent actions had zero audit entries anywhere: `recordSale` (new sale), `saveEditBill` (bill edit), `deleteSale` (bill delete), `delProd` (product delete), `saveOrder` (new order), `cancelOrder` (order cancel), `saveRates` (rate change). Confirmed by grepping each function's full body for any `auditLog`/`saasActivityLog` call — none found in any of the 7, consistent with QA's "likely" (they read live state, didn't check every source function; this reading confirms it directly). Also confirmed there are genuinely **two separate, parallel logs** in this codebase — `S.auditLog` (structured action/entity/entityId/note, rendered by `renderAuditLog()`) and `S.activityLog` (simpler type/note, rendered by the grouped-by-user `renderActivityLogGrouped()`) — QA's "2 entries (sign-in, Day Book opening)" straddles both screens; not a bug, just two different views that already existed.
+
+**The fix:** one `auditLog(...)` call added at the point of each action's in-memory mutation (before the `saveToCloud`/`_orderCommit` call, matching the exact placement convention already used for refund/Girvi), in each of the 7 functions. For the 4 that already had an established rollback-on-failed-save mechanism (`recordSale`, `delProd`, `saveOrder`/`cancelOrder` via `_orderCommit`), added the same snapshot-before/restore-on-failure pattern Girvi's archive already uses (`_auditSnap=(S.auditLog||[]).slice()` before the call, `S.auditLog=_auditSnap` in the real failure branch) — verified this isn't just copy-pasted but actually wired into each function's real failure path. For the 3 that have **no** existing rollback-on-async-failure at all (`saveEditBill`, `saveRates`, `deleteSale` — all three silently no-op past a `saveToCloud` error already, pre-existing, not something this batch touches), deliberately did **not** add audit-only rollback — that would invent a new asymmetry (log entry rolls back, nothing else does) rather than matching anything that exists. Flagged, not fixed: those 3 functions' total lack of failure handling is a separate, larger issue than "add logging."
+
+**11 regression tests** (`tests/regression.test.js`, search "QA 3 Oct H4"): one "is logged" test per action (all 7 confirmed to fail against the unmodified code — no entry appears at all), plus a "failed save leaves no audit line" test for each of the 4 with rollback.
+
+**Verification:** `node --check` all 11 modules clean; regression 362/362 (was 351, +11 new); `edge-functions.test.js` 26/26; all `checks/` scripts clean, same baseline (globals count unchanged at 759 — correctly, since this diff adds zero new top-level functions, only calls to an existing one). `jewelos-bug-pattern-reviewer` ran clean against the five bug families, and specifically confirmed the XSS angle: the new `note` strings now carry customer/product names that didn't flow into the audit log before, but `renderAuditLog()` already runs every field through `escHtml()` (cell text and the `title` attribute) — no new stored-XSS sink. `jewelos-test-runner` independently reproduced all counts.
+
+**One pre-existing wrinkle, flagged by the bug-pattern reviewer, not introduced by this batch:** `_commitSaleTransaction`'s outer `try/catch` only resets state if `_commitSaleTransactionNow` throws *synchronously* — it doesn't restore `S.auditLog` on that path, same gap the stock snapshot and order-link restore already have there. The async `saveToCloud`-failure path (the realistic failure mode, and what's actually tested) is fully covered. Consistency with an existing imperfection, not a new one.
+
+**Not verified, said plainly:** whether these new audit entries actually render correctly on the Audit Log screen on a real device — logic-only coverage, no `verify-ui`/Playwright pass this batch (Audit Log isn't in the e2e-covered areas, and this change touches no DOM/rendering code).
+
+→ FOR COWORK: H4 is fixed, tested, and pushed. This was the last item explicitly named in the 3 Oct QA pass across all four severities Cowork's hand-back tracked (C1, C2, H1, H2, H4) — what's left from that QA run is lower-priority (M-series, L-series) and wasn't explicitly assigned. The two parallel-log-systems observation above (`S.auditLog` vs `S.activityLog`) might be worth a consolidation someday, but that's a design question for Tanish, not something I decided to touch.
+→ FOR TANISH: Bill edits, new sales, bill deletes, product deletes, new/cancelled orders, and rate changes now all show up in the Audit Log screen (Settings). Nothing needs your decision on this one.
+
+---
+
 ### 2026-10-04 · Claude Code (Sonnet, Opus-designed and -reviewed) — H2 FIXED: Reports now reflect refunds in Revenue, Profit, GST and Net Cash
 
 🔴 financial-reporting risk per MODEL-POLICY — the GST figure this touches is what a jeweller would actually use for a GSTR-1 filing, so Opus designed the fix and reviewed the implemented diff before it shipped (two rounds: design, then a redirect on the diff with 3 required fixes), same discipline as C1/C2.

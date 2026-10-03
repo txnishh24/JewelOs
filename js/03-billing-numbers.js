@@ -742,6 +742,7 @@ function deleteSale(saleId){
     S.sales=S.sales.filter(function(x){return x.id!==saleId;});
     // Its invoice number stays used: never re-issued or re-typed (GST).
     if(sale.invNo){ if(!Array.isArray(S.voidedInvNos)) S.voidedInvNos=[]; S.voidedInvNos.push(sale.invNo); }
+    auditLog('delete','sale',saleId,'Bill '+sale.invNo+' deleted — ₹'+Math.round(t.grand).toLocaleString('en-IN')); // H4: bill delete had no central audit trail
     saveToCloud(function(err){
       if(!err){
         toast('Bill deleted & stock restored');
@@ -1550,11 +1551,15 @@ function saveOrder(_pastDateOk){
     statusHistory:[{status:'new',date:now,note:'Order created'}]
   };
   S.orders.push(ord);
+  // H4: orders had no central audit trail. Same rule as Girvi's archive
+  // (Cowork review 30 Sep) -- a failed save must not leave its log line.
+  var _auditSnap=(S.auditLog||[]).slice();
+  auditLog('create','order',ord.id,ord.ordNo+' for '+ord.customer);
   // F4: was a bare save -- a failure left the order on screen until the next
   // refresh silently removed it. Now it is removed at once (and the order
   // number given back), the form stays filled in, and the jeweller retries.
   _orderCommit('__new', {snapshot:null, newIds:[ord.id], failMsg:SAVE_RETRY_MSG,
-    restore:function(){ S.nextOrdId=_prevNextOrdId; }}, function(err){
+    restore:function(){ S.nextOrdId=_prevNextOrdId; S.auditLog=_auditSnap; }}, function(err){
     renderOrders();
     if(err) return;
     ordItems=[{desc:'',cat:'Rings',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''}];

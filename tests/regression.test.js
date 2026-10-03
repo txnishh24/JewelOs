@@ -4658,6 +4658,131 @@ test('a failed archive leaves no "Archived" line in the audit log', function(){
   assert(a.S.auditLog.length === 1 && a.S.auditLog[0].note === 'older entry', 'audit log should be back to its one older entry, got ' + JSON.stringify(a.S.auditLog));
 });
 
+// ── H4 (3 Oct QA): a central audit trail for the actions that had none ──
+console.log('\nH4 — central audit trail for bill edit, sale, product delete, order, rates:');
+
+test('QA 3 Oct H4: a new sale is logged in the central audit trail', function(){
+  var a = _freshSaleHarness();
+  a.saveToCloud = function(cb){ cb(null); };
+  a._commitSaleTransaction(_sale('1'));
+  var entry = a.S.auditLog && a.S.auditLog[0];
+  assert(entry && entry.action==='create' && entry.entity==='sale', 'expected a create/sale audit entry, got ' + JSON.stringify(entry));
+});
+
+test('QA 3 Oct H4: a failed sale save leaves no audit log line behind', function(){
+  var a = _freshSaleHarness();
+  a.S.auditLog = [{ note:'older entry' }];
+  a.saveToCloud = function(cb){ cb(new Error('network down')); };
+  a._commitSaleTransaction(_sale('1'));
+  assert(a.S.auditLog.length === 1 && a.S.auditLog[0].note === 'older entry', 'audit log should be back to its one older entry, got ' + JSON.stringify(a.S.auditLog));
+});
+
+test('QA 3 Oct H4: deleting a product is logged in the central audit trail', function(){
+  var a = loadApp();
+  a.isManager = function(){ return true; };
+  a.safeConfirm = function(t,m,ok){ ok(); };
+  a.renderInv = function(){};
+  a.S.products = [{ id:'p1', name:'Ring', sku:'GLD-1', qty:1, status:'available' }];
+  a.saveToCloud = function(cb){ cb(null); };
+  a.delProd('p1');
+  var entry = a.S.auditLog && a.S.auditLog[0];
+  assert(entry && entry.action==='delete' && entry.entity==='product', 'expected a delete/product audit entry, got ' + JSON.stringify(entry));
+});
+
+test('QA 3 Oct H4: a failed product delete leaves no audit log line behind', function(){
+  var a = loadApp();
+  a.isManager = function(){ return true; };
+  a.safeConfirm = function(t,m,ok){ ok(); };
+  a.renderInv = function(){};
+  a.S.products = [{ id:'p1', name:'Ring', sku:'GLD-1', qty:1, status:'available' }];
+  a.S.auditLog = [{ note:'older entry' }];
+  a.saveToCloud = function(cb){ cb(new Error('network down')); };
+  a.delProd('p1');
+  assert(a.S.auditLog.length === 1 && a.S.auditLog[0].note === 'older entry', 'audit log should be back to its one older entry, got ' + JSON.stringify(a.S.auditLog));
+});
+
+test('QA 3 Oct H4: saving a new order is logged in the central audit trail', function(){
+  var t = _orderFormApp({ 'oi-desc-0':'Ring', 'of-cust':'Asha', 'of-delivery':'2099-01-01' });
+  t.a.saveOrder();
+  assert(t.saves() === 1, 'sanity: the order should have saved');
+  var entry = t.a.S.auditLog && t.a.S.auditLog[0];
+  assert(entry && entry.action==='create' && entry.entity==='order', 'expected a create/order audit entry, got ' + JSON.stringify(entry));
+});
+
+test('QA 3 Oct H4: a failed new-order save leaves no audit log line behind', function(){
+  var t = _orderFormApp({ 'oi-desc-0':'Ring', 'of-cust':'Asha', 'of-delivery':'2099-01-01' });
+  t.a.S.auditLog = [{ note:'older entry' }];
+  t.a.saveToCloud = function(cb){ cb(new Error('network down')); };
+  t.a.saveOrder();
+  assert(t.a.S.auditLog.length === 1 && t.a.S.auditLog[0].note === 'older entry', 'audit log should be back to its one older entry, got ' + JSON.stringify(t.a.S.auditLog));
+});
+
+test('QA 3 Oct H4: cancelling an order is logged in the central audit trail', function(){
+  var a = loadApp();
+  a.S.orders = [{ id:'o1', ordNo:'ORD-001', status:'new', statusHistory:[], customer:'Asha' }];
+  a.safeConfirm = function(t,m,ok){ ok(); };
+  a.closeOrdModal = function(){}; a.renderOrders = function(){};
+  a.saveToCloud = function(cb){ cb(null); };
+  a.cancelOrder('o1');
+  var entry = a.S.auditLog && a.S.auditLog[0];
+  assert(entry && entry.action==='delete' && entry.entity==='order', 'expected a delete/order audit entry, got ' + JSON.stringify(entry));
+});
+
+test('QA 3 Oct H4: a failed order cancel leaves no audit log line behind', function(){
+  var a = loadApp();
+  a.S.orders = [{ id:'o1', ordNo:'ORD-001', status:'new', statusHistory:[], customer:'Asha' }];
+  a.S.auditLog = [{ note:'older entry' }];
+  a.safeConfirm = function(t,m,ok){ ok(); };
+  a.closeOrdModal = function(){}; a.renderOrders = function(){};
+  a.saveToCloud = function(cb){ cb(new Error('network down')); };
+  a.cancelOrder('o1');
+  assert(a.S.auditLog.length === 1 && a.S.auditLog[0].note === 'older entry', 'audit log should be back to its one older entry, got ' + JSON.stringify(a.S.auditLog));
+});
+
+test('QA 3 Oct H4: editing a bill is logged in the central audit trail', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
+    payStatus:'full', gst:0, discount:0, making:0, diamond:0,
+    items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
+    nowPaying:{amount:10000, mode:'Cash'}, splitPayments:[{amount:10000, mode:'Cash'}] }];
+  a._editBillId = 's1';
+  var vals = { 'ebsp-amt-0':'10000', 'ebsp-mode-0':'Cash', 'eb-disc':'0', 'eb-gst':'0', 'eb-advance':'0', 'eb-oldgold':'0' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(/^ebsp-amt-/.test(id) && !vals[id]) return null;
+    if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+    return _o(id);
+  };
+  a.saveToCloud = function(cb){ cb(null); };
+  a.saveEditBill();
+  var entry = a.S.auditLog && a.S.auditLog[0];
+  assert(entry && entry.action==='update' && entry.entity==='sale', 'expected an update/sale audit entry, got ' + JSON.stringify(entry));
+});
+
+test('QA 3 Oct H4: changing rates is logged in the central audit trail', function(){
+  var a = loadApp();
+  a.S.rates = { g24:7000, g22:6400, g18:5200, g14:4100, sil:80 };
+  var els = { 'rate-g24':'7100', 'rate-g22':'6500', 'rate-g18':'5300', 'rate-g14':'4200', 'rate-sil':'85' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){ if(id in els) return { value: els[id] }; return _o(id); };
+  a.saveToCloud = function(cb){ cb(null); };
+  a.saveRates();
+  var entry = a.S.auditLog && a.S.auditLog[0];
+  assert(entry && entry.action==='update' && entry.entity==='rates', 'expected an update/rates audit entry, got ' + JSON.stringify(entry));
+});
+
+test('QA 3 Oct H4: deleting a bill is logged in the central audit trail', function(){
+  var a = loadApp();
+  a.isManager = function(){ return true; };
+  a.safeConfirm = function(t,m,ok){ ok(); };
+  a.saveToCloud = function(cb){ cb(null); };
+  a.showCustHistory = function(){}; a.closeCustModal = function(){}; a.renderCustomers = function(){};
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', items:[], lockedGrand:5000, advance:5000 }];
+  a.deleteSale('s1');
+  var entry = a.S.auditLog && a.S.auditLog[0];
+  assert(entry && entry.action==='delete' && entry.entity==='sale', 'expected a delete/sale audit entry, got ' + JSON.stringify(entry));
+});
+
 test('a successful Girvi close still closes the loan', function(){
   var a = _girviHarness();
   a.saveToCloud = function(cb){ cb(null); };

@@ -206,6 +206,7 @@ function saveRates(){
   if(problem){ toast('⚠ '+problem); return; }
   S.rates.g24=r.g24; S.rates.g22=r.g22; S.rates.g18=r.g18; S.rates.g14=r.g14; S.rates.sil=r.sil;
   S.rates.setAt=new Date().toISOString();
+  auditLog('update','rates','','24K '+r.g24+' / 22K '+r.g22+' / 18K '+r.g18+' / 14K '+r.g14+' / Silver '+r.sil); // H4: rate changes had no central audit trail
   saveToCloud(function(err){
     if(!err){toast('Rates saved & synced to all devices!');renderInv();}
   });
@@ -580,6 +581,10 @@ function delProd(id){
     S.stockMovements=S.stockMovements||[];
     var moveId=(typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID():Date.now().toString(36);
     S.stockMovements.push({id:moveId,productId:id,type:'delete',prevStatus:_snap.status,newStatus:null,qtyChange:-(_snap.qty||0),relatedId:null,relatedRef:'',reason:'Deleted from inventory',user:(typeof SAAS!=='undefined'&&SAAS.user)?(SAAS.user.name||SAAS.user.email||'User'):'User',ts:new Date().toISOString()});
+    // H4: product delete had no central audit trail. Same rule as Girvi's
+    // archive (Cowork review 30 Sep) -- a failed save must not leave its log line.
+    var _auditSnap=(S.auditLog||[]).slice();
+    auditLog('delete','product',id,'Deleted '+(_snap.name||_snap.sku||id));
     saveToCloud(function(err){
       if(!err){renderInv();toast('Deleted & synced');}
       else{
@@ -588,6 +593,7 @@ function delProd(id){
         // still having it, permanently, until a manual full reload.
         S.products.push(_snap);
         S.stockMovements=S.stockMovements.filter(function(m){return m.id!==moveId;});
+        S.auditLog=_auditSnap;
         saveCache();
         if(err.message!=='version-conflict') toast('\u26a0 Could not delete — change rolled back.');
         renderInv();
@@ -1610,6 +1616,10 @@ function _commitSaleTransactionNow(sale, ctx){
   // BEFORE the (single) cloud save — this is what makes the eventual
   // saveToCloud() one atomic write instead of two.
   S.sales.push(sale);
+  // H4: no central audit trail for new sales. Same rule as Girvi's archive
+  // (Cowork review 30 Sep) -- a failed save must not leave its log line.
+  var _auditSnap = (S.auditLog||[]).slice();
+  auditLog('create','sale',sale.id,'Sale '+sale.invNo+' recorded'+(sale.lockedGrand?' — ₹'+Math.round(sale.lockedGrand).toLocaleString('en-IN'):''));
   S.nextSaleId++;
   // Forward-sync, not a blind increment: sale.invNo may already be a
   // higher, atomically-fetched number (_commitSaleTransaction() -> allocInvNo())
@@ -1639,6 +1649,7 @@ function _commitSaleTransactionNow(sale, ctx){
     if(!_lsPut(saleOutboxKey(), box)){
       // Phone storage full: nothing durable holds this sale, so undo it.
       S.sales = S.sales.filter(function(x){ return x.id !== sale.id; });
+      S.auditLog = _auditSnap;
       toast('\u26a0 Phone storage is full. Sale not recorded.');
       return;
     }
@@ -1689,6 +1700,7 @@ function _commitSaleTransactionNow(sale, ctx){
       // them too, so the ledger doesn't show a "sale" movement with no
       // corresponding sale.
       S.stockMovements = (S.stockMovements||[]).filter(function(m){ return m.relatedId!==sale.id || m.type!=='sale'; });
+      S.auditLog = _auditSnap;
       saveCache();
       // A version conflict already triggers its own toast + reload inside
       // saveToCloud(); a plain network/save failure needs its own message.

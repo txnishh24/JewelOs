@@ -286,9 +286,13 @@ function cancelOrder(ordId){
     o.status='cancelled';
     if(!o.statusHistory)o.statusHistory=[];
     o.statusHistory.push({status:'cancelled',date:new Date().toISOString(),note:'Cancelled by user'});
+    // H4: order cancel had no central audit trail. Same rule as Girvi's
+    // archive (Cowork review 30 Sep) -- a failed save must not leave its log line.
+    var _auditSnap=(S.auditLog||[]).slice();
+    auditLog('delete','order',o.id,o.ordNo+' cancelled');
     // Foundation audit B3: was a bare-callback saveToCloud() — a failed
     // save could show "cancelled" here while the cloud still had it live.
-    _orderCommit(ordId, {snapshot:_snap}, function(err){
+    _orderCommit(ordId, {snapshot:_snap, restore:function(){ S.auditLog=_auditSnap; }}, function(err){
       if(!err){closeOrdModal();renderOrders();toast('Order cancelled');}
     });
   },true);

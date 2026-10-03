@@ -1234,6 +1234,7 @@ function saveEditBill(){
     return;
   }
   sale.payStatus = t.bal<=0 ? 'full' : (t.adv>0 ? 'advance' : 'pending');
+  auditLog('update','sale',sale.id,'Bill '+(sale.invNo||sale.id)+' edited (v'+sale.editHistory.length+')'); // H4: bill edits were the one money action with no central audit trail
   saveToCloud(function(err){
     if(!err){
       closeEditBillModal();
