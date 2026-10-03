@@ -146,35 +146,6 @@ function loadFromCloud(callback){
 // Save ids sent but never confirmed by a success (see the conflict check in
 // saveToCloud). Cleared by any confirmed save; at most 20 kept.
 var _unconfirmedSaveIds = [];
-
-// Opus review, 3 Oct (finding B): a conflict response's _saveId being "one
-// this device has seen" (in _unconfirmedSaveIds) is not proof the landed
-// data is safe to treat as THIS save's own success -- a stale call that
-// raced ahead (see the lock-token guards in saveToCloud below) can leave ITS
-// saveId in the array while a genuinely different, newer save (with new
-// records the stale call never had) is the one asking. Only the generic
-// id-bearing arrays this app actually saves are checked; anything missing
-// from the landed data means this save's content did not make it, so it
-// must not be reported as a success.
-function _landedDataMissingMyContent(mine, landed){
-  var arrays = ['products','sales','orders','girvi','customers','purchases'];
-  for(var i=0; i<arrays.length; i++){
-    var k = arrays[i];
-    var mineArr = (mine && mine[k]) || [];
-    var landedArr = (landed && landed[k]) || [];
-    for(var j=0; j<mineArr.length; j++){
-      var id = mineArr[j] && mineArr[j].id;
-      if(id === undefined) continue;
-      var found = false;
-      for(var m=0; m<landedArr.length; m++){
-        if(landedArr[m] && landedArr[m].id === id){ found = true; break; }
-      }
-      if(!found) return true;
-    }
-  }
-  return false;
-}
-
 function saveToCloud(callback){
   if(isSaving){ setTimeout(function(){ saveToCloud(callback); }, 400); return; }
   if(saasReauthPending()){
@@ -184,27 +155,6 @@ function saveToCloud(callback){
   }
   isSaving = true;
   _isSavingSetAt = Date.now();
-  // Opus review, 2 Oct: the watchdog (00-config-state.js) can still force-
-  // free isSaving while THIS call's attempt is genuinely still in flight
-  // (a stuck/abandoned chain is exactly what it exists to recover from).
-  // When that happens a second saveToCloud() can start -- myLock/
-  // _saveLockToken make sure this (now-stale) call's eventual late answer
-  // can never clear the NEWER save's lock or wipe its _unconfirmedSaveIds
-  // bookkeeping out from under it. Every release below goes through
-  // _releaseLock(), which only acts if this call is still the current owner.
-  var myLock = {};
-  _saveLockToken = myLock;
-  // F4-style: once this call has told its callback a final answer (saved or
-  // failed), nothing may resurrect it. Without this, a callback that itself
-  // throws (e.g. a caller's own bug) propagates into the .catch below,
-  // which reads it as a network error and resends the save with the lock
-  // already released -- a second, uncontrolled attempt with no lock held,
-  // and a second callback call if that resend also finishes (Opus review,
-  // 2 Oct).
-  var _concluded = false;
-  function _releaseLock(){
-    if(_saveLockToken === myLock){ isSaving = false; _isSavingSetAt = 0; _saveLockToken = null; }
-  }
 
   // ── BLOB SIZE WARNING ──────────────────────────────────────────────
   // Warn when shop data approaches Supabase's practical row size limit (~3MB)
@@ -227,13 +177,13 @@ function saveToCloud(callback){
   saveCache(); // local-first: always persist to localStorage before cloud attempt
   setSyncStatus('syncing','Saving...');
   if(!SB_FUNCTIONS || !SB_KEY){
-    _releaseLock();
+    isSaving = false;
     console.warn('[JewelOS] saveToCloud: SB_FUNCTIONS not ready, saving locally only');
     if(callback) callback(null); // local save already done
     return;
   }
   if(!Array.isArray(S.products)||!Array.isArray(S.sales)||!Array.isArray(S.girvi)){
-    _releaseLock();
+    isSaving = false;
     if(callback) callback(new Error('Invalid state'));
     return;
   }
@@ -247,14 +197,6 @@ function saveToCloud(callback){
   var saveId = Date.now().toString(36) + Math.random().toString(36).slice(2);
   _unconfirmedSaveIds.push(saveId);
   if(_unconfirmedSaveIds.length > 20) _unconfirmedSaveIds.shift();
-  // Opus review, 3 Oct (finding A): captured ONCE, when this call starts --
-  // not re-read from the live _loadedVersion on every retry. A stale call
-  // (its lock freed early by the watchdog, see myLock above) whose attempt()
-  // still fires after a NEWER save has already landed and moved
-  // _loadedVersion forward would otherwise send that NEWER version as its own
-  // expectedVersion, pass the server's compare-and-swap check with its own
-  // OLD data, and overwrite the newer save server-side.
-  var expectedVersionAtStart = _loadedVersion || 0;
   var dataPayload = {
     _saveId:     saveId,
     products:    S.products,
@@ -295,25 +237,17 @@ function saveToCloud(callback){
   var SAVE_TIMEOUT_MS = 60000;
 
   function _done_ok(row){
-    _concluded = true;
-    // Capture ownership BEFORE releasing -- _releaseLock() clears
-    // _saveLockToken when we are the owner, which would make this check
-    // always false afterward. A stale/superseded call's late success must
-    // not erase a NEWER save's _unconfirmedSaveIds, and must not stamp its
-    // OWN (older) server version over the version the newer save already
-    // confirmed -- that would make the next real save hit a needless
-    // conflict against data that's actually current (Opus review, 2 Oct).
-    var wasCurrent = (_saveLockToken === myLock);
-    if(wasCurrent) _unconfirmedSaveIds = [];
-    _releaseLock();
-    if(wasCurrent && row && row.data && typeof row.data._v === 'number') _loadedVersion = row.data._v;
+    _unconfirmedSaveIds = []; // the cloud now holds a save we know about
+    isSaving = false;
+    _isSavingSetAt = 0;
+    if(row && row.data && typeof row.data._v === 'number') _loadedVersion = row.data._v;
     setSyncStatus('ok', 'Saved ✓');
     dismissSaveError(); // clear any persistent error banner
     if(callback) callback(null);
   }
   function _done_err(err){
-    _concluded = true;
-    _releaseLock();
+    isSaving = false;
+    _isSavingSetAt = 0;
     setSyncStatus('err', 'Save failed');
     showSaveError(); // persistent banner — doesn't auto-dismiss
     console.error('[JewelOS] saveToCloud final error:', err);
@@ -321,25 +255,6 @@ function saveToCloud(callback){
   }
 
   function attempt(){
-    // Opus review, 3 Oct (finding A): if the watchdog already freed this
-    // call's lock (phone-sleep / stuck-save recovery) and a NEWER
-    // saveToCloud() has since taken it, this call must not fire another
-    // network attempt at all. Resolve once, as an honest error, and stop --
-    // the newer save owns the slot now, and will report its own outcome.
-    if(_saveLockToken !== myLock){
-      if(!_concluded){ _concluded = true; if(callback) callback(new Error('save superseded by a newer save')); }
-      return;
-    }
-    // Re-stamp on every retry, not just the initial call above -- otherwise
-    // the watchdog (00-config-state.js) measures time since saveToCloud was
-    // FIRST called, not since this attempt started, and fires mid-retry on
-    // a save that is still making legitimate progress (bug-pattern review,
-    // 2 Oct: 3 retries at up to 60s each can legitimately run ~4x longer
-    // than one attempt's own timeout). Gated on the lock token: if we've
-    // been superseded, this stamp belongs to a newer save's watchdog clock,
-    // not ours -- touching it unconditionally would mask a genuinely-stuck
-    // newer save behind our own stale retry timing (Opus review, 2 Oct).
-    if(_saveLockToken === myLock) _isSavingSetAt = Date.now();
     // store-proxy does the compare-and-swap server-side now: it only
     // accepts the write if expectedVersion still matches what's stored,
     // and auto-creates the row on a shop's very first save. A 409 with
@@ -354,48 +269,20 @@ function saveToCloud(callback){
     var timer = setTimeout(function(){
       timedOut = true;
       console.error('[JewelOS] save attempt timed out');
-      if(retries < 3){
-        // Re-stamp the instant a retry is SCHEDULED, not just when it
-        // starts -- otherwise the stamp is still the previous attempt's
-        // start time for the whole delay, and the watchdog can trip a few
-        // seconds before the retry was ever going to fire (Opus review,
-        // 2 Oct: observed tripping 5s early on the 15s delay before a 4th
-        // attempt). Gated the same as above -- not ours to touch if
-        // superseded.
-        if(_saveLockToken === myLock) _isSavingSetAt = Date.now();
-        setTimeout(attempt, delays[retries++]);
-      } else { _done_err(new Error('save timed out')); }
+      if(retries < 3){ setTimeout(attempt, delays[retries++]); } else { _done_err(new Error('save timed out')); }
     }, SAVE_TIMEOUT_MS);
     fetch(SB_FUNCTIONS + '/store-proxy', {
       method: 'PUT',
       headers: Object.assign({}, SB_HEADERS, { 'x-session-token': (typeof SAAS!=='undefined' && SAAS.sessionToken) || '' }),
-      body: JSON.stringify({ data: dataPayload, expectedVersion: expectedVersionAtStart })
+      body: JSON.stringify({ data: dataPayload, expectedVersion: _loadedVersion || 0 })
     })
     .then(function(r){
       if(timedOut) return null;
-      // A 401 (or any non-2xx) can come back with a non-JSON body (a proxy
-      // or captive-portal page instead of store-proxy's own response) --
-      // r.json() then rejected before the status was ever looked at, so
-      // this fell into the generic .catch below as a network error, retried
-      // 3x, then 'Save failed' with no reauth prompt even on a real session
-      // expiry (Cowork/Opus review, 2 Oct). Tolerate the bad body and keep
-      // the status either way.
-      return r.json().catch(function(){ return {}; }).then(function(body){ return { status: r.status, body: body }; });
+      return r.json().then(function(body){ return { status: r.status, body: body }; });
     })
     .then(function(res){
       if(!res || timedOut) return; // this attempt already timed out and was retried
       clearTimeout(timer); // only now: the body can stall after the headers
-      // Opus review, 3 Oct (finding B): this request was sent before anyone
-      // knew it was stale -- the guard at the top of attempt() only stops a
-      // SCHEDULED retry, not a fetch already in flight. Whatever the server
-      // just said, a newer save now owns this device's save slot: do not let
-      // this response touch _loadedVersion or _unconfirmedSaveIds, and do not
-      // let its own _saveId (now sitting in _unconfirmedSaveIds) be mistaken
-      // by some OTHER call for its own earlier landed attempt.
-      if(_saveLockToken !== myLock){
-        if(!_concluded){ _concluded = true; if(callback) callback(new Error('save superseded by a newer save')); }
-        return;
-      }
       if(res.body && res.body.ok){
         _done_ok(res.body);
         return;
@@ -405,22 +292,14 @@ function saveToCloud(callback){
       // signs in again, then send it on the new token. See loadFromCloud's
       // 401 above for why this is not the cancellable saasLogout().
       if(res.status === 401){
-        // Opus review, 3 Oct (finding D): mark concluded before releasing the
-        // lock and handing off to saasRequireReauth -- if that call throws
-        // (a bug in a reauth callback, a missing DOM element), the throw
-        // lands in the .catch() below indistinguishable from a network
-        // error; without this it would retry with the lock already
-        // released, an uncontrolled second attempt holding nothing.
-        _concluded = true;
-        _releaseLock();
+        isSaving = false; _isSavingSetAt = 0;
         saasRequireReauth(function(){ saveToCloud(callback); }, res.body && res.body.reason);
         return;
       }
       // A 403 means the account is authenticated but not allowed to
       // write (readonly role) — also not retryable.
       if(res.status === 403){
-        _concluded = true;
-        _releaseLock();
+        isSaving = false; _isSavingSetAt = 0;
         setSyncStatus('err','Not allowed');
         toast('\u26a0 ' + ((res.body && res.body.message) || 'Your account cannot save changes.'));
         if(callback) callback(new Error('forbidden'));
@@ -436,24 +315,10 @@ function saveToCloud(callback){
       // timed out while the first attempt had in fact landed. The cloud
       // holds that landed version: load it, report success (so the form
       // clears instead of inviting a re-entry), and say what happened.
-      //
-      // Opus review, 3 Oct (finding B): recognizing the saveId is not enough
-      // -- a stale call's leftover saveId can sit in _unconfirmedSaveIds
-      // while a genuinely different, newer save (this one, with content the
-      // stale call never had, e.g. a new bill) is the one asking. Only take
-      // this recovery path if the landed data actually contains everything
-      // THIS save intended to persist; otherwise it falls through to the
-      // real-conflict branch below, same as an unrecognized saveId would.
-      if(res.body && res.body.conflict && res.body.data && _unconfirmedSaveIds.indexOf(res.body.data._saveId) !== -1
-         && !_landedDataMissingMyContent(dataPayload, res.body.data)){
+      if(res.body && res.body.conflict && res.body.data && _unconfirmedSaveIds.indexOf(res.body.data._saveId) !== -1){
         console.warn('[JewelOS] save conflict was an earlier save of ours that landed');
-        _concluded = true;
-        // Check ownership BEFORE releasing -- _releaseLock() clears
-        // _saveLockToken when we are the owner, which would make this
-        // check always false afterward (Opus review, 2 Oct: a stale call
-        // must not wipe a newer save's own _unconfirmedSaveIds tracking).
-        if(_saveLockToken === myLock) _unconfirmedSaveIds = [];
-        _releaseLock();
+        isSaving = false; _isSavingSetAt = 0;
+        _unconfirmedSaveIds = [];
         loadFromCloud(function(){
           normaliseData(); saveCache(); try{ renderDash(); }catch(e){}
           setSyncStatus('ok', 'Saved');
@@ -467,8 +332,7 @@ function saveToCloud(callback){
         // Real conflict: another device's save already moved the version
         // forward. Do NOT overwrite it. Surface this clearly and pull
         // their data instead of silently discarding it.
-        _concluded = true;
-        _releaseLock();
+        isSaving = false; _isSavingSetAt = 0;
         setSyncStatus('err', 'Sync conflict');
         toast('\u26a0 Someone saved changes on another device just now. Loading their version — please redo your last action.');
         console.warn('[JewelOS] Real save conflict detected — refused to overwrite, reloading instead.');
@@ -481,16 +345,8 @@ function saveToCloud(callback){
     .catch(function(err){
       if(timedOut) return;
       clearTimeout(timer);
-      // A callback called above (e.g. from _done_ok) can itself throw --
-      // that throw lands here as a plain rejection, indistinguishable from
-      // a real network error, with the lock already released. Without this
-      // check it would resend the save with no lock held and could call
-      // the callback a second time (Opus review, 2 Oct).
-      if(_concluded) return;
       console.error('[JewelOS] save attempt error:', err);
       if(retries < 3){
-        // Same re-stamp-on-schedule reasoning as the timeout handler above.
-        if(_saveLockToken === myLock) _isSavingSetAt = Date.now();
         setTimeout(attempt, delays[retries++]);
       } else {
         _done_err(err);
@@ -926,11 +782,11 @@ function safeConfirm(title, msg, onOk, danger){
   titleEl.textContent = title;
   msgEl.textContent   = msg;
   okBtn.style.background = danger==='warn'
-    ? 'var(--warning)'
+    ? 'linear-gradient(135deg,var(--warning),#a0630e)'
     : danger
-      ? 'var(--danger)'
-      : 'var(--gold)';
-  okBtn.style.color = (danger==='warn' || danger) ? 'var(--on-ink)' : 'var(--on-gold)';
+      ? 'linear-gradient(135deg,#7f1d1d,var(--danger))'
+      : 'linear-gradient(135deg,var(--gold-dark),var(--gold))';
+  okBtn.style.color = (danger==='warn' || danger) ? '#fff' : '#1a1200';
   overlay.style.display = 'flex';
   function cleanup(){ overlay.style.display='none'; okBtn.onclick=null; cancelBtn.onclick=null; }
   okBtn.onclick     = function(){ cleanup(); if(onOk) onOk(); };
