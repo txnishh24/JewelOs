@@ -78,7 +78,28 @@ or re-add tier UI.
 
 ---
 
-## LOG (newest first)
+### 2026-10-04 · Claude Code (Sonnet) — M8 FIXED: Category Intelligence now matches the Reports page's selected month; "Cash In" relabeled where it collided with Day Book's different metric of the same name
+
+🟢/🟡 (a date-window bug in a display function, plus a text relabel — no money-calculation formula changed, no Opus needed).
+
+**QA's M8 was actually two separate things, confirmed by reading the code:**
+
+1. **Real bug — `calcCategoryPerf()` ignored the Reports page's selected month.** It always used `new Date()` (today's real date) to decide "this month," never the `repYear`/`repMonth` the rest of the SAME Reports render already uses (`filterSalesByMonth`, `calcMonthProfit`). Viewing any month other than the real current one showed Category Intelligence's revenue/profit from a completely different time period than the rest of the page — explaining QA's "profit ₹5,250 vs P&L gross profit ₹9,251" (not a math disagreement, a *different months* disagreement). **A second bug in the same function made it worse than it looked**: the "this month" window had a start but no end (`d >= thisMonthStart`, nothing upper-bounding it) — so it wasn't really "this month," it was "this month onward forever." Harmless today only because no sale is ever future-dated; fixing bug 1 alone (pointing it at a past `repMonth`) would have made this *worse* for past months, since a past month's window would then also silently absorb every sale between it and today. Fixed both together: `calcCategoryPerf(year, month)` now takes optional args (defaulting to real-now when omitted, so the dashboard's own call — which legitimately always wants "right now" — is untouched), with both the "this month" and "last month" windows properly closed on both ends.
+
+2. **Not a bug — "Cash In" meant two different, both-correct things.** Reports' "Cash In" (`calcCashFlow().cashIn`) sums payments across every mode (cash, UPI, card); Day Book's "Cash In" is deliberately cash-only (it's a physical cash-drawer rojmel, extensively tested that way — "a UPI-only sale contributes nothing to cash in"). Confirmed both are internally correct for what they're meant to track; the only problem is the shared label. Relabeled the two on-screen widgets where this collision is most visible — Reports' metric card (now "Total Collected", with an explicit note that it isn't Day Book's cash-only figure) and the Dashboard's "Cash Flow — This Month" card (now "Total Collected (all modes)"). Left the WhatsApp-style text digest's compact "Cash In" line alone — lower visual-comparison risk, not what QA was looking at side-by-side.
+
+**3 new regression tests** (`tests/regression.test.js`, search "QA 3 Oct M8"): a past month's figures don't also absorb every later sale (the critical missing-upper-bound case), a middle month doesn't bleed into the next, and the no-argument call (dashboard) still defaults to the real current month. Both bug-catching tests confirmed to fail against the unmodified code — both returned the real-current-month figure regardless of which month was actually requested.
+
+**Verification:** `node --check` all 11 modules clean; regression 365/365 (was 362, +3 new); all `checks/` scripts clean, same baseline, globals count unchanged (no new top-level functions). `jewelos-bug-pattern-reviewer` confirmed the dashboard's call site was correctly left unchanged, the date-window math is correct including December→January rollover (JS's native month-overflow normalization handles it, no hand-rolled year adjustment needed or added), and the repYear/repMonth indexing is consistent with every other Reports figure on the same page. `jewelos-test-runner` independently reproduced all counts.
+
+**Not re-reviewed:** the two label-text changes (item 2 above) were applied after both review passes — purely cosmetic string edits with zero logic touched, so not re-sent for review, consistent with "skip agents for trivial edits." Re-ran the full regression suite and `checks/` sweep after adding them; both clean.
+
+**Not verified, said plainly:** whether Category Intelligence actually renders the right month's data on an actual screen for a past month — logic-only coverage; Reports isn't in the e2e-covered areas.
+
+→ FOR COWORK: M8 is fixed, tested, and pushed. This wasn't explicitly assigned by the 3 Oct hand-back (only C1/C2/H1/H2/H4 were) — picked up as the next logical item from the same QA pass's Medium list. M2–M9 (except M1, already fixed) and the L-series remain open and unassigned.
+→ FOR TANISH: The Reports page's "Category Intelligence" table now shows the month you're actually viewing, not always today's. Also relabeled "Cash In" to "Total Collected" on the Reports page and Dashboard, since it was a different number from Day Book's "Cash In" (which is cash-only on purpose) — same two numbers as before, just clearer which is which. Nothing needs your decision on this one.
+
+---
 
 ### 2026-10-04 · Claude Code (Sonnet) — H4 FIXED: a central audit trail now covers bill edit, new sale, bill delete, product delete, orders, and rate changes
 

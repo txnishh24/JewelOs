@@ -4783,6 +4783,45 @@ test('QA 3 Oct H4: deleting a bill is logged in the central audit trail', functi
   assert(entry && entry.action==='delete' && entry.entity==='sale', 'expected a delete/sale audit entry, got ' + JSON.stringify(entry));
 });
 
+// ── M8 (3 Oct QA): Category Intelligence must match the viewed month ──
+console.log('\nM8 — Category Intelligence matches the Reports month:');
+
+function _catPerfFixture(){
+  var a = loadApp();
+  a.S.products = [];
+  a.S.sales = [
+    { id:'aug', date:'2026-08-15', items:[{ cat:'Rings', metal:'gold', purity:'22K', weight:10, qty:1, lockedRate:5000 }] },
+    { id:'sep', date:'2026-09-10', items:[{ cat:'Rings', metal:'gold', purity:'22K', weight:10, qty:1, lockedRate:6000 }] },
+    { id:'oct', date:'2026-10-05', items:[{ cat:'Rings', metal:'gold', purity:'22K', weight:10, qty:1, lockedRate:7000 }] }
+  ];
+  return a;
+}
+
+test('QA 3 Oct M8: Category Intelligence for a past Reports month shows only that month\'s revenue, not every later sale too', function(){
+  var a = _catPerfFixture();
+  var aug = a.calcCategoryPerf(2026, 7); // August, month index 7
+  var ringsAug = aug.filter(function(c){ return c.cat === 'Rings'; })[0];
+  // Before the fix, "this month" had no upper bound: August's window would
+  // also silently swallow the September and October sales that came after it.
+  assert(ringsAug && ringsAug.rev === 50000, 'August alone should show rev 50000 (10g @ 5000), got ' + JSON.stringify(ringsAug));
+});
+
+test('QA 3 Oct M8: Category Intelligence for September does not also count October', function(){
+  var a = _catPerfFixture();
+  var sep = a.calcCategoryPerf(2026, 8); // September, month index 8
+  var ringsSep = sep.filter(function(c){ return c.cat === 'Rings'; })[0];
+  assert(ringsSep && ringsSep.rev === 60000, 'September alone should show rev 60000 (10g @ 6000), got ' + JSON.stringify(ringsSep));
+});
+
+test('QA 3 Oct M8: calcCategoryPerf() with no arguments still defaults to the real current month (dashboard\'s own call)', function(){
+  var a = _catPerfFixture();
+  var now = new Date();
+  a.S.sales = [{ id:'now', date: now.toISOString().slice(0,10), items:[{ cat:'Rings', metal:'gold', purity:'22K', weight:10, qty:1, lockedRate:9000 }] }];
+  var perf = a.calcCategoryPerf();
+  var rings = perf.filter(function(c){ return c.cat === 'Rings'; })[0];
+  assert(rings && rings.rev === 90000, 'a sale dated today must count when no month is passed, got ' + JSON.stringify(perf));
+});
+
 test('a successful Girvi close still closes the loan', function(){
   var a = _girviHarness();
   a.saveToCloud = function(cb){ cb(null); };

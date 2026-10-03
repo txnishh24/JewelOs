@@ -2503,6 +2503,7 @@
   "metalCost",
   "start",
   "thisMonthStart",
+  "thisMonthEnd",
   "lastMonthStart",
   "lastMonthEnd",
   "cats",

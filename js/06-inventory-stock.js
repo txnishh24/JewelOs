@@ -87,16 +87,28 @@ function calcWeekProfit(weeksAgo){
   return sales.reduce(function(s,x){return s+calcSaleProfit(x).profit;},0);
 }
 
-// Category performance — revenue, units, trend
-function calcCategoryPerf(){
+// Category performance — revenue, units, trend. year/month pick which
+// month is "this month" (QA 3 Oct M8: the Reports page's Category
+// Intelligence table used to always mean the REAL current month here,
+// silently disagreeing with every other figure on the same page once the
+// jeweller looked at any other month). Dashboard's own call passes
+// nothing, keeping its always-real-now behaviour.
+function calcCategoryPerf(year, month){
   var now = new Date();
-  var thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  var lastMonthStart = new Date(now.getFullYear(), now.getMonth()-1, 1);
-  var lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0);
+  var y = (typeof year === 'number') ? year : now.getFullYear();
+  var m = (typeof month === 'number') ? month : now.getMonth();
+  var thisMonthStart = new Date(y, m, 1);
+  // QA 3 Oct M8: this month's window had no end, so it silently also
+  // caught every sale after it (NaN-proof: a date compare against an
+  // Invalid Date is always false, never a false "within range").
+  var thisMonthEnd   = new Date(y, m+1, 0, 23, 59, 59, 999);
+  var lastMonthStart = new Date(y, m-1, 1);
+  var lastMonthEnd   = new Date(y, m, 0, 23, 59, 59, 999);
   var cats = {};
   S.sales.forEach(function(s){
-    var isThis = new Date(s.date) >= thisMonthStart;
-    var isLast = new Date(s.date) >= lastMonthStart && new Date(s.date) <= lastMonthEnd;
+    var d = new Date(s.date);
+    var isThis = d >= thisMonthStart && d <= thisMonthEnd;
+    var isLast = d >= lastMonthStart && d <= lastMonthEnd;
     (s.items||[]).forEach(function(i){
       var cat = saleItemCat(i);
       if(!cats[cat]) cats[cat]={rev:0,units:0,prevRev:0,profit:0};
@@ -298,7 +310,7 @@ function renderDash(){
       '<div class="sbox sbox-g">'+
         '<div class="sbox-title">\ud83d\udcb0 Cash Flow \u2014 This Month</div>'+
         '<div style="display:grid;gap:6px;margin-top:8px;">'+
-          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Cash In</span><span style="font-weight:700;color:var(--success);">'+fmt(cfMonth.cashIn)+'</span></div>'+
+          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Total Collected (all modes)</span><span style="font-weight:700;color:var(--success);">'+fmt(cfMonth.cashIn)+'</span></div>'+
           '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Cash Out (old gold)</span><span style="font-weight:700;color:var(--danger);">'+fmt(cfMonth.cashOut)+'</span></div>'+
           '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Girvi Lent</span><span style="font-weight:700;color:var(--warning);">'+fmt(cfMonth.girviOut)+'</span></div>'+
           '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Girvi Collected</span><span style="font-weight:700;color:var(--success);">'+fmt(cfMonth.girviIn)+'</span></div>'+
@@ -589,7 +601,7 @@ function renderReportsIntelligence(){
   // ── 4. CATEGORY INTELLIGENCE TABLE ───────────────────────────────
   var catCard = document.createElement('div');
   catCard.id='rep-intel-cat'; catCard.className='card';
-  var catPerf = calcCategoryPerf();
+  var catPerf = calcCategoryPerf(repYear, repMonth); // QA 3 Oct M8: match the month this page is actually showing
   catCard.innerHTML='<div class="card-title">\uD83C\uDFF7\uFE0F Category Intelligence — This Month</div>'+
     (catPerf.length?
       '<div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Revenue</th><th>Units</th><th>Profit</th><th>Trend</th></tr></thead><tbody>'+
