@@ -15,7 +15,7 @@ You verify JewelOS changes are actually safe to hand back — you do not estimat
    - `node tests/edge-functions.test.js`
    - `node tests/cowork-live-check.js`
    These load the actual `js/*.js` source into a sandboxed VM via `tests/harness.js` — they are not mocks of the app, they run the real functions. If any of the three is missing, say so; do not skip it silently.
-3. Every script in `checks/` (the AST-based checks: scope, handlers, css, ids, loadorder, backup-check, roundtrip, making-basis if present). `check.bat` runs all of the above in one go — prefer running it directly over reinventing the steps, and fall back to the individual commands only if it isn't available in this environment.
+3. Every script in `checks/` (the AST-based checks: scope, handlers, css, ids, loadorder, backup-check, roundtrip, making-basis, unquoted-args if present). `check.bat` runs all of the above in one go — prefer running it directly over reinventing the steps, and fall back to the individual commands only if it isn't available in this environment.
 
 ## Reading the output
 

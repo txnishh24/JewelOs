@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────
 // JewelOS test harness
-// Loads the REAL app source files (js/00-*.js .. js/08-*.js) into a
+// Loads the REAL app source files (every js/*.js, 00 through 10) into a
 // sandboxed Node VM with minimal browser stubs, so tests run against the
 // actual production code — not a hand-copied re-implementation of it.
 // If someone edits app logic without updating this harness, tests still

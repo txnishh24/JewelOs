@@ -4,6 +4,16 @@ Assembled 6 September 2026. Before this, JewelOS existed as five partial copies
 scattered across `Downloads`, and no single one had both the current client and the
 tests. **This is now the only folder that matters.** Open it in Claude Code.
 
+> **Current state (updated 3 Oct 2026)** — the numbers below are as of the 6 Sep
+> assembly and are kept as history, not current fact. Today: `tests/regression.test.js`
+> has 319 tests (run `check.bat` for the live count); `tests/e2e/` (Playwright) adds
+> 10 specs of real browser/UI coverage — "no UI coverage anywhere" below no longer
+> holds; `store-proxy` is live at v8, `auth-gateway` at v6; `supabase/migrations/` has
+> six migrations (001–006) applied. Live site: `https://heartfelt-queijadas-eeb356.netlify.app/`
+> (Netlify's auto-generated name — there's a separate, never-deployed `jewelos-app` project
+> on the same account; that one is the decoy, not this URL). See `HANDOFF.md` for anything
+> more recent than this.
+
 ## Before you deploy: double-click `check.bat`
 
 Ten seconds. It checks every file for typos, runs the regression tests, and sweeps for

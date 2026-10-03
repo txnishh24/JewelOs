@@ -57,5 +57,22 @@ rather than failing.
 ## Browser: `tests/e2e/`
 
 Both suites above load code directly — nothing here opens a screen. `tests/e2e/`
-(Playwright, `npm run test:e2e` from the repo root) does: login, sale, Girvi and
-Day Book so far, against a real permanent test shop. See `tests/e2e/README.md`.
+(Playwright, `npm run test:e2e` from the repo root) has 10 specs — login, sale,
+Girvi, Day Book, purchase, offline billing, invoice numbers/dates, session restore
+and failed saves — against a real permanent test shop. See `tests/e2e/README.md`
+for the current list.
+
+## `tests/cowork-live-check.js`
+
+```
+node tests/cowork-live-check.js
+```
+
+Despite the name, this is **local and offline** like the suite above — no network,
+no live Supabase. "Live" means it drives the real UI-facing functions (`recordSale()`,
+`renderDayBook()`) through the harness's fake DOM, one level past the regression
+suite's direct calls to inner helpers. Written 26 Sep; **not currently part of
+`check.bat`** and, as of 3 Oct, fails standalone (`recordSale()` doesn't save —
+most likely a stale fixture that predates the 30 Sep rates-required-before-a-sale
+change, not confirmed as a real app bug). Needs a look before it's trusted or wired
+into `check.bat`. Run via the `jewelos-test-runner` agent.

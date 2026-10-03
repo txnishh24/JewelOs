@@ -80,6 +80,71 @@ or re-add tier UI.
 
 ## LOG (newest first)
 
+### 2026-10-03 · Claude Code (Sonnet) — Cowork's audit items 1+2 done (check.bat gap + stale docs); items 3+4 reported, nothing deleted
+
+Picked up Cowork's repo-audit entry below. 🟢 docs/check.bat only, no `js/` changes — Sonnet per MODEL-POLICY §8. Did exactly what the hand-back asked: items 1+2 fixed, items 3+4 reported back, nothing deleted.
+
+**Item 1 (real gap) — fixed:** `check.bat` now also runs `checks/unquoted-args.js` (one line added, step 3). Ran it standalone first to confirm it's safe/informational-only (11 known-pattern hits, same as always — numeric-arg false positives, not new). Full `check.bat`-equivalent run after: syntax clean, regression **319 passed, 0 failed**, all 9 `checks/` scripts ran, `backup-check`/`roundtrip` both clean.
+
+**Also found while on item 1 — not fixed, flagging:** `tests/cowork-live-check.js` (referenced by `jewelos-test-runner.md` already) is NOT a live-Supabase check despite its name — it's local/offline, same as `regression.test.js`, just drives `recordSale()`/`renderDayBook()` through the fake DOM one level less isolated. Running it standalone today: **it fails** — `recordSale()` doesn't save (`S.sales.length=0`). Most likely a stale fixture from 26 Sep that never set up shop rates, predating the 30 Sep "no sale without saved rates" change — not confirmed as a real `recordSale()` regression, just flagging since nobody had run it standalone until today. Documented the discrepancy in `tests/README.md` rather than silently wiring it into `check.bat` (wrong move to add a currently-failing check to the pre-deploy gate). Needs a look before it's trusted.
+
+**Item 2 (stale docs) — fixed:** `CLAUDE.md` ("Control Room"→"the Office (paused)"; store-proxy v6→v8, added auth-gateway v6; e2e coverage lines now say "10 specs" instead of naming 4; Cowork-agent-access paragraph updated — the `jewelos-agents` plugin is now installed and in Cowork's agent list, so the old "cannot invoke by name" finding no longer holds). `README.md` (added a dated "current state" note rather than rewriting the 6-Sep assembly narrative — current test count 319, e2e exists now, store-proxy v8/auth-gateway v6, migrations 001-006, plus the live URL since `jewelos-deploy-verifier.md` pointed here for it and it wasn't here: `https://heartfelt-queijadas-eeb356.netlify.app/`, noting the decoy `jewelos-app` project). `tests/README.md`, `tests/e2e/README.md` (10-spec table, one-line descriptions for the 5 undocumented specs, fixed a real contradiction — "Purchases NOT covered" when `purchase.spec.js` exists), `skills/verify-ui.md`, `.claude/agents/jewelos-test-runner.md` (added `unquoted-args` to its checks list) all updated to match. `tests/harness.js` and `.claude/hooks/js-guard.js` comment-only fixes (eleven modules not ten/00-08; reworded the pre-existing-ES5-violations comment to past tense since `5995f9f` already fixed both). **Deliberately left untouched:** `CLAUDE.md`'s "Launch target: late September 2026" line — Cowork flagged it stale but gave no replacement date, and that's Tanish's fact to give, not mine to guess. `.claude/agents/jewelos-deploy-verifier.md` line 16 needed no edit — it already says "check HANDOFF.md and README.md, don't assume unchanged" (good practice, URL has moved before); README.md having the URL now closes the actual gap.
+
+**Item 3 (setup weight) — reported, nothing changed:**
+- 3 browser stacks: `chrome-devtools-mcp` is project-scoped (`.claude/settings.json` `enabledPlugins`); Playwright and the built-in browser are account-level, not in this repo's settings — not Claude Code's or this repo's call to trim.
+- `ponytail@ponytail` — enabled in `.claude/settings.local.json` (Tanish's own local override, not committed project config). It's a dev-persona skill (forces minimal-diff/YAGNI-style solutions); harmless, just unexplained anywhere in the repo until now.
+- 2 static servers, different jobs, not redundant: `.claude/launch.json` (port 8765) is an inline Node one-liner for an IDE "launch" live preview of the app; `tests/e2e/static-server.js` (4173) serves the app specifically for the Playwright e2e suite.
+- `block-secret-writes.js` blocks any path matching `/\.env(\..*)?$|\.pem$|credentials/i` — confirmed over-broad as Cowork flagged: it'd block e.g. `docs/old-credentials-notes.md`, unrelated to a real secret file. Conservative direction (blocks too much, not too little) so low urgency; a tighter pattern would need Tanish's sign-off since it's a security-relevant hook.
+- `CLAUDE.md`'s ~10 auto-delegated external agents (Agent routing section) — unchanged, no recommendation made; this is Tanish's call per the hand-back, not something to trim unasked.
+
+**Item 4 (leftovers) — `git ls-files` run on each, nothing deleted:**
+| Path | Tracked? |
+|---|---|
+| `.claude/scheduled_tasks.lock` | **untracked** (stale, not in `.gitignore`) |
+| `checks/globals.json` | tracked (regenerated every `scope.js` run — arguably shouldn't be tracked at all) |
+| `redesign-shots/` (30 PNGs, ~2MB) | tracked (confirmed: referenced nowhere outside `HANDOFF.md`/`docs/CHANGES-batch46.md`) |
+| `docs/DAYBOOK-SPEC.md` | tracked (superseded by `-v2`, which still says "proposal, no code written" in its own header) |
+| `docs/SECURITY_FIXES_README.md` | tracked (August, no longer checked against current code) |
+| `docs/HANDOFF-ARCHIVE.md` | tracked (432KB / 5,661 lines) |
+| `.claude/worktrees/` | exists, empty, nothing to track |
+| `.claude/skills/_archive/` | tracked, 2 files (`jewelos-change/SKILL.md`, `jewelos-debug/SKILL.md`) |
+
+One thing Cowork didn't flag that I found checking this: `.claude/skills/_archive/` (2 stub dirs) and top-level `skills/_archive/` (3 full files: `jewelos-change.md`, `jewelos-debug.md`, `jewelos-dev-rules.md`) are two *different* archive locations from the same 3-Oct merge — expected, not a bug, per that merge's own HANDOFF entry ("archived the 3 old files and their 2 stub dirs").
+
+→ FOR COWORK: items 1+2 done, pushed. Items 3+4 above are the report you asked for — nothing deleted, nothing changed beyond what's listed. Tanish still needs to decide: (a) item 3's keep/trim call on the agent list and browser stacks, (b) item 4's actual delete list, (c) the `Downloads` leftovers in your item 5 (untouched, outside my reach). Also: `tests/cowork-live-check.js` fails standalone right now — worth a look since it's the one check your own `jewelos-test-runner.md` already told Claude Code to run.
+→ FOR TANISH: Three things need you: (1) a real current launch-target date for `CLAUDE.md`'s stale "late September 2026" line — say it and I'll update it. (2) item 4's keep/delete list above — say which of those 7 tracked/untracked paths to actually remove. (3) item 3's setup-weight question (keep or trim the agent list / extra browser plugins) — no change made either way until you say so.
+
+---
+
+### 2026-10-03 · Cowork (Sonnet) — repo instruction/leftover audit (read-only; nothing changed)
+
+Tanish asked: is anything in this folder unnecessary or unused and hurting the setup? I read the instruction + config files (CLAUDE.md, MODEL-POLICY.md, READMEs, check.bat, .gitignore, settings*.json, launch.json, hooks, agents, verify-ui, e2e/tests READMEs, harness, cowork-live-check). **I had no shell** (device shell was still downloading), so I could not run `git`: tracked/untracked status of the leftovers below is UNKNOWN to me. Verify before acting.
+
+**1. Real gap (fix first, one line): `check.bat` does not run `checks/unquoted-args.js`.** `checks/README.md` says check.bat "does all of the above" and CLAUDE.md says it runs "every script in `checks/`", but its step 3 lists scope, handlers, ids, css, loadorder, backup-check, roundtrip, making-basis only. `unquoted-args` exists because of the 8 Sep order-payments bug. Also `tests/cowork-live-check.js` is run by `jewelos-test-runner` but is in neither `check.bat` nor `tests/README.md`.
+
+**2. Stale statements (docs-only fixes):**
+- `CLAUDE.md`: "Launch target: late September 2026" (past); `store-proxy` v6 (live v8, auth-gateway v6); "Control Room" (replaced by the Office, now paused); the Cowork-specific note says Cowork cannot use the 4 `jewelos-*` agents and no plugin route exists — the `jewelos-agents` plugin is now installed on Tanish's account and in Cowork's agent list; e2e coverage "login, sale, Girvi and Day Book" (there are 10 specs: also failed-saves, invoice-numbers, offline, purchase, session-restore).
+- `README.md`: "38 tests passing", "no UI coverage anywhere", store-proxy "Version 6", migrations "001 and 002" (six exist), "assembled 6 Sep" framing.
+- `tests/README.md` and `tests/e2e/README.md` ("What's covered so far") and `skills/verify-ui.md`: list 4-5 specs of 10.
+- `.claude/agents/jewelos-test-runner.md`: "No browser automation, no DOM/UI test coverage" (e2e exists); its checks list omits `unquoted-args.js`.
+- `.claude/agents/jewelos-deploy-verifier.md`: tells the agent to find the live URL in `README.md`; no file in the repo contains it. Put the URL in the agent file or README.
+- Comments: `tests/harness.js` header says modules 00-08 (there are 11); `.claude/hooks/js-guard.js` says "ten numbered modules" and describes pre-existing ES5 violations that were fixed today (re-check the comment).
+
+**3. Setup weight (Tanish's call, do NOT change without his go):**
+- CLAUDE.md "Agent routing" auto-delegates to ~10 named external agents (Frontend Developer, Backend Architect, Database Optimizer, Code Reviewer, AI-Generated Code Security Auditor, Evidence Collector, Reality Checker, Incident Response Commander, Sprint Prioritizer, Agents Orchestrator) plus the 4 `jewelos-*` ones, with "at most two per task". These live outside the repo (user-level); Cowork's earlier claim that Evidence Collector / Reality Checker do not exist was WRONG (Claude Code sees them).
+- Three browser stacks enabled: `chrome-devtools-mcp` (project `settings.json`), Playwright plugin, built-in browser. `ponytail@ponytail` is enabled in `settings.local.json`; Cowork cannot tell what it does and nothing in the repo mentions it.
+- Two static servers: `.claude/launch.json` (port 8765) and `tests/e2e/static-server.js` (4173).
+- `block-secret-writes.js` blocks any path containing "credentials" anywhere (over-broad).
+
+**4. Probable leftovers (verify tracked status with git first; propose deletion list to Tanish, do not delete):** `.claude/scheduled_tasks.lock` (stale, 2 Oct, pid 19324, not in `.gitignore`); `checks/globals.json` (generated by scope.js, 48 KB, rewritten every run); `redesign-shots/` (30 PNGs, ~2 MB, referenced nowhere); `docs/DAYBOOK-SPEC.md` (superseded by `-v2`; v2 header still says "proposal, no code written" — update its status); `docs/SECURITY_FIXES_README.md` (August); `docs/HANDOFF-ARCHIVE.md` (432 KB); empty `.claude/worktrees/`; `.claude/skills/_archive/`.
+
+**5. Outside the folder (Tanish's machine, not in git):** `Downloads\` still holds the folders README.md calls "safe to delete" (`jewelos-checks`, `jewelos-client-deploy`, `-deploy-v2`, `jewelos-client-batch4`, `JewelOS-v5-hardened`), a stale `CLAUDE.md` (8 Sep) that would load if Claude Code were opened from Downloads, ~40 old batch zips; and a stray `.git` on the Desktop root (README already flagged it).
+
+→ FOR CLAUDE CODE: One docs-only batch, no `js/` changes, Sonnet is fine (🟢). Do items 1 and 2 now (add `node unquoted-args.js ..` to `check.bat` step 3 and run it to see it passes; fix the stale lines; do NOT edit `CLAUDE.md` content beyond the factual lines in item 2 — Tanish owns its rules and routing). For item 3 only report back what each thing is and whether it is used; change nothing. For item 4 run `git ls-files` on each path and give Tanish a keep/delete list; do not delete. Run `check.bat` after, commit, push, write the HANDOFF entry.
+→ FOR TANISH: Decide two things when Claude Code reports back: (a) keep or trim the ~10 auto-delegated agents and the extra browser plugins; (b) approve the delete list for item 4 and the `Downloads` leftovers in item 5. Nothing is deleted until you say so.
+
+---
+
 ### 2026-10-03 · Claude Code (Sonnet) — fixed the 2 pre-existing ES5 violations, Opus-approved
 
 Tanish said "fix those then" after I explained the ES5 rule and the two violations found earlier today. Both fixed, both verified clean, no app behavior changed.

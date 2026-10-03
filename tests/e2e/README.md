@@ -112,12 +112,18 @@ the test is simply wrong.
 | `girvi.spec.js` | Full 5-step Girvi wizard; a backdated Ledger payment reduces the balance correctly |
 | `daybook.spec.js` | Closing = Opening + Cash In − Cash Out, always |
 | `invoice-date.spec.js` | New Sale date defaults to the local IST day even just after midnight (deterministic clock-freeze regression test) |
+| `purchase.spec.js` | A part-paid cash purchase posts only the amount actually paid to the Day Book |
+| `offline.spec.js` | A sale made offline gets a reserved invoice number and reaches the cloud once back online |
+| `invoice-numbers.spec.js` | Two sales on one device plus one on a second device get three distinct invoice numbers |
+| `session-restore.spec.js` | Reopening the app across recently-active / idle-past-PIN / login-expired-mid-save / token-expired-while-closed states |
+| `failed-saves.spec.js` | A Girvi loan or order whose save fails stays in the open form, then saves once on retry |
 
 ## What's NOT covered (same gaps `docs/TESTING-STRATEGY.md` names)
 
-Purchases, Orders, Customers, Reports/GST export, staff PIN / multi-user
-role gating, Close Day / locked-day adjustments, the Netlify-badge
-nav-overlap bug (confirmed still live 26 Sep 2026 — a hosting/deploy issue,
-not something a DOM test can fix), and anything about how it actually
-feels on a real phone. Add specs here as these get prioritized — follow
-the selector strategy above and this repo's `skills/jewelos-dev.md`.
+Orders, Customers, Reports/GST export, staff PIN / multi-user role gating,
+Close Day / locked-day adjustments, the Netlify-badge nav-overlap bug
+(confirmed still live 26 Sep 2026 — a hosting/deploy issue, not something a
+DOM test can fix), and anything about how it actually feels on a real phone.
+(Purchases is now covered — `purchase.spec.js`, added after this section was
+first written.) Add specs here as these get prioritized — follow the selector
+strategy above and this repo's `skills/jewelos-dev.md`.

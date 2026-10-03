@@ -16,10 +16,11 @@ function es5Parses(src, acorn) {
   catch (e) { return e.message; }
 }
 
-// Only flag a violation this edit actually introduced. A few pre-existing
-// lines in the codebase already aren't ES5 (found when this check was added,
-// Oct 2026: a \u{...} escape and a real async function) — blocking every
-// future unrelated edit to those files over old debt would be useless noise.
+// Only flag a violation this edit actually introduced. When this check was
+// added (Oct 2026) two pre-existing lines weren't ES5 (a \u{...} escape and a
+// real async function); both were fixed same-day (commit 5995f9f), but this
+// HEAD-diff guard stays regardless — it's what stops any *future* unrelated
+// edit from being blocked by someone else's old debt.
 function es5Violation(filePath, rel, cwd) {
   var acorn;
   try { acorn = require(path.join(cwd, 'checks', 'node_modules', 'acorn')); }
@@ -49,7 +50,7 @@ process.stdin.on('end', function () {
   var cwd = data.cwd || process.cwd();
   var rel = path.relative(cwd, filePath).replace(/\\/g, '/');
 
-  // Only the ten numbered top-level modules — never checks/, tests/, or nested paths.
+  // Only the eleven numbered top-level modules — never checks/, tests/, or nested paths.
   if (!/^js\/[^/]+\.js$/.test(rel)) process.exit(0);
 
   var problems = [];

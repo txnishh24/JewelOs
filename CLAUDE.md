@@ -14,7 +14,7 @@ before building it.
 
 0. **Read `HANDOFF.md` first, and write to it last.** Two Claudes work on JewelOS and
    they cannot see each other: Cowork (the chat) has the live database, Gmail, the
-   Control Room and the brain folder, and none of that is visible from here. `HANDOFF.md`
+   Office (paused) and the brain folder, and none of that is visible from here. `HANDOFF.md`
    is the only thing both of us read. Claim the **NOW** line before you start, release it
    when you stop, and append a LOG entry before you hand back. A commit message does not
    reach the other side.
@@ -76,7 +76,7 @@ making it the largest in the repo) **and Tanish's explicit sign-off** — this w
 exception made once, on 20 Sep 2026, not a standing permission.
 
 Backend: Supabase project `uluzuwomwqsqxtejgzmf`, all access through Edge Functions
-(`store-proxy` v6 session-token auth, `auth-gateway`, `razorpay-webhook`). No direct
+(`store-proxy` v8 session-token auth, `auth-gateway` v6, `razorpay-webhook`). No direct
 PostgREST calls remain. Each shop is stored as **one JSON blob** — that single fact is
 why per-module permissions and stock reservation cannot be fixed incrementally.
 
@@ -99,9 +99,10 @@ Compare against the previous build's output rather than reading hits as failures
 are documented false positives. `backup-check` and `roundtrip` must pass cleanly.
 
 Then say plainly what you could **not** verify. `tests/e2e/` (`npm run test:e2e`) now
-covers login, sale, Girvi and Day Book — run it for changes touching those. Outside
-that list, logic is verifiable and DOM behaviour still isn't. Never let a build sound
-more tested than it is.
+has 10 specs — login, sale, Girvi, Day Book, purchase, offline billing, invoice numbers/
+dates, session restore, and failed saves — run it for changes touching any of those.
+Outside that list, logic is verifiable and DOM behaviour still isn't. Never let a build
+sound more tested than it is.
 
 ## Procedures
 
@@ -114,9 +115,10 @@ In `skills/`. Read the matching one before starting; they also exist under
 - `skills/verify-ui.md` — actually clicking through a change in a browser via Playwright,
   before handing back a build (fills the gap "check.bat" leaves — see below)
 
-Persisted e2e coverage now also exists: `tests/e2e/` (Playwright, `npm run test:e2e`) —
-run it alongside `check.bat` for anything touching login, sale, Girvi, or Day Book;
-see `tests/e2e/README.md` before adding a spec (selector gotchas specific to this app).
+Persisted e2e coverage now also exists: `tests/e2e/` (Playwright, `npm run test:e2e`,
+10 specs — see `tests/e2e/README.md`'s "What's covered so far" table for the current
+list) — run it alongside `check.bat` for anything touching an area it covers; see
+`tests/e2e/README.md` before adding a spec (selector gotchas specific to this app).
 
 ## Agent routing
 
@@ -144,13 +146,11 @@ to whichever side (Claude Code or Cowork) is doing the work, every time, without
 first. The table above already is that decision, made in advance — treat a task that matches
 a row as pre-approved for that agent.
 
-Cowork-specific note: Cowork cannot invoke the four `jewelos-*` agents above by name — they
-only exist as files in this folder's `.claude/agents/`, which Cowork's own agent tool has no
-access to, and there is currently no supported way for Cowork to install a plugin that would
-add them (checked 27 Sep — no such tool or skill exists on this account; treat this as closed,
-not a to-do to keep re-raising). When Cowork's work matches one of those four specs (running
-the test suite, reviewing a diff for the five bug families, writing the HANDOFF entry,
-verifying a live deploy), it reads that file and follows its instructions directly instead of
-invoking it as a named agent. For its own research-heavy or multi-file work (competitive
-research, a live-site audit, searching across many files), Cowork uses its own available
-agent types (e.g. general-purpose, Explore) at its own discretion, same standing-rule logic.
+Cowork-specific note: as of Cowork's 3 Oct repo audit, the `jewelos-agents` plugin is
+installed on Tanish's account and the four `jewelos-*` agents now appear in Cowork's own
+agent list — the earlier "Cowork cannot invoke these by name" finding (checked 27 Sep) no
+longer holds. If Cowork still can't see them when this is read, fall back to reading the
+matching file in this folder's `.claude/agents/` directly instead of invoking it as a named
+agent. For its own research-heavy or multi-file work (competitive research, a live-site
+audit, searching across many files), Cowork uses its own available agent types (e.g.
+general-purpose, Explore) at its own discretion, same standing-rule logic.
