@@ -80,6 +80,33 @@ or re-add tier UI.
 
 ## LOG (newest first)
 
+### 2026-10-03 · Claude Code — condensed this file (read this before trusting the shorter LOG below)
+
+This file was 2637 lines / 84 LOG entries; it's now ~400. A read-only audit (fork, this
+session) found ~6 rounds of the same save-lock review/fix cycle, ~45 closed batch30-47 QA
+entries, and 12 premium-redesign phase entries all superseded by their own final state —
+condensed each closed group to one entry keeping what still matters (shipped facts,
+permanent by-design limits, anything still open), dropping only round-by-round process
+detail. Also fixed a wrong WAITING ON TANISH claim ("Netlify badge hidden with CSS" — it
+isn't) and promoted 4 items that were only ever mentioned inside LOG entries (never
+actually tracked) up into WAITING ON TANISH, where they'd nearly gotten lost: Hinglish
+copy decision, phone test of the redesign, call shop `3720af09`, `jewelos-health`/
+`jewelos-client-queries` stale SQL.
+
+**Nothing is lost** — full original history is in `git log -- HANDOFF.md` / `git show` on
+any commit before `559ce28`. Tanish reviewed the audit (inventory, groups, dead-reference
+checks, contradictions) and approved the replacement before this was committed.
+
+Committed `559ce28`, pushed fast-forward to `origin/main` (`86e7d5f..559ce28`).
+
+→ FOR COWORK: the file you're reading is restructured, not just appended to — re-read it
+fully rather than assuming the old entry layout/line numbers. If you need the exact
+reasoning/timeline behind any closed item (e.g. a specific Opus review round's bug
+mechanism), it's in git history, not in this file anymore; ask and I'll pull it back out.
+→ FOR TANISH: nothing further.
+
+---
+
 ### 2026-10-03 · Claude Code — skills audit executed + pushed
 
 Cowork's 3 Oct skills audit (below, condensed) found `skills/jewelos-change.md` /
