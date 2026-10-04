@@ -3399,6 +3399,141 @@ test('QA M3: the Edit Bill live preview shows the SAME grand total and balance S
   assert(a.calcSaleTotals(s).bal === 112000, 'saved balance must match what the preview just showed; got ' + a.calcSaleTotals(s).bal);
 });
 
+test('QA M3 follow-up: clearing Old Gold / Advance to 0 in Edit Bill actually clears them, not just sale.advance', function(){
+  var a = loadApp();
+  // Created with 4000 old gold + 3000 prev advance (advance=7000 total) against
+  // a 10000 bill. The edit clears BOTH payment fields to 0 (e.g. corrected --
+  // the customer never actually brought old gold or paid an advance).
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:7000,
+    payStatus:'advance', billType:'memo', gst:0, discount:0, making:0, diamond:0,
+    items:[{ name:'Ring', weight:10, qty:1, lockedRate:1000, making:0, diamond:0, metal:'gold', purity:'22K' }],
+    oldGold:{weight:5, purity:'22K', value:4000, deductPct:0}, prevAdvance:{amount:3000, mode:'Cash'} }];
+  a._editBillId = 's1';
+  var vals = { 'eb-disc':'0', 'eb-gst':'0', 'eb-advance':'0', 'eb-oldgold':'0',
+    'ei-wt-0':'10', 'ei-rate-0':'1000', 'ei-mk-0':'0', 'ei-dc-0':'0' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(/^ebsp-amt-/.test(id)) return null; // no split-payment rows -- everything was old gold/advance
+    if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+    return _o(id);
+  };
+  var saved = false; a.saveToCloud = function(){ saved = true; };
+  a.saveEditBill();
+  var s = a.S.sales[0];
+  assert(saved, 'clearing a payment down to 0 is not an overpayment, must save');
+  assert(s.advance === 0, 'sale.advance must reflect the cleared fields; got ' + s.advance);
+  assert(s.oldGold.value === 0, 'the bug left this stranded at the stale 4000; got ' + s.oldGold.value);
+  assert(s.prevAdvance.amount === 0, 'the bug left this stranded at the stale 3000; got ' + s.prevAdvance.amount);
+  // The real failure mode: calcSaleTotals()'s creationColl falls back to
+  // oldGold.value+prevAdvance.amount+nowPaying whenever sale.advance is 0 --
+  // if those two were still stale (4000+3000=7000), the balance due would be
+  // silently understated by that much, even though nothing was really paid.
+  assert(a.calcSaleTotals(s).bal === 10000, 'the full 10000 must be due -- nothing was actually paid; got ' + a.calcSaleTotals(s).bal);
+});
+
+test('QA M3 follow-up: clearing all split-payment rows to 0 in Edit Bill also clears the stale sale.nowPaying tier', function(){
+  var a = loadApp();
+  // An older-style bill: paid via nowPaying (no splitPayments array at all),
+  // same shape dbAutoLines()' and calcSaleTotals()' tier-2 precedence reads.
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:5000,
+    payStatus:'advance', billType:'memo', gst:0, discount:0, making:0, diamond:0,
+    items:[{ name:'Ring', weight:10, qty:1, lockedRate:1000, making:0, diamond:0, metal:'gold', purity:'22K' }],
+    nowPaying:{amount:5000, mode:'Cash'} }];
+  a._editBillId = 's1';
+  var vals = { 'eb-disc':'0', 'eb-gst':'0', 'eb-advance':'0', 'eb-oldgold':'0',
+    'ei-wt-0':'10', 'ei-rate-0':'1000', 'ei-mk-0':'0', 'ei-dc-0':'0' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(/^ebsp-amt-/.test(id)) return null; // edited down to zero split-payment rows
+    if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+    return _o(id);
+  };
+  var saved = false; a.saveToCloud = function(){ saved = true; };
+  a.saveEditBill();
+  var s = a.S.sales[0];
+  assert(saved, 'clearing every payment row down to 0 is not an overpayment, must save');
+  assert(s.nowPaying.amount === 0, 'the bug left this stranded at the stale 5000; got ' + s.nowPaying.amount);
+  assert(a.calcSaleTotals(s).bal === 10000, 'nothing was actually paid, the full 10000 must be due; got ' + a.calcSaleTotals(s).bal);
+  // Day Book reads the same three-tier precedence (splitPayments, then
+  // nowPaying, then advance+payment) -- a stale nowPaying would post a
+  // phantom cash-in line on the sale's original creation date.
+  var lines = a.dbAutoLines('2026-09-05').filter(function(l){ return l.srcId === 's1'; });
+  assert(lines.length === 0, 'Day Book must not post a line for a sale whose payment was cleared to 0, got ' + JSON.stringify(lines));
+});
+
+test('QA M3 follow-up: dbAutoLines never posts a line for prevAdvance/oldGold money, even after it becomes the only tier left standing', function(){
+  var a = loadApp();
+  // Created with a 3000 advance paid separately (prevAdvance) PLUS a 5000
+  // split-payment at creation. dbAutoLines()'s own header comment says
+  // prevAdvance must NEVER become a line (posted elsewhere, double-counts).
+  // Edited to clear just the split-payment row, keeping prevAdvance at 3000
+  // untouched -- splitPayments and nowPaying both end up empty/0, leaving
+  // sale.advance===3000 entirely prevAdvance money. Before the daybook.js
+  // fix, tier 3's fallback (sale.advance||0) would wrongly post that 3000 as
+  // a fresh 'sale' cash-in line -- the exact double-count the header forbids.
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:8000,
+    payStatus:'advance', billType:'memo', gst:0, discount:0, making:0, diamond:0,
+    items:[{ name:'Ring', weight:10, qty:1, lockedRate:1000, making:0, diamond:0, metal:'gold', purity:'22K' }],
+    prevAdvance:{amount:3000, mode:'Cash'}, nowPaying:{amount:5000, mode:'Cash'},
+    splitPayments:[{amount:5000, mode:'Cash'}] }];
+  a._editBillId = 's1';
+  var vals = { 'eb-disc':'0', 'eb-gst':'0', 'eb-advance':'3000', 'eb-oldgold':'0',
+    'ei-wt-0':'10', 'ei-rate-0':'1000', 'ei-mk-0':'0', 'ei-dc-0':'0' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(/^ebsp-amt-/.test(id)) return null; // the split-payment row is removed, eb-advance (prevAdvance) kept
+    if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+    return _o(id);
+  };
+  var saved = false; a.saveToCloud = function(){ saved = true; };
+  a.saveEditBill();
+  var s = a.S.sales[0];
+  assert(saved, 'a reduced but still-balancing edit must save');
+  assert(s.advance === 3000, 'sale.advance should be exactly the kept prevAdvance; got ' + s.advance);
+  assert(s.prevAdvance.amount === 3000 && s.nowPaying.amount === 0 && s.splitPayments.length === 0,
+    'expected prevAdvance kept, nowPaying/splitPayments cleared; got ' + JSON.stringify({prevAdvance:s.prevAdvance, nowPaying:s.nowPaying, splitPayments:s.splitPayments}));
+  var lines = a.dbAutoLines('2026-09-05').filter(function(l){ return l.srcId === 's1'; });
+  assert(lines.length === 0, 'prevAdvance money must never become a Day Book line, even via the tier-3 fallback; got ' + JSON.stringify(lines));
+});
+
+test('QA M3 follow-up: Edit Bill pre-fills a 0 payment row (not prevAdvance/oldGold money) when nothing new was actually paid', function(){
+  var a = loadApp();
+  // Same shape as the dbAutoLines test above (a pure exchange sale, or a
+  // bill already edited down to this state): fully covered by prevAdvance,
+  // nothing in splitPayments/nowPaying. openEditBill() can't be unit-tested
+  // directly here (no real DOM parser in this harness to read back its
+  // generated HTML), so this exercises the extracted pure function it calls.
+  var sale1 = { advance:3000, prevAdvance:{amount:3000,mode:'Cash'}, oldGold:null, nowPaying:null, splitPayments:[] };
+  var pre = a._editBillExistingSplits(sale1);
+  assert(pre.length === 1 && pre[0].amount === 0,
+    'must pre-fill a 0 row, not re-show the 3000 prevAdvance as a fresh payment; got ' + JSON.stringify(pre));
+
+  // And the full round trip: open (via the pure function), change nothing,
+  // save -- must not promote prevAdvance into a real splitPayments entry.
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:3000,
+    payStatus:'advance', billType:'memo', gst:0, discount:0, making:0, diamond:0,
+    items:[{ name:'Ring', weight:10, qty:1, lockedRate:1000, making:0, diamond:0, metal:'gold', purity:'22K' }],
+    prevAdvance:{amount:3000, mode:'Cash'} }];
+  a._editBillId = 's1';
+  // What openEditBill() would have put on screen: the pre-filled 0 row, untouched.
+  var vals = { 'eb-disc':'0', 'eb-gst':'0', 'eb-advance':'3000', 'eb-oldgold':'0', 'ebsp-amt-0':'0', 'ebsp-mode-0':'Cash',
+    'ei-wt-0':'10', 'ei-rate-0':'1000', 'ei-mk-0':'0', 'ei-dc-0':'0' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(/^ebsp-amt-/.test(id) && !vals[id]) return null;
+    if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+    return _o(id);
+  };
+  var saved = false; a.saveToCloud = function(){ saved = true; };
+  a.saveEditBill();
+  var s = a.S.sales[0];
+  assert(saved, 'resaving without changes must still save');
+  assert(s.advance === 3000, 'sale.advance must stay exactly the untouched prevAdvance; got ' + s.advance);
+  assert(s.splitPayments.length === 0, 'the pre-filled 0 row must not become a real splitPayments entry; got ' + JSON.stringify(s.splitPayments));
+  var lines = a.dbAutoLines('2026-09-05').filter(function(l){ return l.srcId === 's1'; });
+  assert(lines.length === 0, 'resaving an exchange-style sale unchanged must not create a phantom Day Book line; got ' + JSON.stringify(lines));
+});
+
 test('QA 1 Oct #3: opening the Girvi Pay dialog leaves the sale form payment rows alone', function(){
   var a = loadApp();
   a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:10000, interestRate:2, payments:[] }];

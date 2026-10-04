@@ -135,6 +135,16 @@ function dbAutoLines(dateKey){
         creationPays = sale.splitPayments;
       } else if(sale.nowPaying && sale.nowPaying.amount > 0){
         creationPays = [{amount:sale.nowPaying.amount, mode:sale.nowPaying.mode}];
+      } else if((sale.prevAdvance && sale.prevAdvance.amount > 0) || (sale.oldGold && sale.oldGold.value > 0)){
+        // sale.advance = splitAdv+prevAdv+og (js/01-sync-core.js _applyEditBillForm,
+        // js/02-ui-inactivity-modals.js buildSaleObj) — reaching this branch with
+        // splitPayments/nowPaying both empty means splitAdv is 0, so sale.advance
+        // here is ENTIRELY prevAdvance/oldGold money, which A2/A3 above say must
+        // never become a line. Tier 3 below is for a genuinely legacy sale with
+        // none of these structured fields, where sale.advance is a raw,
+        // undifferentiated creation-time figure safe to post as-is; a sale that
+        // actually has oldGold/prevAdvance must never fall through to it.
+        creationPays = [];
       } else {
         creationPays = [{amount:sale.advance||0, mode:sale.payment}];
       }

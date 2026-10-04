@@ -998,6 +998,24 @@ function isDuplicateSale(custName, items){
 // ═══════════════════════════════════════════════════════════════════════
 var _editBillId = null;
 
+// What the Edit Bill modal should pre-fill as the split-payment rows. Same
+// three-tier precedence dbAutoLines() (js/10-daybook.js) uses to derive a
+// Day Book line, and the same pitfall: sale.advance = splitAdv+prevAdv+og,
+// so when splitPayments/nowPaying are both empty, a sale that's covered by
+// prevAdvance/oldGold (a pure exchange sale, or a bill already edited down
+// to one) has sale.advance entirely made of that money -- pre-filling a
+// payment row with it and saving unchanged would re-promote it into
+// splitPayments, a tier dbAutoLines' own guard can't see past, turning it
+// into a real phantom cash-in line. A pure function (not inlined into
+// openEditBill()) because the DOM it would otherwise only exist inside of
+// can't be unit-tested here.
+function _editBillExistingSplits(sale){
+  if(sale.splitPayments && sale.splitPayments.length) return sale.splitPayments;
+  if(sale.nowPaying && sale.nowPaying.amount > 0) return [{amount:sale.nowPaying.amount, mode:sale.nowPaying.mode||'Cash'}];
+  if((sale.prevAdvance && sale.prevAdvance.amount > 0) || (sale.oldGold && sale.oldGold.value > 0)) return [{amount:0, mode:sale.payment||'Cash'}];
+  return [{amount:sale.advance||0, mode:sale.payment||'Cash'}];
+}
+
 function openEditBill(saleId){
   var sale = S.sales.find(function(x){return x.id===saleId;});
   if(!sale) return;
@@ -1047,11 +1065,7 @@ function openEditBill(saleId){
   var pa = document.createElement('div');
   pa.style.cssText='background:var(--surf2);border:1px solid var(--b2);border-radius:var(--rl);padding:14px 16px;margin-bottom:10px;';
   // Build existing split payments for editing
-  var existSplits = sale.splitPayments && sale.splitPayments.length
-    ? sale.splitPayments
-    : (sale.nowPaying && sale.nowPaying.amount > 0
-        ? [{amount:sale.nowPaying.amount, mode:sale.nowPaying.mode||'Cash'}]
-        : [{amount:sale.advance||0, mode:sale.payment||'Cash'}]);
+  var existSplits = _editBillExistingSplits(sale);
   var splitHtml = existSplits.map(function(sp,si){
     return '<div class="form-grid" style="grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end;">'+
       '<div class="fg"><label>Amount (₹)</label><input id="ebsp-amt-'+si+'" type="number" value="'+(sp.amount||0)+'" oninput="calcEditTotal()" placeholder="0"/></div>'+
@@ -1141,10 +1155,24 @@ function _applyEditBillForm(sale){
   sale.advance=splitAdv+prevAdv+og;
   sale.splitPayments=savedSplits;
   if(savedSplits.length>0) sale.payment=savedSplits.map(function(s){return s.mode;}).join('+');
-  if(prevAdv>0) sale.prevAdvance={amount:prevAdv,mode:(sale.prevAdvance&&sale.prevAdvance.mode)||'Cash'};
+  // Always rewrite, even when the new value is 0 -- matches buildSaleObj()'s
+  // creation-time convention (always sets the object; display is what gates
+  // on >0, not storage). Used to only overwrite when prevAdv/og>0 (and never
+  // touched nowPaying at all), so clearing a payment field in Edit Bill left
+  // sale.advance correct but the object itself stranded at its stale
+  // pre-edit figure -- invisible on the receipt (also gated on >0) but wrong
+  // for anything reading sale.oldGold.value/sale.prevAdvance.amount/
+  // sale.nowPaying.amount directly: calcSaleTotals()'s creationColl fallback
+  // on a bill edited down to a fully-zero sale.advance, Day Book's same
+  // three-tier precedence (js/10-daybook.js) posting a stale cash-in line,
+  // and the receipt's own "Paid (...)" line.
+  sale.prevAdvance={amount:prevAdv,mode:(sale.prevAdvance&&sale.prevAdvance.mode)||'Cash'};
   // The deduction % describes the old value; a retyped value no longer matches it.
-  if(og>0) sale.oldGold={weight:sale.oldGold?sale.oldGold.weight:0, purity:sale.oldGold?sale.oldGold.purity:'', value:og,
+  sale.oldGold={weight:sale.oldGold?sale.oldGold.weight:0, purity:sale.oldGold?sale.oldGold.purity:'', value:og,
     deductPct:(sale.oldGold&&sale.oldGold.value===og)?(sale.oldGold.deductPct||0):0};
+  // Kept equal to the sum of the (possibly now-empty) split rows, matching
+  // buildSaleObj()'s nowPaying:{amount:getSplitTotal(),...} at creation.
+  sale.nowPaying={amount:splitAdv,mode:(savedSplits[0]&&savedSplits[0].mode)||(sale.nowPaying&&sale.nowPaying.mode)||'Cash'};
   // Recalculate and re-lock. lockedGrand is cleared first because calcSaleTotals()
   // prefers an existing lock, which would just hand back the pre-edit total.
   sale.lockedGrand = 0;
