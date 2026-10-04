@@ -1878,10 +1878,10 @@ iframe.nl-badge-frame{display:none !important;}
     <div class="divider"></div>
     <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;">Charges &amp; Adjustments</div>
     <div class="form-grid">
-      <div class="fg"><label>Extra making (&#8377;)</label><input id="s-making" type="number" inputmode="decimal" value="0" oninput="updateSum()"/></div>
-      <div class="fg"><label>Extra diamond (&#8377;)</label><input id="s-diamond" type="number" inputmode="decimal" value="0" oninput="updateSum()"/></div>
-      <div class="fg" id="s-gst-wrap"><label>GST %</label><input id="s-gst" type="number" inputmode="decimal" value="0" placeholder="e.g. 3" oninput="updateSum()"/></div>
-      <div class="fg"><label>Discount (&#8377;)</label><input id="s-disc" type="number" inputmode="decimal" value="0" oninput="updateSum()"/></div>
+      <div class="fg"><label>Extra making (&#8377;)</label><input id="s-making" type="number" inputmode="decimal" value="0" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/></div>
+      <div class="fg"><label>Extra diamond (&#8377;)</label><input id="s-diamond" type="number" inputmode="decimal" value="0" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/></div>
+      <div class="fg" id="s-gst-wrap"><label>GST %</label><input id="s-gst" type="number" inputmode="decimal" value="0" placeholder="e.g. 3" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/></div>
+      <div class="fg"><label>Discount (&#8377;)</label><input id="s-disc" type="number" inputmode="decimal" value="0" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/></div>
     </div>
 
     <!-- PAYMENT SECTION (Tanishq-style) -->
@@ -1962,7 +1962,7 @@ iframe.nl-badge-frame{display:none !important;}
         <div class="form-grid" style="grid-template-columns:1fr 1fr;">
           <div class="fg">
             <label>Advance amount (&#8377;)</label>
-            <input id="s-prev-advance" type="number" inputmode="decimal" value="0" placeholder="From order booking" oninput="updateSum()"/>
+            <input id="s-prev-advance" type="number" inputmode="decimal" value="0" placeholder="From order booking" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/>
           </div>
           <div class="fg">
             <label>Advance paid via</label>

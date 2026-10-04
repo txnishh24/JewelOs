@@ -1050,6 +1050,13 @@ function setPayStatus(status){
   updateSum();
 }
 
+function zeroFieldFocus(el){
+  if(el.value==='0') el.value='';
+}
+function zeroFieldBlur(el){
+  if(el.value==='') el.value='0';
+}
+
 function updateSum(){
   var gv=0,mc=0,dc=0;
   if(UI.saleMode==='custom'){

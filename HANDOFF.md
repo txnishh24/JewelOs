@@ -80,6 +80,32 @@ or re-add tier UI.
 
 ## LOG (newest first)
 
+### 2026-10-05 · Claude Code (Sonnet) — M4 FIXED: the "0" pre-filled in sale-form number boxes no longer forces an extra keystroke
+
+🟢 pure UI, no money-calculation formula touched — no Opus needed per MODEL-POLICY §8.
+
+**The bug:** 5 inputs in the New Sale form (`s-making`, `s-diamond`, `s-gst`, `s-disc`, `s-prev-advance`) ship with the literal `value="0"`, not a placeholder. Tapping into any of them puts the cursor inside the existing "0" character, so typing e.g. "5" produced "05" — the jeweller then had to notice and delete the leading zero themselves. Confirmed by grep: these 5 are the only visible inputs in the whole app with a real `value="0"` (everywhere else uses `placeholder="0"`, which is a ghost hint that doesn't need deleting).
+
+**The fix:** two small shared helpers in `js/02-ui-inactivity-modals.js`, right before `updateSum()` (which all 5 fields already call on every keystroke):
+```js
+function zeroFieldFocus(el){ if(el.value==='0') el.value=''; }
+function zeroFieldBlur(el){ if(el.value==='') el.value='0'; }
+```
+Wired via `onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"` on all 5 inputs in `index.html`. Tapping in clears a literal "0" so the first digit typed replaces it instead of appending; tabbing away without typing anything restores "0" so every existing reader (`parseFloat(el.value)||0`, confirmed at the 6 call sites that read these fields) never sees an empty string. A field that already has a real value (e.g. GST already set to 3) is left untouched on focus — only a literal "0" is cleared.
+
+**Confirmed safe against the two places that set these fields programmatically, not just by user tap:** `04-orders-detail.js:375/377` (order→sale conversion sets `s-making`/`s-prev-advance` directly) and `02-ui-inactivity-modals.js`'s own form-reset (`clearSale()`, resets all 5 to `'0'`) — both are plain `.value=` assignments, which don't dispatch a `focus`/`blur`/`input` event, so the new handlers never fire from them and there's no interaction. Also confirmed setting `.value` via JS doesn't fire `oninput` either, so there's no momentary flash of wrong totals between the field clearing on focus and the user's first keystroke.
+
+**3 new regression tests** (`tests/regression.test.js`, search "QA M4"): focus clears a literal "0", blur-with-nothing-typed restores "0" (so `parseFloat` never sees `""`), and focus leaves a real value (not "0") untouched. All 3 confirmed to fail against the pre-fix code (`app.zeroFieldFocus is not a function`).
+
+**Verification:** `node --check` all 11 modules clean; regression 369/369 (was 366, +3 new); all `checks/` scripts clean against the same documented false positives as baseline (`handlers.js`, `ids.js`, `scope.js` etc. — nothing new introduced); `backup-check`/`roundtrip` both clean; `scope.js`'s globals baseline (`checks/globals.json`) correctly ticked up by exactly the 2 new top-level functions. `jewelos-bug-pattern-reviewer` ran clean against the five bug families and independently confirmed the "already safe because every reader uses `||0`" claim and the no-event-on-programmatic-`.value=` claim against the real source. `jewelos-test-runner` independently reproduced all counts, and also ran `tests/edge-functions.test.js` (26/26) and `tests/cowork-live-check.js` — the latter fails, but confirmed by stashing this diff and re-running against unmodified `main` that the failure is pre-existing (unrelated to this change; already documented in `tests/README.md` from the 3 Oct session, not wired into `check.bat`).
+
+**Not verified, said plainly:** nobody has actually tapped these 5 fields on a real screen this session — only the logic (the two functions in isolation, and the regression harness's fake DOM) was exercised. New Sale isn't in the e2e-covered spec list, so `tests/e2e/` doesn't cover this either. If you want this clicked through on a real phone before trusting it, that's a `verify-ui`/Playwright pass still owed.
+
+→ FOR COWORK: M4 is fixed, tested, and pushed. M2, M6, M9 and the whole L-series from the 3 Oct QA pass are still open and unassigned — Claude Code has no access to the original `jewelos-qa/` report text for those (it's outside this repo), so whoever picks them up next needs the actual descriptions restated here or in a fresh hand-back, not just the bug IDs.
+→ FOR TANISH: Fixed a small annoyance: the Extra Making, Extra Diamond, GST%, Discount, and Advance Paid boxes on the New Sale screen used to show "0" and make you delete it before typing your real number. Now tapping in clears it so you can just type. Nothing needs your decision on this one.
+
+---
+
 ### 2026-10-04 · Claude Code (Sonnet, Opus-reviewed) — M5 FIXED: a discounted bill's printed line items now agree with its own footer
 
 (risk) this changes a figure printed on an actual Tax Invoice, so per MODEL-POLICY's "risk beats size" it went through Opus review before shipping even though the diff is ~13 lines, same discipline as C1/C2/H2.

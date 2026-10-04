@@ -4945,6 +4945,31 @@ test('every key the cloud save sends also survives the on-phone cache (saveCache
   assert(lost.length === 0, 'lost when the app is reopened from cache: ' + lost.join(', '));
 });
 
+test('QA M4: tapping into a 0-prefilled charge field clears it, so typing a digit replaces instead of appending', function(){
+  var el = app.document.getElementById('s-making');
+  el.value = '0';
+  app.zeroFieldFocus(el);
+  assert(el.value === '', 'focusing a field showing "0" should clear it, got ' + JSON.stringify(el.value));
+  el.value = '5'; // simulates the user typing, now that the field was empty
+  app.zeroFieldBlur(el);
+  assert(el.value === '5', 'a value the user actually typed must survive blur, got ' + JSON.stringify(el.value));
+});
+
+test('QA M4: leaving a charge field empty on blur (tapped in, typed nothing, tapped away) restores 0', function(){
+  var el = app.document.getElementById('s-disc');
+  el.value = '0';
+  app.zeroFieldFocus(el);
+  app.zeroFieldBlur(el); // never typed anything in between
+  assert(el.value === '0', 'an untouched field must fall back to 0 so parseFloat(el.value) never sees "", got ' + JSON.stringify(el.value));
+});
+
+test('QA M4: focusing a field that already has a real value leaves it untouched', function(){
+  var el = app.document.getElementById('s-gst');
+  el.value = '3';
+  app.zeroFieldFocus(el);
+  assert(el.value === '3', 'focus must only clear a literal "0", not a real value, got ' + JSON.stringify(el.value));
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');
