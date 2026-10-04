@@ -1017,8 +1017,8 @@ function openEditBill(saleId){
     '<div class="fg"><label>Customer</label><input id="eb-cust" value="'+escHtml(sale.customer||'')+'"/></div>'+
     '<div class="fg"><label>Phone</label><input id="eb-phone" value="'+escHtml(sale.phone||'')+'"/></div>'+
     '<div class="fg"><label>Notes / Occasion</label><input id="eb-notes" value="'+escHtml(sale.notes||'')+'"/></div>'+
-    '<div class="fg"><label>Discount (₹)</label><input id="eb-disc" type="number" value="'+(sale.discount||0)+'"/></div>'+
-    '<div class="fg"><label>GST %</label><input id="eb-gst" type="number" value="'+(sale.gst||0)+'"/></div>';
+    '<div class="fg"><label>Discount (₹)</label><input id="eb-disc" type="number" value="'+(sale.discount||0)+'" oninput="calcEditTotal()"/></div>'+
+    '<div class="fg"><label>GST %</label><input id="eb-gst" type="number" value="'+(sale.gst||0)+'" oninput="calcEditTotal()"/></div>';
   body.appendChild(nb);
 
   // Items table (read-only display + weight/making edit)
@@ -1037,7 +1037,7 @@ function openEditBill(saleId){
       '<div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'+
         '<div class="fg"><label>Net Wt (g)</label><input id="ei-wt-'+i+'" type="text" inputmode="decimal" value="'+((item.weight||0).toFixed(3))+'" oninput="calcEditTotal()"/></div>'+
         '<div class="fg"><label>Rate (₹/g)</label><input id="ei-rate-'+i+'" type="number" value="'+(item.lockedRate||0)+'" oninput="calcEditTotal()"/></div>'+
-        '<div class="fg"><label>Making (₹)</label><input id="ei-mk-'+i+'" type="number" value="'+(item.making||0)+'" oninput="calcEditTotal()"/></div>'+
+        '<div class="fg"><label>'+(item.isCustom?'Making (₹/g)':'Making (₹)')+'</label><input id="ei-mk-'+i+'" type="number" value="'+(item.making||0)+'" oninput="calcEditTotal()"/></div>'+
         '<div class="fg"><label>Stone (₹)</label><input id="ei-dc-'+i+'" type="number" value="'+(item.diamond||0)+'" oninput="calcEditTotal()"/></div>'+
       '</div>';
     body.appendChild(row);
@@ -1110,59 +1110,76 @@ function openEditBill(saleId){
   document.getElementById('edit-bill-modal').classList.add('open');
 }
 
-function calcEditTotal(){
-  var sale = S.sales.find(function(x){return x.id===_editBillId;});
-  if(!sale) return;
-  var gv=0,mc=0,dc=0;
+// Applies the Edit Bill form's current field values onto `sale` and re-locks
+// its grand total, exactly the way a real save does. Shared by saveEditBill()
+// (the real sale) and calcEditTotal() (a throwaway clone), so the live
+// preview can never drift from what Save actually stores — M3: it used to be
+// a second, independent formula that disagreed with this one in several ways
+// (no qty, wrong making-charge basis for a custom item, missing bill-level
+// making/diamond, missing extraPayments in the balance).
+function _applyEditBillForm(sale){
   (sale.items||[]).forEach(function(item,i){
-    var wt=parseFloat((document.getElementById('ei-wt-'+i)||{value:0}).value)||0;
-    var rate=parseFloat((document.getElementById('ei-rate-'+i)||{value:0}).value)||0;
-    var mk=parseFloat((document.getElementById('ei-mk-'+i)||{value:0}).value)||0;
-    var stone=parseFloat((document.getElementById('ei-dc-'+i)||{value:0}).value)||0;
-    gv+=rate*wt; mc+=mk; dc+=stone;
+    var wt=parseFloat((document.getElementById('ei-wt-'+i)||{value:item.weight}).value)||item.weight;
+    var rate=parseFloat((document.getElementById('ei-rate-'+i)||{value:item.lockedRate}).value)||item.lockedRate;
+    var mk=parseFloat((document.getElementById('ei-mk-'+i)||{value:item.making||0}).value)||0;
+    var stone=parseFloat((document.getElementById('ei-dc-'+i)||{value:item.diamond||0}).value)||0;
+    item.weight=wt; item.lockedRate=rate; item.making=mk; item.diamond=stone;
   });
-  var sub=gv+mc+dc;
-  var gst=parseFloat((document.getElementById('eb-gst')||{value:0}).value)||0;
-  var disc=parseFloat((document.getElementById('eb-disc')||{value:0}).value)||0;
-  // Must match calcSaleTotals(): GST on the discount-adjusted taxable
-  // value, not the pre-discount subtotal.
-  var taxable=Math.max(0,sub-disc);
-  var grand=Math.max(0,taxable+taxable*gst/100);
-  // Collect all payment rows
-  var splitTotal=0, splitRows=[];
+  sale.discount=parseFloat((document.getElementById('eb-disc')||{value:0}).value)||0;
+  sale.gst=parseFloat((document.getElementById('eb-gst')||{value:0}).value)||0;
+  // Collect split payments from edit rows
+  var savedSplits=[], splitAdv=0;
   var si=0;
   while(document.getElementById('ebsp-amt-'+si)){
-    var amt=parseFloat(document.getElementById('ebsp-amt-'+si).value)||0;
-    var mode=(document.getElementById('ebsp-mode-'+si)||{value:'Cash'}).value;
-    if(amt>0) splitRows.push({amount:amt,mode:mode});
-    splitTotal+=amt;
+    var samt=parseFloat(document.getElementById('ebsp-amt-'+si).value)||0;
+    var smode=(document.getElementById('ebsp-mode-'+si)||{value:'Cash'}).value;
+    if(samt>0){savedSplits.push({amount:samt,mode:smode});splitAdv+=samt;}
     si++;
   }
   var prevAdv=parseFloat((document.getElementById('eb-advance')||{value:0}).value)||0;
   var og=parseFloat((document.getElementById('eb-oldgold')||{value:0}).value)||0;
-  var totalColl=splitTotal+prevAdv+og;
-  var bal=Math.max(0,grand-totalColl);
+  sale.advance=splitAdv+prevAdv+og;
+  sale.splitPayments=savedSplits;
+  if(savedSplits.length>0) sale.payment=savedSplits.map(function(s){return s.mode;}).join('+');
+  if(prevAdv>0) sale.prevAdvance={amount:prevAdv,mode:(sale.prevAdvance&&sale.prevAdvance.mode)||'Cash'};
+  // The deduction % describes the old value; a retyped value no longer matches it.
+  if(og>0) sale.oldGold={weight:sale.oldGold?sale.oldGold.weight:0, purity:sale.oldGold?sale.oldGold.purity:'', value:og,
+    deductPct:(sale.oldGold&&sale.oldGold.value===og)?(sale.oldGold.deductPct||0):0};
+  // Recalculate and re-lock. lockedGrand is cleared first because calcSaleTotals()
+  // prefers an existing lock, which would just hand back the pre-edit total.
+  sale.lockedGrand = 0;
+  sale.lockedGrand = Math.round(calcSaleTotals(sale).grand);
+  return {t:calcSaleTotals(sale), splits:savedSplits, splitAdv:splitAdv, prevAdv:prevAdv, og:og}; // second pass: bal measured against the new rounded lock
+}
+
+function calcEditTotal(){
+  var sale = S.sales.find(function(x){return x.id===_editBillId;});
+  if(!sale) return;
+  // A throwaway clone — never touches the real sale or triggers a save.
+  var draft = JSON.parse(JSON.stringify(sale));
+  var r = _applyEditBillForm(draft);
+  var t = r.t;
   var el=document.getElementById('eb-total-display');
   if(!el) return;
-  var splitHtml=splitRows.map(function(r){
-    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--ch6);"><span>&#128179; Paid ('+r.mode+')</span><span style="color:var(--em4);font-weight:500;">'+fmt(r.amount)+'</span></div>';
+  var splitHtml=r.splits.map(function(sp){
+    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--ch6);"><span>&#128179; Paid ('+sp.mode+')</span><span style="color:var(--em4);font-weight:500;">'+fmt(sp.amount)+'</span></div>';
   }).join('');
   el.innerHTML=
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;">'+
       '<div style="background:var(--ch0);border-radius:8px;padding:10px;">'+
         '<div style="font-size:9.5px;color:var(--ch5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Gold Value</div>'+
-        '<div style="font-size:16px;font-weight:600;color:var(--ch-gold-d);">'+fmt(gv)+'</div></div>'+
+        '<div style="font-size:16px;font-weight:600;color:var(--ch-gold-d);">'+fmt(t.gv)+'</div></div>'+
       '<div style="background:var(--ch0);border-radius:8px;padding:10px;">'+
         '<div style="font-size:9.5px;color:var(--ch5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Grand Total</div>'+
-        '<div style="font-family:Georgia,serif;font-size:20px;font-weight:600;color:var(--sap5);">'+fmt(grand)+'</div></div>'+
-      '<div style="background:'+(bal>0?'var(--err-bg)':'var(--ok-bg)')+';border-radius:8px;padding:10px;">'+
+        '<div style="font-family:Georgia,serif;font-size:20px;font-weight:600;color:var(--sap5);">'+fmt(t.grand)+'</div></div>'+
+      '<div style="background:'+(t.bal>0?'var(--err-bg)':'var(--ok-bg)')+';border-radius:8px;padding:10px;">'+
         '<div style="font-size:9.5px;color:var(--ch5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Balance</div>'+
-        '<div style="font-size:18px;font-weight:700;color:'+(bal>0?'var(--err)':'var(--em4)')+';">'+fmt(bal)+'</div></div>'+
+        '<div style="font-size:18px;font-weight:700;color:'+(t.bal>0?'var(--err)':'var(--em4)')+';">'+fmt(t.bal)+'</div></div>'+
     '</div>'+
-    (splitHtml||prevAdv>0||og>0?
+    (splitHtml||r.prevAdv>0||r.og>0?
       '<div style="border-top:1px solid var(--b1);padding-top:8px;">'+
-        (og>0?'<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--ch6);"><span>&#9851; Old Gold</span><span style="color:var(--em4);font-weight:500;">'+fmt(og)+'</span></div>':'')+
-        (prevAdv>0?'<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--ch6);"><span>&#10003; Prev Advance</span><span style="color:var(--em4);font-weight:500;">'+fmt(prevAdv)+'</span></div>':'')+
+        (r.og>0?'<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--ch6);"><span>&#9851; Old Gold</span><span style="color:var(--em4);font-weight:500;">'+fmt(r.og)+'</span></div>':'')+
+        (r.prevAdv>0?'<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--ch6);"><span>&#10003; Prev Advance</span><span style="color:var(--em4);font-weight:500;">'+fmt(r.prevAdv)+'</span></div>':'')+
         splitHtml+
       '</div>':'');
 }
@@ -1180,47 +1197,14 @@ function saveEditBill(){
     reason: (document.getElementById('eb-reason')||{value:''}).value||'Edited',
     snapshot: JSON.parse(JSON.stringify({items:sale.items,advance:sale.advance,discount:sale.discount,gst:sale.gst}))
   });
-  // Apply edits to items
-  (sale.items||[]).forEach(function(item,i){
-    var wt=parseFloat((document.getElementById('ei-wt-'+i)||{value:item.weight}).value)||item.weight;
-    var rate=parseFloat((document.getElementById('ei-rate-'+i)||{value:item.lockedRate}).value)||item.lockedRate;
-    var mk=parseFloat((document.getElementById('ei-mk-'+i)||{value:item.making||0}).value)||0;
-    var stone=parseFloat((document.getElementById('ei-dc-'+i)||{value:item.diamond||0}).value)||0;
-    item.weight=wt; item.lockedRate=rate; item.making=mk; item.diamond=stone;
-  });
-  // Apply billing edits
-  sale.discount=parseFloat((document.getElementById('eb-disc')||{value:0}).value)||0;
-  sale.gst=parseFloat((document.getElementById('eb-gst')||{value:0}).value)||0;
   sale.customer=(document.getElementById('eb-cust')||{value:sale.customer}).value||sale.customer;
   sale.phone=(document.getElementById('eb-phone')||{value:sale.phone||''}).value||sale.phone||'';
   sale.notes=(document.getElementById('eb-notes')||{value:sale.notes||''}).value||sale.notes||'';
-  // Collect split payments from edit rows
-  var savedSplits=[], splitAdv=0;
-  var si2=0;
-  while(document.getElementById('ebsp-amt-'+si2)){
-    var samt=parseFloat(document.getElementById('ebsp-amt-'+si2).value)||0;
-    var smode=(document.getElementById('ebsp-mode-'+si2)||{value:'Cash'}).value;
-    if(samt>0){savedSplits.push({amount:samt,mode:smode});splitAdv+=samt;}
-    si2++;
-  }
-  var prevAdvSave=parseFloat((document.getElementById('eb-advance')||{value:0}).value)||0;
-  var og=parseFloat((document.getElementById('eb-oldgold')||{value:0}).value)||0;
-  var adv=splitAdv+prevAdvSave+og;
-  sale.advance=adv;
-  sale.splitPayments=savedSplits;
-  if(savedSplits.length>0) sale.payment=savedSplits.map(function(s){return s.mode;}).join('+');
-  if(prevAdvSave>0) sale.prevAdvance={amount:prevAdvSave,mode:(sale.prevAdvance&&sale.prevAdvance.mode)||'Cash'};
-  // The deduction % describes the old value; a retyped value no longer matches it.
-  if(og>0) sale.oldGold={weight:sale.oldGold?sale.oldGold.weight:0, purity:sale.oldGold?sale.oldGold.purity:'', value:og,
-    deductPct:(sale.oldGold&&sale.oldGold.value===og)?(sale.oldGold.deductPct||0):0};
-  // Recalculate and re-lock. lockedGrand is cleared first because calcSaleTotals()
-  // prefers an existing lock, which would just hand back the pre-edit total.
   sale.lastEditedAt = new Date().toISOString();
-  sale.lockedGrand = 0;
-  sale.lockedGrand = Math.round(calcSaleTotals(sale).grand);
-  var t = calcSaleTotals(sale);   // second pass: bal measured against the new rounded lock
+  var r = _applyEditBillForm(sale);
+  var t = r.t;
   // QA 1 Oct P0-2, same rule as recordSale: payments above the bill are refused.
-  var _over = saleOverpaidBy({lockedGrand:sale.lockedGrand, nowPaying:{amount:splitAdv}, oldGold:{value:og}, prevAdvance:{amount:prevAdvSave}});
+  var _over = saleOverpaidBy({lockedGrand:sale.lockedGrand, nowPaying:{amount:r.splitAdv}, oldGold:{value:r.og}, prevAdvance:{amount:r.prevAdv}});
   if(_over > 0){
     S.sales[S.sales.indexOf(sale)] = JSON.parse(_beforeEdit);
     toast('⚠ Payments are ₹'+Math.round(_over).toLocaleString('en-IN')+' more than the bill. Enter only what the shop keeps.');

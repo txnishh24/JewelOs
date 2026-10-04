@@ -3359,6 +3359,46 @@ test('C1: an edited bill re-locks to the NEW total, not the stale pre-edit one (
   assert(s.payStatus === 'advance', 'a status that can only ever be upgraded to "full" would stay stale here even though 5000 is now owed; got ' + s.payStatus);
 });
 
+test('QA M3: the Edit Bill live preview shows the SAME grand total and balance Save actually stores (custom item, gross-weight making, extra payment)', function(){
+  var a = loadApp();
+  // A custom item with the gross-weight making basis (itemMakingWeight charges
+  // on grossWeight, not net weight, net weight is lower here on purpose so a
+  // formula that used net instead of gross would also be caught) and a
+  // post-creation extra payment (calcSaleTotals' extraPaid ledger) — the two
+  // things the old, second preview formula silently dropped.
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:0, advance:5000,
+    payStatus:'advance', billType:'memo', gst:0, discount:0, making:0, diamond:0,
+    items:[{ name:'Custom bangle', isCustom:true, makingBasis:'gross', qty:1,
+      grossWeight:20, weight:18, lockedRate:6000, making:500, diamond:2000, metal:'gold', purity:'22K' }],
+    extraPayments:[{ type:'payment', amount:3000, at:'2026-09-10T00:00:00.000Z' }] }];
+  a._editBillId = 's1';
+  var vals = { 'ebsp-amt-0':'5000', 'ebsp-mode-0':'Cash', 'eb-disc':'0', 'eb-gst':'0', 'eb-advance':'0', 'eb-oldgold':'0',
+    'ei-wt-0':'18', 'ei-rate-0':'6000', 'ei-mk-0':'500', 'ei-dc-0':'2000' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(/^ebsp-amt-/.test(id) && !vals[id]) return null;
+    if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+    return _o(id);
+  };
+  // Real math: gv=6000*18=108000, mc=500*20(gross)*1=10000, dc=2000(custom, no
+  // qty) -> grand=120000; collected = 5000 (this split row, i.e. sale.advance
+  // after the edit) + 3000 (extraPayments) = 8000 -> bal=112000. The bug's
+  // formula would have shown grand=110500 (mc=500, no weight) and bal=105500
+  // (extraPayments ignored) -- both wrong by thousands of rupees, not rounding.
+  a.calcEditTotal();
+  var html = a.document.getElementById('eb-total-display').innerHTML;
+  assert(html.indexOf(a.fmt(120000)) !== -1, 'preview Grand Total must be ₹1,20,000 (making charged on gross weight x rate), got: ' + html);
+  assert(html.indexOf(a.fmt(112000)) !== -1, 'preview Balance must be ₹1,12,000 (must include the ₹3,000 extra payment), got: ' + html);
+  assert(html.indexOf(a.fmt(110500)) === -1, 'preview must not show the old, under-counted making-charge total ₹1,10,500');
+
+  var saved = false; a.saveToCloud = function(){ saved = true; };
+  a.saveEditBill();
+  var s = a.S.sales[0];
+  assert(saved, 'a balanced, non-overpaid edit must save');
+  assert(s.lockedGrand === 120000, 'saved lockedGrand must match what the preview just showed; got ' + s.lockedGrand);
+  assert(a.calcSaleTotals(s).bal === 112000, 'saved balance must match what the preview just showed; got ' + a.calcSaleTotals(s).bal);
+});
+
 test('QA 1 Oct #3: opening the Girvi Pay dialog leaves the sale form payment rows alone', function(){
   var a = loadApp();
   a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:10000, interestRate:2, payments:[] }];
