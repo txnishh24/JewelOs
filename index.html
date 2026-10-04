@@ -312,8 +312,8 @@ body{
   margin-bottom:var(--space-3);display:flex;align-items:center;
   justify-content:space-between;gap:8px;
 }
-.two-col{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:.9rem;}
-@media(min-width:600px){.two-col{grid-template-columns:1fr 1fr;}}
+.two-col{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-bottom:.9rem;}
+@media(min-width:600px){.two-col{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}}
 
 /* ── STOCK BANNERS ───────────────────────────────── */
 .stock-banner{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:.9rem;}
