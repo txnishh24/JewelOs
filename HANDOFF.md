@@ -78,7 +78,53 @@ or re-add tier UI.
 
 ---
 
-## LOG (newest first)
+### 2026-10-06 · Claude Code (Sonnet) — ran the real phone test against LIVE production (393px, Chromium) — Edit Bill confirmed fixed, one new cosmetic bug found and fixed
+
+Tanish asked for the phone test that's been outstanding since batch48. Ran it as a one-off
+Playwright script (deleted after use, not a committed spec) pointed directly at
+`heartfelt-queijadas-eeb356.netlify.app` — the deployed site, not the local repo copy —
+using the same test shop (`E2E Test Shop (do not delete)`) and `E2E-<runId>` tagging
+convention as `tests/e2e/`. 393×851 viewport, real screenshots taken at each step.
+
+**Hit the real Netlify badge immediately** — on localhost the badge doesn't exist (it's
+injected by Netlify's hosting, not part of the app), so this is the first time anything
+in this repo's automation ever actually clicked through it. Its "Powered by Netlify" text
+lives inside the badge's own `srcdoc` iframe document, invisible to
+`dismissNetlifyBadge()`'s check from the outer page — confirms the badge/nav-overlap bug
+(already known, Tanish's call to live with it) is real on production, worked around here by
+calling the app's own `switchTab()` directly instead of clicking the covered nav buttons.
+
+**Edit Bill: confirmed fixed, with a screenshot.** Opened Edit Bill from Customer History
+on the live site — Save Changes fully visible and clickable, not covered. Changed a
+discount, saved, got the success toast, bill updated correctly (₹21,600 → ₹21,500).
+
+**Found a second real bug, this time something the DOM-only e2e spec couldn't have
+caught:** the save toast read literally `&#10003; Bill updated & saved! v1` — the raw
+8-character entity string, not a checkmark. `toast()` sets `textContent`, not
+`innerHTML` (`js/01-sync-core.js:844`), so an HTML entity never decodes; only a real
+Unicode escape (`✓`, like the `✅` used elsewhere) renders correctly. Two call
+sites had this: the Edit Bill save toast and the product-update toast
+(`js/03-billing-numbers.js:887`). Fixed both (`664cb7b`). Cosmetic only, no money/logic
+involved — classified 🟢 Low, no Opus review needed.
+
+Reports: confirmed no horizontal scroll at 393px (`scrollWidth === clientWidth`, measured
+directly, not just screenshotted).
+
+**Verification after the toast fix:** regression suite 374/374, `check.bat` clean, full
+e2e suite 22/23 — the one failure (`session-restore.spec.js`, "login expires mid-work")
+reproduces identically with `git stash` on the exact pre-existing committed tree, i.e.
+before this session's toast fix existed. Not a regression from this change; flagging as a
+pre-existing flake (possibly the shared test shop's auth-gateway lockout from the day's
+accumulated test runs) rather than silently ignoring a red test.
+
+**Not yet deployed:** the toast fix (`664cb7b`) is committed but not built into a zip or
+pushed live. Production currently still shows the garbled checkmark on those two toasts.
+
+→ FOR COWORK: nothing new needing a live-data check — this entry is UI/cosmetic only.
+→ FOR TANISH: Edit Bill is confirmed working on the live site now (screenshot taken, not
+just asserted). Found one more small thing while testing: two success messages show
+broken text (`&#10003;`) instead of a checkmark — fixed, but not deployed yet. Want a
+batch50 zip built and deployed the same way, or hold it for a bigger batch?
 
 ### 2026-10-06 · Claude Code (Sonnet) — batch49 DEPLOYED and verified live
 
