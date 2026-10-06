@@ -27,7 +27,7 @@ if (!fs.existsSync(changesDoc)) {
 
 // Everything the live site serves. A Netlify drag REPLACES the whole site, so
 // anything missing here 404s after deploy — not just the code.
-var files = ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png'];
+var files = ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'sw.js'];
 fs.readdirSync(path.join(root, 'js')).filter(function (f) { return /\.js$/.test(f); })
   .sort().forEach(function (f) { files.push('js/' + f); });
 

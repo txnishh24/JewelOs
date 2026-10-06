@@ -78,6 +78,29 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-07 · Claude Code (Sonnet) — M9 FIXED: offline mode never activated in any browser, ever — root cause was a `blob:` URL registration, which is rejected by spec, not a flaky network path
+
+🟢 Low per MODEL-POLICY §8 (service-worker registration + a static manifest string, no money/ledger logic, no Opus needed) — same session as the M2/M6 entry below, continuing down the backlog as asked.
+
+**Confirmed the exact mechanism, not just the symptom.** `registerServiceWorker()` (`js/08-girvi-viewmode.js`) built the service-worker script as a `Blob` and called `navigator.serviceWorker.register(URL.createObjectURL(blob))`. A `blob:` URL has its own opaque origin that can never equal the page's own origin, and the Service Worker spec requires same-origin — every browser rejects this registration with a `SecurityError`, unconditionally. This was flagged once before (`docs/HANDOFF-ARCHIVE.md`, a session that correctly diagnosed it but left it as "flagged, not fixed") and once in the 3 Oct QA pass; neither one had been picked up since.
+
+**The fix:** the service-worker code now lives in a real file, **`sw.js`**, served from the site root like `manifest.json`/`icon-*.png` already are. `registerServiceWorker()` now just calls `navigator.serviceWorker.register('sw.js')` — same-origin, no Blob, no `createObjectURL`. Added `sw.js` to `build-deploy-zip.js`'s file list (was missing — anything not in that list 404s on the live site after a deploy, same class of bug the script's own header comment warns about).
+
+**Verified for real, not just by reading the code:** started the repo's own local static server (`tests/e2e/static-server.js`, the same one `playwright.config.js` uses for the e2e suite) and drove a real Chromium tab against it. Confirmed via `navigator.serviceWorker.getRegistration()`: `scope: "http://localhost:4173/"`, `activeState: "activated"`, `scriptURL: ".../sw.js"`, `controller: true`. Reloaded once more and read the actual Cache Storage contents: **19 entries** — `index.html`, all 11 `js/*.js` modules, `manifest.json`, `icon-192.png`, plus the Sentry SDK and Google Fonts CDN requests — confirming the fetch handler's cache-as-you-go logic (unchanged from before, only the registration was broken) is now actually running, not dead code. This is the first time this app's service worker has ever reached the `activated` state in this project's history.
+
+**Not changed:** the fetch handler's own logic (network-first, cache-on-200, serve-from-cache on network failure, explicit `supabase.co`/`razorpay` bypass) — that part was already correct, it just never ran. Didn't bump the `jewelos-v19` cache name; this is effectively the first real cache this version will ever create, so there's nothing stale to invalidate.
+
+**Not verified:** didn't toggle the browser into actual offline mode (no network-condition tool loaded this session) to watch a reload get served from cache with zero network activity — the `activated`+`controller:true`+populated-cache state plus the unchanged, already-logically-sound fetch handler make that the expected next step, but it wasn't watched happen. Also didn't test on a real phone — same gap every entry in this file names honestly. Not covered by the Node regression harness by design (`tests/harness.js` deliberately omits `navigator.serviceWorker` so sandboxed tests don't exercise browser-only APIs) — this is DOM/browser-API behavior, verified the way `verify-ui.md` asks for, not by a persisted spec.
+
+**Bonus, same session, same file family:** `manifest.json`'s `"name"` field was hard-coded to `"JewelOS — Sri Sai Jewellers"` — every shop's "Add to Home Screen" install got another jeweller's name (same bug class as M6, flagged-not-fixed since a 17 Sep session that noted "it may be fine to just drop the shop name" — a static manifest can't be per-shop without server-side generation, which is out of scope for a single static PWA). Took that session's own suggested fix: changed it to the generic `"JewelOS — Jewellery Shop Management"`. Zero risk, one line, strictly better for every shop except the one actual Sri Sai Jewellers (which loses nothing functional either).
+
+**Verification:** `check.bat` clean, same baseline as the M2/M6 entry below; `node --check sw.js` clean (not part of `check.bat`'s loop, which only walks `js/*.js` — checked by hand since this is a new root-level file). No regression-suite count change (375/375, unchanged from the M2/M6 entry — nothing here is unit-testable through the Node harness, see above).
+
+→ FOR COWORK: nothing live-data related. FYI: the live site has never actually had a working offline mode until this deploys — if a shop ever reported "the app broke when my connection dropped," this is almost certainly why, and it's now a real fix rather than a flagged-and-left item.
+→ FOR TANISH: Found the real reason offline mode never worked — the code was trying to register itself in a way every browser refuses by design, not a bug that came and went. Fixed properly this time (tested in a real browser — it actually activates and caches the app now), not just patched around. Also fixed the home-screen app name so new installs say "JewelOS — Jewellery Shop Management" instead of another jeweller's shop name. Both are 🟢 low-risk, bundle into whatever the next zip is. Still open: the whole L-series (L1–L13) — want this session to keep going into those next?
+
+---
+
 ### 2026-10-07 · Claude Code (Sonnet) — picked up the unassigned M2/M6/M9/L-series backlog, starting at M2: M6 already fixed, M2 already labeled, found and fixed a real "every shop" hard-coded-name bug M6 missed
 
 🟢 Low per MODEL-POLICY §8 (text/display fix, no money-calculation logic touched, no Opus needed).

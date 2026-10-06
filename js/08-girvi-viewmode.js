@@ -1672,30 +1672,13 @@ document.addEventListener('visibilitychange', function(){
     return;
   }
 
-  // SW code as array of strings (avoids template literal / HTML parser conflicts)
-  var swCode = [
-    "var CACHE='jewelos-v19';",
-    "self.addEventListener('install',function(e){self.skipWaiting();});",
-    "self.addEventListener('activate',function(e){",
-    "  e.waitUntil(caches.keys().then(function(k){",
-    "    return Promise.all(k.filter(function(n){return n!==CACHE;}).map(function(n){return caches.delete(n);}));",
-    "  }).then(function(){return self.clients.claim();}));",
-    "});",
-    "self.addEventListener('fetch',function(e){",
-    "  if(e.request.method!=='GET')return;",
-    "  var u=e.request.url;",
-    "  if(u.indexOf('supabase.co')>-1||u.indexOf('razorpay')>-1)return;",
-    "  e.respondWith(fetch(e.request).then(function(r){",
-    "    if(r&&r.status===200){var c=r.clone();caches.open(CACHE).then(function(ca){ca.put(e.request,c);});}",
-    "    return r;",
-    "  }).catch(function(){return caches.match(e.request);}));",
-    "});"
-  ].join('\n');
-
+  // QA M9: a blob: URL has its own opaque origin, which never matches the
+  // page's origin -- navigator.serviceWorker.register() rejects that by spec
+  // (SecurityError), every single time, in every browser. There was no flaky
+  // network condition to fix; this could never have worked. A service worker
+  // must be registered from a real same-origin script file.
   try{
-    var swBlob = new Blob([swCode], {type:'application/javascript'});
-    var swUrl  = URL.createObjectURL(swBlob);
-    navigator.serviceWorker.register(swUrl).then(function(){
+    navigator.serviceWorker.register('sw.js').then(function(){
       console.log('[JewelOS] Service Worker active');
     }).catch(function(e){
       console.warn('[JewelOS] SW registration failed:',e.message);
