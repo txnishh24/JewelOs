@@ -78,6 +78,40 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-07 · Claude Code (Sonnet) — batch50 BUILT: `jewelos-batch50-DEPLOY.zip` packaged, nothing deployed
+
+Tanish asked to build the zip wrapping up today's session. `docs/CHANGES-batch50.md` written
+first, then `node build-deploy-zip.js batch50` — 17 files (16 + the new `sw.js`), 323.7 KB,
+`C:\Users\ADMIN\Downloads\jewelos-batch50-DEPLOY.zip`. The script's own three self-checks
+passed (7-Zip, forward-slash paths, byte-exact match against this folder).
+
+**No Opus review for this batch** — nothing in it is 🔴 High per `MODEL-POLICY.md` §8 (no
+financial-calculation, ledger, or auth logic touched; the service-worker fix is a registration
+mechanism, not money-adjacent). Regression suite reconfirmed 375/375 and all 11 `js/*.js`
+files syntax-clean on the exact tree immediately before building.
+
+**Contains, on top of what's currently live (batch49):** the held-over toast-checkmark fix
+(`664cb7b`), the `shareWhatsApp()` hard-coded shop-name fix, the service-worker/offline-mode
+fix (`sw.js`, new file), the PWA install-name fix, the GSTIN/HUID placeholder fixes, the
+login Enter-key fix, and the order-item category default fix. Full detail in
+`docs/CHANGES-batch50.md` and the individual entries below.
+
+**Not done:** nothing was deployed or clicked through in a browser in this entry — the
+service-worker fix was already verified live in an earlier entry below (real Chromium tab,
+this exact code); the rest (WhatsApp share, Enter-key, category default) are logic/placeholder
+verifications only, not watched on a real phone.
+
+→ FOR COWORK: `jewelos-batch50-DEPLOY.zip` exists in Tanish's Downloads folder, not deployed.
+Nothing in this batch touches money/ledger logic or Supabase data — no live-data check needed
+before he deploys, unlike recent batches.
+→ FOR TANISH: `jewelos-batch50-DEPLOY.zip` is in your Downloads folder, ready whenever you
+want to deploy — nothing live yet. Seven real fixes since batch49, biggest one being offline
+mode actually working for the first time ever (previous attempts could never have succeeded,
+regardless of what you were testing). Full list in `CHANGELOG.md` inside the zip. No live-data
+checks needed from Cowork this time — nothing here touches money or the database.
+
+---
+
 ### 2026-10-07 · Claude Code (Sonnet) — L4 closed, no code change: already solved by an existing gate this session's earlier flag missed
 
 No code changed. Tanish asked for a recommendation on L4 (realistic-looking default gold/silver rates, flagged two entries below as "Tanish's call, no clear right answer"). Suggested adding a rate-confirmation field to onboarding — before building it, checked how `S.rates` is actually consumed elsewhere first, and found the concern is already fully handled:
