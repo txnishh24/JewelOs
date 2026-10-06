@@ -649,6 +649,14 @@ html.dev .dev-only{display:block!important;}
    Becomes a bottom sheet under 640px so it never fights the keyboard. */
 .modal-bg{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:var(--modal-overlay-color);z-index:500;align-items:center;justify-content:center;padding:1rem;}
 .modal-bg.open{display:flex;}
+/* #cust-modal is the one member of this family that spawns the others (Edit
+   Bill, View Bill, Refund, Add Payment buttons live inside its own body) --
+   it must always sit BELOW whichever one of them is open on top of it. Same
+   z-index + later DOM position used to make it win the stacking tie instead,
+   silently covering Edit Bill's own Save/Cancel buttons (unclickable on a
+   real phone, confirmed via tests/e2e, 6 Oct 2026 -- Edit Bill is only ever
+   opened from inside this modal, so this was the one path that mattered). */
+#cust-modal.modal-bg{z-index:490;}
 .modal{background:var(--surface);border-radius:var(--radius-xl);width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);}
 .modal-header{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
 .modal-header h2{font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);}

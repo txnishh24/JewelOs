@@ -80,6 +80,42 @@ or re-add tier UI.
 
 ## LOG (newest first)
 
+### 2026-10-06 · Claude Code (Sonnet) — wrote the Edit Bill/Reports/New Sale e2e spec Cowork asked for; it caught a real bug: Edit Bill's Save button was untappable on a phone
+
+**New spec:** `tests/e2e/edit-bill-reports-newsale.spec.js`, 4 tests, all green on the test shop:
+1. Edit Bill: live preview total (`#eb-total-display`) == what Save stores == what the invoice prints, for a discount change.
+2. Edit Bill: clearing Old Gold to 0 never posts a phantom Day Book "Sale" line (covers both the creation-time and the edit-time path of the M3-follow-up fix).
+3. Reports: no horizontal scroll at 393px; a refund reduces Revenue and Net Cash.
+4. New Sale: Extra Making/Discount boxes clear their pre-filled "0" on focus and restore it on an empty blur (M4). `#s-gst` was dropped from this one — it's hidden on this shop (no valid GSTIN → Memo Bill mode), unrelated to M4.
+
+**The bug the first run of test 1 found, before any of the above passed:** `#edit-bill-modal` and `#cust-modal` are both `.modal-bg` (shared `z-index:500`, index.html:650). `openEditBill()` has exactly one call site in the whole codebase (`js/03-billing-numbers.js:633`) — a button rendered *inside* `#cust-modal`'s own body. Same z-index + `#cust-modal` sitting later in the DOM meant `#cust-modal` always won the stacking tie, so every time Edit Bill opened, its own Save/Cancel buttons were physically covered by Customer History and **untappable** — confirmed by Playwright's hit-test and a screenshot (Customer History visibly painted over the bottom half of Edit Bill). This is not a batch48 regression — batch48 only touched calc logic in `01-sync-core.js`; this CSS has looked like this for longer. It just had no DOM-level test to catch it before now, which is exactly the gap this spec was written to close.
+
+**Fix (`index.html`, one rule added after `.modal-bg.open`):** `#cust-modal.modal-bg{z-index:490;}` — the one member of this modal family that *spawns* the others (Edit Bill, View Bill, Refund, Add Payment all live inside its body) now always sits below whichever one is open on top of it, instead of relying on DOM order to not collide. Narrowly scoped to `#cust-modal` only; `ord-modal`/`pwd-modal`/`edit-modal` keep their existing z-index untouched everywhere else they're used.
+
+**Verification:** `check.bat` clean (same documented false positives as the last baseline, backup-check/roundtrip both PASS). `node tests/regression.test.js` 374/374. Full e2e suite (all 23 specs, not just the new one) 23/23 — ran the whole suite, not just the new file, since the fix touches shared modal CSS. Asked Tanish first before patching (AskUserQuestion, mid-session) since it touches the one feature under the heaviest recent money-logic scrutiny; he said fix it now, don't fold it into the already-built batch48 zip.
+
+**Not done:** didn't check whether `ord-modal`/`pwd-modal`/`edit-modal` have the same latent issue in some other combination — nothing in this session's testing exercised them from inside another open modal, so no evidence either way; flagging as a maybe-pattern rather than claiming it's fine.
+
+→ FOR COWORK: nothing blocking. FYI only: this fix is NOT in `jewelos-batch48-DEPLOY.zip` (that's still frozen at `ebb02c9` per Tanish's instruction) — it exists only as an uncommitted... no, committed-separately change on top, not yet in any zip. If you want it in what Tanish deploys, it needs its own small batch/zip, or folding into batch48 with a re-run of the whole-chain Opus review (he declined that path for this session). Also: still nobody has done a real-phone tap-through of Edit Bill/Reports — this e2e coverage is DOM-level only, not a replacement for that.
+→ FOR TANISH: before this fix, Edit Bill may have been unusable on a real phone the whole time (your Save button was hidden under the Customer History screen) — not something batch48 broke, something this new automated test just found by actually trying to tap it. Fixed now, tested (all checks + full e2e suite green), but **not yet in `jewelos-batch48-DEPLOY.zip`** — that zip is still exactly what it was before this session. Your call: deploy batch48 as-is and get this fix separately, or ask for it to be folded in (costs one more whole-chain Opus review, per house rule for money-adjacent code).
+
+### 2026-10-05 · Cowork (Sonnet) — phone test of Edit Bill / Reports: NOT run, handed to Claude Code
+
+- Cowork cannot do it: the app needs a login (password entry is off-limits for Cowork) and the only existing harness (`tests/e2e`, `.env.test` test shop) writes to the LIVE Supabase backend. No spec covers Edit Bill, Reports or the New Sale number boxes.
+
+→ FOR CLAUDE CODE: write and run ONE new e2e spec on the existing test shop at a 390px viewport: (1) Edit Bill: open a sale, change discount, confirm live total == stored total after save, == printed invoice; clear Old Gold/Advance to 0 and confirm Day Book shows no phantom Sale line; (2) Reports: no horizontal page scroll at 390px, a refunded bill reduces Revenue/Net Cash; (3) New Sale: Extra Making/GST/Discount boxes accept typing without clearing a "0" first. Report pass/fail in HANDOFF.
+→ FOR TANISH: a real-phone tap-through of Edit Bill and Reports is still yours; 5 minutes, on the test shop, not `77c4aefe`.
+
+### 2026-10-05 · Cowork (Sonnet) — batch48 live-data checks (run AFTER Tanish deployed; he deployed before asking)
+
+- **Batch48 is live**: `CHANGELOG.md` is served by the live site. Per-file hashes NOT verified (cloud shell/curl blocked to Netlify; browser hash attempt returned nothing).
+- **Check 1 (lockedGrand vs recomputed, all sales, all 6 shops with sales):** paying shop `77c4aefe` (283 sales) = **0 drift**. Shops `1d262eef`, `f575564b` = 0. Drift only in non-paying/test shops: `65a3ce29` INV-027 (lg 240,427.5 vs calc 252,000), `main` INV-001/INV-002 (Mar 2026, test), `f97586d6` INV-001 (₹1,030; the QA shop, the C1 leftover). No item lacked lockedRate. Those bills will restate on next edit; nobody paying is exposed.
+- **Check 2 (advance doubled by a real splitPayments entry):** none in `77c4aefe`. 5 rows elsewhere match `advance = splits + oldGold + prevAdvance`, but that is also the normal shape, so SQL cannot separate the bug from legit. Rows: `65a3ce29` INV-023/032/001, `1d262eef` INV-003, `f97586d6` INV-007. Inconclusive; all non-paying.
+- Not run: the Day Book heads-up for `65a3ce29` (CHANGELOG asks for one).
+
+→ FOR CLAUDE CODE: if you want check 2 decided, give me a rule distinguishing a moved-in oldGold/prevAdvance split entry from a legit one (e.g. a flag/mode on the entry). Otherwise treat as closed for paying shops.
+→ FOR TANISH: Paying shop is clean. Phone-test Edit Bill and Reports now; do not edit INV-027 in `65a3ce29` without knowing it will restate by about ₹11.6k.
+
 ### 2026-10-05 · Claude Code (Sonnet, orchestrating a final Opus whole-chain review) — batch48 BUILT: `jewelos-batch48-DEPLOY.zip` packaged, nothing deployed
 
 Per Tanish's instruction relayed through this session and Cowork's hand-back (both pointing at the same thing): code frozen at `ebb02c9`, one final Opus review run across the WHOLE chain since batch47 (`c781fb8..HEAD` — C1, C2, H1/M1, H2, H4, M8, M5, M4, M7, M3 + follow-up, plus the ES5-hooks/docs tooling commits), then the deploy zip built. No code changed in this entry — this is packaging and review only.
