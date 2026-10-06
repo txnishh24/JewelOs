@@ -78,6 +78,21 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-07 · Claude Code (Sonnet) — L4 closed, no code change: already solved by an existing gate this session's earlier flag missed
+
+No code changed. Tanish asked for a recommendation on L4 (realistic-looking default gold/silver rates, flagged two entries below as "Tanish's call, no clear right answer"). Suggested adding a rate-confirmation field to onboarding — before building it, checked how `S.rates` is actually consumed elsewhere first, and found the concern is already fully handled:
+
+**`ratesConfirmed()` / `needRatesFirst()`** (`js/02-ui-inactivity-modals.js:188-213`, pre-dates this session) already does exactly this, better: keeps the realistic defaults (demo-friendly, per `MODEL-POLICY`-style "weigh against launch" reasoning — Tanish demos in person, a broken-looking ₹1/g rate would hurt that), but tracks whether a real rate has ever actually been saved (`S.rates.setAt`), and **blocks the two places that actually value money at today's rate** — `recordSale()` (`02-ui-inactivity-modals.js:1381`) and creating a Girvi loan (`07-settings-plans.js:402`, "collateral is valued at these rates") — with a toast telling the jeweller to go set real rates first. Already has its own regression coverage (search "QA 1 Oct P1-6" / `ratesConfirmed` in `tests/regression.test.js`) confirming the gate actually stops billing on unconfirmed sample rates, and correctly grandfathers in shops that predate `setAt` but already have real (non-sample) numbers.
+
+Didn't build the onboarding field — it would have been redundant with a better-targeted, already-tested mechanism, and would only add friction to signup for a check that already happens at the moment it actually matters (first real sale/loan, not shop setup). Confirmed with Tanish before standing down rather than building the now-unnecessary version just because it had been agreed to a message earlier.
+
+**L4 can move from "flagged" to "closed" in the running list below** — there was never a gap, just a flag raised without first checking how the value was actually used downstream.
+
+→ FOR COWORK: nothing — no code touched, just confirmed existing behavior and corrected the backlog list.
+→ FOR TANISH: Good news on the last open item — L4 didn't need a decision after all. A safeguard already existed (and is already tested) that stops anyone billing a real sale or valuing Girvi collateral until they've actually gone into Rates and saved real numbers once. The realistic-looking defaults you have now are fine to keep as-is for your demos. That's the whole M2→L13 backlog genuinely closed.
+
+---
+
 ### 2026-10-07 · Claude Code (Sonnet) — L7 decided and fixed: new order items default to "Other", not "Rings"
 
 🟢 Low (data-default change in a dropdown, no money logic — order items don't affect billing totals). Picked up the one piece of the L4/L7 hand-back that had a clear, consistent answer already sitting in the codebase, rather than leaving it stalled on a question.
@@ -103,7 +118,7 @@ or re-add tier UI.
 - **L5** Enter did nothing on the login form — `#auth-email`/`#auth-password` had no submit path (not inside a `<form>`, no key handler), only the Sign In button worked. Added `onkeydown="if(event.key==='Enter')saasLogin()"` to both fields, the same pattern already used on the reauth password field (`index.html:3009`) and a Girvi note input (`07-settings-plans.js:1209`) — not a new pattern, just applied where it was missing. Verified in a real browser: stubbed `saasLogin`, dispatched a real `Enter` keydown on each field, confirmed it fires from both.
 
 **Flagged, not fixed — these need Tanish's call, not a guess:**
-- **L4** Default gold/silver rates (22K ₹7,200, silver ₹95, `js/00-config-state.js:57`) look like real market rates, not obvious placeholders — a brand-new shop could bill real customers at stale defaults without noticing they were never set. Whether the fix is "make defaults obviously fake" or "nag until rates are confirmed" is a product decision, not a bug with one right answer.
+- ~~**L4** Default gold/silver rates look like real market rates, not obvious placeholders.~~ **Closed, see the entry above (same date, later): already solved** by `ratesConfirmed()`/`needRatesFirst()`, which blocks `recordSale()` and Girvi loan creation until real rates are saved. No gap after all.
 - **L7** New order items default to category `"Rings"` (`js/03-billing-numbers.js:1395`) with no blank/unset option in the dropdown — a necklace order left untouched silently reports as "Rings" in category analytics. Note: `saleItemCat()` elsewhere falls back to `"Other"` for a missing category (`js/03-billing-numbers.js:1080`), so the two inconsistent conventions already coexist. Didn't change either without knowing which one Tanish wants as the real default.
 
 **Could not reproduce / already correct, no action taken:**
