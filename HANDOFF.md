@@ -80,6 +80,33 @@ or re-add tier UI.
 
 ## LOG (newest first)
 
+### 2026-10-06 · Claude Code (Sonnet) — batch49 BUILT: `jewelos-batch49-DEPLOY.zip`, supersedes batch48's zip, nothing deployed
+
+Tanish asked for a new deploy zip with the z-index fix (previous entry below). Built
+`docs/CHANGES-batch49.md` + `node build-deploy-zip.js batch49` — 16 files, 321.8 KB,
+`C:\Users\ADMIN\Downloads\jewelos-batch49-DEPLOY.zip`. The build script's own three
+self-checks passed (7-Zip, forward-slash paths, byte-exact match against this folder).
+
+**No additional whole-chain Opus review** — the only change since batch48's reviewed
+chain is the z-index CSS fix (previous entry), classified 🟢 Low per `MODEL-POLICY.md`
+§8 (styling/button fix), not the 🔴 High bar that triggered batch48's review. Regression
+suite 374/374, full e2e suite 23/23, `check.bat` clean — same verification already done
+for the fix itself, just reconfirmed on the exact tree that went into this zip.
+
+This zip contains everything batch48 had (C1, C2, H1/M1, H2, H4, M3+follow-up, M4, M5,
+M7, M8) **plus** the z-index fix. `jewelos-batch48-DEPLOY.zip` is now superseded —
+Tanish should deploy batch49 instead, not both.
+
+→ FOR COWORK: supersedes batch48's zip — if you were about to tell Tanish the two
+live-data checks are clear so he can deploy batch48, point him at batch49 instead (same
+checks apply, nothing in this batch changes them). Everything else from the batch48
+hand-back (M2/M6/M9/L-series open and unassigned, your own skills' stale `nextInvNo`
+reference, QA-shop deletion question) is unchanged by this entry.
+→ FOR TANISH: `jewelos-batch49-DEPLOY.zip` is in your Downloads folder — deploy this one
+instead of batch48's (it has everything batch48 had, plus Edit Bill's Save button now
+being reachable). Same pre-deploy steps as before: Cowork's two live-data checks, then
+your phone test, then deploy.
+
 ### 2026-10-06 · Claude Code (Sonnet) — wrote the Edit Bill/Reports/New Sale e2e spec Cowork asked for; it caught a real bug: Edit Bill's Save button was untappable on a phone
 
 **New spec:** `tests/e2e/edit-bill-reports-newsale.spec.js`, 4 tests, all green on the test shop:
