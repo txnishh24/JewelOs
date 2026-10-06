@@ -884,7 +884,7 @@ function saveEditProd(){
   }
 
   saveToCloud(function(err){
-    if(!err){closeEditModal();renderInv();toast('&#10003; '+p.name+' updated!');}
+    if(!err){closeEditModal();renderInv();toast('✓ '+p.name+' updated!');}
     else{
       // Was "Save failed — check connection" with the edit left applied
       // in memory forever. Now reverted, same pattern as every other

@@ -1250,7 +1250,7 @@ function saveEditBill(){
   saveToCloud(function(err){
     if(!err){
       closeEditBillModal();
-      toast('&#10003; Bill updated & saved! v'+(sale.editHistory.length));
+      toast('✓ Bill updated & saved! v'+(sale.editHistory.length));
       renderCustomers();
     }
   });
