@@ -80,6 +80,34 @@ or re-add tier UI.
 
 ## LOG (newest first)
 
+### 2026-10-06 · Claude Code (Sonnet) — batch49 DEPLOYED and verified live
+
+Before touching anything: confirmed batch48 (the previous entry's "nothing deployed yet")
+was actually already live — Tanish had deployed it himself on 5 Oct, separately from this
+session. Verified by fetching the live site directly (not trusting the dashboard): live
+`CHANGELOG.md` matched batch48's content exactly, live `js/01-sync-core.js` had the M3
+follow-up fix, and live `index.html` had the OLD `.modal-bg{z-index:500}` rule with no
+`#cust-modal` override — confirming the Edit Bill stacking bug (previous entry) was live
+and real for however long batch48 had been up, not a theoretical/local-only finding.
+
+Tanish then asked to deploy batch49. Did it via Chrome browser automation (he confirmed
+he was already logged into Netlify): `app.netlify.com` → `heartfelt-queijadas-eeb356` →
+Deploys → uploaded `jewelos-batch49-DEPLOY.zip` through the "browse files to upload"
+input. Netlify showed "Uploading…" then "Published at 2:37 PM."
+
+**Verified live, by fetching the production bytes directly, not by trusting the Netlify
+UI:** live `index.html` now contains `#cust-modal.modal-bg{z-index:490;}`, live
+`CHANGELOG.md` now opens with batch49's own heading, live `js/01-sync-core.js` is
+byte-length-identical to before (expected — this batch is CSS-only, no JS changed).
+
+→ FOR COWORK: production now has the Edit Bill stacking fix. The two live-data checks
+you already ran for batch48 still hold (this batch changed no money logic) — nothing new
+to re-check on that front. Still open from before: your own skills' stale `nextInvNo`
+reference, the QA-shop deletion question, M2/M6/M9/L-series unassigned.
+→ FOR TANISH: batch49 is live. Edit Bill's Save button should now actually be tappable —
+worth being the thing you check first on your phone test, since it's the one this session
+confirmed was broken on production before this deploy.
+
 ### 2026-10-06 · Claude Code (Sonnet) — batch49 BUILT: `jewelos-batch49-DEPLOY.zip`, supersedes batch48's zip, nothing deployed
 
 Tanish asked for a new deploy zip with the z-index fix (previous entry below). Built
