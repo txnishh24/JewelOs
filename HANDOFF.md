@@ -78,6 +78,21 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-07 · Claude Code (Sonnet) — L7 decided and fixed: new order items default to "Other", not "Rings"
+
+🟢 Low (data-default change in a dropdown, no money logic — order items don't affect billing totals). Picked up the one piece of the L4/L7 hand-back that had a clear, consistent answer already sitting in the codebase, rather than leaving it stalled on a question.
+
+**L7, decided:** a new order item's category was hard-defaulted to `"Rings"` in five places (`js/03-billing-numbers.js:1340,1343,1395,1565`, `js/04-orders-detail.js:488`) — every untouched order silently reported as "Rings" in category breakdowns. The app already has an established convention for exactly this situation: `saleItemCat()` (`js/03-billing-numbers.js:1080`) falls back to `"Other"` when a sale item has no real category. Rather than inventing a new UI (a blank/placeholder dropdown option, its own validation, etc. — more than this needed), changed all five order-item defaults from `"Rings"` to `"Other"`, matching the convention the rest of the app already uses for "nobody picked one." Zero new concepts, one existing one applied consistently.
+
+**L4 still open, still Tanish's call** — no consistent in-code convention to borrow from there (realistic defaults vs. obviously-fake ones is a first-run UX decision, not a data-modeling one). Left alone.
+
+**Verification:** `check.bat` clean, regression suite 375/375 unchanged — no existing test asserted the default was specifically `"Rings"` (the ones that mention `cat:'Rings'` all set it explicitly as their own test data, not relying on the default), so nothing needed updating.
+
+→ FOR COWORK: nothing live-data related — client-side default only, doesn't touch any stored sale/order record's math.
+→ FOR TANISH: Decided L7 using your own app's existing rule for "no category chosen" (it already says "Other" elsewhere) rather than waiting on you for a pattern the codebase already answers. L4 (whether starting gold/silver rates should look obviously fake) is still yours whenever you want it — no consistent precedent to borrow for that one.
+
+---
+
 ### 2026-10-07 · Claude Code (Sonnet) — worked through the whole L-series (L1–L13): 3 real fixes, 2 flagged for Tanish, rest could not be reproduced or are already correct
 
 🟢 Low per MODEL-POLICY §8 (placeholder text, one `onkeydown` handler — no money logic touched). Went through L1→L13 in order, same session as the M9 entry above, reproducing each one against the current code (or saying plainly it couldn't be reproduced) rather than assuming the 3 Oct QA descriptions still hold — several of M2/M6/M9 had already turned out stale, so this list got the same treatment.

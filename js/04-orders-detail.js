@@ -485,7 +485,7 @@ function toggleOrdForm(){
   if(isOpen){
     form.style.display='none';
     if(btn)btn.textContent='+ New Order';
-    ordItems=[{desc:'',cat:'Rings',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''}];
+    ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''}];
   } else {
     form.style.display='block';
     if(btn)btn.textContent='Cancel';

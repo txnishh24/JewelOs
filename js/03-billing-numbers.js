@@ -1337,10 +1337,10 @@ function plRow(label, val, color, bold){
 // Without this, the very first open threw a ReferenceError and the
 // Order Items section rendered empty, which looked like the section
 // had "vanished" while working fine after an open/close/reopen cycle.
-var ordItems=[{desc:'',cat:'Rings',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''}];
+var ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''}];
 
 function addOrdItem(){
-  ordItems.push({desc:'',cat:'Rings',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''});
+  ordItems.push({desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''});
   var wrap=document.getElementById('of-items-wrap');
   if(wrap) wrap.appendChild(buildOrdItemRow(ordItems.length-1));
   calcOrdEst();
@@ -1392,7 +1392,7 @@ function buildOrdItemRow(i){
   }
   // Row 1: Description + Category
   g.appendChild(field('Description / Design *','oi-desc-'+i,'text','e.g. 22K Gold Ring with diamond',item.desc,function(){ordItems[i].desc=this.value;}));
-  g.appendChild(selField('Category','oi-cat-'+i,CATS,item.cat||'Rings',function(){ordItems[i].cat=this.value;}));
+  g.appendChild(selField('Category','oi-cat-'+i,CATS,item.cat||'Other',function(){ordItems[i].cat=this.value;}));
   // Row 2: Metal + Purity
   var mf=selField('Metal','oi-metal-'+i,METALS,item.metal||'gold',function(){
     ordItems[i].metal=this.value;
@@ -1562,7 +1562,7 @@ function saveOrder(_pastDateOk){
     restore:function(){ S.nextOrdId=_prevNextOrdId; S.auditLog=_auditSnap; }}, function(err){
     renderOrders();
     if(err) return;
-    ordItems=[{desc:'',cat:'Rings',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''}];
+    ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''}];
     toggleOrdForm();
     toast('\u2713 '+ord.ordNo+' saved!');
   });
