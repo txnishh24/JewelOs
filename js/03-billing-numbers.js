@@ -88,7 +88,7 @@ function shareWhatsApp(){
   var s = CURRENT_SALE_FOR_PDF;
   var t = calcSaleTotals(s);
   var nl = '\n';
-  var msg = '*SRI SAI JEWELLERS*' + nl;
+  var msg = '*'+((SAAS&&SAAS.shop&&SAAS.shop.name)||'My Jewellery Shop')+'*' + nl;
   // Only include BIS claim if items are actually hallmarked
   var hasBIS = (s.items||[]).some(function(i){ return i.huid && validateHUID(i.huid).ok; });
   if(hasBIS) msg += 'BIS Hallmark Certified' + nl;

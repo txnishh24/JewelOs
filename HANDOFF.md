@@ -78,6 +78,80 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-07 · Claude Code (Sonnet) — picked up the unassigned M2/M6/M9/L-series backlog, starting at M2: M6 already fixed, M2 already labeled, found and fixed a real "every shop" hard-coded-name bug M6 missed
+
+🟢 Low per MODEL-POLICY §8 (text/display fix, no money-calculation logic touched, no Opus needed).
+
+Tanish asked to start working through the open M2→L-series list one item at a time. Went in order and checked each against the current code before touching anything, rather than assuming the 3 Oct QA descriptions still hold:
+
+**M2 (making charge on gross weight, nothing on screen says so): already fixed, no action needed.** The custom-item sale form's own Making Charges input is labeled `"Making Charges (₹/g on gross wt)"` (`js/02-ui-inactivity-modals.js:1824`) and the live per-item breakdown while building the sale shows the gross→net deduction math directly (`refreshCustomItemDisplay`, same file). The printed invoice also shows the Gross/−beads/−stone/→net breakdown per item (`js/02-ui-inactivity-modals.js:2034-2046`). Basis is deliberate (`checks/making-basis.js`) and now visibly disclosed in three places already — nothing left to build here.
+
+**M6 (invoice header hard-codes "BIS HALLMARK CERTIFIED · MUMBAI" for every shop): the invoice itself was already fixed** — `buildInvoiceHTML()` (`js/02-ui-inactivity-modals.js:1988-1994`) only claims "BIS Hallmark Certified" when the shop actually has a GSTIN and every item has a valid HUID, and the city shown is `shop.city`, not a hard-coded "Mumbai". `git log -S` shows this logic predates this repo's own git history (present in the very first commit, 8 Sep) — the 3 Oct QA finding for this exact spot looks stale/already-resolved by the time it was written, or described a different build.
+
+**But the same family of bug was still real, just somewhere else: `shareWhatsApp()`'s shared-bill message (`js/03-billing-numbers.js:91`) opened with the literal text `*SRI SAI JEWELLERS*` for every shop, regardless of whose shop sent it** — a leftover from a dev/demo shop name, not a placeholder. Found by grepping every occurrence of that literal string across the repo (the same five-bug-family check this skill asks for: "reference to an id/function that never existed" generalized to "a hard-coded identity that never gets replaced") — a sibling bug (order receipts) was already fixed in batch19 with its own regression test, but nothing ever covered the WhatsApp share path, so this one shipped untouched since. **Fixed:** now reads `(SAAS&&SAAS.shop&&SAAS.shop.name)||'My Jewellery Shop'`, same pattern and same fallback text already used two lines later in the same function and across the rest of the app.
+
+**1 new regression test** (`tests/regression.test.js`, search "shareWhatsApp uses this shop's own name") — confirmed by `git stash` to fail against the pre-fix code (asserts the message header literally contains `*<shop name>*`, not just that the shop's name appears *somewhere* in the message — an earlier draft of this test passed against the buggy code too, because the function's closing "Thank you for shopping at ..." line already used the real shop name; tightened the assertion once that false-pass was caught).
+
+**Verification:** `check.bat` clean — same documented false-positive baseline (11 numeric-argument onclick sites, all pre-existing), `backup-check`/`roundtrip` both PASS. Regression suite 375/375 (was 374, +1). Not in the `tests/e2e/` covered-spec list (this only changes a WhatsApp share string, no DOM/screen behavior) and not clicked through on a real phone this session — said plainly rather than implied.
+
+**Not yet done:** M9 and the L-series (L1–L13) are still open — this entry only covers M2 and M6, per "one thing at a time." Next in order would be M9 (service-worker blob-URL PWA activation failure) — flagging that it looks like the larger/riskier item in the remaining list, worth its own session rather than folding into a quick pass.
+
+→ FOR COWORK: nothing live-data related — this is a text-only fix in a client-side share function, no money/ledger/Supabase involved. M9 and L1–L13 remain open and unassigned.
+→ FOR TANISH: Found a real bug while working through the old QA list: sharing a bill via WhatsApp put *"SRI SAI JEWELLERS"* at the top of the message for every shop, not your shop's actual name — a leftover from early development that nobody had caught because the message's closing line ("Thank you for shopping at...") already had your real name, so it wasn't obviously wrong at a glance. Fixed now, tested. M2 and M6 (the two items this session was meant to address) turned out to already be handled by earlier work — nothing to decide there. Want the next session to continue into M9 (offline mode never actually works) and the L-series (smaller polish items), or hold for the next bundled deploy?
+
+---
+
+### 2026-10-06 · Claude Code (Sonnet) (QA-shop DB cleanup + live-site health check, no code touched)
+
+Tanish pasted SQL in chat to check and, if it was safe, delete one shop's leftover
+test data (`shop_id f97586d6-d506-4c35-94e0-7d923448eb0e`) from `public.counters` and
+`public.store`. No code was changed this session and no zip was built or deployed —
+this was database cleanup plus a live-site check only.
+
+**First surprise: there are two Supabase projects on the account, not one.**
+Listed projects via MCP before running anything: `jewelos-ops` (`bnwfuukflsxphlcsqcsr`)
+has no `counters` table at all (query errored, relation does not exist) — it is not
+the app's backend. The real one, matching this file's own header
+(`uluzuwomwqsqxtejgzmf`, "tanishkatkojwala2407@gmail.com's Project"), is the one
+actually holding `counters`/`store` and the one the live site reads from. Ran
+everything below against that one.
+
+Ran the SELECT first, before any delete. Found exactly 1 row in `counters` (shop_id
+f97586d6…, counter `inv_no`, val 13) and 1 row in `store` for the same shop — and that
+row was unmistakably QA test data, not a real jeweller's shop: customers named
+"QA Tester", "Ramesh QA", "Meena QA", "Ravi QA"; products tagged TAG-001/002/003
+("Gold Ring QA-1", "Necklace QA-2", "Chain QA-3"); invoices INV-001/007/008; one order
+ORD-001. Reported this back to Tanish and got explicit "yes, go ahead and delete it"
+before running either DELETE.
+
+Ran both deletes, then verified clean with a COUNT query on both tables — 0 rows left
+in each, no errors. This shop's data is gone from the live database.
+
+**Then checked the live site still works post-cleanup.** Loaded
+`https://heartfelt-queijadas-eeb356.netlify.app/` (confirmed via Netlify MCP project
+listing that `heartfelt-queijadas-eeb356` is still the current/ready deploy). Title
+loaded correctly ("JewelOS v18 — Enterprise Jewellery Management SaaS"), the PIN-entry
+login screen rendered with a working numeric keypad and "↻ Forgot PIN" button —
+confirmed via the accessibility tree, not a saved screenshot (see note below). Only
+console warning was the pre-existing service-worker blob-URL failure already tracked
+in this file's history as open issue M9 — unrelated to tonight's DB work, not a new
+problem.
+
+**Tooling note, not a site problem:** `Page.captureScreenshot` (CDP) timed out twice
+on this page and never produced an image. The accessibility-tree read (`read_page`)
+worked fine and is what confirmed the keypad rendered, so this didn't block
+verification — but flagging it in case the same timeout shows up again on this site
+and looks like a rendering problem when it's actually a screenshot-capture-call issue.
+
+This also resolves the "QA-shop deletion question" that's been sitting in the
+hand-back notes of recent entries (e.g. batch49's) — it's done now, confirmed clean.
+
+→ FOR COWORK: the QA test shop (f97586d6…) is gone from `counters` and `store` in
+`uluzuwomwqsqxtejgzmf` — if that question was on your list too, it's closed. Nothing
+else to act on; no code or deploy changed.
+
+---
+
 ### 2026-10-06 · Claude Code (Sonnet) — ran the real phone test against LIVE production (393px, Chromium) — Edit Bill confirmed fixed, one new cosmetic bug found and fixed
 
 Tanish asked for the phone test that's been outstanding since batch48. Ran it as a one-off

@@ -2214,6 +2214,22 @@ test('the order receipt header shows this shop\'s name, not a hard-coded "Sri Sa
   assert(written.indexOf('Sri Sai') === -1, 'no other shop\'s name should appear on this shop\'s receipt');
 });
 
+test('shareWhatsApp uses this shop\'s own name, not a hard-coded "Sri Sai Jewellers"', function(){
+  var capturedUrl = '';
+  app.SAAS.shop = { id:'shop_c', name:'Lakshmi Gold House' };
+  app.CURRENT_SALE_FOR_PDF = {
+    invNo:'INV-100', date:new Date().toISOString(), customer:'Test Cust', phone:'', gst:0,
+    items:[{ name:'Ring', purity:'22K', metal:'gold', weight:5, qty:1, lockedRate:7200, making:0, diamond:0 }]
+  };
+  withGlobals({ open: function(url){ capturedUrl = url; return {}; } }, function(){
+    app.shareWhatsApp();
+  });
+  app.CURRENT_SALE_FOR_PDF = null;
+  var msg = decodeURIComponent((capturedUrl.split('text=')[1] || ''));
+  assert(msg.indexOf('*Lakshmi Gold House*') !== -1, 'WhatsApp message header should name this shop');
+  assert(msg.toUpperCase().indexOf('SRI SAI') === -1, 'no other shop\'s name should appear in this shop\'s WhatsApp message');
+});
+
 test('activity log notes and user names are escaped wherever the log is rendered', function(){
   var fs = require('fs'), path = require('path');
   ['05-auth-login.js', '06-inventory-stock.js'].forEach(function(f){
