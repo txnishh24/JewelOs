@@ -1507,8 +1507,8 @@ iframe.nl-badge-frame{display:none !important;}
 
     <!-- LOGIN FORM -->
     <div id="auth-login-form">
-      <div class="auth-field"><label>Email</label><input id="auth-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
-      <div class="auth-field"><label>Password</label><input id="auth-password" type="password" placeholder="Your password" autocomplete="current-password"></div>
+      <div class="auth-field"><label>Email</label><input id="auth-email" type="email" placeholder="you@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')saasLogin()"></div>
+      <div class="auth-field"><label>Password</label><input id="auth-password" type="password" placeholder="Your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')saasLogin()"></div>
       <button class="auth-btn" onclick="saasLogin()">Sign In</button>
       <div class="auth-err" id="auth-login-err"></div>
       <div class="auth-link"><a onclick="showForgotPassword()">Forgot password?</a></div>
@@ -1571,7 +1571,7 @@ iframe.nl-badge-frame{display:none !important;}
       <div class="auth-field"><label>City *</label><input id="ob-city" type="text" placeholder="Mumbai"></div>
       <div class="auth-field"><label>Phone</label><input id="ob-phone" type="tel" placeholder="10-digit number"></div>
     </div>
-    <div class="auth-field"><label>GSTIN (optional)</label><input id="ob-gstin" type="text" placeholder="22AAAAA0000A1Z5" style="text-transform:uppercase"></div>
+    <div class="auth-field"><label>GSTIN (optional)</label><input id="ob-gstin" type="text" placeholder="22AAAAA0000A1ZC" style="text-transform:uppercase"></div>
     <!-- F5: USD/AED options removed -- nothing in the app used them; JewelOS is rupees + GST. -->
     <button class="auth-btn" onclick="saasOnboardSave()" style="margin-top:8px;">Start Managing My Shop</button>
     <div class="auth-err" id="ob-err"></div>
@@ -1802,7 +1802,7 @@ iframe.nl-badge-frame{display:none !important;}
         <div class="fg"><label>Product name</label><input id="f-name" placeholder="e.g. Necklace, Ring..."/></div>
         <div class="fg"><label>Category</label><select id="f-cat"><option>Rings</option><option>Necklaces / Haar</option><option>Earrings</option><option>Jhumkas</option><option>Bangles</option><option>Kankanalu</option><option>Bracelets</option><option>Anklets / Payal</option><option>Pendants</option><option>Chains</option><option>Mangalsutras</option><option>Maang Tikka</option><option>Nose Ring / Nath</option><option>Armlet / Bajuband</option><option>Waist Belt / Kamarbandh</option><option>Jadau</option><option>Other</option></select></div>
         <div class="fg"><label>Purity</label><select id="f-purity"></select></div>
-        <div class="fg"><label>HUID Number</label><input id="f-huid" placeholder="e.g. ABC123456" maxlength="20" style="text-transform:uppercase"/></div>
+        <div class="fg"><label>HUID Number</label><input id="f-huid" placeholder="e.g. AB1234" maxlength="20" style="text-transform:uppercase"/></div>
         <div class="fg"><label>Hallmark Centre <span style="font-size:10px;color:var(--text3)">(optional)</span></label><input id="f-hallmark" placeholder="e.g. BIS centre name / code"/></div>
         <div class="fg"><label>SKU / Item Code</label><input id="f-sku" placeholder="Auto if empty"/></div>
         <div class="fg"><label>Gross Weight (g)</label><div class="isuf"><input id="f-wt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
@@ -2740,7 +2740,7 @@ iframe.nl-badge-frame{display:none !important;}
         <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Shop Name</div><input id="set-shopname" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;"></div>
         <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">City</div><input id="set-city" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;"></div>
         <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Phone</div><input id="set-phone" type="tel" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;"></div>
-        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">GSTIN</div><input id="set-gstin" type="text" placeholder="22AAAAA0000A1Z5" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;text-transform:uppercase;"></div>
+        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">GSTIN</div><input id="set-gstin" type="text" placeholder="22AAAAA0000A1ZC" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;text-transform:uppercase;"></div>
       </div>
       <button onclick="saveShopProfile()" class="btn btn-gold">Save Profile</button>
     </div>
@@ -3114,7 +3114,7 @@ iframe.nl-badge-frame{display:none !important;}
           </select>
         </div>
         <div class="fg"><label>Purity</label><select id="ep-purity"></select></div>
-        <div class="fg"><label>HUID Number</label><input id="ep-huid" placeholder="e.g. ABC123456" style="text-transform:uppercase"/></div>
+        <div class="fg"><label>HUID Number</label><input id="ep-huid" placeholder="e.g. AB1234" style="text-transform:uppercase"/></div>
         <div class="fg"><label>SKU / Item Code</label><input id="ep-sku"/></div>
         <div class="fg"><label>Gross Weight (g) <span style="font-size:10px;color:var(--text3)">(one piece)</span></label>
           <div class="isuf"><input id="ep-wt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div>
