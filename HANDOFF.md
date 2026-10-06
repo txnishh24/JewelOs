@@ -123,8 +123,10 @@ pushed live. Production currently still shows the garbled checkmark on those two
 → FOR COWORK: nothing new needing a live-data check — this entry is UI/cosmetic only.
 → FOR TANISH: Edit Bill is confirmed working on the live site now (screenshot taken, not
 just asserted). Found one more small thing while testing: two success messages show
-broken text (`&#10003;`) instead of a checkmark — fixed, but not deployed yet. Want a
-batch50 zip built and deployed the same way, or hold it for a bigger batch?
+broken text (`&#10003;`) instead of a checkmark — fixed, but not deployed yet. **Decided
+2026-10-06: hold it** — Tanish has more feature changes coming and wants them bundled into
+one zip/deploy rather than shipping this cosmetic fix alone. No zip built for this yet;
+the next one should include this commit (`664cb7b`) plus whatever follows it.
 
 ### 2026-10-06 · Claude Code (Sonnet) — batch49 DEPLOYED and verified live
 
