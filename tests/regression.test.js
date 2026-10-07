@@ -2317,6 +2317,21 @@ test('the making charge is not also subtracted as a cost', function(){
     'profit should be metal margin 10200 + making 4250 = 14450, got ' + r.profit);
 });
 
+test('an order line with a karigar cost uses it as the cost; without one, nothing changes', function(){
+  var a = makingScenario();
+  var sale = a.buildSaleObj();
+  var before = a.calcSaleProfit(sale);
+  var item = sale.items[0];
+  item.karigarCost = 40000;
+  var r = a.calcSaleProfit(sale);
+  assert(approxEqual(r.cost, 40000, 1), 'cost should be the karigar cost 40000, got ' + r.cost);
+  assert(approxEqual(r.profit, before.revenue - 40000 - before.gstPaid, 1),
+    'profit should be revenue - 40000 - GST, got ' + r.profit);
+  item.karigarCost = 0;
+  assert(approxEqual(a.calcSaleProfit(sale).profit, before.profit, 0.01),
+    'a blank karigar cost must leave profit exactly as before');
+});
+
 test('an already-issued bill is not restated when its product has a making charge', function(){
   // Bills printed before this fix stored making:0 and a lockedGrand without
   // it. Deriving making from the product at display time would silently

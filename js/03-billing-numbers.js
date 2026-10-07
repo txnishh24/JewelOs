@@ -1433,7 +1433,8 @@ function buildOrdItemRow(i){
   mki.placeholder='0'; mki.id='oi-mk-'+i; mki.value=item.making>0?item.making:''; mki.style.flex='1';
   (function(idx){mki.oninput=function(){ordItems[idx].making=parseFloat(this.value)||0;calcOrdEst();};})(i);
   mkw.appendChild(mksel); mkw.appendChild(mki); mkf.appendChild(mkw); g.appendChild(mkf);
-  // Row 5: Qty + Note
+  // Row 5: Karigar cost (optional, what you pay the karigar for this line) + Qty + Note
+  g.appendChild(field('Karigar Cost (\u20b9, optional)','oi-kc-'+i,'number','0',item.karigarCost>0?item.karigarCost:'',function(){ordItems[i].karigarCost=parseFloat(this.value)||0;}));
   g.appendChild(field('Quantity','oi-qty-'+i,'number','1',item.qty||1,function(){ordItems[i].qty=parseInt(this.value)||1;}));
   g.appendChild(field('Design Note / Reference','oi-note-'+i,'text','Colour, finish, photo ref...',item.note,function(){ordItems[i].note=this.value;}));
   card.appendChild(g);
@@ -1489,6 +1490,7 @@ function saveOrder(_pastDateOk){
     var eEl=document.getElementById('oi-ewt-'+i); if(eEl)item.estWt=parseFloat(eEl.value)||0;
     var mkEl=document.getElementById('oi-mk-'+i); if(mkEl)item.making=parseFloat(mkEl.value)||0;
     var mtEl=document.getElementById('oi-mkt-'+i); if(mtEl)item.makingType=mtEl.value||'flat';
+    var kcEl=document.getElementById('oi-kc-'+i); if(kcEl)item.karigarCost=Math.max(0,parseFloat(kcEl.value)||0);
     var qEl=document.getElementById('oi-qty-'+i); if(qEl)item.qty=Math.max(1,parseInt(qEl.value)||1);
     var nEl=document.getElementById('oi-note-'+i); if(nEl)item.note=nEl.value.trim();
   });
@@ -1533,7 +1535,7 @@ function saveOrder(_pastDateOk){
     items:validItems.map(function(i){
       return{desc:i.desc,cat:i.cat,metal:i.metal||'gold',purity:i.purity||'22K',
              orderWt:i.orderWt||0,estWt:i.estWt||0,making:i.making||0,
-             makingType:i.makingType||'flat',qty:i.qty||1,note:i.note||''};
+             makingType:i.makingType||'flat',qty:i.qty||1,note:i.note||'',karigarCost:i.karigarCost||0};
     }),
     quote:parseFloat((document.getElementById('of-quote')||{value:0}).value)||0,
     finalRate:parseFloat((document.getElementById('of-finalrate')||{value:0}).value)||0,

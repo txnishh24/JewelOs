@@ -1435,6 +1435,8 @@ function calcItemProfit(item){
 // calcSaleProfit() and calcRefundAdj() (H2) so a returned item's cost
 // reversal always matches what it was originally charged as.
 function saleItemCost(i){
+  // Order bills: the karigar's actual charge for this piece, when recorded
+  if((parseFloat(i.karigarCost)||0) > 0) return parseFloat(i.karigarCost) * (i.qty||1);
   var p = S.products.find(function(x){ return x.id===i.pid; });
   var costRate = (p && p.costRate > 0) ? p.costRate : getItemRate(i);
   var stoneCost= (parseFloat(i.stoneCost)||0) * (i.qty||1);
