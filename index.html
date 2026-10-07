@@ -659,7 +659,9 @@ html.dev .dev-only{display:block!important;}
 #cust-modal.modal-bg{z-index:490;}
 /* Phone tap targets: chips and pills were 24-29px tall, thumbs need ~36px+. */
 @media(max-width:600px){
-  .pill,.girvi-search-chip,.rate-save{min-height:36px;}
+
+  .pill,.girvi-search-chip,.rate-save,.gl-type-btn{min-height:36px;}
+  .ge-close{width:40px!important;height:40px!important;}
 }
 .modal{background:var(--surface);border-radius:var(--radius-xl);width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);}
 .modal-header{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
