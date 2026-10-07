@@ -80,6 +80,18 @@ or re-add tier UI.
 
 ## LOG (newest first)
 
+### 7 Oct 2026 — Claude Code (cloud) — phone test of the new design + first fixes
+Walked Home, Stock, Sale, Orders, Girvi, Day Book, Customers, Reports, Settings at 390x844 (Playwright, demo data). Findings + screenshots: `phone-test/findings.md` in the project files. Fixed this round:
+- **Banner/top-bar overlap.** Demo and renewal banners wrap to 2-3 lines on a phone but the offset was a fixed 34px. Now `--banner-h` is measured by `syncBannerHeight()` (end of `00-config-state.js`) and used by the top bar, `main` padding and `.dtabs` in `index.html`.
+- **Sheet titles hidden under the banner** (Girvi/Order detail etc.): `@media screen` rule pushes `.modal-bg`, `.modal-overlay` and `*-modal` down by `--banner-h` while a banner is showing (legal modal excluded).
+- **Orders blank in demo mode:** demo order had status `making`, not in `ORD_STATUS`; changed to `progress` (`06-inventory-stock.js:867`). Not touched: the stale 7-stage pipeline in `renderOrdersPipeline` (still lists design/making/polishing/quality, which the app never sets).
+- **`#cust-modal.modal-bg{z-index:490;}`** (Edit Bill Save/Cancel hidden behind the customer popup) was live-only; coordinator relayed it from the live-site thread. Exact 8-line live block (comment + rule) later supplied by the live-site thread and placed after `.modal-bg.open`.
+Second push (same day, Tanish said go): Order "Add payment" boxes now wrap 2x2 (`04-orders-detail.js:115`, one-line grid change); sale-form placeholders shortened ("Auto on save", "Name"); tap targets raised to ~36-44px for Stock pills, Girvi chips, rate Save, Remind, onboarding buttons and three modal close buttons. Day Book walked at 390x844 (daily view, Add Entry, Close Day): no overflow; only Add Entry's category chips (26px) and the sheet close X (30px) were small, now 36px/40px. PR #2 vs PR #3 trial merge: JS auto-merges cleanly (incl. 04-orders-detail.js, 03-billing-numbers.js); only HANDOFF.md conflicts (both prepend a LOG entry at the same spot) — keep both entries.
+Left alone on purpose: the 9-tab bottom nav (already tuned for 390px, changing it is a design call) and two small close buttons still ~28-32px (dashboard banner dismiss, Girvi sheet).
+Verified: `node --check` on all js, regression 374/374 (needs `TZ=Asia/Kolkata`; in UTC two date tests fail, unrelated), checks/ scripts identical to before except one extra global (`syncBannerHeight`). Screenshots re-taken for top bar, Orders, Girvi/Order detail. Not verified: a real phone, the renewal banner on screen (only reasoned from the shared geometry), Edit Bill popup stacking.
+→ FOR COWORK: nothing — FYI only (cust-modal block now matches live).
+
+
 ### 2026-10-05 · Claude Code (Sonnet, orchestrating a final Opus whole-chain review) — batch48 BUILT: `jewelos-batch48-DEPLOY.zip` packaged, nothing deployed
 
 Per Tanish's instruction relayed through this session and Cowork's hand-back (both pointing at the same thing): code frozen at `ebb02c9`, one final Opus review run across the WHOLE chain since batch47 (`c781fb8..HEAD` — C1, C2, H1/M1, H2, H4, M8, M5, M4, M7, M3 + follow-up, plus the ES5-hooks/docs tooling commits), then the deploy zip built. No code changed in this entry — this is packaging and review only.

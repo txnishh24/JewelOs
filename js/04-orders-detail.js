@@ -112,7 +112,7 @@ function showOrderDetail(ordId){
     addPayBtn.style.cssText='margin-top:12px;padding-top:12px;border-top:0.5px solid rgba(179,146,87,.2);';
     addPayBtn.innerHTML=
       '<div class="ord-section-label" style="margin-bottom:8px;">Add Payment</div>'+
-      '<div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:8px;">'+
+      '<div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:8px;">'+
         '<div class="fg"><label>Amount (&#8377;)</label><input id="new-pay-amt" type="number" placeholder="0" inputmode="decimal"/></div>'+
         '<div class="fg"><label>Mode</label><select id="new-pay-mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div>'+
         '<div class="fg"><label>Reference</label><input id="new-pay-ref" placeholder="UPI ID / Txn ref"/></div>'+

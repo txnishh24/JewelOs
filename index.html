@@ -261,7 +261,7 @@ body{
     font-size:var(--text-base);text-align:left;
   }
   .dtab.active{border-left-color:var(--gold);}
-  body.demo-mode .dtabs,body.sub-banner-on .dtabs{top:calc(var(--topbar-h) + 34px);}
+  body.demo-mode .dtabs,body.sub-banner-on .dtabs{top:calc(var(--topbar-h) + var(--banner-h,34px));}
 }
 @media(min-width:640px) and (max-width:1023px){
   :root{--rail-w:184px;}
@@ -649,6 +649,20 @@ html.dev .dev-only{display:block!important;}
    Becomes a bottom sheet under 640px so it never fights the keyboard. */
 .modal-bg{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:var(--modal-overlay-color);z-index:500;align-items:center;justify-content:center;padding:1rem;}
 .modal-bg.open{display:flex;}
+/* #cust-modal is the one member of this family that spawns the others (Edit
+   Bill, View Bill, Refund, Add Payment buttons live inside its own body) --
+   it must always sit BELOW whichever one of them is open on top of it. Same
+   z-index + later DOM position used to make it win the stacking tie instead,
+   silently covering Edit Bill's own Save/Cancel buttons (unclickable on a
+   real phone, confirmed via tests/e2e, 6 Oct 2026 -- Edit Bill is only ever
+   opened from inside this modal, so this was the one path that mattered). */
+#cust-modal.modal-bg{z-index:490;}
+/* Phone tap targets: chips and pills were 24-29px tall, thumbs need ~36px+. */
+@media(max-width:600px){
+
+  .pill,.girvi-search-chip,.rate-save,.gl-type-btn{min-height:36px;}
+  .ge-close{width:40px!important;height:40px!important;}
+}
 .modal{background:var(--surface);border-radius:var(--radius-xl);width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);}
 .modal-header{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
 .modal-header h2{font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);}
@@ -1164,8 +1178,8 @@ html.dev .dev-only{display:block!important;}
   font-weight:700;letter-spacing:.04em;display:none;
 }
 #demo-banner.visible{display:block;}
-body.demo-mode header.topbar{top:34px;}
-body.demo-mode main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
+body.demo-mode header.topbar{top:var(--banner-h,34px);}
+body.demo-mode main.main{padding-top:calc(var(--topbar-h,64px) + var(--banner-h,34px));}
 
 /* Subscription state — same geometry as the demo banner above, so the
    topbar offset rule can be shared. Amber while the subscription is
@@ -1183,8 +1197,18 @@ body.demo-mode main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   border:none;background:none;color:#fff;font-size:14px;line-height:1;
 }
 #sub-banner .sub-x:hover{opacity:1;}
-body.sub-banner-on header.topbar{top:34px;}
-body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
+body.sub-banner-on header.topbar{top:var(--banner-h,34px);}
+body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + var(--banner-h,34px));}
+/* Full-screen sheets start at top:0, which put their title bar underneath the
+   banner (z-index 1300). Start them below it instead. Screen only, so print
+   layouts are untouched; the legal modal (z-index 2000) already sits above. */
+@media screen{
+  body.demo-mode .modal-bg,body.sub-banner-on .modal-bg,
+  body.demo-mode .modal-overlay,body.sub-banner-on .modal-overlay,
+  body.demo-mode [id$="-modal"]:not(#legal-modal),body.sub-banner-on [id$="-modal"]:not(#legal-modal){
+    top:var(--banner-h,34px)!important;
+  }
+}
 
 /* WhatsApp automation panel */
 .wa-rule{
@@ -1447,7 +1471,7 @@ iframe.nl-badge-frame{display:none !important;}
   <div style="max-width:480px;margin:0 auto 80px;background:var(--card1);border-radius:18px;padding:1.4rem 1.3rem;box-shadow:0 8px 40px rgba(0,0,0,.3);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.1rem;">
       <div style="font-size:17px;font-weight:700;">📊 Daily Business Digest</div>
-      <button onclick="document.getElementById('digest-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;">✕</button>
+      <button onclick="document.getElementById('digest-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;min-width:44px;min-height:44px;">✕</button>
     </div>
     <div id="digest-body"></div>
     <div style="display:flex;gap:8px;margin-top:14px;">
@@ -1462,7 +1486,7 @@ iframe.nl-badge-frame{display:none !important;}
   <div style="max-width:500px;margin:0 auto 80px;background:var(--card1);border-radius:18px;padding:1.4rem 1.3rem;box-shadow:0 8px 40px rgba(0,0,0,.3);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
       <div style="font-size:17px;font-weight:700;">📱 WhatsApp Reminders</div>
-      <button onclick="document.getElementById('wa-automation-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;">✕</button>
+      <button onclick="document.getElementById('wa-automation-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;min-width:44px;min-height:44px;">✕</button>
     </div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:1rem;">Automatic reminders — JewelOS tells you exactly who to message and with what text. One tap to send.</div>
     <div id="wa-rules-list"></div>
@@ -1477,7 +1501,7 @@ iframe.nl-badge-frame{display:none !important;}
       <div style="font-size:15px;font-weight:700;color:var(--text1);">PDF Preview</div>
       <div style="display:flex;gap:8px;">
         <button onclick="printPdfPreview()" class="btn-pdf">🖨️ Print / Save PDF</button>
-        <button onclick="document.getElementById('pdf-preview-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;">✕</button>
+        <button onclick="document.getElementById('pdf-preview-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;min-width:44px;min-height:44px;">✕</button>
       </div>
     </div>
     <div id="pdf-preview-body" style="padding:2rem;font-family:'Segoe UI',sans-serif;color:#111;font-size:13px;line-height:1.6;"></div>
@@ -1573,7 +1597,7 @@ iframe.nl-badge-frame{display:none !important;}
 <!-- ═══════════════════════════════════════════════════════ LEGAL MODAL -->
 <div id="legal-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.72);z-index:2000;overflow-y:auto;padding:1.5rem;">
   <div style="max-width:640px;margin:0 auto;background:var(--card1);border-radius:18px;padding:2rem;position:relative;">
-    <button onclick="document.getElementById('legal-modal').style.display='none'" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;">✕</button>
+    <button onclick="document.getElementById('legal-modal').style.display='none'" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;min-width:44px;min-height:44px;">✕</button>
     <div id="legal-modal-content" style="font-size:13px;line-height:1.8;color:var(--text2);"></div>
   </div>
 </div>
@@ -1846,9 +1870,9 @@ iframe.nl-badge-frame{display:none !important;}
     </div>
 
     <div class="form-grid" style="margin-bottom:12px">
-      <div class="fg"><label>Invoice No.</label><input id="s-invno" placeholder="Assigned on save"/></div>
+      <div class="fg"><label>Invoice No.</label><input id="s-invno" placeholder="Auto on save"/></div>
       <div class="fg"><label>Date</label><input id="s-date" type="date"/></div>
-      <div class="fg"><label>Customer name *</label><input id="s-cust" placeholder="Customer name" oninput="custAutocomplete()"/></div>
+      <div class="fg"><label>Customer name *</label><input id="s-cust" placeholder="Name" oninput="custAutocomplete()"/></div>
       <div class="fg"><label>Customer phone</label><input id="s-phone" type="tel" inputmode="tel" placeholder="98765 43210"/></div>
       <div class="fg"><label>Customer address</label><input id="s-addr" placeholder="Optional"/></div>
       <!-- payment mode moved to Paying Now section -->

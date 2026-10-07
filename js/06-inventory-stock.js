@@ -192,7 +192,7 @@ function renderOnboarding(){
     return '<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:'+(s.done?'rgba(37,165,75,0.08)':'var(--surface)')+';border-radius:var(--radius);border:0.5px solid '+(s.done?'rgba(37,165,75,0.25)':'var(--border2)')+';">' +
       '<span style="font-size:16px;">'+(s.done?'✅':'⬜')+'</span>' +
       '<span style="flex:1;font-size:13px;color:'+(s.done?'var(--text3)':'var(--ink)')+';font-weight:'+(s.done?'400':'600')+';text-decoration:'+(s.done?'line-through':'none')+';">'+(i+1)+'. '+s.label+'</span>' +
-      (!s.done?'<button onclick="(_onboardingSteps['+i+'].action)()" style="font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--gold);background:transparent;color:var(--gold-dark);cursor:pointer;font-weight:600;font-family:inherit;">'+s.cta+'</button>':'')+
+      (!s.done?'<button onclick="(_onboardingSteps['+i+'].action)()" style="font-size:11px;padding:9px 14px;border-radius:20px;border:1px solid var(--gold);background:transparent;color:var(--gold-dark);cursor:pointer;font-weight:600;font-family:inherit;">'+s.cta+'</button>':'')+
     '</div>';
   }).join('');
 
@@ -864,7 +864,7 @@ function loadDemoData(){
   // Demo orders
   var demoOrders = [
     {id:'demo-o1',ordNo:'ORD-D001',createdAt:lastMonth,customer:'Demo Customer 6',phone:'0000000006',
-     status:'making',priority:'normal',delivery:dbDayKey(new Date(Date.now()+5*86400000)),
+     status:'progress',priority:'normal',delivery:dbDayKey(new Date(Date.now()+5*86400000)),
      items:[{desc:'Custom 22K Necklace',cat:'Necklaces',metal:'gold',purity:'22K',estWt:18,qty:1,making:250,makingType:'per_gram',note:'Sample note'}],
      quote:145000,advance:50000,notes:'Sample note',
      ledger:[{type:'advance',amount:50000,mode:'cash',ref:'',note:'Initial advance',date:lastMonth}]},

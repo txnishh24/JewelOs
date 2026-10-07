@@ -65,3 +65,25 @@ var UI = { metal:'gold', selCat:'All', saleItems:[{pid:'',qty:1}], saleMode:'sto
 var customSaleItems = [{name:'',metal:'gold',purity:'22K',grossWt:0,blackBeads:0,diamond:0,making:0,stoneCharges:0}];
 
 // ─── SUPABASE SYNC ───────────────────────────────────────────────────────
+
+// Top/sub banners wrap to 2-3 lines on a phone, so the top-bar offset can't be
+// a fixed 34px. Measure the visible banner and publish it as --banner-h.
+function syncBannerHeight(){
+  var h = 0, ids = ['demo-banner','sub-banner'];
+  for(var i=0;i<ids.length;i++){
+    var el = document.getElementById(ids[i]);
+    if(el && el.offsetHeight > h) h = el.offsetHeight;
+  }
+  document.documentElement.style.setProperty('--banner-h', (h || 34) + 'px');
+}
+window.addEventListener('resize', syncBannerHeight);
+window.addEventListener('load', function(){
+  syncBannerHeight();
+  if(window.MutationObserver){
+    var mo = new MutationObserver(syncBannerHeight);
+    ['demo-banner','sub-banner'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) mo.observe(el, {attributes:true, childList:true, subtree:true, characterData:true});
+    });
+  }
+});
