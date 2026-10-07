@@ -428,7 +428,7 @@ function renderCustomers(){
           '<div style="font-weight:700;color:var(--gold-dark);font-size:15px;">\u20b9'+Math.round(f.totalPurchased).toLocaleString('en-IN')+'</div>'+
           (f.totalCredit>0
             ?'<div style="font-size:12px;font-weight:700;color:var(--danger);">\u23f1 \u20b9'+Math.round(f.totalCredit).toLocaleString('en-IN')+' due</div>'+
-             '<button onclick="event.stopPropagation();custBalanceWA(\''+jsAttrEsc(c.name)+'\',\''+jsAttrEsc(c.phone)+'\','+Math.round(f.totalCredit)+')" style="margin-top:5px;padding:4px 10px;border-radius:100px;border:1px solid #25d36640;background:#25d36622;color:#25d366;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">\ud83d\udcf2 Remind</button>'
+             '<button onclick="event.stopPropagation();custBalanceWA(\''+jsAttrEsc(c.name)+'\',\''+jsAttrEsc(c.phone)+'\','+Math.round(f.totalCredit)+')" style="margin-top:5px;padding:9px 14px;border-radius:100px;border:1px solid #25d36640;background:#25d36622;color:#25d366;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">\ud83d\udcf2 Remind</button>'
             :'<div style="font-size:12px;color:var(--success);font-weight:600;">\u2713 All paid</div>')+
           (f.totalExposure>0?'<div style="font-size:11px;color:'+riskColor+';font-weight:600;">Total exposure: \u20b9'+Math.round(f.totalExposure).toLocaleString('en-IN')+'</div>':'')+
         '</div>'+
