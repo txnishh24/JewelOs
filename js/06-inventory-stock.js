@@ -864,7 +864,7 @@ function loadDemoData(){
   // Demo orders
   var demoOrders = [
     {id:'demo-o1',ordNo:'ORD-D001',createdAt:lastMonth,customer:'Demo Customer 6',phone:'0000000006',
-     status:'making',priority:'normal',delivery:dbDayKey(new Date(Date.now()+5*86400000)),
+     status:'progress',priority:'normal',delivery:dbDayKey(new Date(Date.now()+5*86400000)),
      items:[{desc:'Custom 22K Necklace',cat:'Necklaces',metal:'gold',purity:'22K',estWt:18,qty:1,making:250,makingType:'per_gram',note:'Sample note'}],
      quote:145000,advance:50000,notes:'Sample note',
      ledger:[{type:'advance',amount:50000,mode:'cash',ref:'',note:'Initial advance',date:lastMonth}]},

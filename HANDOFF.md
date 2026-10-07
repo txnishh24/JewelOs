@@ -80,6 +80,17 @@ or re-add tier UI.
 
 ## LOG (newest first)
 
+### 7 Oct 2026 — Claude Code (cloud) — phone test of the new design + first fixes
+Walked Home, Stock, Sale, Orders, Girvi, Day Book, Customers, Reports, Settings at 390x844 (Playwright, demo data). Findings + screenshots: `phone-test/findings.md` in the project files. Fixed this round:
+- **Banner/top-bar overlap.** Demo and renewal banners wrap to 2-3 lines on a phone but the offset was a fixed 34px. Now `--banner-h` is measured by `syncBannerHeight()` (end of `00-config-state.js`) and used by the top bar, `main` padding and `.dtabs` in `index.html`.
+- **Sheet titles hidden under the banner** (Girvi/Order detail etc.): `@media screen` rule pushes `.modal-bg`, `.modal-overlay` and `*-modal` down by `--banner-h` while a banner is showing (legal modal excluded).
+- **Orders blank in demo mode:** demo order had status `making`, not in `ORD_STATUS`; changed to `progress` (`06-inventory-stock.js:867`). Not touched: the stale 7-stage pipeline in `renderOrdersPipeline` (still lists design/making/polishing/quality, which the app never sets).
+- **`#cust-modal.modal-bg{z-index:490;}`** (Edit Bill Save/Cancel hidden behind the customer popup) was live-only; coordinator relayed it from the live-site thread. I could not reach the live site from here, so this is the one rule as relayed, NOT the full 8-line live block.
+Not fixed (listed in findings): cramped Order "Add payment" row, truncated sale-form placeholders, small tap targets, 9-tab bottom nav.
+Verified: `node --check` on all js, regression 374/374 (needs `TZ=Asia/Kolkata`; in UTC two date tests fail, unrelated), checks/ scripts identical to before except one extra global (`syncBannerHeight`). Screenshots re-taken for top bar, Orders, Girvi/Order detail. Not verified: a real phone, the renewal banner on screen (only reasoned from the shared geometry), Edit Bill popup stacking.
+→ FOR COWORK: diff live `index.html` against this branch for the whole cust-modal CSS block (live had ~8 lines, I added only the one rule), and add the rest if different.
+
+
 ### 2026-10-05 · Claude Code (Sonnet, orchestrating a final Opus whole-chain review) — batch48 BUILT: `jewelos-batch48-DEPLOY.zip` packaged, nothing deployed
 
 Per Tanish's instruction relayed through this session and Cowork's hand-back (both pointing at the same thing): code frozen at `ebb02c9`, one final Opus review run across the WHOLE chain since batch47 (`c781fb8..HEAD` — C1, C2, H1/M1, H2, H4, M8, M5, M4, M7, M3 + follow-up, plus the ES5-hooks/docs tooling commits), then the deploy zip built. No code changed in this entry — this is packaging and review only.

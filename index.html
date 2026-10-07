@@ -261,7 +261,7 @@ body{
     font-size:var(--text-base);text-align:left;
   }
   .dtab.active{border-left-color:var(--gold);}
-  body.demo-mode .dtabs,body.sub-banner-on .dtabs{top:calc(var(--topbar-h) + 34px);}
+  body.demo-mode .dtabs,body.sub-banner-on .dtabs{top:calc(var(--topbar-h) + var(--banner-h,34px));}
 }
 @media(min-width:640px) and (max-width:1023px){
   :root{--rail-w:184px;}
@@ -1164,8 +1164,8 @@ html.dev .dev-only{display:block!important;}
   font-weight:700;letter-spacing:.04em;display:none;
 }
 #demo-banner.visible{display:block;}
-body.demo-mode header.topbar{top:34px;}
-body.demo-mode main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
+body.demo-mode header.topbar{top:var(--banner-h,34px);}
+body.demo-mode main.main{padding-top:calc(var(--topbar-h,64px) + var(--banner-h,34px));}
 
 /* Subscription state — same geometry as the demo banner above, so the
    topbar offset rule can be shared. Amber while the subscription is
@@ -1183,8 +1183,21 @@ body.demo-mode main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   border:none;background:none;color:#fff;font-size:14px;line-height:1;
 }
 #sub-banner .sub-x:hover{opacity:1;}
-body.sub-banner-on header.topbar{top:34px;}
-body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
+body.sub-banner-on header.topbar{top:var(--banner-h,34px);}
+body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + var(--banner-h,34px));}
+/* Full-screen sheets start at top:0, which put their title bar underneath the
+   banner (z-index 1300). Start them below it instead. Screen only, so print
+   layouts are untouched; the legal modal (z-index 2000) already sits above. */
+@media screen{
+  body.demo-mode .modal-bg,body.sub-banner-on .modal-bg,
+  body.demo-mode .modal-overlay,body.sub-banner-on .modal-overlay,
+  body.demo-mode [id$="-modal"]:not(#legal-modal),body.sub-banner-on [id$="-modal"]:not(#legal-modal){
+    top:var(--banner-h,34px)!important;
+  }
+}
+/* Customer history popup must stay under Edit Bill's Save/Cancel on phones
+   (already in the live build; restored here so a deploy from main keeps it). */
+#cust-modal.modal-bg{z-index:490;}
 
 /* WhatsApp automation panel */
 .wa-rule{
