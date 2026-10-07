@@ -85,10 +85,10 @@ Walked Home, Stock, Sale, Orders, Girvi, Day Book, Customers, Reports, Settings 
 - **Banner/top-bar overlap.** Demo and renewal banners wrap to 2-3 lines on a phone but the offset was a fixed 34px. Now `--banner-h` is measured by `syncBannerHeight()` (end of `00-config-state.js`) and used by the top bar, `main` padding and `.dtabs` in `index.html`.
 - **Sheet titles hidden under the banner** (Girvi/Order detail etc.): `@media screen` rule pushes `.modal-bg`, `.modal-overlay` and `*-modal` down by `--banner-h` while a banner is showing (legal modal excluded).
 - **Orders blank in demo mode:** demo order had status `making`, not in `ORD_STATUS`; changed to `progress` (`06-inventory-stock.js:867`). Not touched: the stale 7-stage pipeline in `renderOrdersPipeline` (still lists design/making/polishing/quality, which the app never sets).
-- **`#cust-modal.modal-bg{z-index:490;}`** (Edit Bill Save/Cancel hidden behind the customer popup) was live-only; coordinator relayed it from the live-site thread. I could not reach the live site from here, so this is the one rule as relayed, NOT the full 8-line live block.
+- **`#cust-modal.modal-bg{z-index:490;}`** (Edit Bill Save/Cancel hidden behind the customer popup) was live-only; coordinator relayed it from the live-site thread. Exact 8-line live block (comment + rule) later supplied by the live-site thread and placed after `.modal-bg.open`.
 Not fixed (listed in findings): cramped Order "Add payment" row, truncated sale-form placeholders, small tap targets, 9-tab bottom nav.
 Verified: `node --check` on all js, regression 374/374 (needs `TZ=Asia/Kolkata`; in UTC two date tests fail, unrelated), checks/ scripts identical to before except one extra global (`syncBannerHeight`). Screenshots re-taken for top bar, Orders, Girvi/Order detail. Not verified: a real phone, the renewal banner on screen (only reasoned from the shared geometry), Edit Bill popup stacking.
-→ FOR COWORK: diff live `index.html` against this branch for the whole cust-modal CSS block (live had ~8 lines, I added only the one rule), and add the rest if different.
+→ FOR COWORK: nothing — FYI only (cust-modal block now matches live).
 
 
 ### 2026-10-05 · Claude Code (Sonnet, orchestrating a final Opus whole-chain review) — batch48 BUILT: `jewelos-batch48-DEPLOY.zip` packaged, nothing deployed
