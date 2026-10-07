@@ -54,6 +54,18 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   (Cowork's own account skills) write to the paused Office, and `jewelos-health`'s drift SQL still
   reads `nextInvNo`, stale since migration 005 changed the invoice-floor source.** Flagged by Cowork's
   3 Oct skills audit; explicitly out of scope for Claude Code to touch; Cowork/Tanish's to fix.
+- **[new, 8 Oct] A real trade-off in the save-conflict code, surfaced while fixing the
+  `_unconfirmedSaveIds` risk below — not safe for Claude Code to pick unilaterally.** When a save
+  conflicts and the id matches an *earlier* save of ours that already landed, today's code always
+  reports "saved" (clears the form, no duplicate) — this is deliberate and has two regression tests
+  protecting it (the C2 resubmit-after-reload case). The flaw: the exact same code path can't tell
+  that case apart from a genuinely *different*, later action that happens to conflict against that
+  same old id — which today also gets silently reported "saved" while actually being dropped
+  (two independent Opus reviews found and confirmed this 8 Oct). Making it report failure instead
+  closes the data-loss case but reopens duplicate-bill risk on ordinary resubmits (breaks the
+  tested behaviour). **Needs Tanish's call: silent-but-rare data loss, or a visible duplicate-bill
+  risk on resubmit?** Left unfixed, as found, in `js/01-sync-core.js` (the `_unconfirmedSaveIds.indexOf`
+  branch, ~line 371) — see today's LOG entry for the full trace.
 
 **Closed (don't re-ask):** Day Book receipt photos → skipped (needs Supabase Storage if it returns) ·
 Demo mode → built, batch21 · renewal contact → `+91 72086 23428`, no UPI handle in code ·
@@ -75,6 +87,78 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-08 · Claude Code (Sonnet) — partial fix + two new HIGH findings on the standing `_unconfirmedSaveIds` save-conflict risk, `js/01-sync-core.js`
+
+Picked up the oldest unaddressed item in "what's still open": the save/conflict array
+flagged 30 Sep and 2 Oct as "cross-call misattribution risk," never fixed. 🔴 High per
+MODEL-POLICY §8 (sync/save-path, customer-data integrity) — got two independent Opus
+reviews (Code Reviewer, AI-Generated Code Security Auditor) on the diff before settling
+on what shipped.
+
+**Fixed, shipped:** `_unconfirmedSaveIds` (the array of save ids this tab still considers
+"might land late") now gets cleared in the two branches that *positively* resolve an
+attempt as not-ours: the 403/forbidden branch and the genuine-conflict-from-another-device
+branch (which already reloads straight after). Both reviewers independently confirmed this
+specific change is safe — no data-loss window, no cross-shop leak (the array is wiped by
+the full-page reload on every logout/shop-switch anyway) — and it closes the part of the
+risk that was a pure bookkeeping leftover.
+
+**Found, NOT fixed — needs Tanish (see WAITING ON TANISH):** both reviews, working
+independently, converged on the same deeper bug in the branch just below the one fixed
+above (`_unconfirmedSaveIds.indexOf(...)`, ~line 371): it can't distinguish "the user
+resubmitted the exact same action after a dropped answer" (intentional, tested, reports
+"saved") from "a genuinely different, later action whose conflict happens to match an old
+id of ours" (same code path, same "saved" report today — but the later action's actual
+data was never saved). Tried the reviewers' suggested fix (report the second case as a
+real failure); it passed `node --check` but **broke 2 regression tests** that pin today's
+behaviour as deliberate (`tests/regression.test.js`: the C2 resubmit-after-reload case, and
+"a resubmit that conflicts with an EARLIER call's landed save ... reports saved, no
+duplicate"). Reverted that part rather than ship a fix that trades one failure mode for a
+different, also-bad one (duplicate bills on ordinary resubmits) without Tanish's sign-off —
+this is exactly the kind of call "neither Claude can decide."
+
+**Also found, not fixed, flagging as new standing risks (Code Reviewer's review, not yet
+independently re-verified by a second pass):**
+- Inside `saveToCloud()`'s retry loop, `expectedVersion` is re-read fresh from `_loadedVersion`
+  on every retry attempt, but `dataPayload` (built once, holding references to the arrays as
+  they were when the call started) is not. A load that runs *during* a retry's delay (tab
+  switch, the `online` handler, `forceSync` all call `loadFromCloud` without checking
+  `isSaving`) can bump `_loadedVersion` forward; the next retry then sends the *stale* payload
+  under the *new* version, passes the compare-and-swap, and silently overwrites whatever that
+  load just pulled in. Suggested fix (not applied): capture `expectedVersion` once per call,
+  not re-read it per attempt.
+- The `isSaving` watchdog in `00-config-state.js` force-releases after 30s; `SAVE_TIMEOUT_MS`
+  in this file is 60s and a call can retry 3 times (~22s of delays on top). On a slow
+  connection the watchdog can fire while a real save attempt is still genuinely in flight,
+  letting a second `saveToCloud()` start concurrently and interact with the first's shared
+  state (`_unconfirmedSaveIds`, `_loadedVersion`).
+
+**Verification:** `check.bat` clean (same documented false positives as the last baseline;
+`backup-check` and `roundtrip` both clean). `node tests/regression.test.js`: 375/375 passed
+on the shipped diff. Ran `tests/e2e/failed-saves.spec.js` and `session-restore.spec.js`
+twice — once on this diff, once stashed back to the unmodified baseline — to rule out a
+regression: both runs had 2-3 failures, different individual tests each time (timing-flaky,
+pre-existing, not caused by this change). Did not build a deploy zip (per standing instruction:
+one zip at end-of-session, not per batch) and did not click through on a real phone — this is
+backend state-machine logic with no UI surface to walk through; e2e is the closest thing to a
+real-screen check this change has.
+
+→ FOR COWORK: nothing live yet, no deploy. If Tanish asks about save reliability, the two new
+🔴 findings above (stale retry payload, watchdog-shorter-than-save-timeout) are real and
+unfixed — don't say this area is now solid.
+→ FOR TANISH: fixed one real bug (a bookkeeping leftover in the save-retry code that, in
+theory, could very rarely have let an old abandoned save get confused for a new one). While
+checking it, found a bigger, related question that needs your call — added to WAITING ON
+TANISH above: when a save conflicts and it turns out an *earlier* thing you did already went
+through, should the app tell you the save you're doing *right now* succeeded (safe default
+today, but can very rarely drop that save silently) or that it failed (never drops anything
+silently, but means redoing a resubmit could create a duplicate bill)? Not deployed — this is
+backend-only, nothing to see on screen.
+
+---
 
 ---
 

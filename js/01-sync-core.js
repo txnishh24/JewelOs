@@ -348,6 +348,13 @@ function saveToCloud(callback){
         setSyncStatus('err','Not allowed');
         toast('\u26a0 ' + ((res.body && res.body.message) || 'Your account cannot save changes.'));
         _clearUnsynced(); // this role can never push the edit; the cloud copy is the truth
+        // Scoping fix (was flagged 30 Sep/2 Oct, never fixed): this role will
+        // never land a write, so this id (and any older ones still sitting
+        // here from earlier attempts) can never legitimately be "ours,
+        // landed" again. Leaving them let a much later, unrelated conflict
+        // get wrongly matched against a stale id from a completely different
+        // save attempt.
+        _unconfirmedSaveIds = [];
         if(callback) callback(new Error('forbidden'));
         return;
       }
@@ -361,6 +368,17 @@ function saveToCloud(callback){
       // timed out while the first attempt had in fact landed. The cloud
       // holds that landed version: load it, report success (so the form
       // clears instead of inviting a re-entry), and say what happened.
+      //
+      // Known limitation, NOT fixed here (two independent Opus reviews,
+      // 8 Oct): this branch can't tell "the user resubmitted the exact same
+      // action" (safe to report saved -- the two regression tests below
+      // depend on exactly that) apart from "this is a genuinely different,
+      // later action that happens to conflict against an old id of ours"
+      // (which this would then also silently report as saved, dropping the
+      // later action). A fix that reports the second case as a failure
+      // breaks the first case's tested behaviour (would start creating
+      // duplicate bills on ordinary resubmits) -- see HANDOFF.md, this is
+      // Tanish's trade-off to make, not Claude's to pick unilaterally.
       if(res.body && res.body.conflict && res.body.data && _unconfirmedSaveIds.indexOf(res.body.data._saveId) !== -1){
         console.warn('[JewelOS] save conflict was an earlier save of ours that landed');
         isSaving = false; _isSavingSetAt = 0;
@@ -384,6 +402,14 @@ function saveToCloud(callback){
         toast('\u26a0 Someone saved changes on another device just now. Loading their version — please redo your last action.');
         console.warn('[JewelOS] Real save conflict detected — refused to overwrite, reloading instead.');
         _clearUnsynced(); // before loadFromCloud, so it doesn't try to push again
+        // Scoping fix (flagged 30 Sep/2 Oct, never fixed): this attempt's id
+        // definitely did not land (the version check just proved someone
+        // else's did) and the reload below fetches the true current state
+        // directly, so no id needs to survive past this point. Without this,
+        // this id (and any older ones) stayed claimable indefinitely --
+        // a much later, unrelated save's conflict could be wrongly matched
+        // against a stale id from this abandoned attempt.
+        _unconfirmedSaveIds = [];
         loadFromCloud(function(){ normaliseData(); saveCache(); try{ renderDash(); }catch(e){} });
         if(callback) callback(new Error('version-conflict'));
         return;
