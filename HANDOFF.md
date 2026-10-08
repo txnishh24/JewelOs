@@ -54,6 +54,10 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   (Cowork's own account skills) write to the paused Office, and `jewelos-health`'s drift SQL still
   reads `nextInvNo`, stale since migration 005 changed the invoice-floor source.** Flagged by Cowork's
   3 Oct skills audit; explicitly out of scope for Claude Code to touch; Cowork/Tanish's to fix.
+- **[new, 8 Oct] Implement the save-conflict "rebase" fix, or leave it scoped?** Designed, not
+  built — see `docs/save-conflict-fix-design.md` and today's LOG entry. Small-medium, one Sonnet
+  session + Opus review of the diff; no server/schema change. Waiting on Tanish to say "build it"
+  (or not) — not re-scoping, just a go/no-go on spending the session.
 
 **Closed (don't re-ask):** Day Book receipt photos → skipped (needs Supabase Storage if it returns) ·
 Demo mode → built, batch21 · renewal contact → `+91 72086 23428`, no UPI handle in code ·
@@ -65,8 +69,8 @@ Aadhaar/PAN → not stored (purged on load) · offline billing → reserved numb
 matching an old "unconfirmed" save id always reports "saved," never a duplicate bill). Accepted
 risk: in a rare case a genuinely different, later action can be silently dropped while reported
 as saved — no code change, `js/01-sync-core.js`'s `_unconfirmedSaveIds.indexOf` branch stays as
-is. The real fix (making the app tell the two cases apart, not just pick which failure mode to
-accept) is still open as future work if Tanish wants it scoped — not done, not asked for yet.
+is. **Update, same day: the real fix is now scoped** (`docs/save-conflict-fix-design.md`) — see
+the new WAITING ON TANISH item above for the build/don't-build call.
 - **⚠ CORRECTED, was wrong in the original file: "Netlify badge → hidden with CSS" is NOT what
   actually happened.** batch43 tried `iframe.nl-badge-frame{display:none!important}`, but Cowork's
   live batch45 check (1 Oct) found the real badge has no class, so it stayed visible
@@ -81,6 +85,54 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-08 · Claude Code (Opus plan, via Software Architect agent) — proper fix for the save-conflict ambiguity SCOPED, not built: `docs/save-conflict-fix-design.md`
+
+Tanish asked to scope the real fix behind the Option A trade-off below. 🔴 High per MODEL-POLICY
+§8 (save path, data integrity, architecture-level) — ran the design step on Opus per §3, rather
+than drafting it on Sonnet. No source file touched; only the design doc was written.
+
+**The finding that matters most:** content/payload comparison (an earlier idea) cannot work —
+a genuine resubmit is never byte-identical to the attempt it's redoing, because the failed
+attempt's rollback consumes a server invoice number and timestamps before the user's second tap,
+so a content check would wrongly call every real resubmit "different."
+
+**Recommended fix instead — "rebase onto our own landed save":** when a conflict's landed save
+is provably *this tab's own* earlier attempt (its id is in memory, not read off disk, and the
+version gap is exactly 1), resend this call's current data on top of it rather than guessing
+what happened. That one rule makes both cases come out right without needing to tell them apart:
+a resubmit still reports "saved" (now also fixing a pre-existing mismatch where the success toast
+named the wrong invoice number), and a genuinely different later action actually gets saved
+instead of silently dropped. No server/schema change — client-only, in `js/01-sync-core.js` +
+`00-config-state.js`. Full design, options rejected (per-action keys, content hash, three-way
+merge, TTL-ing the id list — all rejected, reasons in the doc), test plan (1 updated + 8 new
+regression tests, all named), and a 6-step implementation plan for a Sonnet session are in the
+doc. Estimated small-medium, one Sonnet session + Opus review of the diff.
+
+**Depends on fixing the two standing risks already logged below (stale `expectedVersion` on
+retry, 30s watchdog vs. a 60s+retries save chain) — the doc folds those into the same plan as
+Steps 1-2, required for the fix's guarantee to actually hold, not optional.**
+
+**New, needs to reach Cowork — not previously known:** if Cowork ever hand-edits a shop's `store`
+row by SQL, it must also overwrite `_saveId` to something like `"manual-<date>"`. Once this fix
+ships, a client could otherwise "rebase" its own stale screen on top of Cowork's manual edit and
+silently overwrite it. True today in a smaller way too (today's code would instead reload over
+it), so this isn't a new hazard the fix introduces, but it becomes the operative rule once the
+fix lands.
+
+**Not done:** no code written, no tests changed, nothing deployed. This is a plan only — next
+session should read `docs/save-conflict-fix-design.md` in full before touching
+`js/01-sync-core.js` again.
+
+→ FOR COWORK: nothing live. One new rule for your side once this fix ships (timing TBD, not yet
+built): any manual SQL edit to a shop's `store` row must set `_saveId` to a sentinel value like
+`"manual-<date>"`, or a client save could later overwrite your edit without anyone seeing it
+happen. Not urgent today, but don't forget it before relying on a manual edit sticking.
+→ FOR TANISH: scoped, not built. The design doc explains the "why" in plain language near the
+top if you want it without the technical detail. Say the word if you want this actually
+implemented — it's roughly one focused session, not a big rewrite.
 
 ---
 
