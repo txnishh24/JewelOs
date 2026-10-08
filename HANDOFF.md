@@ -84,6 +84,53 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-08 · Claude Code (Sonnet) — built P2 of the motion audit, caught and fixed a real bug from the P0 commit (`6bf875b`)
+
+🟢 Low risk. Tanish said yes to P2 after the P0+P1 build below.
+
+**Shipped**: a second easing token (`--ease-out`) for things that enter/exit
+(modal, overlay sheet, autocomplete panel) — the original `--ease` every
+hover/color transition uses stays untouched; the sync bar's width transition
+now actually gets a width value to animate to (75% while syncing, 100% on
+done, same reset as before — it existed since P0/before but nothing ever
+drove it); empty-state blocks get a one-shot fade+scale-in. Left the
+pin-button press-scale (0.91) alone — the audit only noted the number, never
+called it broken, and nothing's come up since.
+
+**Caught while doing the above, not introduced by it**: the P0 commit's 6
+modal/modal-overlay/gl-wrap `transition` declarations were silently invalid
+CSS — `var(--t2)` already bundles a duration *and* an easing function
+together, and P0 appended ANOTHER easing after it (`var(--t2) var(--ease)`),
+which browsers treat as an invalid value for that list item and drop the
+*entire* transition to its default (`ease`, no custom curve). The elements
+still ended up in the right open/closed state (classes toggle regardless of
+whether a transition is attached), which is exactly why my own P0 before/
+after computed-style checks didn't catch it — only a real mid-transition
+sample would have. Fixed with a properly single, bundled `--t2-out` token;
+this time verified by sampling `.gl-wrap`'s opacity every 40ms through an
+actual open and watching it rise (0 → 0.93 → 0.99 → 1) instead of jumping
+straight to 1. **Net effect: the P0 modal/overlay fade+scale almost
+certainly wasn't actually animating in production between the two commits**
+— it would have looked like an instant snap, same end state, just no
+motion. Live for under an hour; nobody would have filed this as a bug
+(same old behavior, no regression), so I don't think any real user saw it.
+
+Re-ran everything after the fix: regression 386/386, backup-check/roundtrip
+clean, full e2e 22/23 (same pre-existing `session-restore.spec.js` flake,
+confirmed on the clean baseline back in the P0 entry below — unrelated).
+
+→ FOR COWORK: nothing — FYI only. The whole motion audit (P0 through P2) is
+now built and pushed (`83727a8` → `6bf875b`). Worth knowing if you ever look
+at this CSS: `--t1`/`--t2`/`--t3` are bundled duration+easing tokens by
+design in this file — never follow one with another explicit easing
+function, and never drop one into a slot (like a transition-delay) that
+expects a single bare time value. That's the exact mistake this entry fixes.
+→ FOR TANISH: P2 done and pushed. The whole motion project (P0/P1/P2) is
+now complete — nothing queued on this unless you spot something on a real
+phone that doesn't feel right, in which case tell me what and where.
+
+---
+
 ### 2026-10-08 · Claude Code (Sonnet) — built P0+P1 of the motion audit (commit `83727a8`)
 
 🟢 Low risk (CSS + mechanical display→classList swaps, no logic touched). Tanish
