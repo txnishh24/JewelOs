@@ -54,25 +54,19 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   (Cowork's own account skills) write to the paused Office, and `jewelos-health`'s drift SQL still
   reads `nextInvNo`, stale since migration 005 changed the invoice-floor source.** Flagged by Cowork's
   3 Oct skills audit; explicitly out of scope for Claude Code to touch; Cowork/Tanish's to fix.
-- **[new, 8 Oct] A real trade-off in the save-conflict code, surfaced while fixing the
-  `_unconfirmedSaveIds` risk below — not safe for Claude Code to pick unilaterally.** When a save
-  conflicts and the id matches an *earlier* save of ours that already landed, today's code always
-  reports "saved" (clears the form, no duplicate) — this is deliberate and has two regression tests
-  protecting it (the C2 resubmit-after-reload case). The flaw: the exact same code path can't tell
-  that case apart from a genuinely *different*, later action that happens to conflict against that
-  same old id — which today also gets silently reported "saved" while actually being dropped
-  (two independent Opus reviews found and confirmed this 8 Oct). Making it report failure instead
-  closes the data-loss case but reopens duplicate-bill risk on ordinary resubmits (breaks the
-  tested behaviour). **Needs Tanish's call: silent-but-rare data loss, or a visible duplicate-bill
-  risk on resubmit?** Left unfixed, as found, in `js/01-sync-core.js` (the `_unconfirmedSaveIds.indexOf`
-  branch, ~line 371) — see today's LOG entry for the full trace.
 
 **Closed (don't re-ask):** Day Book receipt photos → skipped (needs Supabase Storage if it returns) ·
 Demo mode → built, batch21 · renewal contact → `+91 72086 23428`, no UPI handle in code ·
 owner-PIN test → built 27 Sep · e2e test shop → reset before a same-day re-run streak, no cleanup
 logic in the app · login token (F1) → option B, 6 h life, PIN on reopen within 6 h · old-gold
 deduction → jeweller decides · Memo Bill → no GST · (1 Oct) signup → "Start Your Shop →" ·
-Aadhaar/PAN → not stored (purged on load) · offline billing → reserved numbers per phone (batch44).
+Aadhaar/PAN → not stored (purged on load) · offline billing → reserved numbers per phone (batch44) ·
+(8 Oct) save-conflict trade-off → **Tanish chose Option A: keep current behaviour** (a conflict
+matching an old "unconfirmed" save id always reports "saved," never a duplicate bill). Accepted
+risk: in a rare case a genuinely different, later action can be silently dropped while reported
+as saved — no code change, `js/01-sync-core.js`'s `_unconfirmedSaveIds.indexOf` branch stays as
+is. The real fix (making the app tell the two cases apart, not just pick which failure mode to
+accept) is still open as future work if Tanish wants it scoped — not done, not asked for yet.
 - **⚠ CORRECTED, was wrong in the original file: "Netlify badge → hidden with CSS" is NOT what
   actually happened.** batch43 tried `iframe.nl-badge-frame{display:none!important}`, but Cowork's
   live batch45 check (1 Oct) found the real badge has no class, so it stayed visible
@@ -87,6 +81,27 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-08 · Claude Code (Sonnet) — Tanish's decision recorded on the save-conflict trade-off: Option A, no code change
+
+Walked Tanish through the trade-off left open in the entry below (rare-and-silent data loss vs.
+common-and-visible duplicate bill, on a conflict that matches an old `_unconfirmedSaveIds` entry).
+**Decision: keep current behaviour (Option A)** — always report "saved" on that match, never a
+duplicate. Moved the item from WAITING ON TANISH's Open list to Closed, with the accepted risk
+spelled out there. No code touched; `js/01-sync-core.js` is unchanged from this morning's partial
+fix (`f789d21`, already pushed). Verified nothing else changed before writing this: `git status`
+clean, same commit as before.
+
+Also pushed the 14 commits that had built up locally (through `f789d21`) to `origin/main` — was
+behind before this session, is caught up now.
+
+→ FOR COWORK: nothing live, no deploy, no further action needed on this. If Tanish or a shop
+raises a case of "I saved something and it's not there," the accepted (rare) failure mode above
+is the first thing to check against — ask what else was being saved around the same time.
+→ FOR TANISH: logged your call. Nothing to verify on screen — this was a decision, not a code
+change.
 
 ---
 
