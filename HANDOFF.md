@@ -84,6 +84,76 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-08 · Claude Code (Sonnet) — manual-SQL-edit DB trigger built (migration 007): the rule above is now enforced in code, not just written down
+
+Tanish asked for the follow-up flagged two entries down: a DB trigger so the manual-SQL-edit
+rule (bump `_v` **and** set `_saveId`) can't be forgotten, instead of relying on a human
+remembering it. 🔴 High per MODEL-POLICY §8 (schema change, data integrity, touches every
+write to every shop's data) — routed to `Backend Architect` on Opus for design review, same
+pattern as the JS fix's Code Reviewer/Security Auditor pass. **Two review rounds, not one** —
+the first draft had a real gap the reviewer caught.
+
+**What it does:** `supabase/migrations/007_manual_store_edit_guard.sql` adds a `BEFORE UPDATE`
+trigger on `store`. A real client write always has two things true together: a brand-new
+`_saveId` (every `saveToCloud()` call mints one) and `_v` exactly one more than before (set by
+`store_cas_write`'s own CAS logic). Any update missing *either* property gets corrected before
+it lands — `_saveId` overwritten to a `manual-<timestamp>` sentinel, `_v` bumped to at least
+`old+1`. No normal save is ever touched by this (confirmed: `store_cas_write` is the only writer
+of `store` anywhere in this codebase — no other migration or edge function touches it).
+
+**First draft's gap, found by Backend Architect's first pass:** only checked `_saveId`
+unchanged. An operator who sets a fresh `_saveId` but forgets to bump `_v` — exactly the mistake
+the original HANDOFF rule exists to prevent — would have sailed through untouched, then been
+silently overwritten by the next ordinary save from any device still at the old version. Fixed:
+the condition is now "`_saveId` unchanged **OR** `_v` isn't exactly old+1" — either failing
+means it wasn't a real client write. Re-reviewed after the fix; confirmed correct, no remaining
+gap. Also took two small nits from that pass: `clock_timestamp()` instead of `now()`, and a
+`WHEN (OLD.data IS DISTINCT FROM NEW.data)` guard so a hypothetical no-data-change update isn't
+flagged either.
+
+**What this does NOT catch, by design:** a manual edit that deliberately mints a fresh,
+non-sentinel `_saveId` AND bumps `_v` by exactly 1 looks identical to a real client write. Both
+reviews agreed this is an acceptable scope limit, not a gap — the threat model is an honest
+operator mistake (Cowork/Tanish editing `store` directly), not an adversary; anyone who could
+craft such a write already has service-role database access. Also doesn't and can't recover
+data from the specific case of "a client save landed, then someone pastes back an older blob
+that predates it" — the pasted blob never contained that save, no trigger can merge back data
+that was never in the write it's checking. What it DOES guarantee: `_v` can never go backwards
+and the edit is always labelled `manual-...`, turning a silent, untraceable loss into a visible,
+after-the-fact one.
+
+**Not verified against a live database** — no Supabase MCP connection in this session, so this
+is unrun SQL, reviewed twice by Opus but never executed. The migration file's own comments carry
+three manual-verification steps (wrapped in `begin;...rollback;`, against a disposable test shop
+that's already been saved from the app at least once) plus a fourth, the one Backend Architect
+called most important: after applying it for real, do ONE normal save from the actual app
+against that test shop and confirm it was NOT flagged (`_saveId` not `manual-...`, `_v` up by
+exactly 1) — steps 1-3 only imitate a client write; step 4 proves it end to end through
+store-proxy. **Someone with Supabase access needs to run this before it's trusted on a real
+shop.** Risk if it somehow misbehaves is self-limiting: it can only ever touch `_saveId`/`_v`,
+never business data — worst case is a device getting a spurious "someone saved on another
+device" reload, which step 4 would catch immediately.
+
+**Not done:** not applied to the live database (needs Supabase access this session doesn't
+have), not deployed, no zip (not applicable — server-side only).
+
+→ FOR COWORK: **this is for you to apply, not me** — I don't have a Supabase connection in this
+session. `supabase/migrations/007_manual_store_edit_guard.sql` is ready; its own comments have
+the exact verification steps (wrap in `begin;...rollback;`, test against a disposable shop, then
+do one real app save and confirm it's NOT flagged, in that order). Please run it before relying
+on this, and update the HANDOFF manual-edit rule once it's live: with this trigger applied, you
+no longer need to remember `_saveId`/`_v` by hand for every manual edit — it's enforced
+automatically — though stating the rule explicitly in your own notes is still good practice as
+a backstop. Rollback is one line if anything looks wrong:
+`drop trigger if exists _guard_manual_store_edit on public.store;` (never touches existing rows,
+so dropping it fully reverts the effect on future writes).
+→ FOR TANISH: built and twice-reviewed, not yet applied to the real database — needs Cowork (or
+whoever has Supabase access) to run it and verify, per the steps in the file. Low risk if
+something's off (it can only touch bookkeeping fields, never your shop data), but worth actually
+checking before trusting it, same as any schema change.
+
+---
+
 ### 2026-10-08 · Claude Code (Sonnet) — save-conflict rebase fix CLOSED: built, Opus-reviewed, tested, committed, pushed
 
 Closing out the chain of entries below — nothing left open on this item. Independently
