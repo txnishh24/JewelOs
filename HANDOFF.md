@@ -84,6 +84,67 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-08 · Claude Code (Sonnet) — pre-deployment verification of the full motion pass (P0+P1+P2), read-only, nothing changed
+
+🟢 Low risk, verification only. Build is **not yet deployed** — this was a
+gate before Tanish sends a Netlify zip, not a post-deploy check.
+
+**Scope confirmed**: `git diff 8f5d017 HEAD` (everything since before the
+motion work started) touches exactly 5 files — `index.html`,
+`js/01-sync-core.js`, `js/02-ui-inactivity-modals.js`,
+`js/03-billing-numbers.js`, `js/10-daybook.js`. Every JS line is either a
+`style.display` ↔ `classList` swap on a presentation-only element or the
+2-line `bar.style.width` percentage set in `setSyncStatus()`. Nothing
+touches billing/GST math, stock/weight derivation, Girvi interest, PIN/auth,
+or any Supabase/`store-proxy` call — confirmed by reading every changed
+line, not just trusting the earlier commits' own descriptions.
+
+**Ran fresh**: `node --check` × 11 ✓ · regression suite 386/386 ✓ ·
+`backup-check`/`roundtrip` clean ✓ · full e2e 22/23 (same pre-existing
+`session-restore.spec.js` flake, reproduces on the pre-motion-work baseline
+too — not this work's doing).
+
+**New this pass**: a throwaway Playwright script that the earlier audits
+hadn't done — visited **all 9 tabs** (Dashboard/Inventory/Sale/Girvi/Orders/
+Customers/Reports/Day Book/Settings, the first 3 of which have no dedicated
+e2e spec) on both mobile and desktop with **zero console errors, zero page
+errors, zero failed network requests**; confirmed a modal's close button is
+clickable ~10ms after opening (`pointer-events` flips with the class
+instantly, not gated by the fade) and that a real `saveToCloud()` round-trip
+timing is untouched by any of this (991ms, all network, no animation code
+in that path); reconfirmed reduced-motion keeps the opacity fade's own
+duration while only removing the transform.
+
+**Delegated to `jewelos-bug-pattern-reviewer`** (per CLAUDE.md routing) against
+the five documented bug families — clean report, every classList/id target
+it checked resolves to something real, nothing position-based, no new
+`localStorage` keys, no nested-function scope issue. It flagged two
+cosmetic-only, non-blocking items: `.sync-bar-inner.syncing`/`.done` have no
+CSS rules of their own (dead class hooks, the width transition still
+animates off the base rule regardless) and an assumption in a comment about
+`.empty` always being freshly inserted via `innerHTML` rather than toggled
+in place — I checked that one myself afterward (grepped every `.empty`
+producer across all 11 files): confirmed true everywhere, no issue.
+
+**`jewelos-deploy-verifier` not run** — it checks a *live* origin against
+the change, and nothing's been deployed yet. Run it the moment a Netlify zip
+actually goes up.
+
+**Unrelated, still unexplained**: the `" - Copy"` folders from the last
+entry are down to 6 now (`.agents - Copy` is gone) — something keeps
+touching them during this session. Still not me, still flagging it rather
+than guessing.
+
+→ FOR COWORK: nothing — FYI only. Full motion pass (P0/P1/P2) is verified
+clean and ready to deploy whenever Tanish sends the zip; ask me (or have him
+ask) for `jewelos-deploy-verifier` once it's actually live.
+→ FOR TANISH: this build is ready to deploy. Nothing touches billing, stock,
+Girvi, auth, or the database — verified line by line, not just by memory of
+writing it. Say the word once you've zipped and dropped it on Netlify and
+I'll confirm the live site actually serves it.
+
+---
+
 ### 2026-10-08 · Claude Code (Sonnet) — built P2 of the motion audit, caught and fixed a real bug from the P0 commit (`6bf875b`)
 
 🟢 Low risk. Tanish said yes to P2 after the P0+P1 build below.
