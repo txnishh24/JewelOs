@@ -106,6 +106,18 @@
   /* Motion — fades and slides only, 150–200ms */
   --ease:cubic-bezier(.4,0,.2,1);
   --t1:.15s var(--ease); --t2:.2s var(--ease); --t3:var(--t2);
+  /* P2: a second, stronger curve for things that ENTER/EXIT (modal, sheet,
+     autocomplete panel) rather than move on screen or swap color -- --ease
+     above stays the one every hover/active/color transition already uses.
+     --t2-out bundles it with --t2's own duration, same pattern as --t1/--t2
+     themselves -- it must be used ALONE in a transition value, never
+     followed by another explicit easing function or dropped into a slot
+     that expects a single bare <time> (a bug found and fixed in this same
+     pass: --t2 already contains a timing-function, so `var(--t2) <more>`
+     or `foo 0s linear var(--t2)` are both an invalid transition value,
+     silently dropped to the CSS default "ease" instead of erroring). */
+  --ease-out:cubic-bezier(0.23,1,0.32,1);
+  --t2-out:.2s var(--ease-out);
 
   /* Aliases for platinum-theme vars used in edit bill JS */
   --b1:var(--border); --b2:var(--border2);
@@ -661,8 +673,8 @@ html.dev .dev-only{display:block!important;}
 /* Modal chrome family A (ord/pwd/invoice/edit/edit-bill/cust modals). No
    per-modal header tint, no blur backdrop, two elevation levels only.
    Becomes a bottom sheet under 640px so it never fights the keyboard. */
-.modal-bg{display:flex;position:fixed;top:0;right:0;bottom:0;left:0;background:var(--modal-overlay-color);z-index:500;align-items:center;justify-content:center;padding:1rem;opacity:0;visibility:hidden;pointer-events:none;transition:opacity var(--t2) var(--ease),visibility 0s linear var(--t2);}
-.modal-bg.open{opacity:1;visibility:visible;pointer-events:auto;transition:opacity var(--t2) var(--ease),visibility 0s linear 0s;}
+.modal-bg{display:flex;position:fixed;top:0;right:0;bottom:0;left:0;background:var(--modal-overlay-color);z-index:500;align-items:center;justify-content:center;padding:1rem;opacity:0;visibility:hidden;pointer-events:none;transition:opacity var(--t2-out),visibility 0s linear .2s;}
+.modal-bg.open{opacity:1;visibility:visible;pointer-events:auto;transition:opacity var(--t2-out),visibility 0s linear 0s;}
 /* #cust-modal is the one member of this family that spawns the others (Edit
    Bill, View Bill, Refund, Add Payment buttons live inside its own body) --
    it must always sit BELOW whichever one of them is open on top of it. Same
@@ -671,7 +683,7 @@ html.dev .dev-only{display:block!important;}
    real phone, confirmed via tests/e2e, 6 Oct 2026 -- Edit Bill is only ever
    opened from inside this modal, so this was the one path that mattered). */
 #cust-modal.modal-bg{z-index:490;}
-.modal{background:var(--surface);border-radius:var(--radius-xl);width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);transform:scale(.96);opacity:0;transition:transform var(--t2) var(--ease),opacity var(--t2) var(--ease);}
+.modal{background:var(--surface);border-radius:var(--radius-xl);width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);transform:scale(.96);opacity:0;transition:transform var(--t2-out),opacity var(--t2-out);}
 .modal-bg.open .modal{transform:scale(1);opacity:1;}
 .modal-header{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
 .modal-header h2{font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);}
@@ -700,8 +712,8 @@ html.dev .dev-only{display:block!important;}
    style tradeoff as any expand/collapse with content-driven height; these
    panels are small (≤5 rows) and shown rarely enough per interaction that
    the layout cost is a non-issue. */
-.ac-panel{max-height:0;opacity:0;visibility:hidden;pointer-events:none;transform:scale(.97);transform-origin:top center;transition:opacity 120ms ease-out,transform 120ms ease-out,max-height 120ms ease-out,visibility 0s linear 120ms;}
-.ac-panel.show{max-height:320px;opacity:1;visibility:visible;pointer-events:auto;transform:scale(1);transition:opacity 120ms ease-out,transform 120ms ease-out,max-height 120ms ease-out,visibility 0s linear 0s;}
+.ac-panel{max-height:0;opacity:0;visibility:hidden;pointer-events:none;transform:scale(.97);transform-origin:top center;transition:opacity 120ms var(--ease-out),transform 120ms var(--ease-out),max-height 120ms var(--ease-out),visibility 0s linear 120ms;}
+.ac-panel.show{max-height:320px;opacity:1;visibility:visible;pointer-events:auto;transform:scale(1);transition:opacity 120ms var(--ease-out),transform 120ms var(--ease-out),max-height 120ms var(--ease-out),visibility 0s linear 0s;}
 
 /* ── LOADING ─────────────────────────────────────── */
 .loading-screen{position:fixed;top:0;right:0;bottom:0;left:0;background:linear-gradient(160deg,#18160e,#22200a 55%,#18160e);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:999;}
@@ -712,7 +724,13 @@ html.dev .dev-only{display:block!important;}
 .loading-sub{font-size:12px;color:#5a5244;letter-spacing:.08em;}
 
 /* ── EMPTY STATE ─────────────────────────────────── */
-.empty{text-align:center;padding:var(--space-6) var(--space-3);color:var(--text3);font-size:var(--text-base);}
+/* P2: rare/first-view tier (the delight budget) -- a one-shot entrance that
+   plays automatically whenever a fresh .empty block is inserted (these are
+   swapped in via innerHTML, not toggled in place, so @keyframes here needs
+   no JS/class-toggle wiring). Already covered by the reduced-motion rule
+   below (animation-duration collapses to ~0 there). */
+.empty{text-align:center;padding:var(--space-6) var(--space-3);color:var(--text3);font-size:var(--text-base);animation:emptyIn 240ms var(--ease-out);}
+@keyframes emptyIn{from{opacity:0;transform:scale(.97);}to{opacity:1;transform:scale(1);}}
 .empty-icon{font-size:32px;display:block;margin-bottom:12px;opacity:.7;}
 
 /* ── PIN SCREEN ──────────────────────────────────── */
@@ -958,9 +976,9 @@ html.dev .dev-only{display:block!important;}
 
 /* ── Payment Ledger Modal ── */
 #girvi-ledger-modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:960;overflow-y:auto;-webkit-overflow-scrolling:touch;}
-.modal-overlay{display:block;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:960;overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;visibility:hidden;pointer-events:none;transition:opacity var(--t2) var(--ease),visibility 0s linear var(--t2);}
-.modal-overlay.open{opacity:1;visibility:visible;pointer-events:auto;transition:opacity var(--t2) var(--ease),visibility 0s linear 0s;}
-.gl-wrap{max-width:500px;margin:16px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);transform:scale(.96);opacity:0;transition:transform var(--t2) var(--ease),opacity var(--t2) var(--ease);}
+.modal-overlay{display:block;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:960;overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;visibility:hidden;pointer-events:none;transition:opacity var(--t2-out),visibility 0s linear .2s;}
+.modal-overlay.open{opacity:1;visibility:visible;pointer-events:auto;transition:opacity var(--t2-out),visibility 0s linear 0s;}
+.gl-wrap{max-width:500px;margin:16px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);transform:scale(.96);opacity:0;transition:transform var(--t2-out),opacity var(--t2-out);}
 .modal-overlay.open .gl-wrap{transform:scale(1);opacity:1;}
 .gl-header{display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .8rem;background:linear-gradient(135deg,rgba(28,96,64,.1),rgba(28,96,64,.03));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(28,96,64,.2);}
 .gl-header h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;font-weight:700;color:var(--success);letter-spacing:.02em;}

@@ -7,9 +7,17 @@ function setSyncStatus(status, label){
   dot.className = 'sync-dot ' + status;
   lbl.textContent = label;
   if(status==='syncing'){
+    // P2: the bar's own width transition (.sync-bar-inner, index.html) existed
+    // but nothing ever set a width to transition TO, so it never visibly
+    // moved. There's no real progress percentage for a single save (it's one
+    // fetch, not a multi-step upload) -- 75% is a plain "something is
+    // happening" sweep, not a fake number, same idea as any indeterminate
+    // loading bar. Snaps the rest of the way on completion (below), not before.
     bar.className='sync-bar-inner syncing';
+    bar.style.width='75%';
   } else {
     bar.className='sync-bar-inner done';
+    bar.style.width='100%';
     setTimeout(function(){bar.className='sync-bar-inner';bar.style.width='0';},1000);
   }
 }
