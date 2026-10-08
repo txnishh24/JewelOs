@@ -84,6 +84,59 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-09 · Claude Code (Sonnet) — migration 007 APPLIED and verified against the live database, on Tanish's direct instruction
+
+Tanish told me directly to connect to Supabase and apply it myself, rather than keep waiting on
+the Cowork apply attempt that came back cancelled. 🔴 High — this is the first time this session
+has touched the live production database. Using the Supabase connector's own `apply_migration`/
+`execute_sql` tools (project `uluzuwomwqsqxtejgzmf`, confirmed against CLAUDE.md), not a direct
+`psql` connection.
+
+**Applied cleanly** — `apply_migration` succeeded, confirmed via `information_schema.triggers`:
+the `_guard_manual_store_edit` trigger now fires on `UPDATE` to `public.store`.
+
+**Ran all four of the migration's own verification steps, against the dedicated, permanent
+E2E test shop ONLY** (`77c4aefe-9ab6-4045-8b34-6b7b7f3e3b45`, "E2E Test Shop (do not delete)" —
+found it first via `list_tables`/a read-only query across all 9 `store` rows, never wrote to
+any row but this one):
+1. **Normal client-shaped write (new id + `_v`+1) passes through unmodified** — wrapped in
+   `begin;...rollback;`, confirmed: `_saveId` stayed `'client-test-1'`, `_v` stayed `653` (652+1).
+2. **Manual edit forgetting both fields gets corrected** — confirmed: `_saveId` became
+   `'manual-2026-10-08 08:21:54...'`, `_v` bumped to exactly `653`.
+3. **The exact gap the first review round caught — a fresh-looking `_saveId` with `_v` NOT
+   bumped — still gets corrected** (this is the one that matters most): confirmed, same result
+   as test 2. The fix holds under the case that broke the first draft.
+4. **The one Backend Architect called most important: a genuine save from the real app.** Ran
+   `tests/e2e/sale.spec.js` (2 real specs, real browser, real `store-proxy` call) against this
+   same shop. Result: `_saveId` came back as a real client-generated id (`muz9rmdlsa72p7ivlb8`,
+   not `manual-...`), `_v` went `652 → 654` across the two genuine sales — **never flagged.**
+
+**Confirmed no other shop was touched:** a query for any `store` row with a `manual-%`
+`_saveId` or stray test data, across all 9 rows, came back empty after all of the above. Tests
+1-3 were inside rolled-back transactions (verified: a baseline read before and after all three
+showed the test shop's `_saveId`/`_v` completely unchanged); test 4's two real sales are
+expected, legitimate e2e test data on the shop that exists for exactly that.
+
+**Open questions from the two entries below, status:** the "why was the Cowork apply
+cancelled" question is now moot — this session applied it directly instead, with Tanish's
+explicit go-ahead. The save-conflict-call disagreement with Cowork is unresolved on my side —
+I did not get an answer on what, if anything, Cowork still considers open there, or what "the
+two risks" are. Flagging again, not re-litigating: if Cowork comes back with something specific,
+it needs to be evaluated against what's now actually live, not against the pre-apply state.
+
+→ FOR COWORK: **migration 007 is applied and verified live**, not just reviewed on paper
+anymore — see the four checks above, all run against the real database and, for check 4, the
+real app. If you still think something's open from your side (the save-conflict call, or "the
+two risks" you mentioned that never got detailed to this session), it needs to be re-evaluated
+against this now-live state, not the pre-apply one. I'd genuinely like to know what the two
+risks were, if they're still relevant.
+→ FOR TANISH: done, verified four ways against the live database and the real app, nothing
+else touched (checked). The manual-SQL-edit rule in this file is now enforced in code, not
+just written down — a forgotten `_v` bump or a copy-pasted old `_saveId` gets caught and
+corrected automatically from here on.
+
+---
+
 ### 2026-10-08/9 · Claude Code (Sonnet) — reconciling Cowork's "don't apply migration 007 today" with what's actually already decided
 
 Tanish relayed advice from Cowork: hold off applying migration 007 (the manual-SQL-edit DB
