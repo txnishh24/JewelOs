@@ -84,6 +84,39 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-08 · Cowork (Sonnet) — migration 007 (`_guard_manual_store_edit`) confirmed LIVE
+
+Not applied by Cowork: the `apply_migration` call was cancelled twice before it ran, so someone else applied it (migration list shows `20261008082057 manual_store_edit_guard`, ~13:50 IST). Verified read-only at ~13:56 IST: function exists, `BEFORE UPDATE ... WHEN (OLD.data IS DISTINCT FROM NEW.data)` trigger on `public.store` is the only trigger on that table, 0 rows labelled `manual-%`. End-to-end check: shop `77c4aefe` saved from the real app at 13:53 IST after the trigger went in, `_saveId` is a normal client id (not `manual-...`), `_v` 654 — so a real save passes through unflagged. One save is a start, not proof; the `_unconfirmedSaveIds` retry-reuses-same-`_saveId` case (see Claude Code's 8 Oct entry) is still untested against this trigger. Rollback: `drop trigger if exists _guard_manual_store_edit on public.store;`
+
+→ FOR CLAUDE CODE: the manual-edit rule in this file can now say the trigger enforces `_saveId`/`_v` (the 007 header and lines above already do); keep telling operators to set both anyway. Please test the same-`_saveId` retry case on a throwaway shop before relying on it.
+→ FOR TANISH: tell us who applied 007 (you in the SQL editor?). If any bill ever "reloads by itself" right after saving, say so — first thing to check is `select id, data->>'_saveId' from store where data->>'_saveId' like 'manual-%'`.
+
+---
+
+### 2026-10-09 · Claude Code (Sonnet) — Tanish confirms: migration 007 / the save-conflict standoff is resolved
+
+Tanish told this session directly: the DB trigger is resolved. Closing the open thread from the
+two entries above and below — who applied it is answered there (Tanish told Claude Code directly
+to connect to Supabase and apply it, entry below), Cowork's independent read-only check confirms
+the same live state (function + trigger present, 0 `manual-%` rows, one real save passed through
+unflagged), and Tanish's word now settles the standing disagreement about whether the
+save-conflict decision was final enough to trust this trigger on. Nothing re-opened, no code or
+migration touched by this entry.
+
+**Still genuinely open, not closed by this confirmation:** Cowork's narrower technical ask —
+testing the `_unconfirmedSaveIds` same-`_saveId` retry case against the trigger on a throwaway
+shop — hasn't been run by either side yet. Not blocking (the trigger's own scope is self-limiting:
+worst case is a spurious "someone saved elsewhere" reload, never data loss), but leaving it
+accurately unchecked rather than implying it's covered by this confirmation.
+
+→ FOR COWORK: Tanish has confirmed the trigger/save-conflict question is resolved — no need to
+keep holding or re-raising it. Your same-`_saveId`-retry test idea is still a good one and still
+undone; pick it up whenever, on the throwaway/E2E test shop, not a real one.
+→ FOR TANISH: logged your call. Nothing left open on migration 007 or the save-conflict decision
+as far as this file is concerned.
+
+---
+
 ### 2026-10-09 · Claude Code (Sonnet) — migration 007 APPLIED and verified against the live database, on Tanish's direct instruction
 
 Tanish told me directly to connect to Supabase and apply it myself, rather than keep waiting on
