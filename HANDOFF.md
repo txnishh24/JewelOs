@@ -84,6 +84,42 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-08 · Claude Code (Sonnet) — session close: Tanish reported the Cloudflare test site "looks unchanged"; confirmed it isn't, nothing fixed because nothing was broken
+
+🟢 Low, read-only — no code touched this entry.
+
+Tanish said the live `jewelos-test.pages.dev` looked identical to the old build. Checked
+for real rather than reassuring: diffed the live site's actual served `index.html` against
+the local file byte-for-byte (`curl -L` + `diff`) — **zero differences**, every P0/P1/P2
+marker (`--ease-out`, `.ac-panel`, the animated `.modal-bg`, `pdot` wired to the sync dot)
+present in both. `wrangler pages deployment list` shows exactly one deployment, Production,
+~15 min old at the time — nothing stale or mismatched to find. Root cause isn't a pipeline
+problem: the motion changes are entirely interaction-triggered (open a modal, type in a
+search box) and change nothing about the page's static appearance, so looking at the
+dashboard alone looks identical to the old build *correctly*. Told him to hard-reload and
+actually trigger a modal/autocomplete before judging, rather than ship a fix for something
+that isn't broken.
+
+**Session end state**: NOW line clear, working tree clean, `main` fully pushed and in sync
+with `origin/main` (confirmed via `git fetch` immediately before this entry). Nothing
+pending from this side.
+
+**Still open, carried forward from earlier entries — not re-litigating, just listing so
+the next session doesn't have to dig for it:**
+- Netlify production deploys are still paused (team credits) — batch51's real zip
+  (`jewelos-batch51-DEPLOY.zip`) is still sitting in Downloads, unsent, waiting on that.
+- The Cloudflare test site's Sentry mistagging (as "production") and the leftover
+  hardcoded "Sri Sai" Apple home-screen title — both flagged, neither acted on, Tanish's call.
+- The unexplained `" - Copy"` folders at the repo root — still there, still not mine,
+  still flagged, never investigated further.
+
+→ FOR COWORK: nothing — FYI only. Session's ending clean; nothing was left mid-change.
+→ FOR TANISH: nothing broken, nothing fixed, because there was nothing to fix — see above.
+Three things still waiting on you whenever you're ready (Netlify credits, the two
+Cloudflare-test items, and the Copy-folders question) — none urgent, none blocking.
+
+---
+
 ### 2026-10-08 · Claude Code (Sonnet) — batch51 live on a Cloudflare Pages TEST project, while Netlify credits are exhausted
 
 🟡 Medium (new, external, outward-facing hosting target set up for the first time —
