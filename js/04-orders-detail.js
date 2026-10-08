@@ -359,7 +359,9 @@ function convertToSale(ordId){
         for(var p=0; p<pieces; p++){
           lines.push({name:it.desc||'Custom item', cat:it.cat||'', metal:metal, purity:purity,
                       grossWt:wt, blackBeads:0, diamond:0,
-                      making:perGram, stoneCharges:0});
+                      making:perGram, stoneCharges:0,
+                      // karigarCost is a total for the whole order line; each piece carries its share
+                      karigarCost:(parseFloat(it.karigarCost)||0)/pieces});
         }
       });
       if(lines.length){

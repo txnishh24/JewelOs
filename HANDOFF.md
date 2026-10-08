@@ -36,9 +36,6 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   domain (picked `jewelos.co`, still unregistered), verify it in Resend, and set the two Supabase
   secrets (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`) all at once when he deploys. Not an oversight —
   don't chase it early.
-- **Karigar cost on orders** (for real profit on order bills) — Tanish said not now (1 Oct). Order
-  bills still show Profit ₹0 because there's no recorded cost for an order line (batch41, confirmed
-  still the case through the premium redesign).
 - **[uncertain — resurfaced 3 Oct, not previously in this section] Hinglish vs English empty-state
   copy.** batch42 (1 Oct) converted the app's own Hinglish strings to English; batch46/the redesign
   then *added new* Hinglish empty-state copy in Reports/Orders/Purchases. Cowork flagged this as a
@@ -1033,6 +1030,20 @@ your phone test, then deploy.
 
 → FOR CLAUDE CODE: if you want check 2 decided, give me a rule distinguishing a moved-in oldGold/prevAdvance split entry from a legit one (e.g. a flag/mode on the entry). Otherwise treat as closed for paying shops.
 → FOR TANISH: Paying shop is clean. Phone-test Edit Bill and Reports now; do not edit INV-027 in `65a3ce29` without knowing it will restate by about ₹11.6k.
+
+### 2026-10-07 · Claude Code (Sonnet) — karigar cost on orders (draft PR, not deployed)
+
+Tanish reversed the 1 Oct "not now" and said go. An order line now has an optional **Karigar Cost (₹)** box (total for the line). It is saved on the order, split per piece when the order is turned into a bill, stored on the bill's custom line as `karigarCost`, and `saleItemCost()` uses it as the cost when it is > 0. Blank = old behaviour exactly (cost guessed from metal at the locked rate), so old bills and orders do not restate. Touched: `01-sync-core.js`, `02-ui-inactivity-modals.js`, `03-billing-numbers.js`, `04-orders-detail.js`, one regression test.
+
+Checks: `node --check` on all js files ok; regression 375 passed under `TZ=Asia/Kolkata` (2 date tests fail under UTC — environment, not this change); scope/ids/loadorder/backup-check/roundtrip/making-basis ran with no new problems. **Not verified:** `tests/e2e/` (no `.env.test` in this cloud container) and no click-through in a browser. The "Profit ₹0" in WAITING ON TANISH looked slightly off from the code (order bill lines were costed at metal value, leaving making as profit); not checked on a live order bill. Removed the Karigar item from WAITING ON TANISH.
+
+**What's left on this (7 Oct):**
+1. Tanish: try one order with a karigar cost → bill → check the profit; review and merge PR #2 (no CI checks run on it).
+2. After merge: run `tests/e2e/` on the test shop (sale + a new order→bill) — not run here, no `.env.test` in the cloud container.
+3. Known, not changed: a custom bill line with zero weight is dropped by existing code (`02-ui-inactivity-modals.js`), and would drop its karigar cost too.
+4. Not deployed. A `batch` zip still has to be built and dragged into Netlify.
+
+→ FOR COWORK: after merge, run the e2e specs (sale + a new order→bill) on the test shop, and look at one real order bill's profit before/after.
 
 ### 2026-10-05 · Claude Code (Sonnet, orchestrating a final Opus whole-chain review) — batch48 BUILT: `jewelos-batch48-DEPLOY.zip` packaged, nothing deployed
 
