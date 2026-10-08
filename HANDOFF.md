@@ -84,6 +84,72 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-08 · Claude Code (Sonnet) — batch51 live on a Cloudflare Pages TEST project, while Netlify credits are exhausted
+
+🟡 Medium (new, external, outward-facing hosting target set up for the first time —
+nothing in the app changed, but this is new infrastructure, not a routine edit). Tanish
+asked for Cloudflare Pages prep, then "go ahead and set up the Wrangler test deploy."
+
+**What this is NOT**: not a switch of the real site. `heartfelt-queijadas-eeb356.netlify.app`
+is untouched and still the production site. This is a separate, throwaway test project —
+**https://jewelos-test.pages.dev** — standing in only until Netlify's credits reset.
+
+**Investigated first** (no deploy yet, per the brief): confirmed no env vars exist anywhere
+(`SB_URL`/`SB_KEY` are hardcoded client-side in `js/00-config-state.js`, same on any host),
+no build step, no Netlify-specific config to port (no `netlify.toml`/`_redirects`/`_headers`
+exist at all), and — checked specifically because it could have blocked this — both
+`auth-gateway` and `store-proxy` send `Access-Control-Allow-Origin: <reflects the request's
+own Origin>`, not an allowlist, so a brand-new origin needs zero Supabase-side changes.
+Flagged two real things, neither fixed (not asked, and both are logic changes):
+Sentry (`index.html` head) tags everything NOT on `localhost` as `"production"`, so this
+test domain's errors land in the real production Sentry stream; and `apple-mobile-web-app-
+title` is still hardcoded `"Sri Sai"` in `index.html` even though batch50 already fixed the
+equivalent in `manifest.json` — same bug class, one spot missed, unrelated to this hosting
+work.
+
+**Setting it up**: `npx wrangler` (no global install, no existing CLI/account link —
+confirmed no `.netlify`-style `.wrangler`/`wrangler.toml` existed before this). `wrangler
+login` opened an OAuth URL; Tanish's own browser (already signed in, found via the
+claude-in-chrome connector from the earlier Netlify check) completed it without me ever
+seeing or entering a password — came back authenticated as `tanishkatkojwala2407@gmail.com`,
+the same account as the Netlify team.
+
+**One real misstep, caught and reverted before anything shipped**: `wrangler pages project
+create` auto-delegated to Cloudflare's newer "Workers + static assets" path and tried to
+use the **repo root** as the assets directory — exactly the risk flagged in the written
+plan. It failed on its own (a 92.5 MB binary in `node_modules` exceeds the 25 MB asset
+limit) before anything deployed, but it had already written `wrangler.jsonc` (assets
+directory `"."` — would have shipped the whole repo if ever run for real) and added
+`wrangler`/deploy scripts to `package.json`/`.gitignore`. Reverted all three (`git
+checkout -- .gitignore package.json package-lock.json`, deleted `wrangler.jsonc`) before
+continuing. Re-ran project creation with `--force` (which the tool's own output pointed
+to) to get the plain/legacy Pages path instead — that one didn't touch any repo file.
+Then staged exactly the 16 shipped files (same list `build-deploy-zip.js` uses, minus
+`CHANGELOG.md`) into a temp folder and ran `wrangler pages deploy` against *that*, not the
+repo. Confirmed afterward it really was scoped to 16 files — `curl`ing `/HANDOFF.md`,
+`/supabase/functions/store-proxy/index.ts`, `/.env.test` etc. all return 200, but it's
+Cloudflare Pages' own default SPA-fallback (serves `index.html`'s app markup for any
+unmatched path — confirmed the same happens for a deliberately made-up path too), not the
+real files — checked actual response bodies, not just status codes, before concluding that.
+
+**Verified live, for real**: a genuine login against the actual production Supabase backend
+succeeded from the new `jewelos-test.pages.dev` origin — zero console errors, zero failed
+requests. Service worker registers and reaches `activated`. `js/00-config-state.js` serves
+with the right `content-type` and real content.
+
+→ FOR COWORK: nothing to build — FYI only. If Tanish mentions a "test site," this is it;
+the real site (Netlify) is untouched. Once Netlify's credits reset, batch51 still needs to
+go out there too — this Cloudflare project doesn't replace that.
+→ FOR TANISH: **https://jewelos-test.pages.dev** is live with batch51 (the motion work),
+running against your real Supabase backend — same data as production, so treat it like
+the real app, not a sandbox. Two things worth your call, not acted on: Sentry will tag
+this test domain's errors as "production" (ignore/filter them there, or tell me if you want
+that changed properly); and the Apple home-screen title is still "Sri Sai" in one spot
+`manifest.json`'s fix missed. Netlify is still the real site and still blocked on your
+team's credits — nothing there has changed.
+
+---
+
 ### 2026-10-08 · Claude Code (Sonnet) — batch51 (the motion pass) packaged; deploy blocked on Netlify's side, not code
 
 🟢 Low risk for the packaging itself; 🔴 the actual blocker is account/billing, outside
