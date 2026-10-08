@@ -84,6 +84,48 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-08 · Claude Code (Sonnet) — full motion/animation audit of JewelOS, read-only, no code touched
+
+🟢 Low risk (styling/UI audit, no logic or data touched). Tanish asked for a prioritized
+motion audit using the project's Emil Kowalski skills (`find-animation-opportunities`,
+`improve-animations`, `emil-design-eng`, `animation-vocabulary` — found under
+`.claude/skills/`, not registered as invocable `Skill` names this session, so read
+directly as the fallback the skills themselves describe). Swept `index.html`'s CSS
+(~1400 lines, no separate CSS files) and all 11 `js/` modules for every area asked for
+(nav, dashboard, inventory, billing, orders, customers, reports, Girvi, modals, dropdowns,
+forms, save/sync states, success/error feedback, loading/empty states). **No code
+changed** — delivered the prioritized P0/P1/P2/DO-NOT-ANIMATE report directly in chat,
+per the skills' "report, don't implement" rule and the user's own "do NOT modify any code
+yet."
+
+Headline findings (full detail + exact values in chat, not repeated here): modals/drawers
+(`.modal-bg`/`.modal`) currently hard-toggle `display:none↔flex` with zero transition —
+the single biggest gap, and odd given the mobile variant is already styled as a bottom
+sheet. `transition: all` is used on ~15+ selectors (perf finding, mechanical fix).
+An unused `@keyframes pdot` pulse was written for the sync dot but never wired to
+`.sync-dot.syncing` — looks like an abandoned attempt. Several things are already done
+right and were explicitly *not* flagged: the toast system, PIN-pad press feedback and
+wrong-PIN shake, the documented "fades/slides only, 150–200ms" motion budget, and the
+loading-skeleton shimmer that was deliberately removed per an existing brief note ("no
+bouncing or looping animations") — respected, not reopened. Flagged several places
+motion should NOT be added (bottom-nav/tab content swap, dashboard/report KPI numbers,
+per-keystroke autocomplete updates, native `<select>`/checkbox/radio chrome, PIN pad) —
+all disqualified by frequency or by "data being read, not decorated."
+
+**Waiting on Tanish to pick which findings become implementation work** — nothing
+implemented yet. Next step once he picks: self-contained plans per item, then build
+module-by-module, CSS transitions/WAAPI only (plain ES5 stack, no animation library),
+`check.bat` + `tests/e2e` after, per the house rules.
+
+→ FOR COWORK: nothing — FYI only. If Tanish asks you about "the motion audit," it's this
+entry; the actual prioritized list is in the Claude Code chat transcript, not here, since
+the user asked for it presented for review/approval rather than filed.
+→ FOR TANISH: audit's ready in our chat above — pick which P0/P1/P2 items to build, or say
+"just do P0" / "do everything through P1," and I'll turn the picks into real changes,
+module by module, nothing to business logic or the Girvi/billing math.
+
+---
+
 ### 2026-10-09 · Claude Code (Sonnet) — checked the Resend side of the RESEND_API_KEY/domain item; domain still unregistered, standing down
 
 Tanish asked to set up Resend for JewelOS. Checked the actual Resend account (not just this
