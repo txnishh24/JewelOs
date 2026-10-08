@@ -52,7 +52,11 @@ function loadFromCloud(callback, skipPush){
   if(_pendSave && !navigator.onLine){ if(callback) callback(new Error('offline')); return; }
   if(_pendSave && !isSaving){
     _loadedVersion = _pendSave.v;
-    if(_pendSave.id) _unconfirmedSaveIds.push(_pendSave.id);
+    // This id came off the C2 marker (localStorage), not from this tab's
+    // own in-memory saveToCloud() call -- keep it out of _unconfirmedSaveIds
+    // so the rebase branch below never trusts it. See the comment on
+    // _pendPushId's declaration.
+    if(_pendSave.id) _pendPushId = _pendSave.id;
     saveToCloud(function(err){
       // The conflict branch above is already loading the cloud's version itself.
       if(err && err.message === 'version-conflict'){ if(callback) callback(null); return; }
@@ -170,6 +174,14 @@ function loadFromCloud(callback, skipPush){
 // Save ids sent but never confirmed by a success (see the conflict check in
 // saveToCloud). Cleared by any confirmed save; at most 20 kept.
 var _unconfirmedSaveIds = [];
+// The id read back off the C2 marker after a reload (not an in-memory
+// attempt from this session). Kept separate from _unconfirmedSaveIds: the
+// rebase branch below only trusts an id this tab's own JS actually minted
+// and is still holding in memory, never one just read off localStorage --
+// localStorage is shared across tabs, so trusting it there would let one
+// tab "rebase" its own in-memory data on top of another tab's landed save.
+// See docs/save-conflict-fix-design.md.
+var _pendPushId = null;
 
 // C2 (3 Oct QA, confirmed 3 Oct): a save sent but not yet confirmed. Survives
 // a reload, so the next loadFromCloud() pushes this phone's copy (checked
@@ -226,6 +238,15 @@ function saveToCloud(callback){
     return;
   }
   var shopKey = _getShopRowKey();
+  // Captured once per call, not re-read from _loadedVersion on every retry:
+  // a load that runs during a retry's delay (tab switch, the 'online'
+  // handler, forceSync -- none of which check isSaving) can bump
+  // _loadedVersion forward mid-call. Re-reading it on a later retry would
+  // send this call's (now stale) dataPayload under that NEW version, pass
+  // the compare-and-swap, and silently overwrite whatever that load just
+  // pulled in. See docs/save-conflict-fix-design.md. callVersion also backs
+  // the rebase check below, which needs the version THIS call actually sent.
+  var callVersion = _loadedVersion || 0;
   // Cowork's Opus review 30 Sep: a save that timed out (or lost its answer)
   // may still have landed; its retry then hits a version conflict. The
   // conflict reply carries the stored data, so this id tells "my own earlier
@@ -233,14 +254,28 @@ function saveToCloud(callback){
   // -- otherwise the sale is rolled back here, reappears on reload, and a
   // resubmit makes a duplicate bill.
   var saveId = Date.now().toString(36) + Math.random().toString(36).slice(2);
-  _unconfirmedSaveIds.push(saveId);
-  if(_unconfirmedSaveIds.length > 20) _unconfirmedSaveIds.shift();
+  // 9 Oct, Code Reviewer pass on the rebase fix: this id is deliberately
+  // NOT pushed into _unconfirmedSaveIds here, at the top of the call. The
+  // rebase branch below trusts every id in that list as "a call that has
+  // already finished" -- pushing it before this call even starts would let
+  // a LATER call's conflict match THIS call while it's still genuinely in
+  // flight (not a bug the watchdog can rule out: a backgrounded phone
+  // freezes timers, and resuming can run the watchdog's tick before this
+  // call's own retry chain gets to react, releasing isSaving while this
+  // call is still alive). It's pushed instead at _markUnconfirmed()'s two
+  // call sites below -- _done_err and the 401 hand-off -- the two places
+  // this call is actually over (its callback has fired, or is about to be
+  // re-parked for reauth) from its caller's point of view.
+  function _markUnconfirmed(){
+    _unconfirmedSaveIds.push(saveId);
+    if(_unconfirmedSaveIds.length > 20) _unconfirmedSaveIds.shift();
+  }
   // C2: marks this save as sent-but-unconfirmed, keyed to the version it's
   // based on, so a reload before the server answers doesn't lose it. Only
   // written when the cache write just above actually succeeded -- a marker
   // over a stale cache (quota exceeded, etc.) would get pushed on the next
   // load and silently put the shop back to that stale snapshot.
-  if(_cacheOk){ try{ localStorage.setItem(_unsyncedKey(), JSON.stringify({v:_loadedVersion||0, id:saveId})); }catch(e){} }
+  if(_cacheOk){ try{ localStorage.setItem(_unsyncedKey(), JSON.stringify({v:callVersion, id:saveId})); }catch(e){} }
   var dataPayload = {
     _saveId:     saveId,
     products:    S.products,
@@ -275,6 +310,7 @@ function saveToCloud(callback){
     nextPurchaseBillNo: S.nextPurchaseBillNo || 1
   };
   var retries = 0;
+  var rebased = false; // the rebase branch below may fire at most once per call
   var delays  = [2000, 5000, 15000];
   // ponytail: one fixed limit; generous because a big shop blob on 2G can
   // legitimately take a while. Per-size limits if 60 s proves wrong.
@@ -282,6 +318,7 @@ function saveToCloud(callback){
 
   function _done_ok(row){
     _unconfirmedSaveIds = []; // the cloud now holds a save we know about
+    _pendPushId = null;
     _clearUnsynced();
     isSaving = false;
     _isSavingSetAt = 0;
@@ -293,6 +330,8 @@ function saveToCloud(callback){
   function _done_err(err){
     isSaving = false;
     _isSavingSetAt = 0;
+    _pendPushId = null; // this attempt is over; a future load re-reads the marker fresh
+    _markUnconfirmed(); // only now: this call is genuinely over, its callback is about to fire
     setSyncStatus('err', 'Save failed');
     showSaveError(); // persistent banner — doesn't auto-dismiss
     console.error('[JewelOS] saveToCloud final error:', err);
@@ -300,6 +339,12 @@ function saveToCloud(callback){
   }
 
   function attempt(){
+    // Re-stamp on every attempt (including retries), not just once at the
+    // top of saveToCloud -- otherwise a 3-retry chain's real elapsed time
+    // (up to ~82s: SAVE_TIMEOUT_MS x attempts + delays) can outlast the
+    // watchdog, which would then release isSaving while this chain is still
+    // genuinely in flight. See the watchdog comment in 00-config-state.js.
+    _isSavingSetAt = Date.now();
     // store-proxy does the compare-and-swap server-side now: it only
     // accepts the write if expectedVersion still matches what's stored,
     // and auto-creates the row on a shop's very first save. A 409 with
@@ -319,7 +364,7 @@ function saveToCloud(callback){
     fetch(SB_FUNCTIONS + '/store-proxy', {
       method: 'PUT',
       headers: Object.assign({}, SB_HEADERS, { 'x-session-token': (typeof SAAS!=='undefined' && SAAS.sessionToken) || '' }),
-      body: JSON.stringify({ data: dataPayload, expectedVersion: _loadedVersion || 0 })
+      body: JSON.stringify({ data: dataPayload, expectedVersion: callVersion })
     })
     .then(function(r){
       if(timedOut) return null;
@@ -338,6 +383,13 @@ function saveToCloud(callback){
       // 401 above for why this is not the cancellable saasLogout().
       if(res.status === 401){
         isSaving = false; _isSavingSetAt = 0;
+        // This call is held, not finished the normal way, but it IS over as
+        // far as this closure's own retry chain goes -- saveToCloud(callback)
+        // below starts a genuinely new call once reauth completes, re-sending
+        // the same unchanged S. Marking this id now (not at the top of this
+        // call) is still correct, not premature: nothing else can touch this
+        // id while reauth is pending.
+        _markUnconfirmed();
         saasRequireReauth(function(){ saveToCloud(callback); }, res.body && res.body.reason);
         return;
       }
@@ -355,6 +407,7 @@ function saveToCloud(callback){
         // get wrongly matched against a stale id from a completely different
         // save attempt.
         _unconfirmedSaveIds = [];
+        _pendPushId = null;
         if(callback) callback(new Error('forbidden'));
         return;
       }
@@ -363,26 +416,68 @@ function saveToCloud(callback){
         _done_ok(res.body);
         return;
       }
-      // Opus review 30 Sep: the earlier save may belong to a PREVIOUS call --
-      // re-sent after signing in again, or resubmitted after every retry
-      // timed out while the first attempt had in fact landed. The cloud
-      // holds that landed version: load it, report success (so the form
-      // clears instead of inviting a re-entry), and say what happened.
+      // 9 Oct fix (docs/save-conflict-fix-design.md): own-save rebase.
+      // The old version of this branch guessed "saved" whenever the landed
+      // save's id was one of ours, whether that meant (a) the user
+      // resubmitted the exact same action, or (b) a genuinely different,
+      // later action happened to conflict against an old id of ours left
+      // over from an earlier attempt -- case (b) was then also reported
+      // "saved" while its real data was silently never sent. The two cases
+      // are indistinguishable from the data available (a resubmit is never
+      // byte-identical to what it's redoing -- it mints a new invoice
+      // number, timestamps, ids -- so content can't tell them apart either;
+      // see the design doc section 1). This branch removes the need to
+      // guess: when the landed save is PROVABLY this tab's own earlier,
+      // already-resolved attempt and nothing else, resend what's on screen
+      // right now on top of it. Both cases then come out right: a resubmit
+      // reports saved (and now with the correct invoice number, fixing a
+      // small pre-existing mismatch); a genuinely different action actually
+      // gets saved instead of vanishing.
       //
-      // Known limitation, NOT fixed here (two independent Opus reviews,
-      // 8 Oct): this branch can't tell "the user resubmitted the exact same
-      // action" (safe to report saved -- the two regression tests below
-      // depend on exactly that) apart from "this is a genuinely different,
-      // later action that happens to conflict against an old id of ours"
-      // (which this would then also silently report as saved, dropping the
-      // later action). A fix that reports the second case as a failure
-      // breaks the first case's tested behaviour (would start creating
-      // duplicate bills on ordinary resubmits) -- see HANDOFF.md, this is
-      // Tanish's trade-off to make, not Claude's to pick unilaterally.
-      if(res.body && res.body.conflict && res.body.data && _unconfirmedSaveIds.indexOf(res.body.data._saveId) !== -1){
+      // Both conditions below must hold, together proving the stored data
+      // is exactly (this call's base version) + (this tab's own earlier
+      // call's delta), with nothing foreign in it:
+      //  - the landed id is one this tab's OWN saveToCloud() minted and is
+      //    still holding in memory (never one merely read off a localStorage
+      //    marker -- that's a different, narrower case, handled below)
+      //  - the version gap is exactly 1: the landed save is the ONLY write
+      //    since this call's own base (callVersion). A gap of 2+ means some
+      //    other write (another device, or an in-flight call this logic
+      //    doesn't know about) also landed in between, and rebasing on top
+      //    of just the matched id would silently discard that other write
+      //    too -- that must fall through to the real-conflict branch below
+      //    instead. This proof depends on the watchdog/retry fixes above
+      //    (callVersion captured once per call; isSaving can't be released
+      //    mid-chain), which guarantee the earlier call has truly finished
+      //    -- its callback fired and its caller already kept or rolled back
+      //    its own change -- before this call could be running at all.
+      // "rebased" caps this to once per call: a second conflict after a
+      // rebase is a real one (another device, this time), not a repeat of
+      // the same proof.
+      if(res.body && res.body.conflict && !rebased && res.body.data
+         && res.body.data._saveId && _unconfirmedSaveIds.indexOf(res.body.data._saveId) !== -1
+         && res.body.data._v === callVersion + 1){
+        rebased = true;
+        console.warn('[JewelOS] earlier save of ours landed; rebasing this save onto v' + res.body.data._v);
+        callVersion = res.body.data._v;
+        auditLog('rebase', 'sync', res.body.data._saveId,
+          'An earlier save reported as failed had reached the cloud (v' + res.body.data._v +
+          '); replaced by this device\'s current data.');
+        dataPayload.auditLog = S.auditLog; // auditLog() may have replaced the array (cap slice)
+        if(_cacheOk){ try{ localStorage.setItem(_unsyncedKey(), JSON.stringify({v:callVersion, id:saveId})); }catch(e){} }
+        attempt(); // not a retry -- doesn't consume delays[retries++], runs immediately
+        return;
+      }
+      // Separate, narrower case: this id was read off the C2 marker AFTER A
+      // RELOAD (docs/save-conflict-fix-design.md), meaning this tab has no
+      // memory of having sent it -- there is no "current data" in this call
+      // to rebase onto it, so the only sound move is to load what's
+      // actually there and report success (the push itself was a
+      // background resend, not a live user action waiting on an answer).
+      if(res.body && res.body.conflict && res.body.data && res.body.data._saveId && res.body.data._saveId === _pendPushId){
         console.warn('[JewelOS] save conflict was an earlier save of ours that landed');
         isSaving = false; _isSavingSetAt = 0;
-        _unconfirmedSaveIds = [];
+        _pendPushId = null;
         _clearUnsynced(); // before loadFromCloud, so it doesn't try to push again
         loadFromCloud(function(){
           normaliseData(); saveCache(); try{ renderDash(); }catch(e){}
@@ -410,6 +505,7 @@ function saveToCloud(callback){
         // a much later, unrelated save's conflict could be wrongly matched
         // against a stale id from this abandoned attempt.
         _unconfirmedSaveIds = [];
+        _pendPushId = null;
         loadFromCloud(function(){ normaliseData(); saveCache(); try{ renderDash(); }catch(e){} });
         if(callback) callback(new Error('version-conflict'));
         return;

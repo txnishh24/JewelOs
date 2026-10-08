@@ -34,7 +34,15 @@ function buildSandbox(){
     encodeURIComponent: encodeURIComponent, decodeURIComponent: decodeURIComponent,
     setTimeout: function(fn){ return 0; }, // no-op: we're testing pure logic, not timing behavior
     clearTimeout: function(){},
-    setInterval: function(fn){ return 0; }, // no-op: prevents a live interval keeping Node alive forever
+    // No-op: prevents a live interval keeping Node alive forever. Registered
+    // callbacks are still captured (in registration order) so a test can
+    // invoke one directly -- e.g. 00-config-state.js's isSaving watchdog,
+    // which registers at module-load time, before any test gets `a` back
+    // and could otherwise intercept it the way startAutoRefresh's interval
+    // (registered on demand, well after load) already lets tests do by
+    // overriding a.setInterval themselves.
+    _intervals: [],
+    setInterval: function(fn){ sandbox._intervals.push(fn); return sandbox._intervals.length; },
     clearInterval: function(){},
     localStorage: {
       getItem: function(k){ return _local.hasOwnProperty(k) ? _local[k] : null; },

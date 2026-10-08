@@ -1575,43 +1575,71 @@ testAsync('a retry that conflicts with ANOTHER device is still a real conflict',
   });
 });
 
-// Opus review of 005, 30 Sep (MEDIUM): the landed save can belong to an
+// Opus review of 005, 30 Sep (MEDIUM); redesigned 9 Oct as "own-save rebase"
+// (docs/save-conflict-fix-design.md): the landed save can belong to an
 // EARLIER saveToCloud call -- every retry timed out (or a 401 re-sent it
 // after sign-in), so the first call reported failure, yet it had landed.
+// Rather than guess "saved" from the id match alone (which couldn't tell a
+// resubmit apart from a different, later action), the app now proves it:
+// when the landed id is one still held in memory AND its version is
+// exactly callVersion+1, it rebases -- resends this call's own data on top
+// of that landed version -- instead of loading and reporting on the old data.
 function earlierLandedApp(storedIdFrom){
   var a = loadApp();
   a.SAAS.sessionToken = 'tok';
   a.setTimeout = function(f, ms){ if([2000,5000,15000].indexOf(ms) !== -1) f(); return 1; }; // only the save retry delays
   a.clearTimeout = function(){};
-  var firstId = null, gets = 0, call = 1;
+  // So the landed save below (_v:12) is exactly callVersion+1 -- what the
+  // rebase branch requires as proof nothing else landed in between.
+  a._loadedVersion = 11;
+  var firstId = null, gets = 0, puts = 0, lastEv = null, lastSent = null, call = 1;
   a.fetch = function(url, opts){
     if(opts && opts.method === 'PUT'){
-      var sent = JSON.parse(opts.body).data;
-      if(call === 1){ firstId = firstId || sent._saveId; return Promise.reject(new Error('answer lost')); }
-      var stored = Object.assign({}, sent, { _v:12, _saveId: storedIdFrom === 'first' ? firstId : 'other-device' });
+      puts++;
+      var body = JSON.parse(opts.body);
+      lastEv = body.expectedVersion;
+      lastSent = body.data;
+      if(call === 1){ firstId = firstId || lastSent._saveId; return Promise.reject(new Error('answer lost')); }
+      // call 2 (the resubmit): its first attempt always meets the earlier
+      // call's landed save; the rebase PUT that follows (expectedVersion
+      // 12, the version it lands on) succeeds, proving the rebase happened.
+      if(lastEv === 12){
+        return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ ok:true, data:{ _v:13 } }); } });
+      }
+      var stored = Object.assign({}, lastSent, { _v:12, _saveId: storedIdFrom === 'first' ? firstId : 'other-device' });
       return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ ok:false, conflict:true, data:stored }); } });
     }
     if(opts && opts.method === 'POST') return Promise.reject(new Error('no counter here')); // the offline-number pool refill, not a load
     gets++;
     return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ _v:12, sales:[{ id:'landed' }] } }); } });
   };
-  a.nextCall = function(){ call = 2; };
+  a.nextCall = function(){ call = 2; puts = 0; }; // from here, a.puts() counts only the second call's PUTs
   a.gets = function(){ return gets; };
+  a.puts = function(){ return puts; };
+  a.lastExpectedVersion = function(){ return lastEv; };
+  a.lastSentData = function(){ return lastSent; };
   return a;
 }
 
-testAsync('a resubmit that conflicts with an EARLIER call\'s landed save: reloads, reports saved, no duplicate', function(){
+testAsync('a resubmit that conflicts with an EARLIER call\'s landed save: rebases onto it, reports saved, no duplicate', function(){
   var a = earlierLandedApp('first'), first = 'pending', second = 'pending';
   a.saveToCloud(function(err){ first = err ? err.message : 'saved'; });
   return flushAll(16).then(function(){
     assert(first !== 'saved' && first !== 'pending', 'the first call should have reported a failure, got ' + first);
     a.nextCall();
+    // Distinct from the mocked earlier call's sale ('landed'), so the
+    // assertion below actually proves which data the rebase PUT carried.
+    a.S.sales = [{ id:'resubmit' }];
     a.saveToCloud(function(err){ second = err ? err.message : 'saved'; });
     return flushAll(16);
   }).then(function(){
     assert(second === 'saved', 'the resubmit must be told it is saved (so the form clears), got ' + second);
-    assert(a.gets() === 1, 'the landed version must be loaded from the cloud, GETs: ' + a.gets());
-    assert(a.S.sales.length === 1 && a.S.sales[0].id === 'landed', 'S must now show what actually landed');
+    assert(a.puts() === 2, 'expected the conflicting attempt plus one rebase PUT, got ' + a.puts());
+    assert(a.lastExpectedVersion() === 12, 'the rebase PUT must target the version the earlier save landed on, got ' + a.lastExpectedVersion());
+    assert(a.gets() === 0, 'a rebase proves what landed without ever loading it, GETs: ' + a.gets());
+    var sentSales = a.lastSentData().sales;
+    assert(sentSales.length === 1 && sentSales[0].id === 'resubmit', 'the rebase must carry the resubmit\'s own data, not the earlier landed save');
+    assert(a._loadedVersion === 13, 'the version must follow the rebase PUT\'s own answer, got ' + a._loadedVersion);
   });
 });
 
@@ -1624,6 +1652,316 @@ testAsync('a conflict with an unknown save id is still a real conflict, even aft
     return flushAll(16);
   }).then(function(){
     assert(second === 'version-conflict', 'expected version-conflict, got ' + second);
+  });
+});
+
+// ── 9 Oct: the own-save rebase fix (docs/save-conflict-fix-design.md) ──────
+// The test above and the updated resubmit test prove the fix on the case
+// framed as "a resubmit." These eight prove the fix on its own terms: the
+// case it was actually built for (a genuinely different action), its
+// guardrails (the exact-+1 version check, the once-per-call cap, the
+// marker-vs-memory split), and the two risks its safety proof depends on.
+
+testAsync('case 2: a genuinely different, later action gets saved instead of silently dropped (the bug the rebase fix closes)', function(){
+  // Same mechanics as the resubmit test above, but this time the second
+  // saveToCloud() is NOT a redo of the first action -- it is a different,
+  // unrelated change (a new girvi loan) that happens to conflict against
+  // the first call's id, still sitting in _unconfirmedSaveIds. Before this
+  // fix, the branch that fires here could not tell the two apart and
+  // reported "saved" either way -- silently never sending this loan at all.
+  var a = earlierLandedApp('first'), first = 'pending', second = 'pending';
+  a.saveToCloud(function(err){ first = err ? err.message : 'saved'; });
+  return flushAll(16).then(function(){
+    assert(first !== 'saved' && first !== 'pending', 'the first call should have reported a failure, got ' + first);
+    a.nextCall();
+    a.S.girvi = [{ id:'new-loan' }]; // the different, later action -- nothing to do with the first call
+    a.saveToCloud(function(err){ second = err ? err.message : 'saved'; });
+    return flushAll(16);
+  }).then(function(){
+    assert(second === 'saved', 'the different action must actually be saved, not silently dropped, got ' + second);
+    assert(a.gets() === 0, 'proving the rebase, not loading over it and discarding what was never sent -- GETs: ' + a.gets());
+    var sentGirvi = a.lastSentData().girvi;
+    assert(sentGirvi && sentGirvi.length === 1 && sentGirvi[0].id === 'new-loan', 'the new girvi loan must actually reach the cloud');
+  });
+});
+
+testAsync('a version gap bigger than 1 is a real conflict even with a matching id -- rebase requires an exact +1', function(){
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  a.setTimeout = function(f, ms){ if([2000,5000,15000].indexOf(ms) !== -1) f(); return 1; };
+  a.clearTimeout = function(){};
+  a._loadedVersion = 5;
+  var mineId = null, puts = 0, gets = 0, call = 1;
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      puts++;
+      var body = JSON.parse(opts.body);
+      if(call === 1){ mineId = mineId || body.data._saveId; return Promise.reject(new Error('answer lost')); }
+      // call 2: the landed id is ours, but the version jumped by 3, not 1 --
+      // something else (another device, or an in-flight call this logic
+      // doesn't know about) also landed in between. Rebasing on top of just
+      // this id would silently discard that other write too.
+      return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ ok:false, conflict:true, data:{ _v:8, _saveId: mineId } }); } });
+    }
+    if(opts && opts.method === 'POST') return Promise.reject(new Error('no counter here'));
+    gets++;
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ _v:8 } }); } });
+  };
+  var first = 'pending', second = 'pending';
+  a.saveToCloud(function(err){ first = err ? err.message : 'saved'; });
+  return flushAll(16).then(function(){
+    assert(first !== 'saved' && first !== 'pending', 'the first call should have reported a failure, got ' + first);
+    call = 2; puts = 0;
+    a.saveToCloud(function(err){ second = err ? err.message : 'saved'; });
+    return flushAll(16);
+  }).then(function(){
+    assert(second === 'version-conflict', 'a version gap bigger than 1 must be a real conflict, got ' + second);
+    assert(puts === 1, 'must not attempt a rebase PUT when the version check fails, PUTs: ' + puts);
+    assert(gets === 1, 'a real conflict loads the true state exactly once, GETs: ' + gets);
+  });
+});
+
+testAsync('a rebase can happen at most once per call, even when a second conflict would ALSO qualify (same id in memory, exact +1 gap)', function(){
+  // Code Reviewer, 9 Oct: the earlier version of this test used 'other-device'
+  // for the second conflict, which fails the "is it ours" check regardless
+  // of the once-per-call cap -- it never actually exercised `rebased`. This
+  // version makes the second conflict genuinely qualify (a THIRD call's id,
+  // also sitting in memory, at exactly +1) so the cap is what has to stop it.
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  a.setTimeout = function(f, ms){ if([2000,5000,15000].indexOf(ms) !== -1) f(); return 1; };
+  a.clearTimeout = function(){};
+  a._loadedVersion = 11;
+  var ghostId = null, firstId = null, puts = 0, call = 1;
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      puts++;
+      var body = JSON.parse(opts.body);
+      if(call === 1){ ghostId = ghostId || body.data._saveId; return Promise.reject(new Error('answer lost')); } // a throwaway earlier call, unrelated to the one under test
+      if(call === 2){ firstId = firstId || body.data._saveId; return Promise.reject(new Error('answer lost')); }
+      // call 3 (the one under test): its first attempt meets call 2's own
+      // landed save (the rebase proof holds, so it fires).
+      if(body.expectedVersion === 11){
+        return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ ok:false, conflict:true, data:{ _v:12, _saveId: firstId } }); } });
+      }
+      // The rebase PUT itself (expectedVersion 12) meets a SECOND conflict
+      // whose id is ALSO sitting in _unconfirmedSaveIds (the ghost call's)
+      // and whose version is AGAIN exactly +1 -- without the once-per-call
+      // cap, this would qualify for a second rebase. It must not get one.
+      return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ ok:false, conflict:true, data:{ _v:13, _saveId: ghostId } }); } });
+    }
+    if(opts && opts.method === 'POST') return Promise.reject(new Error('no counter here'));
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ _v:13 } }); } });
+  };
+  var ghost = 'pending', first = 'pending', third = 'pending';
+  a.saveToCloud(function(err){ ghost = err ? err.message : 'saved'; });
+  return flushAll(16).then(function(){
+    call = 2;
+    a.saveToCloud(function(err){ first = err ? err.message : 'saved'; });
+    return flushAll(16);
+  }).then(function(){
+    call = 3; puts = 0;
+    a.saveToCloud(function(err){ third = err ? err.message : 'saved'; });
+    return flushAll(16);
+  }).then(function(){
+    assert(third === 'version-conflict', 'a second qualifying conflict after rebasing must still be real, not rebased again, got ' + third);
+    assert(puts === 2, 'expected exactly the rebase attempt plus its own follow-up conflict, PUTs since call 3 started: ' + puts);
+    assert(a._unconfirmedSaveIds.length === 0, 'a real conflict must clear the id list, not leave either id claimable by a later call');
+  });
+});
+
+testAsync('B1 fix (Code Reviewer, 9 Oct): a call still genuinely in flight never has its own id added to _unconfirmedSaveIds yet', function(){
+  // Before this fix, the id was pushed at the TOP of saveToCloud(), before
+  // the call even started -- so a LATER, unrelated call's conflict could
+  // match THIS call's id while it was still genuinely running (not a case
+  // the watchdog can rule out: a backgrounded phone freezes timers, and on
+  // resume the watchdog's 5s tick can beat this call's own retry chain to
+  // reacting, releasing isSaving while this call is still alive). The id
+  // must only become trustable once this call is actually over --
+  // _done_err or the 401 hand-off, never while still in flight.
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  a.setTimeout = function(f, ms){ return 1; }; // nothing auto-fires; this call is still "in flight" when we check
+  a.clearTimeout = function(){};
+  a._loadedVersion = 5;
+  var capturedId = null;
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      capturedId = JSON.parse(opts.body).data._saveId;
+      return new Promise(function(){}); // never resolves -- genuinely still in flight
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  a.saveToCloud(function(){});
+  return flush().then(function(){
+    assert(capturedId, 'expected the attempt to have sent its own save id');
+    assert(a._unconfirmedSaveIds.indexOf(capturedId) === -1,
+      'a call still genuinely in flight must not have its id trustable for a rebase yet, got ' + JSON.stringify(a._unconfirmedSaveIds));
+  });
+});
+
+testAsync('B1 fix: a 401-held call\'s id becomes trustable the moment it is parked for reauth, not before', function(){
+  var a = reauthApp('ok'), result = 'pending';
+  a.saveToCloud(function(err){ result = err ? err.message : 'saved'; });
+  return flushAll().then(function(){
+    assert(result === 'pending', 'the caller must not be told to roll back yet, got ' + result);
+    assert(a._unconfirmedSaveIds.length === 1, 'the held call\'s id must already be trustable while parked for reauth (the re-sent call after sign-in is correct to rebase onto it), got ' + JSON.stringify(a._unconfirmedSaveIds));
+    a.document.getElementById('reauth-password').value = 'right-password';
+    a.saasReauthSubmit();
+    return flushAll(16);
+  }).then(function(){
+    assert(result === 'saved', 'expected the re-sent save to succeed, got ' + result);
+  });
+});
+
+testAsync('S1 fix (Code Reviewer, 9 Oct): a conflict with no save id at all must not match the marker branch\'s default null', function(){
+  // The marker branch compared res.body.data._saveId === _pendPushId without
+  // first checking either side is truthy. _pendPushId defaults to null, so
+  // a conflict whose data genuinely has no _saveId (JSON null, e.g. from a
+  // manual SQL edit that never set one) would match null === null and take
+  // the "earlier save of ours landed" path -- loading the cloud and
+  // reporting the user's OWN action as saved while it was actually dropped.
+  // Exactly the failure this whole fix exists to remove.
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  a.setTimeout = function(f, ms){ if([2000,5000,15000].indexOf(ms) !== -1) f(); return 1; };
+  a.clearTimeout = function(){};
+  a._loadedVersion = 3;
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ ok:false, conflict:true, data:{ _v:4, _saveId:null } }); } });
+    }
+    if(opts && opts.method === 'POST') return Promise.reject(new Error('no counter here'));
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ _v:4 } }); } });
+  };
+  var result = 'pending';
+  a.saveToCloud(function(err){ result = err ? err.message : 'saved'; });
+  return flushAll(16).then(function(){
+    assert(result === 'version-conflict', 'a conflict with no real save id must be a real conflict, never matched against the unset marker default, got ' + result);
+  });
+});
+
+testAsync('a rebase whose own answer is lost is recognized as ours on retry, not treated as a fresh conflict', function(){
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  a.setTimeout = function(f, ms){ if([2000,5000,15000].indexOf(ms) !== -1) f(); return 1; };
+  a.clearTimeout = function(){};
+  a._loadedVersion = 11;
+  var firstId = null, mySecondId = null, call = 1, rebasePutsSeen = 0;
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      var body = JSON.parse(opts.body);
+      if(call === 2 && !mySecondId) mySecondId = body.data._saveId;
+      if(call === 1){ firstId = firstId || body.data._saveId; return Promise.reject(new Error('answer lost')); }
+      if(body.expectedVersion === 11){
+        return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ ok:false, conflict:true, data:{ _v:12, _saveId: firstId } }); } });
+      }
+      // The rebase PUT (expectedVersion 12): its first send is lost on the
+      // wire; its retry's conflict carries THIS call's own id back -- proof
+      // the rebase itself landed, exactly like any ordinary save whose
+      // answer never arrived.
+      rebasePutsSeen++;
+      if(rebasePutsSeen === 1) return Promise.reject(new Error('answer lost again'));
+      return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ ok:false, conflict:true, data:{ _v:13, _saveId: mySecondId } }); } });
+    }
+    if(opts && opts.method === 'POST') return Promise.reject(new Error('no counter here'));
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ _v:13 } }); } });
+  };
+  var first = 'pending', second = 'pending';
+  a.saveToCloud(function(err){ first = err ? err.message : 'saved'; });
+  return flushAll(16).then(function(){
+    call = 2;
+    a.saveToCloud(function(err){ second = err ? err.message : 'saved'; });
+    return flushAll(16);
+  }).then(function(){
+    assert(second === 'saved', 'the rebase landing must be recognized on retry as our own, got ' + second);
+  });
+});
+
+testAsync('a marker-sourced id (read back after a reload) is never rebased -- loads instead, the multi-tab guard', function(){
+  var a = reauthApp('ok');
+  a.localStorage.setItem(a._unsyncedKey(), JSON.stringify({ v:5, id:'marker-id' }));
+  a._loadedVersion = 0;
+  var puts = 0;
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts && opts.method === 'PUT'){
+      puts++;
+      // If this id were wrongly rebased, a second PUT (expectedVersion 6)
+      // would follow -- there must be exactly this one.
+      return Promise.resolve({ status:409, ok:false, json:function(){ return Promise.resolve({ conflict:true, data:{ _saveId:'marker-id', _v:6 } }); } });
+    }
+    if(String(url).indexOf('/store-proxy') !== -1){
+      return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ data:{ _v:6 } }); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  var result = 'pending';
+  a.loadFromCloud(function(err){ result = err ? err.message : 'ok'; });
+  return flushAll(16).then(function(){
+    assert(result === 'ok', 'expected success, got ' + result);
+    assert(puts === 1, 'a marker-sourced id must never trigger a rebase PUT -- after a reload there is no "current data" in memory to rebase, PUTs: ' + puts);
+  });
+});
+
+testAsync('risk #1 fix: expectedVersion is captured once per call, not re-read on each retry', function(){
+  var a = loadApp();
+  a.SAAS.sessionToken = 'tok';
+  a.setTimeout = function(f, ms){ if([2000,5000,15000].indexOf(ms) !== -1) f(); return 1; };
+  a.clearTimeout = function(){};
+  a._loadedVersion = 4;
+  var sentVersions = [];
+  a.fetch = function(url, opts){
+    if(opts && opts.method === 'PUT'){
+      var body = JSON.parse(opts.body);
+      sentVersions.push(body.expectedVersion);
+      if(sentVersions.length === 1){
+        // A load lands mid-call (tab switch, the 'online' handler, forceSync
+        // -- none of which check isSaving) and bumps _loadedVersion forward
+        // before the retry fires.
+        a._loadedVersion = 9;
+        return Promise.reject(new Error('answer lost'));
+      }
+      return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ ok:true, data:{ _v:5 } }); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  var result = 'pending';
+  a.saveToCloud(function(err){ result = err ? err.message : 'saved'; });
+  return flushAll(16).then(function(){
+    assert(result === 'saved', 'expected the retry to succeed, got ' + result);
+    assert(sentVersions.length === 2, 'expected an initial attempt and one retry, got ' + sentVersions.length);
+    assert(sentVersions[0] === 4 && sentVersions[1] === 4,
+      'the retry must send THIS call\'s own base version (4), not a version bumped by a load that ran during the retry delay, got ' + JSON.stringify(sentVersions));
+  });
+});
+
+test('risk #2 fix: the isSaving watchdog threshold (90s) tolerates a gap the old 30s threshold would have wrongly cut short', function(){
+  var a = loadApp();
+  var watchdog = a._intervals[0];
+  assert(typeof watchdog === 'function', 'expected the isSaving watchdog to have registered at load time');
+  a.isSaving = true;
+  a._isSavingSetAt = Date.now() - 35000; // 35s since the last re-stamp
+  watchdog();
+  assert(a.isSaving === true, 'a 35s gap must not be released -- the old 30s threshold would have wrongly cut in here, got isSaving=' + a.isSaving);
+  a._isSavingSetAt = Date.now() - 95000; // a stamp this stale means attempt() genuinely stopped re-stamping
+  watchdog();
+  assert(a.isSaving === false, 'a genuinely stuck lock (no re-stamp in 95s) must still be released as a backstop, got isSaving=' + a.isSaving);
+});
+
+testAsync('a rebase logs one audit entry naming the overwritten save id, and it reaches the cloud in the same payload', function(){
+  var a = earlierLandedApp('first'), first = 'pending', second = 'pending';
+  a.saveToCloud(function(err){ first = err ? err.message : 'saved'; });
+  return flushAll(16).then(function(){
+    a.nextCall();
+    a.saveToCloud(function(err){ second = err ? err.message : 'saved'; });
+    return flushAll(16);
+  }).then(function(){
+    assert(second === 'saved', 'expected the rebase to succeed, got ' + second);
+    assert(a.S.auditLog.length >= 1 && a.S.auditLog[0].action === 'rebase', 'expected a rebase audit entry at the top of the log, got ' + JSON.stringify(a.S.auditLog[0]));
+    assert(a.S.auditLog[0].entityId, 'the audit entry must name the overwritten save id');
+    var sentLog = a.lastSentData().auditLog;
+    assert(sentLog && sentLog.length >= 1 && sentLog[0].id === a.S.auditLog[0].id,
+      'the rebase PUT\'s own payload must carry this same audit entry -- dataPayload.auditLog must be refreshed after auditLog() runs');
   });
 });
 

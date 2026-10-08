@@ -31,10 +31,21 @@ var refreshTimer = null;
 var isSaving = false;
 var _isSavingSetAt = 0;
 
-// Watchdog: auto-release isSaving if stuck for more than 30 seconds
+// Watchdog: auto-release isSaving if stuck for more than 90 seconds.
+// Was 30s, shorter than a single attempt's own SAVE_TIMEOUT_MS (60s in
+// 01-sync-core.js) -- on a slow connection the watchdog could fire while a
+// real attempt was still genuinely in flight, letting a second saveToCloud()
+// start concurrently and race the first's shared state (_unconfirmedSaveIds,
+// _loadedVersion). 01-sync-core.js's attempt() now re-stamps _isSavingSetAt
+// on every retry, so this is purely a backstop for a bug that skips
+// isSaving=false -- never meant to interrupt a live retry chain. The max
+// gap between stamps is SAVE_TIMEOUT_MS (60s) + the longest retry delay
+// (15s) = 75s; keep this comfortably above that. If SAVE_TIMEOUT_MS or the
+// retry delays change, this number must change with them (see
+// docs/save-conflict-fix-design.md).
 setInterval(function(){
-  if(isSaving && _isSavingSetAt > 0 && (Date.now() - _isSavingSetAt) > 30000){
-    console.warn('[JewelOS] isSaving stuck for 30s — auto-releasing lock');
+  if(isSaving && _isSavingSetAt > 0 && (Date.now() - _isSavingSetAt) > 90000){
+    console.warn('[JewelOS] isSaving stuck for 90s — auto-releasing lock');
     isSaving = false;
     _isSavingSetAt = 0;
     setSyncStatus('err','Save lock reset');

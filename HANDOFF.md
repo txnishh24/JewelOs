@@ -84,6 +84,86 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-08 · Claude Code (Sonnet) — two review findings fixed on the save-conflict rebase diff; ready to commit
+
+Ran both reviews CLAUDE.md calls for on this category (save path / per-shop data access) before
+calling the rebase fix below actually done: `Code Reviewer` and `AI-Generated Code Security
+Auditor`, both on Opus, both on the full diff. Neither found anything that should block
+shipping, but Code Reviewer found one real 🔴 and both found one real 🟡 — fixed both, with a
+regression test proving each, before committing. Also recovered this diff after a "Teleport
+auto-stash" mid-session (see `→ FOR TANISH` below) — nothing was lost, confirmed by diffing the
+recovered stash against what had been verified just before it happened.
+
+**🔴 fixed — B1 (Code Reviewer): the watchdog alone can't prove a call has finished.** The
+rebase branch trusted any id in `_unconfirmedSaveIds`, but that id was pushed at the TOP of
+`saveToCloud()` — before the call even started — so a second, concurrent call's conflict could
+match a FIRST call's id while the first call was still genuinely in flight (a phone backgrounded
+mid-save freezes JS timers; on resume, the watchdog's 5s tick can beat that call's own retry
+timer to reacting, releasing `isSaving` while the call is still alive). **Fix:** the id is now
+only added to the list once the call is actually over — inside `_done_err` (final failure) and
+the 401 hand-off (parked for reauth) — never at the top. Branch 1 (matching THIS call's own id)
+is untouched; it compares against the local `saveId` variable directly, never the list.
+
+**🟡 fixed — S1 (Code Reviewer): the marker branch was missing a null-guard.** It compared
+`res.body.data._saveId === _pendPushId` with no truthiness check on either side first.
+`_pendPushId` defaults to `null`, so a conflict whose landed data genuinely has no `_saveId`
+(e.g. a manual SQL edit that never set one) would match `null === null` and take the "earlier
+save of ours landed" path — loading the cloud and reporting the user's own action as saved while
+it was actually dropped. Exactly the failure this whole fix exists to remove. **Fix:** restored
+the truthy guard (`res.body.data._saveId && ... === _pendPushId`), matching the rebase branch
+just above it, which already had it.
+
+**Verified each fix is load-bearing, not just present:** temporarily reverted each one in turn
+and confirmed its new regression test fails without it, then restored the real fix and confirmed
+green again. Added 3 new tests (the B1 invariant directly, the 401-hand-off case, and the S1
+null-guard case) and rewrote the existing "once per call" cap test, which Code Reviewer noted
+didn't actually exercise the cap (its second conflict used an id that failed the "is it ours"
+check regardless) — it now uses a third call's id that WOULD also qualify for a rebase, so the
+`rebased` flag is what has to stop it.
+
+**Not changed, by design — both reviewers' other findings, with reasoning:**
+- Security Auditor: found no exploitable issue beyond what the design doc already named (no
+  cross-tenant leak, no auth bypass, no way for a malicious client to gain a capability it
+  doesn't already have with write access). The one real gap — **the manual-SQL-edit rule in this
+  file is incomplete** — is fixed below, not in code (see `→ FOR COWORK`).
+- Code Reviewer's S3: the design doc's §7 claim ("a mid-save load is a screen-freshness problem,
+  not data loss") is slightly too strong — it's pre-existing (not introduced by this diff) and
+  out of scope for this fix; noted for whoever picks up the two other standing sync risks.
+- A few nits (audit line written before the outcome is known; `_pendPushId` is a global, not
+  scoped to one call) are cosmetic/pre-existing per both reviewers — left as documented
+  caveats, not fixed, to avoid widening this diff past what it needs.
+
+**Verification (final, after both fixes):** `node --check` clean on all 11 files.
+`node tests/regression.test.js`: **386/386 passed** (375 baseline + 11 new/rewritten, including
+the 3 new review-finding tests). `backup-check`, `roundtrip`, `loadorder`, `making-basis` all
+clean; `scope.js`'s implicit-globals/Tier-A/B lists unchanged (one new legitimate global,
+`_markUnconfirmed`, picked up by `checks/globals.json`'s own regeneration). Did not re-run the
+e2e specs on this exact final diff — B1 and S1 are narrow backend edge cases (concurrent-call
+timing, a null-id guard) the existing `failed-saves`/`session-restore` e2e specs don't target,
+and they were already run (twice, diff vs. baseline) on the pre-B1/S1 version of this diff in the
+entry below with one pre-existing, unrelated flake found and confirmed not a regression; re-
+running wouldn't add signal specific to these two fixes. Saying so plainly rather than implying a
+fresh e2e pass happened.
+
+→ FOR COWORK: **correct the manual-SQL-edit rule** wherever it's written down for your side (the
+entry below, and any Cowork-side skill or snippet that writes the `store` row by SQL): it must
+say to **bump `_v` by 1 AND set `_saveId`** to something like `"manual-<date>"` — not `_saveId`
+alone. Security Auditor's trace: a manual edit that keeps the old `_v` is already overwritten
+today by any normal, successful save from any device at that version, whatever `_saveId` says —
+the `_saveId`-only version of the rule gives false comfort on exactly that case. A proper fix
+(a DB trigger forcing both on any non-client write) is a real follow-up but is a migration, out
+of scope for this diff — flagging it as a suggestion, not building it here.
+→ FOR TANISH: fixed what the two reviews found, with tests proving each fix catches its bug.
+Ready to commit now. One thing worth knowing: mid-session, a "Teleport auto-stash" briefly
+reset this working tree to a clean state (your `emilkowalski/skills` session and this one were
+both touching this same folder around the same time) — nothing was lost, I found and recovered
+the stash, diffed it to confirm it had everything including the two fixes above, and re-verified
+the whole suite afterward. Flagging only because CLAUDE.md's "dirty working tree = stop and ask"
+rule is about exactly this kind of overlap, and this time it resolved itself cleanly, but a
+future session hitting the same thing should check for a stash before assuming work is gone.
+
+---
+
 ### 2026-10-08 · Claude Code (Sonnet) — installed emilkowalski/skills pack (14 generic UI/animation/Swift skills), committed and pushed, no JewelOS code touched
 
 🟢 Trivial — tooling only, nothing in `js/*`, `index.html`, or Supabase touched.
