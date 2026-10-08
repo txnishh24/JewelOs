@@ -84,6 +84,47 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-09 · Claude Code (Sonnet) — checked the Resend side of the RESEND_API_KEY/domain item; domain still unregistered, standing down
+
+Tanish asked to set up Resend for JewelOS. Checked the actual Resend account (not just this
+file) before doing anything, via the newly-installed `resend` plugin's MCP tools — found more
+already there than this file recorded:
+
+- **`jewelos.co` is already added as a domain in Resend** (since 18 Sep), status `not_started`
+  — none of its 3 required DNS records (1 DKIM TXT, 2 SPF CNAME) have been configured anywhere
+  yet, so it's not verified and can't send.
+- **An API key named "Onboarding" already exists** in the account, also from 18 Sep. Its value
+  can't be retrieved now (Resend only ever shows a key once, at creation) — if it's meant to be
+  used, whoever created it needs to still have it saved.
+
+Tried to create a fresh, narrowly-scoped (`sending_access`) key for this specifically, rather
+than reuse the untraceable one — **blocked by Claude Code's own auto-mode classifier as a
+secret-store write**, needs Tanish's explicit approval on the permission prompt next time.
+Didn't attempt to work around it.
+
+**Asked Tanish directly: is `jewelos.co` registered yet?** Answer: **no, not yet.** This
+matches what WAITING ON TANISH already said and is the real blocker — DNS records can't go
+anywhere until the domain is actually bought and Tanish controls its DNS. Standing down here,
+per the existing note in WAITING ON TANISH ("don't chase it early"), now reconfirmed directly.
+**No code, no Supabase secrets, no migration touched.** Checked the actual `auth-gateway` code
+first: if `RESEND_API_KEY` got set before the domain verifies, every password-reset send would
+fail, but the function still tells the user "a reset code has been sent" (by design, so a
+failure can't reveal whether an account exists) and silently discards the code — so setting the
+secrets early would make the feature look configured while quietly never working. Confirmed
+not doing that.
+
+→ FOR COWORK: nothing live, no secrets touched. FYI since this touches your side's territory —
+the Resend account already has `jewelos.co` added and an old "Onboarding" API key from 18 Sep
+that this session can't retrieve the value of. If you know who set that up or still has that
+key's value, worth noting here so it isn't recreated by accident later.
+→ FOR TANISH: nothing done yet — correctly blocked on you registering `jewelos.co` and pointing
+its DNS somewhere, exactly as this file already said. When you're ready: register the domain,
+tell me/Cowork where its DNS lives, and approve the API-key-creation prompt when it comes up.
+Then I can add the 3 DNS records, verify the domain, create a fresh scoped key, and set the two
+Supabase secrets — all together, same session, so nothing sits half-configured.
+
+---
+
 ### 2026-10-08 · Cowork (Sonnet) — migration 007 (`_guard_manual_store_edit`) confirmed LIVE
 
 Not applied by Cowork: the `apply_migration` call was cancelled twice before it ran, so someone else applied it (migration list shows `20261008082057 manual_store_edit_guard`, ~13:50 IST). Verified read-only at ~13:56 IST: function exists, `BEFORE UPDATE ... WHEN (OLD.data IS DISTINCT FROM NEW.data)` trigger on `public.store` is the only trigger on that table, 0 rows labelled `manual-%`. End-to-end check: shop `77c4aefe` saved from the real app at 13:53 IST after the trigger went in, `_saveId` is a normal client id (not `manual-...`), `_v` 654 — so a real save passes through unflagged. One save is a start, not proof; the `_unconfirmedSaveIds` retry-reuses-same-`_saveId` case (see Claude Code's 8 Oct entry) is still untested against this trigger. Rollback: `drop trigger if exists _guard_manual_store_edit on public.store;`

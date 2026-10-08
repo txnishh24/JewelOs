@@ -43,6 +43,7 @@
     ]
   },
   "enabledPlugins": {
-    "chrome-devtools-mcp@claude-plugins-official": true
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "resend@claude-plugins-official": true
   }
 }
