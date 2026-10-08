@@ -84,6 +84,55 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-08 · Claude Code (Sonnet) — batch51 (the motion pass) packaged; deploy blocked on Netlify's side, not code
+
+🟢 Low risk for the packaging itself; 🔴 the actual blocker is account/billing, outside
+anyone's code. Tanish said "go ahead deploy it" after the verification above.
+
+**Built**: `docs/CHANGES-batch51.md` written (confirmed against the live site first —
+fetched `manifest.json` from `heartfelt-queijadas-eeb356.netlify.app`, it already shows
+batch50's manifest-name fix, so batch50 **is live**, despite the 7 Oct entry below saying
+"not deployed" — someone shipped it since, undocumented here, same recurring pattern this
+file already tracks). Then `node build-deploy-zip.js batch51` — 17 files, 327.2 KB, all
+three of the script's own self-checks clean (forward-slash paths, byte-exact match against
+the repo). Sitting at `C:\Users\ADMIN\Downloads\jewelos-batch51-DEPLOY.zip`.
+
+**Found a Netlify MCP connector available in this session** (wasn't expecting one) —
+confirmed the site (`heartfelt-queijadas-eeb356`, id `4d02c663-...`) is reachable through
+it, but it's never been CLI/git-linked (no `.netlify/`, no `netlify.toml`, no `netlify` CLI
+on this machine) — this project has only ever been deployed by manually dragging a zip
+onto Netlify Drop, confirmed by every batch before this one. The MCP's `deploy-site`
+operation only takes a `siteId`, no file content, and is built around CLI-linked/Git-CD
+projects — calling it blind on an unlinked Drop-only site risked doing something
+undefined on the real production site, so I didn't.
+
+Instead, checked whether this session's connected Chrome (Tanish's real browser, already
+signed in) could do the actual drag-and-drop — navigated to the project's own Deploys
+page to find out. **Blocked there, not by anything in this repo**: Netlify is showing
+*"tanishkatkojwala2407's team is now running on operational credits — production deploys
+and Agent Runners are paused"* and, lower on the same page, *"Production deploys are
+paused because your team has used all of its available credits for this billing cycle."*
+Current published site stays live (today's 1:39 AM deploy, presumably batch50) — nothing
+is down — but a NEW deploy can't go out until Tanish either upgrades the team's plan or
+the next billing cycle resets it. I did not click "Upgrade team" — that's a billing
+decision/payment action, not mine to make. Closed the browser tab without uploading
+anything, since a Drop upload would likely just fail or sit unpublished against a paused
+project.
+
+→ FOR COWORK: batch51 is packaged and verified, blocked purely on Netlify production-
+deploy credits, not on anything either of us wrote. If Tanish asks you about this, the fix
+is his to make (upgrade the team or wait for the billing cycle) — nothing for either of
+us to build around it.
+→ FOR TANISH: the motion build (batch51) is ready and verified —
+`jewelos-batch51-DEPLOY.zip` is in your Downloads. I can't actually publish it right now:
+Netlify's paused your team's production deploys on credits for this billing cycle (see
+your Netlify dashboard's own banner — "Upgrade team" or wait for the cycle to reset).
+Nothing is broken on the live site in the meantime. Once that's sorted, say so and I'll
+either drag it in via your browser or confirm you've done it, then run the deploy
+verifier.
+
+---
+
 ### 2026-10-08 · Claude Code (Sonnet) — pre-deployment verification of the full motion pass (P0+P1+P2), read-only, nothing changed
 
 🟢 Low risk, verification only. Build is **not yet deployed** — this was a
