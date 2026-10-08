@@ -84,6 +84,74 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-08 · Claude Code (Sonnet) — built P0+P1 of the motion audit (commit `83727a8`)
+
+🟢 Low risk (CSS + mechanical display→classList swaps, no logic touched). Tanish
+picked P0 #1/#2 and P1 #3/#4/#5 from the audit below and asked for them built;
+P2 deliberately not started.
+
+**What shipped**, all in `index.html` CSS + 3 JS files (`02-ui-inactivity-modals.js`,
+`03-billing-numbers.js`, `10-daybook.js`):
+- **Modals now animate.** Both modal families (`.modal-bg` — ord/pwd/invoice/edit/
+  edit-bill/cust — and `.modal-overlay` — adjust-stock + the 4 Day Book modals)
+  fade+scale in/out instead of a hard `display:none↔flex` cut; mobile `.modal-bg`
+  becomes a real slide-up sheet (it was already *styled* as one, just had zero
+  motion). The 5 `.modal-overlay` modals needed their JS/inline-onclick switched
+  from `style.display` to `classList.add/remove('open')` first — same idiom
+  `.modal-bg` already used — nothing else about their behavior changed.
+- **`transition: all` gone** — replaced with the exact properties each of ~22
+  CSS rules + 4 inline button styles actually change. Mechanical, mostly a perf/
+  correctness cleanup, not a visual change.
+- **Sync dot pulses while syncing** — wired the `@keyframes pdot` that was
+  already written but never attached to anything.
+- **3 autocomplete panels** (`cust-suggestions`, `db-party-suggestions`,
+  `of-cust-sug`) fade+scale their open/close only; per-keystroke content swaps
+  inside them are untouched, by design (confirmed no lag in testing). The SKU/
+  item-search dropdowns (`si-sug-*`, dynamically created per sale-item row)
+  were deliberately left out of this pass — more frequency-sensitive, different
+  pattern, never explicitly scoped in.
+- **Reduced motion fixed properly** — it used to zero every transition in the
+  app (even toast/focus/button color feedback). Now it only removes the new
+  transform/scale motion above; ordinary color/background/border-color
+  transitions (which aid comprehension, not decoration) are untouched.
+
+**Verified**: `node --check` on all 11 modules · full regression suite,
+386/386 · all 9 `checks/` scripts (`backup-check`/`roundtrip` clean, same
+pre-existing false positives as before, none touching anything I changed) ·
+full Playwright e2e suite, 22/23 — the 1 failure (`session-restore.spec.js`,
+"login expires mid-work") reproduces **identically on the unmodified
+baseline** (confirmed via `git stash`), so it's pre-existing, not from this
+change · a throwaway (deleted after) Playwright script checking computed
+styles and screenshots for both modal families on mobile (393px, bottom
+sheet) and desktop (1280px, centered), autocomplete open/close, the sync-dot
+animation actually firing, and `prefers-reduced-motion` behaving as above —
+all confirmed.
+
+**Did not verify**: how it actually *feels* on a real phone (timing/easing is
+a taste call, not something a computed-style check proves) — screenshots
+only, no on-device pass.
+
+**Unrelated thing found, not touched**: this working copy currently has 7
+untracked `" - Copy"` folders at the repo root (`.agents - Copy`,
+`.claude - Copy`, `checks - Copy`, `docs - Copy`, `githooks - Copy`,
+`js - Copy`, `node_modules - Copy` — the last one 28MB). `js - Copy` is a
+snapshot of `js/` from *before* this session's edits (diffs only in the 3
+files I touched), and all 7 appeared mid-session with the same timestamp —
+looks like a whole-repo duplication, cause unknown (not anything I ran).
+Untracked, so they can't have been committed by accident, but worth Tanish
+knowing they're sitting there (28MB+ of disk) before anyone deletes or keeps
+them.
+
+→ FOR COWORK: nothing — FYI only. P0+P1 of the motion audit (03 Oct's, logged
+below) is built and pushed (`83727a8`). P2 (easing-token split, pin-button
+press-scale tweak, sync-bar cleanup, empty-state fade) is still just a
+written proposal, not started — Tanish hasn't asked for it.
+→ FOR TANISH: built and pushed. Nothing to do unless you want P2 too, or want
+someone to look at those `" - Copy"` folders (point 2 above) — I left them
+alone since I don't know what made them.
+
+---
+
 ### 2026-10-08 · Claude Code (Sonnet) — full motion/animation audit of JewelOS, read-only, no code touched
 
 🟢 Low risk (styling/UI audit, no logic or data touched). Tanish asked for a prioritized
