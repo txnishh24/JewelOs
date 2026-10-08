@@ -84,6 +84,46 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-08/9 · Claude Code (Sonnet) — reconciling Cowork's "don't apply migration 007 today" with what's actually already decided
+
+Tanish relayed advice from Cowork: hold off applying migration 007 (the manual-SQL-edit DB
+trigger, entry just below) today; first make "the save-conflict call from the Claude Code
+entry in HANDOFF.md"; then test on a throwaway shop made and saved from the app before
+trusting it on a real one.
+
+**The save-conflict call Cowork is pointing at looks already made** — see the (8 Oct) entry
+in WAITING ON TANISH's Closed list: Tanish chose Option A directly in this chat, then said
+"build it" the same session, and the rebase fix (`831268b`) is built, Opus-reviewed, tested,
+and already closed out (entry two below this one). If Cowork read an earlier snapshot of this
+file before that chain finished, this entry is the reconciliation — **nothing is still open on
+the save-conflict decision itself.** Flagging this plainly rather than silently re-deciding it
+or silently assuming Cowork is wrong — worth Cowork double-checking against this file's current
+state before holding on that basis specifically.
+
+**The throwaway-shop test is sound and already asked for** — it's word-for-word step 4 in
+`supabase/migrations/007_manual_store_edit_guard.sql`'s own verification comments (written
+during Backend Architect's review, before this advice arrived): make a disposable test shop,
+apply the trigger, do ONE real save from the actual app against it, confirm the save is NOT
+flagged as manual. This was already the required last step before trusting migration 007 on a
+real shop — Cowork's advice reinforces it, doesn't add a new requirement.
+
+**Not done, and can't be done from here:** I have no Supabase connection in this session, so I
+cannot create a throwaway shop, apply the migration, or save from the live app myself — all of
+that needs Cowork's side (which has Supabase + the live app + the device bridge). This entry is
+information only; no code or migration changed.
+
+→ FOR COWORK: on the save-conflict call — it's closed, made directly by Tanish in the Claude
+Code chat (Option A, then "build it" the same session); please don't hold `migration 007` on
+that basis, re-check this file's current state if anything here conflicts with what you saw.
+On the throwaway-shop test — agreed, and already written into the migration file's own
+verification steps (step 4 specifically). When you're ready to apply, run steps 1-4 there,
+in order, before trusting it on a real shop.
+→ FOR TANISH: logged the reconciliation. If Cowork still wants to hold for a different reason
+once it re-reads this file, that's a live call between you two — not something I can resolve
+from this side. Nothing else changed.
+
+---
+
 ### 2026-10-08 · Claude Code (Sonnet) — manual-SQL-edit DB trigger built (migration 007): the rule above is now enforced in code, not just written down
 
 Tanish asked for the follow-up flagged two entries down: a DB trigger so the manual-SQL-edit
