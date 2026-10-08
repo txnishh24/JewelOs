@@ -54,11 +54,6 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   (Cowork's own account skills) write to the paused Office, and `jewelos-health`'s drift SQL still
   reads `nextInvNo`, stale since migration 005 changed the invoice-floor source.** Flagged by Cowork's
   3 Oct skills audit; explicitly out of scope for Claude Code to touch; Cowork/Tanish's to fix.
-- **[new, 8 Oct] Implement the save-conflict "rebase" fix, or leave it scoped?** Designed, not
-  built — see `docs/save-conflict-fix-design.md` and today's LOG entry. Small-medium, one Sonnet
-  session + Opus review of the diff; no server/schema change. Waiting on Tanish to say "build it"
-  (or not) — not re-scoping, just a go/no-go on spending the session.
-
 **Closed (don't re-ask):** Day Book receipt photos → skipped (needs Supabase Storage if it returns) ·
 Demo mode → built, batch21 · renewal contact → `+91 72086 23428`, no UPI handle in code ·
 owner-PIN test → built 27 Sep · e2e test shop → reset before a same-day re-run streak, no cleanup
@@ -69,8 +64,9 @@ Aadhaar/PAN → not stored (purged on load) · offline billing → reserved numb
 matching an old "unconfirmed" save id always reports "saved," never a duplicate bill). Accepted
 risk: in a rare case a genuinely different, later action can be silently dropped while reported
 as saved — no code change, `js/01-sync-core.js`'s `_unconfirmedSaveIds.indexOf` branch stays as
-is. **Update, same day: the real fix is now scoped** (`docs/save-conflict-fix-design.md`) — see
-the new WAITING ON TANISH item above for the build/don't-build call.
+is. **Superseded, same day: Tanish said "build it."** The rebase fix is now built and shipped —
+see today's LOG entry. `js/01-sync-core.js`'s old `_unconfirmedSaveIds.indexOf` guess is gone,
+replaced by the rebase branch; this Option A note is kept only for the history.
 - **⚠ CORRECTED, was wrong in the original file: "Netlify badge → hidden with CSS" is NOT what
   actually happened.** batch43 tried `iframe.nl-badge-frame{display:none!important}`, but Cowork's
   live batch45 check (1 Oct) found the real badge has no class, so it stayed visible
@@ -85,6 +81,99 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-08 · Claude Code (Sonnet) — installed emilkowalski/skills pack (14 generic UI/animation/Swift skills), committed and pushed, no JewelOS code touched
+
+🟢 Trivial — tooling only, nothing in `js/*`, `index.html`, or Supabase touched.
+
+Tanish asked to run `npx skills@latest add emilkowalski/skills` on this machine (Windows,
+`C:\Users\ADMIN\Desktop\jewelos`, on `main` — not the cloud session's
+`claude/trusting-dijkstra-poihk6` branch). Installed 14 skills (`animate`, `animate-expo`,
+`animation-vocabulary`, `apple-design`, `ask-sonner`, `break-ui`, `emil-design-eng`,
+`find-animation-opportunities`, `improve-animations`, `mobile-native`, `pick-ui-library`,
+`prototype`, `review-animations`, `write-swift`) into `.agents/skills/`, symlinked under
+`.claude/skills/` for Claude Code to use. All 14 passed the installer's own Socket/Snyk/Gen
+risk checks (Safe / 0 alerts / Low Risk). Committed (`2748e6e`) and pushed straight to
+`origin/main` on Tanish's instruction.
+
+**Not JewelOS feature work** — these are generic design/animation/Swift skills, not specific
+to this app's code, so no `check.bat`, regression suite, or e2e run was needed or done.
+
+→ FOR COWORK: nothing — FYI only. New files in the repo: `.agents/skills/*`,
+`.claude/skills/{animate,animate-expo,animation-vocabulary,apple-design,ask-sonner,break-ui,
+emil-design-eng,find-animation-opportunities,improve-animations,mobile-native,pick-ui-library,
+prototype,review-animations,write-swift}/`, `skills-lock.json`. None of it touches `js/*`,
+Supabase, or app behavior.
+→ FOR TANISH: done — the 14-skill pack is installed, committed, and pushed to `main`. Nothing
+to test or click through; it's tooling for future sessions, not a product change.
+
+---
+
+### 2026-10-08 · Claude Code (Sonnet, per docs/save-conflict-fix-design.md) — save-conflict rebase fix BUILT and tested, not deployed
+
+Tanish said "build it." Implemented the Opus-planned design doc's 6-step plan exactly, in order,
+checking syntax + the regression suite after each step. 🔴 High (save path, data integrity).
+
+**Shipped, `js/00-config-state.js` + `js/01-sync-core.js`:**
+- **Watchdog (design doc step 1).** `isSaving`'s auto-release threshold 30s → 90s;
+  `attempt()` now re-stamps `_isSavingSetAt` on every retry, not just once at the top of
+  `saveToCloud()`. Closes the standing risk logged 8 Oct (watchdog shorter than a full retry
+  chain could run).
+- **Per-call version (step 2).** `expectedVersion` is now captured once per call
+  (`callVersion`) instead of re-read from `_loadedVersion` on every retry. Closes the other
+  standing risk (a mid-call load silently overwriting itself on the next retry).
+- **Marker id split from the in-memory list (step 3).** `_pendPushId` (read off the C2
+  marker after a reload) is now tracked separately from `_unconfirmedSaveIds` (ids this tab's
+  own `saveToCloud()` calls still hold in memory) — the rebase branch below only ever trusts
+  the second, never the first (a second tab's marker could otherwise get "rebased" over).
+- **The rebase branch itself (step 4).** On a conflict, when the landed save is provably this
+  tab's own earlier, already-resolved attempt (its id is in memory AND the version gap is
+  exactly 1), the app now resends this call's current data on top of it instead of guessing
+  "saved" and loading the old data. Both the resubmit case and the "different later action"
+  case now come out right — see the design doc §§1-2 for why the guess was unnecessary once
+  this is provable. Capped to once per call (`rebased` flag); doesn't consume a retry slot;
+  logs one `auditLog('rebase', ...)` entry naming the overwritten save id.
+
+**Tests, `tests/regression.test.js` + `tests/harness.js`:**
+- Updated the one test the design doc named (`...EARLIER call's landed save...`, renamed to
+  `...rebases onto it...`) — its mechanism changed from reload to rebase, same guarantee
+  (saved, no duplicate).
+- Added the 8 new tests the design doc specified: the bug itself (a different action no
+  longer silently dropped), the version-gap-must-be-exactly-1 guard, the once-per-call cap,
+  a rebase surviving its own lost answer, the marker-vs-memory multi-tab guard, both standing
+  risks' own fixes, and the audit-log entry.
+- Small harness addition: `setInterval` registrations are now captured (`sandbox._intervals`)
+  so a test can invoke the watchdog directly — it registers at module-load time, before any
+  test gets the app back, so the existing per-test override pattern (works for
+  `startAutoRefresh`'s on-demand interval) couldn't reach it otherwise.
+- `checks/globals.json` updated by `scope.js` itself (3 new real globals: `_pendPushId`,
+  `callVersion`, `rebased`) — not hand-edited.
+
+**Verification:** `node --check` clean on all 11 files. `node tests/regression.test.js`:
+**383/383 passed** (375 baseline + 8 new). `backup-check` and `roundtrip` both clean.
+`checks/scope.js`'s implicit-globals/Tier-A/Tier-B lists are byte-identical to the 8 Oct
+baseline — nothing new flagged. Ran `failed-saves.spec.js` + `session-restore.spec.js` twice,
+same method as 8 Oct: once on this diff, once stashed back to the unmodified baseline. Both
+runs: **1 failed, 5 passed — the exact same test** (`session-restore.spec.js:71`, "login
+expires mid-work," `#reauth-overlay` stays hidden), same error, on both. Confirmed pre-existing
+and unrelated to this change, not a regression.
+
+**Not done:** no deploy, no zip built (per standing instruction: one zip at end-of-session).
+Not clicked through on a real phone — this is backend state-machine logic with no UI surface;
+unit tests + the e2e runs above are the full verification this change has. No Opus review of
+the diff yet (design doc step 6 calls for one before this is considered fully closed) — this
+entry hands that off; the design doc + this LOG entry together are the context a review needs.
+
+→ FOR COWORK: nothing live, no deploy. **New rule for your side, now in effect** (not
+"once this ships" — it shipped this entry): if you ever hand-edit a shop's `store` row by SQL,
+you must also overwrite `_saveId` to something like `"manual-<date>"`, or a client's next save
+could now silently "rebase" over your edit instead of reloading over it. See
+`docs/save-conflict-fix-design.md` §4 for why.
+→ FOR TANISH: built, tested, not deployed, not reviewed by Opus yet. Next session should run
+that review before this is "done done" — it's save-path code, worth the second pass even
+though the whole suite is green. Nothing to see on a phone for this one; it's backend logic.
 
 ---
 
