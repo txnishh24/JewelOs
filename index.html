@@ -160,8 +160,22 @@
    The existing 639/640 pair is the .bnav<->.dtabs nav switch — do not move it. */
 
 @media (prefers-reduced-motion:reduce){
-  :root{--t1:0s;--t2:0s;--t3:0s;}
-  *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;}
+  /* F6: "reduced motion" means fewer and gentler, not zero. Looping/one-shot
+     @keyframes animations (sync-dot pulse, pin-shake, loading spin) still
+     collapse to effectively instant -- those are movement, which is exactly
+     what this setting exists to remove. Left alone: the plain color/
+     background/border-color transitions used all over the app (buttons,
+     tabs, focus states) -- short already (130-200ms) and they aid
+     comprehension rather than decorate, which the setting is meant to keep.
+     The one additional carve-out is the transform-driven entrances below
+     (modal/bottom-sheet, girvi-overlay sheet, autocomplete panel): their
+     scale/slide is removed, their opacity fade is kept, so content still
+     doesn't just blink into existence. */
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;}
+  .modal-bg .modal,.modal-overlay .gl-wrap,.ac-panel{
+    transition-property:opacity!important;
+    transform:none!important;
+  }
 }
 
 /* ── RESET ───────────────────────────────────────── */
@@ -219,7 +233,7 @@ body{
   min-height:var(--tap);min-width:var(--tap);padding:0 10px;
   background:transparent;border:none;border-radius:var(--radius);
   color:var(--on-ink-muted);font-size:11px;font-weight:600;
-  font-family:inherit;cursor:pointer;transition:all var(--t1);
+  font-family:inherit;cursor:pointer;transition:color var(--t1),background var(--t1);
 }
 .hdr-btn:hover,.hdr-btn:focus-visible{color:var(--on-ink);background:rgba(255,255,255,.06);}
 
@@ -227,7 +241,7 @@ body{
 .sync-dot{width:6px;height:6px;border-radius:50%;background:var(--ink4);transition:background .4s;}
 .sync-dot.ok{background:var(--success);}
 .sync-dot.err{background:var(--danger);}
-.sync-dot.syncing{background:var(--gold);}
+.sync-dot.syncing{background:var(--gold);animation:pdot 1.1s ease-in-out infinite;}
 @keyframes pdot{0%,100%{opacity:1;}50%{opacity:.3;}}
 .sync-bar{position:fixed;top:var(--topbar-h);left:0;right:0;height:2px;z-index:199;overflow:hidden;pointer-events:none;}
 .sync-bar-inner{height:100%;width:0;background:var(--gold);transition:width .9s;}
@@ -240,7 +254,7 @@ body{
   padding:7px 14px;border-radius:var(--radius);font-size:12px;cursor:pointer;
   border:none;background:transparent;color:var(--ink4);
   font-family:inherit;white-space:nowrap;font-weight:500;
-  transition:all var(--t1);letter-spacing:.04em;
+  transition:color var(--t1),background var(--t1);letter-spacing:.04em;
 }
 .dtab:hover{color:var(--on-ink);background:rgba(255,255,255,.05);}
 .dtab.active{
@@ -351,7 +365,7 @@ body{
   margin-left:auto;padding:7px 18px;
   background:linear-gradient(135deg,var(--gold-dark),var(--gold));
   color:var(--ink);border:none;border-radius:8px;font-size:12px;font-weight:700;
-  cursor:pointer;font-family:inherit;transition:all var(--t1);letter-spacing:.04em;
+  cursor:pointer;font-family:inherit;transition:background var(--t1),box-shadow var(--t1);letter-spacing:.04em;
 }
 .rate-save:hover{background:linear-gradient(135deg,var(--gold),var(--gold-light));box-shadow:var(--shadow-gold);}
 
@@ -361,7 +375,7 @@ body{
   flex:1;padding:9px 14px;border-radius:var(--radius);font-size:13px;
   font-weight:500;cursor:pointer;border:0.5px solid var(--border2);
   background:var(--surface);color:var(--text3);
-  font-family:inherit;transition:all var(--t1);
+  font-family:inherit;transition:background var(--t1),color var(--t1),border-color var(--t1);
 }
 /* Selected state is carried by .mtab-g / .mtab-s (set in setMetal), not .active —
    nothing ever added .active, so both tabs used to render unselected. The
@@ -376,7 +390,7 @@ body{
 .pill{
   padding:5px 14px;border-radius:20px;font-size:12px;cursor:pointer;
   border:0.5px solid var(--border2);background:transparent;color:var(--text3);
-  font-family:inherit;font-weight:500;transition:all var(--t1);
+  font-family:inherit;font-weight:500;transition:background var(--t1),color var(--t1),border-color var(--t1);
 }
 .pill:hover{border-color:var(--border-gold);color:var(--ink);}
 .pill.active{background:var(--gold-bg);color:var(--gold-dark);border-color:rgba(179,146,87,.4);font-weight:600;}
@@ -511,12 +525,12 @@ tr:hover td{background:var(--bg2);}
 .status-avail{
   background:var(--success-bg);color:var(--success);border:0.5px solid rgba(28,96,64,.25);
   border-radius:8px;padding:3px 11px;font-size:11px;font-weight:600;
-  cursor:pointer;font-family:inherit;transition:all var(--t1);
+  cursor:pointer;font-family:inherit;transition:background var(--t1),color var(--t1),border-color var(--t1);
 }
 .status-sold{
   background:var(--danger-bg);color:var(--danger);border:0.5px solid rgba(168,49,42,.22);
   border-radius:8px;padding:3px 11px;font-size:11px;font-weight:600;
-  cursor:pointer;font-family:inherit;transition:all var(--t1);
+  cursor:pointer;font-family:inherit;transition:background var(--t1),color var(--t1),border-color var(--t1);
 }
 
 /* ── SALE SUMMARY BOX ────────────────────────────── */
@@ -549,12 +563,12 @@ tr:hover td{background:var(--bg2);}
 
 /* ── MODE TOGGLE ─────────────────────────────────── */
 .mode-toggle-wrap{display:flex;gap:4px;margin-bottom:1rem;background:var(--ivory3);border-radius:12px;padding:4px;}
-.mode-btn{flex:1;padding:9px 8px;border-radius:9px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:transparent;color:var(--text3);font-family:inherit;transition:all var(--t2);}
+.mode-btn{flex:1;padding:9px 8px;border-radius:9px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:transparent;color:var(--text3);font-family:inherit;transition:background var(--t2),color var(--t2),box-shadow var(--t2);}
 .mode-btn:hover{color:var(--ink);}
 .active-stock,.active-custom{background:var(--surface);color:var(--ink);box-shadow:var(--shadow);font-weight:600;}
 
 /* ── PAY TOGGLES ─────────────────────────────────── */
-.pay-toggle{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;border:0.5px solid var(--border2);background:transparent;color:var(--text3);font-family:inherit;transition:all var(--t1);}
+.pay-toggle{padding:7px 14px;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;border:0.5px solid var(--border2);background:transparent;color:var(--text3);font-family:inherit;transition:background var(--t1),color var(--t1),border-color var(--t1);}
 .pay-toggle.active{border-color:var(--border-gold);color:var(--gold-dark);background:var(--gold-bg);}
 .pay-toggle.active.full{background:var(--success-bg);color:var(--success);border-color:rgba(28,96,64,.3);}
 .pay-toggle.active.adv{background:var(--warning-bg);color:var(--warning);border-color:rgba(138,78,12,.3);}
@@ -587,11 +601,11 @@ tr:hover td{background:var(--bg2);}
 
 /* ── SPLIT PAYMENT ROWS ──────────────────────────── */
 .split-pay-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:end;margin-bottom:8px;}
-.split-add-btn{width:100%;padding:8px;border:0.5px dashed var(--border2);border-radius:var(--radius);background:transparent;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;margin-top:4px;transition:all var(--t1);}
+.split-add-btn{width:100%;padding:8px;border:0.5px dashed var(--border2);border-radius:var(--radius);background:transparent;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;margin-top:4px;transition:border-color var(--t1),color var(--t1);}
 .split-add-btn:hover{border-color:var(--border-gold);color:var(--gold-dark);}
 
 /* ── ORDER CARDS ─────────────────────────────────── */
-.ord-card{background:var(--surface);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all var(--t2);box-shadow:0 1px 3px rgba(0,0,0,.04);}
+.ord-card{background:var(--surface);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color var(--t2),box-shadow var(--t2);box-shadow:0 1px 3px rgba(0,0,0,.04);}
 .ord-card:hover{border-color:var(--border-gold);box-shadow:var(--shadow-md);}
 .ord-card.urgent{border-left:3px solid var(--warning);background:linear-gradient(135deg,var(--warning-bg),var(--surface));}
 
@@ -607,7 +621,7 @@ tr:hover td{background:var(--bg2);}
 .ord-ready{background:var(--success-bg);color:var(--success);}
 .ord-delivered{background:var(--ivory3);color:var(--text3);}
 .ord-cancelled{background:var(--danger-bg);color:var(--danger);}
-.status-btn{padding:6px 13px;border-radius:8px;font-size:12px;cursor:pointer;border:0.5px solid var(--border2);background:var(--surface);color:var(--ink3);font-family:inherit;transition:all var(--t1);}
+.status-btn{padding:6px 13px;border-radius:8px;font-size:12px;cursor:pointer;border:0.5px solid var(--border2);background:var(--surface);color:var(--ink3);font-family:inherit;transition:background var(--t1);}
 .status-btn:hover{background:var(--ivory2);}
 
 /* ── CHARTS ──────────────────────────────────────── */
@@ -647,8 +661,8 @@ html.dev .dev-only{display:block!important;}
 /* Modal chrome family A (ord/pwd/invoice/edit/edit-bill/cust modals). No
    per-modal header tint, no blur backdrop, two elevation levels only.
    Becomes a bottom sheet under 640px so it never fights the keyboard. */
-.modal-bg{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:var(--modal-overlay-color);z-index:500;align-items:center;justify-content:center;padding:1rem;}
-.modal-bg.open{display:flex;}
+.modal-bg{display:flex;position:fixed;top:0;right:0;bottom:0;left:0;background:var(--modal-overlay-color);z-index:500;align-items:center;justify-content:center;padding:1rem;opacity:0;visibility:hidden;pointer-events:none;transition:opacity var(--t2) var(--ease),visibility 0s linear var(--t2);}
+.modal-bg.open{opacity:1;visibility:visible;pointer-events:auto;transition:opacity var(--t2) var(--ease),visibility 0s linear 0s;}
 /* #cust-modal is the one member of this family that spawns the others (Edit
    Bill, View Bill, Refund, Add Payment buttons live inside its own body) --
    it must always sit BELOW whichever one of them is open on top of it. Same
@@ -657,7 +671,8 @@ html.dev .dev-only{display:block!important;}
    real phone, confirmed via tests/e2e, 6 Oct 2026 -- Edit Bill is only ever
    opened from inside this modal, so this was the one path that mattered). */
 #cust-modal.modal-bg{z-index:490;}
-.modal{background:var(--surface);border-radius:var(--radius-xl);width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);}
+.modal{background:var(--surface);border-radius:var(--radius-xl);width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);transform:scale(.96);opacity:0;transition:transform var(--t2) var(--ease),opacity var(--t2) var(--ease);}
+.modal-bg.open .modal{transform:scale(1);opacity:1;}
 .modal-header{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
 .modal-header h2{font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);}
 .modal-close{background:transparent;border:none;border-radius:50%;width:var(--tap);height:var(--tap);font-size:var(--text-md);cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center;transition:background var(--t1);}
@@ -665,7 +680,8 @@ html.dev .dev-only{display:block!important;}
 .modal-body{padding:var(--space-4);overflow-y:auto;}
 @media(max-width:640px){
   .modal-bg{align-items:flex-end;padding:0;}
-  .modal{max-width:100%;max-height:92vh;max-height:92dvh;border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
+  .modal{max-width:100%;max-height:92vh;max-height:92dvh;border-radius:var(--radius-xl) var(--radius-xl) 0 0;transform:translateY(100%);}
+  .modal-bg.open .modal{transform:translateY(0);}
 }
 
 /* ── TOAST ───────────────────────────────────────── */
@@ -675,6 +691,17 @@ html.dev .dev-only{display:block!important;}
 .toast{position:fixed;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 16px);left:50%;transform:translateX(-50%) translateY(8px);background:var(--ink);color:var(--on-ink);padding:10px 22px;border-radius:var(--radius);font-size:var(--text-base);font-weight:500;z-index:9999;opacity:0;pointer-events:none;transition:opacity var(--t2),transform var(--t2);white-space:normal;width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;text-align:center;line-height:1.4;box-shadow:var(--shadow-lg);}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 @media(min-width:640px){.toast{bottom:1.5rem;}}
+
+/* ── AUTOCOMPLETE PANELS (cust-suggestions / db-party-suggestions /
+   of-cust-sug) ── Only the panel's own open/close transitions; the rows
+   inside are re-rendered on every keystroke with no transition of their
+   own, so retyping never feels laggy. max-height (not height:auto) is the
+   one exception to transform/opacity-only in this app -- same accordion-
+   style tradeoff as any expand/collapse with content-driven height; these
+   panels are small (≤5 rows) and shown rarely enough per interaction that
+   the layout cost is a non-issue. */
+.ac-panel{max-height:0;opacity:0;visibility:hidden;pointer-events:none;transform:scale(.97);transform-origin:top center;transition:opacity 120ms ease-out,transform 120ms ease-out,max-height 120ms ease-out,visibility 0s linear 120ms;}
+.ac-panel.show{max-height:320px;opacity:1;visibility:visible;pointer-events:auto;transform:scale(1);transition:opacity 120ms ease-out,transform 120ms ease-out,max-height 120ms ease-out,visibility 0s linear 0s;}
 
 /* ── LOADING ─────────────────────────────────────── */
 .loading-screen{position:fixed;top:0;right:0;bottom:0;left:0;background:linear-gradient(160deg,#18160e,#22200a 55%,#18160e);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:999;}
@@ -696,7 +723,7 @@ html.dev .dev-only{display:block!important;}
 .pin-tagline{font-size:10px;color:#5a5244;text-transform:uppercase;letter-spacing:.18em;margin-bottom:36px;}
 .pin-label{font-size:12px;color:#9a8e7c;margin-bottom:18px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;min-height:18px;text-align:center;}
 .pin-dots{display:flex;gap:18px;margin-bottom:32px;}
-.pin-dot{width:18px;height:18px;border-radius:50%;border:1.5px solid rgba(201,163,78,.28);background:transparent;transition:all .15s;}
+.pin-dot{width:18px;height:18px;border-radius:50%;border:1.5px solid rgba(201,163,78,.28);background:transparent;transition:background .15s,border-color .15s,box-shadow .15s;}
 .pin-dot.filled{background:linear-gradient(135deg,var(--gold),var(--gold-light));border-color:var(--gold);box-shadow:0 0 12px rgba(201,163,78,.45);}
 .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;width:260px;}
 .pin-btn{background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.08);border-radius:50%;width:78px;height:78px;font-size:24px;font-weight:500;color:#e8d49a;cursor:pointer;font-family:'Cormorant Garamond',Georgia,serif;transition:background .1s,transform .1s;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none;-webkit-user-select:none;}
@@ -743,7 +770,7 @@ html.dev .dev-only{display:block!important;}
 .skel-row{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}
 .skel-circle{width:36px;height:36px;border-radius:50%;flex-shrink:0;}
 
-.pin-change-btn{background:transparent;border:0.5px solid rgba(201,163,78,.2);border-radius:100px;padding:9px 22px;color:#6a5c48;font-size:11px;cursor:pointer;font-family:inherit;letter-spacing:.08em;text-transform:uppercase;transition:all .2s;touch-action:manipulation;}
+.pin-change-btn{background:transparent;border:0.5px solid rgba(201,163,78,.2);border-radius:100px;padding:9px 22px;color:#6a5c48;font-size:11px;cursor:pointer;font-family:inherit;letter-spacing:.08em;text-transform:uppercase;transition:border-color .2s,color .2s;touch-action:manipulation;}
 .pin-change-btn:hover{border-color:rgba(201,163,78,.4);color:#9a8e7c;}
 
 /* ── INACTIVITY OVERLAY ──────────────────────────── */
@@ -814,7 +841,7 @@ html.dev .dev-only{display:block!important;}
 .auth-title{font-family:var(--font-display);font-size:var(--text-2xl);font-weight:600;margin-bottom:3px;}
 .auth-sub{font-size:var(--text-sm);color:var(--text3);}
 .auth-tab-row{display:flex;gap:0;margin-bottom:1.4rem;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border2);}
-.auth-tab{flex:1;padding:9px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;background:var(--card2);color:var(--text3);border:none;font-family:inherit;transition:all .15s;}
+.auth-tab{flex:1;padding:9px;text-align:center;font-size:13px;font-weight:600;cursor:pointer;background:var(--card2);color:var(--text3);border:none;font-family:inherit;transition:background .15s,color .15s;}
 .auth-tab.active{background:var(--gold);color:#1a1200;}
 .auth-field{margin-bottom:11px;}
 .auth-field label{display:block;font-size:var(--text-xs);font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
@@ -900,7 +927,7 @@ html.dev .dev-only{display:block!important;}
 .ge-header h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;font-weight:700;color:var(--gold-dark);letter-spacing:.02em;}
 .ge-close{background:var(--ivory2);border:0.5px solid var(--border2);border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;color:var(--text3);display:flex;align-items:center;justify-content:center;}
 .ge-tabs{display:flex;gap:4px;padding:.6rem 1rem;background:var(--ivory2);border-bottom:0.5px solid var(--border);}
-.ge-tab{flex:1;padding:7px 6px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--text3);font-family:inherit;text-align:center;transition:all .15s;letter-spacing:.03em;}
+.ge-tab{flex:1;padding:7px 6px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--text3);font-family:inherit;text-align:center;transition:background .15s,color .15s,box-shadow .15s;letter-spacing:.03em;}
 .ge-tab.active{background:var(--surface);color:var(--gold-dark);box-shadow:var(--shadow);}
 .ge-tab-panel{display:none;padding:1rem 1.2rem 1.4rem;}
 .ge-tab-panel.active{display:block;}
@@ -931,8 +958,10 @@ html.dev .dev-only{display:block!important;}
 
 /* ── Payment Ledger Modal ── */
 #girvi-ledger-modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:960;overflow-y:auto;-webkit-overflow-scrolling:touch;}
-.modal-overlay{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:960;overflow-y:auto;-webkit-overflow-scrolling:touch;}
-.gl-wrap{max-width:500px;margin:16px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);}
+.modal-overlay{display:block;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:960;overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;visibility:hidden;pointer-events:none;transition:opacity var(--t2) var(--ease),visibility 0s linear var(--t2);}
+.modal-overlay.open{opacity:1;visibility:visible;pointer-events:auto;transition:opacity var(--t2) var(--ease),visibility 0s linear 0s;}
+.gl-wrap{max-width:500px;margin:16px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);transform:scale(.96);opacity:0;transition:transform var(--t2) var(--ease),opacity var(--t2) var(--ease);}
+.modal-overlay.open .gl-wrap{transform:scale(1);opacity:1;}
 .gl-header{display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .8rem;background:linear-gradient(135deg,rgba(28,96,64,.1),rgba(28,96,64,.03));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(28,96,64,.2);}
 .gl-header h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;font-weight:700;color:var(--success);letter-spacing:.02em;}
 .gl-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:.8rem 1.2rem;background:linear-gradient(135deg,var(--success-bg),var(--surface));}
@@ -954,7 +983,7 @@ html.dev .dev-only{display:block!important;}
 .gl-add-form{background:var(--gold-bg);border:0.5px solid rgba(179,146,87,.25);border-radius:12px;padding:14px;margin-top:12px;}
 .gl-add-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gold-dark);margin-bottom:10px;}
 .gl-type-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
-.gl-type-btn{padding:5px 12px;border-radius:100px;font-size:11px;font-weight:600;cursor:pointer;border:0.5px solid var(--border);background:var(--surface);color:var(--text3);font-family:inherit;transition:all .14s;}
+.gl-type-btn{padding:5px 12px;border-radius:100px;font-size:11px;font-weight:600;cursor:pointer;border:0.5px solid var(--border);background:var(--surface);color:var(--text3);font-family:inherit;transition:border-color .14s,color .14s,background .14s;}
 .gl-type-btn.active{border-color:var(--gold);color:var(--gold-dark);background:rgba(179,146,87,.12);}
 
 /* ── Customer Timeline Modal ── */
@@ -997,7 +1026,7 @@ html.dev .dev-only{display:block!important;}
   outline:none;border-color:var(--border-gold);box-shadow:0 0 0 2px rgba(179,146,87,.1);
 }
 .girvi-adv-search input.main-search{flex:1;min-width:130px;font-size:13px;}
-.girvi-search-chip{padding:5px 10px;border-radius:100px;font-size:11px;font-weight:600;cursor:pointer;border:0.5px solid var(--border);background:transparent;color:var(--text3);font-family:inherit;transition:all .13s;}
+.girvi-search-chip{padding:5px 10px;border-radius:100px;font-size:11px;font-weight:600;cursor:pointer;border:0.5px solid var(--border);background:transparent;color:var(--text3);font-family:inherit;transition:background .13s,color .13s,border-color .13s;}
 .girvi-search-chip.active{background:var(--gold-bg);color:var(--gold-dark);border-color:rgba(179,146,87,.4);}
 
 /* ── Edit button on girvi card (new) ── */
@@ -1037,7 +1066,7 @@ html.dev .dev-only{display:block!important;}
 
 /* ── Document Upload Area ── */
 .doc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;}
-.doc-slot{border:1.5px dashed rgba(179,146,87,.35);border-radius:10px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;background:rgba(179,146,87,.04);transition:all .15s;position:relative;overflow:hidden;}
+.doc-slot{border:1.5px dashed rgba(179,146,87,.35);border-radius:10px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;background:rgba(179,146,87,.04);transition:border-color .15s,background .15s;position:relative;overflow:hidden;}
 .doc-slot:hover{border-color:var(--gold);background:rgba(179,146,87,.08);}
 .doc-slot.filled{border-style:solid;border-color:rgba(28,96,64,.3);background:rgba(28,96,64,.04);}
 .doc-slot-icon{font-size:20px;opacity:.5;}
@@ -1056,7 +1085,7 @@ html.dev .dev-only{display:block!important;}
   display:inline-flex;align-items:center;gap:3px;
   font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;
   background:rgba(26,74,138,.08);color:var(--info);border:0.5px solid rgba(26,74,138,.2);
-  cursor:pointer;font-family:inherit;transition:all .13s;
+  cursor:pointer;font-family:inherit;transition:background .13s;
 }
 .girvi-card-badge-edit:hover{background:var(--info-bg);}
 
@@ -1156,7 +1185,7 @@ html.dev .dev-only{display:block!important;}
 
 /* Order pipeline */
 .pipeline{display:flex;gap:0;margin-bottom:1rem;overflow-x:auto;}
-.pipe-stage{flex:1;min-width:60px;text-align:center;padding:8px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);transition:all .15s;white-space:nowrap;}
+.pipe-stage{flex:1;min-width:60px;text-align:center;padding:8px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);transition:color .15s,border-bottom-color .15s;white-space:nowrap;}
 .pipe-stage.active{color:var(--gold);border-bottom-color:var(--gold);}
 .pipe-stage .pipe-count{display:block;font-size:20px;font-weight:800;color:var(--text1);margin-bottom:2px;}
 
@@ -1255,7 +1284,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 .settings-tab{
   padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;
   color:var(--text3);border-bottom:2px solid transparent;white-space:nowrap;
-  transition:all .15s;background:none;border-top:none;border-left:none;border-right:none;
+  transition:color .15s,border-bottom-color .15s;background:none;border-top:none;border-left:none;border-right:none;
   font-family:inherit;
 }
 .settings-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
@@ -1849,8 +1878,8 @@ iframe.nl-badge-frame{display:none !important;}
 
     <!-- BILL TYPE SELECTOR -->
     <div style="display:flex;gap:0;background:var(--bg2);border-radius:12px;padding:4px;margin-bottom:14px;border:1px solid var(--border);">
-      <button id="sform-btype-gst" onclick="setSaleFormBillType('gst')" style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,var(--gold-dark),var(--gold));color:#1a1200;transition:all .2s;">&#128196; GST Bill</button>
-      <button id="sform-btype-memo" onclick="setSaleFormBillType('memo')" style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;background:transparent;color:var(--text2);transition:all .2s;">&#128203; Memo Bill</button>
+      <button id="sform-btype-gst" onclick="setSaleFormBillType('gst')" style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,var(--gold-dark),var(--gold));color:#1a1200;transition:background .2s,color .2s;">&#128196; GST Bill</button>
+      <button id="sform-btype-memo" onclick="setSaleFormBillType('memo')" style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;background:transparent;color:var(--text2);transition:background .2s,color .2s;">&#128203; Memo Bill</button>
     </div>
 
     <div class="form-grid" style="margin-bottom:12px">
@@ -1861,7 +1890,7 @@ iframe.nl-badge-frame{display:none !important;}
       <div class="fg"><label>Customer address</label><input id="s-addr" placeholder="Optional"/></div>
       <!-- payment mode moved to Paying Now section -->
     </div>
-    <div id="cust-suggestions" style="display:none;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-top:-6px;margin-bottom:10px;max-height:150px;overflow-y:auto;"></div>
+    <div id="cust-suggestions" class="ac-panel" style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-top:-6px;margin-bottom:10px;overflow-y:auto;"></div>
     <!-- SALE MODE TOGGLE -->
     <div class="mode-toggle-wrap">
       <button class="mode-btn active-stock" id="mode-btn-stock" onclick="setSaleMode('stock')">
@@ -2058,7 +2087,7 @@ iframe.nl-badge-frame{display:none !important;}
         <div class="fg"><label>Phone *</label><input id="of-phone" type="tel" inputmode="tel" placeholder="98765 43210"/></div>
         <div class="fg"><label>Address</label><input id="of-addr" placeholder="Optional"/></div>
       </div>
-      <div id="of-cust-sug" style="display:none;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-top:-6px;margin-bottom:10px;max-height:120px;overflow-y:auto;"></div>
+      <div id="of-cust-sug" class="ac-panel" style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-top:-6px;margin-bottom:10px;overflow-y:auto;"></div>
 
       <!-- ITEMS -->
       <div class="ord-section-label" style="margin-top:16px;">
@@ -2643,7 +2672,7 @@ iframe.nl-badge-frame{display:none !important;}
   <div class="gl-wrap">
     <div class="gl-header">
       <h2>Adjust Stock</h2>
-      <button class="ge-close" onclick="document.getElementById('adjust-stock-modal').style.display='none'">✕</button>
+      <button class="ge-close" onclick="document.getElementById('adjust-stock-modal').classList.remove('open')">✕</button>
     </div>
     <div class="gl-body">
       <div id="as-product-info" style="font-size:13px;color:var(--text2);margin-bottom:10px;"></div>
@@ -2664,14 +2693,14 @@ iframe.nl-badge-frame{display:none !important;}
   <div class="gl-wrap">
     <div class="gl-header">
       <h2>Add Entry</h2>
-      <button class="ge-close" onclick="document.getElementById('db-entry-modal').style.display='none'">✕</button>
+      <button class="ge-close" onclick="document.getElementById('db-entry-modal').classList.remove('open')">✕</button>
     </div>
     <div class="gl-body">
       <div id="db-entry-cat-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
       <div class="ge-fg" style="margin-bottom:10px;"><label>Amount (₹)</label><input id="db-entry-amt" type="number" placeholder="0" inputmode="numeric"/></div>
       <div class="ge-fg" style="margin-bottom:10px;"><label>Note (optional)</label><input id="db-entry-note" placeholder="e.g. Electricity bill Sept"/></div>
       <div class="ge-fg" style="margin-bottom:10px;"><label>Link to a person (optional)</label><input id="db-entry-party" placeholder="Name or phone" autocomplete="off" oninput="dbPartyAutocomplete()"/></div>
-      <div id="db-party-suggestions" style="display:none;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-top:-6px;margin-bottom:10px;max-height:150px;overflow-y:auto;"></div>
+      <div id="db-party-suggestions" class="ac-panel" style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-top:-6px;margin-bottom:10px;overflow-y:auto;"></div>
       <button class="btn btn-gold" style="width:100%;" onclick="dbSubmitEntry()">Save Entry</button>
     </div>
   </div>
@@ -2681,7 +2710,7 @@ iframe.nl-badge-frame{display:none !important;}
   <div class="gl-wrap">
     <div class="gl-header">
       <h2>Void Entry</h2>
-      <button class="ge-close" onclick="document.getElementById('db-void-modal').style.display='none'">✕</button>
+      <button class="ge-close" onclick="document.getElementById('db-void-modal').classList.remove('open')">✕</button>
     </div>
     <div class="gl-body">
       <div class="ge-fg" style="margin-bottom:10px;"><label>Reason</label><input id="db-void-reason" placeholder="e.g. Entered twice by mistake"/></div>
@@ -2694,7 +2723,7 @@ iframe.nl-badge-frame{display:none !important;}
   <div class="gl-wrap">
     <div class="gl-header">
       <h2>Close Day</h2>
-      <button class="ge-close" onclick="document.getElementById('db-close-modal').style.display='none'">✕</button>
+      <button class="ge-close" onclick="document.getElementById('db-close-modal').classList.remove('open')">✕</button>
     </div>
     <div class="gl-body">
       <div id="db-close-summary" style="font-size:13px;color:var(--text2);margin-bottom:10px;"></div>
@@ -2708,7 +2737,7 @@ iframe.nl-badge-frame{display:none !important;}
   <div class="gl-wrap">
     <div class="gl-header">
       <h2>Correct Today's Count</h2>
-      <button class="ge-close" onclick="document.getElementById('db-correct-modal').style.display='none'">✕</button>
+      <button class="ge-close" onclick="document.getElementById('db-correct-modal').classList.remove('open')">✕</button>
     </div>
     <div class="gl-body">
       <div class="ge-fg" style="margin-bottom:10px;"><label>Corrected cash counted (₹)</label><input id="db-correct-counted" type="number" placeholder="0" inputmode="numeric"/></div>
@@ -3060,8 +3089,8 @@ iframe.nl-badge-frame{display:none !important;}
     <div class="modal-body">
       <!-- Bill type toggle -->
       <div style="display:flex;gap:6px;margin-bottom:12px;background:var(--bg2);border-radius:12px;padding:4px;" class="no-print">
-        <button id="btype-gst" onclick="setBillType('gst')" style="flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,var(--gold-dark),var(--gold));color:#1a1200;transition:all .2s;">&#128196; GST Tax Invoice</button>
-        <button id="btype-memo" onclick="setBillType('memo')" style="flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;background:transparent;color:var(--text2);transition:all .2s;">&#128203; Memo / Cash Bill</button>
+        <button id="btype-gst" onclick="setBillType('gst')" style="flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,var(--gold-dark),var(--gold));color:#1a1200;transition:background .2s,color .2s;">&#128196; GST Tax Invoice</button>
+        <button id="btype-memo" onclick="setBillType('memo')" style="flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;background:transparent;color:var(--text2);transition:background .2s,color .2s;">&#128203; Memo / Cash Bill</button>
       </div>
       <div id="invoice-content"></div>
       <div style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap" class="no-print">

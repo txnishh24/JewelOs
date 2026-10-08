@@ -1457,14 +1457,14 @@ function calcOrdEst(){
 function ordCustAuto(){
   var q=(document.getElementById('of-cust').value||'').toLowerCase().trim();
   var box=document.getElementById('of-cust-sug');
-  if(!q||q.length<2){if(box)box.style.display='none';return;}
+  if(!q||q.length<2){if(box)box.classList.remove('show');return;}
   var seen={};
   var matches=S.sales.concat(S.orders||[]).filter(function(s){
     var n=(s.customer||'').toLowerCase();
     if(n.indexOf(q)===0&&!seen[s.customer]){seen[s.customer]=1;return true;}return false;
   }).slice(0,5);
-  if(!matches.length){if(box)box.style.display='none';return;}
-  if(box){box.style.display='block';box.innerHTML='';}
+  if(!matches.length){if(box)box.classList.remove('show');return;}
+  if(box){box.classList.add('show');box.innerHTML='';}
   matches.forEach(function(s){
     var div=document.createElement('div');
     div.style.cssText='padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);';
@@ -1472,7 +1472,7 @@ function ordCustAuto(){
     div.onclick=function(){
       document.getElementById('of-cust').value=s.customer;
       if(s.phone) document.getElementById('of-phone').value=s.phone;
-      if(box) box.style.display='none';
+      if(box) box.classList.remove('show');
     };
     if(box) box.appendChild(div);
   });

@@ -400,7 +400,7 @@ function openAdjustStockModal(id){
   }
   var qtyEl = document.getElementById('as-new-qty');
   if(qtyEl) qtyEl.value = p.qty;
-  document.getElementById('adjust-stock-modal').style.display = 'block';
+  document.getElementById('adjust-stock-modal').classList.add('open');
 }
 
 function submitAdjustStock(){
@@ -408,7 +408,7 @@ function submitAdjustStock(){
   if(isNaN(newQty) || newQty < 0){ toast('Enter a valid quantity (0 or more)'); return; }
   var id = _asProductId;
   updQty(id, newQty); // updQty takes the new TOTAL quantity, not a delta
-  document.getElementById('adjust-stock-modal').style.display = 'none';
+  document.getElementById('adjust-stock-modal').classList.remove('open');
   toast('Stock adjusted');
 }
 
@@ -613,15 +613,15 @@ function initSaleDate(){
 function custAutocomplete(){
   var q=(document.getElementById('s-cust').value||'').toLowerCase().trim();
   var box=document.getElementById('cust-suggestions');
-  if(!q){box.style.display='none';return;}
+  if(!q){box.classList.remove('show');return;}
   var seen={};
   var matches=S.sales.filter(function(s){
     var n=(s.customer||'').toLowerCase();
     if(n.indexOf(q)===0&&!seen[s.customer]){seen[s.customer]=1;return true;}
     return false;
   }).slice(0,5);
-  if(!matches.length){box.style.display='none';return;}
-  box.style.display='block';
+  if(!matches.length){box.classList.remove('show');return;}
+  box.classList.add('show');
   box.innerHTML=matches.map(function(s){
     return '<div style="padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);" onclick="fillCust(\''+jsAttrEsc(s.customer)+'\',\''+jsAttrEsc(s.phone||'')+'\')">'+
       '<strong>'+escHtml(s.customer)+'</strong>'+(s.phone?' &bull; '+escHtml(s.phone):'')+
@@ -638,7 +638,7 @@ function fillCust(name,phone){
   // characters needed to break out of the onclick attribute).
   document.getElementById('s-cust').value=name;
   document.getElementById('s-phone').value=phone;
-  document.getElementById('cust-suggestions').style.display='none';
+  document.getElementById('cust-suggestions').classList.remove('show');
 }
 
 function renderSaleItems(){
@@ -1880,7 +1880,7 @@ function clearSale(){
   ['s-making','s-diamond','s-gst','s-disc','s-advance'].forEach(function(id){document.getElementById(id).value='0';});
   document.getElementById('s-date').value=dbDayKey(new Date()); // local IST day, not toISOString()'s UTC day
   document.getElementById('s-invno').value=''; // assigned at save time
-  document.getElementById('cust-suggestions').style.display='none';
+  document.getElementById('cust-suggestions').classList.remove('show');
   // Clear old gold fields
   var ogDE=document.getElementById('s-oldgold-direct');if(ogDE)ogDE.value='';
   var ogWE=document.getElementById('s-oldgold-wt');if(ogWE)ogWE.value='';

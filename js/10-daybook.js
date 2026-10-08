@@ -1117,9 +1117,9 @@ function dbOpenEntryModal(){
   var amtEl = document.getElementById('db-entry-amt'); if(amtEl) amtEl.value = '';
   var noteEl = document.getElementById('db-entry-note'); if(noteEl) noteEl.value = '';
   var partyEl = document.getElementById('db-entry-party'); if(partyEl) partyEl.value = '';
-  var sugEl = document.getElementById('db-party-suggestions'); if(sugEl) sugEl.style.display = 'none';
+  var sugEl = document.getElementById('db-party-suggestions'); if(sugEl) sugEl.classList.remove('show');
   _dbEntryParty = null;
-  document.getElementById('db-entry-modal').style.display = 'block';
+  document.getElementById('db-entry-modal').classList.add('open');
 }
 
 // §4.3 type-ahead — same inline pattern as the sale form's custAutocomplete(),
@@ -1131,13 +1131,13 @@ function dbPartyAutocomplete(){
   var q = normName((document.getElementById('db-entry-party')||{}).value);
   var box = document.getElementById('db-party-suggestions');
   if(!box) return;
-  if(!q){ box.style.display='none'; return; }
+  if(!q){ box.classList.remove('show'); return; }
   var qd = normPhone(q);
   var matches = (S.customers||[]).filter(function(c){
     return normName(c.name).indexOf(q)===0 || (qd.length>=3 && normPhone(c.phone).indexOf(qd)>-1);
   }).slice(0,5);
-  if(!matches.length){ box.style.display='none'; return; }
-  box.style.display='block';
+  if(!matches.length){ box.classList.remove('show'); return; }
+  box.classList.add('show');
   box.innerHTML = matches.map(function(c){
     return '<div style="padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);" onclick="dbFillParty(\''+jsAttrEsc(c.id)+'\')">'+
       '<strong>'+escHtml(c.name)+'</strong>'+(c.phone?' &bull; '+escHtml(c.phone):'')+
@@ -1149,7 +1149,7 @@ function dbFillParty(custId){
   var c = (S.customers||[]).find(function(x){ return x.id === custId; });
   if(!c) return;
   document.getElementById('db-entry-party').value = c.name || c.phone || '';
-  document.getElementById('db-party-suggestions').style.display = 'none';
+  document.getElementById('db-party-suggestions').classList.remove('show');
   _dbEntryParty = c;
 }
 
@@ -1174,7 +1174,7 @@ function dbSubmitEntry(){
     : (partyIsPhone ? {name:'', phone:partyText} : {name:partyText, phone:''});
   dbAddEntry(dbUiDate(), DB_CATS[_dbEntryCat].dir, amt, _dbEntryCat, note, function(err){
     if(err){ toast('⚠ Could not save: '+dbErrText(err)); return; }
-    document.getElementById('db-entry-modal').style.display = 'none';
+    document.getElementById('db-entry-modal').classList.remove('open');
     toast('✓ Entry saved');
     renderDayBook();
   }, party);
@@ -1183,7 +1183,7 @@ function dbSubmitEntry(){
 function dbOpenVoidModal(entryId){
   _dbVoidTargetId = entryId;
   var el = document.getElementById('db-void-reason'); if(el) el.value = '';
-  document.getElementById('db-void-modal').style.display = 'block';
+  document.getElementById('db-void-modal').classList.add('open');
 }
 
 function dbSubmitVoid(){
@@ -1191,7 +1191,7 @@ function dbSubmitVoid(){
   if(!reason.trim()){ toast('⚠ Enter a reason'); return; }
   dbVoidEntry(_dbVoidTargetId, reason, function(err){
     if(err){ toast('⚠ Could not void: '+dbErrText(err)); return; }
-    document.getElementById('db-void-modal').style.display = 'none';
+    document.getElementById('db-void-modal').classList.remove('open');
     toast('✓ Entry voided');
     renderDayBook();
   });
@@ -1203,7 +1203,7 @@ function dbOpenCloseModal(){
   var sum = document.getElementById('db-close-summary');
   if(sum) sum.innerHTML = 'Book shows a closing balance of <b>'+fmt(v.closing)+'</b> for '+fmtDate(dateKey)+'. Count the physical cash in hand and enter it below.';
   var el = document.getElementById('db-close-counted'); if(el) el.value = '';
-  document.getElementById('db-close-modal').style.display = 'block';
+  document.getElementById('db-close-modal').classList.add('open');
 }
 
 function dbSubmitClose(){
@@ -1213,7 +1213,7 @@ function dbSubmitClose(){
   safeConfirm('Close '+fmtDate(dateKey)+'?', 'Once closed, this day\'s figures are locked. A later correction to a bill dated today shows up as an adjustment on a future day, not a rewrite of this one.', function(){
     dbCloseDay(dateKey, counted, function(err, res){
       if(err){ toast('⚠ Could not close: '+dbErrText(err)); return; }
-      document.getElementById('db-close-modal').style.display = 'none';
+      document.getElementById('db-close-modal').classList.remove('open');
       toast('✓ Day closed');
       renderDayBook();
       if(res.diff !== 0){
@@ -1237,7 +1237,7 @@ function dbSubmitClose(){
 function dbOpenCorrectModal(){
   var el = document.getElementById('db-correct-counted'); if(el) el.value = '';
   var r = document.getElementById('db-correct-reason'); if(r) r.value = '';
-  document.getElementById('db-correct-modal').style.display = 'block';
+  document.getElementById('db-correct-modal').classList.add('open');
 }
 
 function dbSubmitCorrect(){
@@ -1246,7 +1246,7 @@ function dbSubmitCorrect(){
   if(!(counted >= 0)){ toast('⚠ Enter a valid amount'); return; }
   dbCorrectCount(dbUiDate(), counted, reason, function(err){
     if(err){ toast('⚠ Could not correct: '+dbErrText(err)); return; }
-    document.getElementById('db-correct-modal').style.display = 'none';
+    document.getElementById('db-correct-modal').classList.remove('open');
     toast('✓ Count corrected');
     renderDayBook();
   });
