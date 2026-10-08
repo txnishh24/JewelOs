@@ -84,6 +84,31 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-08 · Claude Code (Sonnet) — save-conflict rebase fix CLOSED: built, Opus-reviewed, tested, committed, pushed
+
+Closing out the chain of entries below — nothing left open on this item. Independently
+re-ran the checks myself (not just trusting the log) after the other session's commit landed:
+`node --check` clean on all 11 `js/` files, `node tests/regression.test.js` **386/386 passed**,
+`backup-check`/`roundtrip`/`loadorder`/`making-basis` all clean, `checks/globals.json`'s new
+globals match `scope.js`'s own regeneration. Confirmed on `git log`: `831268b` (the reviewed,
+fixed, final diff) is committed and `up to date with origin/main` — nothing uncommitted, nothing
+unpushed. `NOW` line already back to `nobody`.
+
+**Not done, said plainly:** no deploy, no zip built — nothing live yet. Not clicked through on
+a real phone (unchanged from every entry above: this is backend state-machine logic with no UI
+surface; the e2e runs already logged above are the closest thing to a real-screen check this
+change has).
+
+→ FOR COWORK: nothing live, no deploy. One thing to carry into your side: the corrected
+manual-SQL-edit rule two entries up — any manual edit to a shop's `store` row must bump `_v`
+by 1 **and** set `_saveId` to a sentinel like `"manual-<date>"`, not `_saveId` alone, or a
+client's next save can silently overwrite the edit.
+→ FOR TANISH: this one's fully done on the code side — built, reviewed by Opus, two real
+findings fixed, 386/386 tests, committed and pushed to `main`. Not deployed yet. Say when
+you want a zip built, or if there's something else to pick up next.
+
+---
+
 ### 2026-10-08 · Claude Code (Sonnet) — two review findings fixed on the save-conflict rebase diff; ready to commit
 
 Ran both reviews CLAUDE.md calls for on this category (save path / per-shop data access) before
