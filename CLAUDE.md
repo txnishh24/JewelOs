@@ -133,9 +133,16 @@ Delegate to these installed agents automatically, without being asked:
 - **JewelOS-specific review, after any js/ change** → `jewelos-bug-pattern-reviewer`, then `jewelos-test-runner`
 - **After every Netlify deploy, before telling Tanish it's live** → `jewelos-deploy-verifier`
 - **End of any session** → `jewelos-handoff-writer`
+- **Auth, session, payment, RLS/migration, or per-shop data-access changes, and before any release** → `jewelos-security-auditor`
+- **A diff touching sale/stock, billing, girvi, purchases, daybook, or sync/retry logic** → `jewelos-invariant-tester`, then `jewelos-test-runner`
+- **Before any release, and monthly otherwise** → `jewelos-readiness-auditor` (synthesis only — it delegates to `jewelos-deploy-verifier` and `jewelos-security-auditor` rather than duplicating them)
 
 Rules:
 - Use at most two agents per task.
+- **Pre-release exception:** `jewelos-security-auditor`, `jewelos-invariant-tester`,
+  `jewelos-readiness-auditor`, and `jewelos-deploy-verifier` may all run for a single
+  release — that's four agents, not two, and is pre-approved specifically for this
+  checklist. Don't extend the exception to anything else.
 - Skip agents for trivial edits.
 - Use `Agents Orchestrator` only for large multi-step features that have a written spec.
 - Follow `MODEL-POLICY.md` for model choice on every delegated task.
