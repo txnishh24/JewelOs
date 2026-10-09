@@ -2687,6 +2687,190 @@ test('an already-issued bill is not restated when its product has a making charg
     'an old bill must keep making 0, got ' + t.mc);
 });
 
+// ── Bug: a partial sale of a multi-piece stock item billed qty:1 at the
+// whole remaining batch's weight (9 Oct) ────────────────────────────────
+// buildSaleObj() hardcoded qty:1 and used the product's current (multi-
+// piece) `weight` directly, while deductSoldStock() correctly deducted the
+// real quantity typed into the sale row. Selling 2 of 3 identical 10g rings
+// removed 2 from stock but billed 1 piece at 30g (all three). Every reader
+// of a saved sale (calcSaleTotals, reports, GST exports, customer/product
+// history) already does `item.weight * item.qty`, so the fix is to make
+// buildSaleObj() (and updateSum()'s matching preview branch) produce the
+// real quantity and the PER-PIECE weight, not a convention change.
+console.log('\nPartial multi-piece sale bills the real quantity and per-piece weight (9 Oct):');
+
+function partialSaleScenario(saleQty, productOverrides){
+  var a = loadApp();
+  a.S.rates = { g24:7500, g22:7200, g18:6000, g14:4500, sil:90 };
+  var p = { id:'p1', name:'Ring', metal:'gold', purity:'22K',
+            unitWeight:10, qty:3, weight:30, netWeight:30, mcRate:0,
+            status:'available', sku:'GLD-200', huid:'' };
+  Object.keys(productOverrides||{}).forEach(function(k){ p[k] = productOverrides[k]; });
+  a.S.products = [p];
+  a.UI.saleMode = 'stock';
+  a.UI.saleItems = [{ pid:'p1', qty:saleQty }];
+  return a;
+}
+
+test('a partial sale (2 of 3 identical rings) bills the real quantity, not 1', function(){
+  var a = partialSaleScenario(2);
+  var sale = a.buildSaleObj();
+  assert(sale.items[0].qty === 2, 'sale item qty should be 2 (the real quantity sold), got ' + sale.items[0].qty);
+});
+
+test('a partial sale bills the PER-PIECE weight (10g), not the whole remaining batch (30g)', function(){
+  var a = partialSaleScenario(2);
+  var sale = a.buildSaleObj();
+  assert(approxEqual(sale.items[0].weight, 10, 0.001),
+    'sale item weight should be one piece (10g), got ' + sale.items[0].weight);
+  assert(approxEqual(sale.items[0].grossWeight, 10, 0.001),
+    'grossWeight should be one piece (10g), not the batch (30g), got ' + sale.items[0].grossWeight);
+});
+
+test('the billed gold value prices the 2 pieces sold, not all 3 in stock', function(){
+  var a = partialSaleScenario(2);
+  var sale = a.buildSaleObj();
+  var expectedGrand = 7200 * 10 * 2; // rate x per-piece weight x qty sold = 144000
+  assert(approxEqual(sale.lockedGrand, expectedGrand, 1),
+    'locked total should price exactly 2 pieces (144000), got ' + sale.lockedGrand);
+});
+
+test('stock deduction removes exactly the billed quantity, and sold + remaining weight reconciles to the original batch', function(){
+  var a = partialSaleScenario(2);
+  var sale = a.buildSaleObj();
+  a.deductSoldStock(a.UI.saleItems, sale);
+  var p = a.S.products[0];
+  assert(p.qty === 1, 'expected 1 piece left in stock (3 - 2), got ' + p.qty);
+  assert(approxEqual(p.weight, 10, 0.001), 'remaining stock weight should be 1 piece (10g), got ' + p.weight);
+  var soldWeight = sale.items[0].weight * sale.items[0].qty;
+  assert(approxEqual(soldWeight + p.weight, 30, 0.001),
+    'sold weight (' + soldWeight + ') + remaining stock weight (' + p.weight + ') should equal the original batch (30g)');
+});
+
+test('a full-batch sale (qty 3 of 3) still bills all 3 pieces at the full weight — no regression for the common case', function(){
+  var a = partialSaleScenario(3);
+  var sale = a.buildSaleObj();
+  assert(sale.items[0].qty === 3, 'expected qty 3, got ' + sale.items[0].qty);
+  assert(approxEqual(sale.items[0].weight, 10, 0.001), 'per-piece weight should still be 10g, got ' + sale.items[0].weight);
+  assert(approxEqual(7200*10*3, sale.lockedGrand, 1), 'locked total should price all 3 pieces, got ' + sale.lockedGrand);
+});
+
+test('a single-piece product with no unitWeight (the common, pre-existing case) is unaffected by this fix', function(){
+  // Covers the overwhelmingly common real-world case: a one-off piece with
+  // qty 1 and no unitWeight field at all. productUnitWeight() must fall
+  // back to weight/qty = weight, exactly reproducing the old behaviour.
+  var a = makingScenario(); // qty:1, weight:8.5, no unitWeight (defined above)
+  var sale = a.buildSaleObj();
+  assert(sale.items[0].qty === 1, 'expected qty 1, got ' + sale.items[0].qty);
+  assert(approxEqual(sale.items[0].weight, 8.5, 0.001), 'expected weight 8.5 (unchanged), got ' + sale.items[0].weight);
+  assert(approxEqual(sale.items[0].making, 4250, 1), 'making charge must still be 4250 (unchanged), got ' + sale.items[0].making);
+});
+
+test('end-to-end: recordSale() on a partial multi-piece sale persists the real quantity, and the saved sale record agrees with the stock deduction', function(){
+  var a = loadApp();
+  a.S.rates = { g24:7500, g22:7200, g18:6000, g14:4500, sil:90 };
+  a.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', unitWeight:10, qty:3, weight:30, netWeight:30, mcRate:0, status:'available', sku:'GLD-200', huid:'' }];
+  a.S.sales = [];
+  a.UI.saleMode = 'stock';
+  a.UI.saleItems = [{ pid:'p1', qty:2 }]; // selling 2 of the 3 identical rings
+  a.upsertCustomer = function(){};
+  a.addPaymentRecord = function(){};
+  a.clearSale = function(){};
+  a.renderDash = function(){};
+  a.switchTab = function(){};
+  a.isDuplicateSale = function(){ return false; };
+  a.saveToCloud = function(cb){ cb(null); };
+  a._saleFormBillType = 'memo'; // sidesteps recordSale()'s "GST bill needs a GST %" guard — not what this test is about
+  var _orig = a.document.getElementById;
+  // A fixed typed invoice number keeps the commit synchronous (a blank
+  // number takes the async server-counter path, irrelevant to this test).
+  a.document.getElementById = function(id){
+    if(id === 's-cust') return { style:{}, value:'Test Customer' };
+    if(id === 's-invno') return { value:'INV-0100' };
+    return _orig(id);
+  };
+
+  a.recordSale();
+
+  assert(a.S.sales.length === 1, 'expected exactly one sale recorded, got ' + a.S.sales.length);
+  var savedSale = a.S.sales[0];
+  assert(savedSale.items[0].qty === 2, 'the PERSISTED sale record must bill qty 2, got ' + savedSale.items[0].qty);
+  assert(approxEqual(savedSale.items[0].weight, 10, 0.001), 'persisted sale item weight should be one piece (10g), got ' + savedSale.items[0].weight);
+
+  var p = a.S.products[0];
+  assert(p.qty === 1, 'stock should have exactly 1 piece left (3 - 2), got ' + p.qty);
+  assert(approxEqual(p.weight, 10, 0.001), 'remaining stock weight should be one piece (10g), got ' + p.weight);
+
+  var billedQty = savedSale.items[0].qty;
+  var deductedQty = 3 - p.qty;
+  assert(billedQty === deductedQty, 'the sale record and the stock deduction must agree on quantity: billed ' + billedQty + ', deducted ' + deductedQty);
+});
+
+test('retry: a failed save on a partial multi-piece sale rolls back stock completely, so the retry deducts the real quantity exactly once', function(){
+  var a = loadApp();
+  a.S.rates = { g24:7500, g22:7200, g18:6000, g14:4500, sil:90 };
+  a.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', unitWeight:10, qty:3, weight:30, netWeight:30, mcRate:0, status:'available', sku:'GLD-200', huid:'' }];
+  a.S.sales = [];
+  a.UI.saleMode = 'stock';
+  a.UI.saleItems = [{ pid:'p1', qty:2 }];
+  a.upsertCustomer = function(){};
+  a.addPaymentRecord = function(){};
+  a.clearSale = function(){};
+  a.renderDash = function(){};
+  a.switchTab = function(){};
+  a.isDuplicateSale = function(){ return false; };
+  a._saleFormBillType = 'memo'; // sidesteps recordSale()'s "GST bill needs a GST %" guard — not what this test is about
+  var _orig = a.document.getElementById;
+  // A fixed typed invoice number keeps the commit synchronous (a blank
+  // number takes the async server-counter path, irrelevant to this test).
+  a.document.getElementById = function(id){
+    if(id === 's-cust') return { style:{}, value:'Test Customer' };
+    if(id === 's-invno') return { value:'INV-0100' };
+    return _orig(id);
+  };
+
+  // First attempt fails (network down) -- sale and stock must both roll back.
+  a.saveToCloud = function(cb){ cb(new Error('network down')); };
+  a.recordSale();
+  assert(a.S.sales.length === 0, 'failed save must leave no sale behind, got ' + a.S.sales.length);
+  assert(a.S.products[0].qty === 3, 'failed save must fully restore stock (back to 3), got ' + a.S.products[0].qty);
+
+  // Retry (UI.saleItems unchanged -- same as the user tapping Record again).
+  a.saveToCloud = function(cb){ cb(null); };
+  a.recordSale();
+  assert(a.S.sales.length === 1, 'the retry should succeed with exactly one sale, got ' + a.S.sales.length);
+  assert(a.S.sales[0].items[0].qty === 2, 'the retried sale must still bill the real quantity (2), got ' + a.S.sales[0].items[0].qty);
+  assert(a.S.products[0].qty === 1, 'the retry must deduct exactly once (3 -> 1), not twice, got ' + a.S.products[0].qty);
+});
+
+test('the live sale preview (updateSum) shows the exact gold value, making charge, and total that get locked onto the bill for a partial multi-piece sale', function(){
+  // The 8 tests above all exercise buildSaleObj()/recordSale() -- none of
+  // them call updateSum(), the on-screen preview the staff member actually
+  // sees before tapping Record. updateSum() got the identical partial-sale
+  // fix (per-piece gross weight x real qty, not the whole batch x qty:1),
+  // and its own comment names exactly this risk: "Must match
+  // buildSaleRecord()'s stock branch exactly, or this preview disagrees
+  // with the total actually locked onto the bill." That was never pinned.
+  var a = partialSaleScenario(2, { mcRate:500 });
+  a.updateSum();
+  var expectedGv = 7200*10*2;        // rate x per-piece weight x qty sold = 144000
+  var expectedMc = 500*10*2;         // mcRate x per-piece gross weight x qty sold = 10000
+  var expectedTotal = expectedGv + expectedMc; // no GST/discount in this scenario = 154000
+  assert(a._els['ss-gv'].textContent === a.fmt(expectedGv),
+    'preview gold value should be ' + a.fmt(expectedGv) + ', got ' + a._els['ss-gv'].textContent);
+  assert(a._els['ss-mc'].textContent === a.fmt(expectedMc),
+    'preview making charge should be ' + a.fmt(expectedMc) + ', got ' + a._els['ss-mc'].textContent);
+  assert(a._els['ss-total'].textContent === a.fmt(expectedTotal),
+    'preview total should be ' + a.fmt(expectedTotal) + ', got ' + a._els['ss-total'].textContent);
+
+  // And the bill that actually gets locked and saved when Record is tapped
+  // right after must show that SAME total -- a customer must never see one
+  // number on screen and get billed another.
+  var sale = a.buildSaleObj();
+  assert(sale.lockedGrand === expectedTotal,
+    'the locked bill total must match what the preview showed before Record was tapped: previewed ' + expectedTotal + ', locked ' + sale.lockedGrand);
+});
+
 // ── Bug: dead onboarding wizard covered the dashboard (17 Sep) ──────────
 // #onboard-wizard was made .visible 1.2s after a new shop's first boot, but
 // its only renderer call went to renderWizardStep() — the GIRVI form's

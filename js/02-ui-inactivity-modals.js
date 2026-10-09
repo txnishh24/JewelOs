@@ -1084,11 +1084,15 @@ function updateSum(){
       var bb=parseFloat(item.blackBeads)||0;
       var dw=parseFloat(item.diamondWt)||0;
       var ow=parseFloat(item.otherWt)||0;
-      var netWt=Math.max(0,p.weight-bb-dw-ow);
-      gv+=getRate(p.metal,p.purity)*netWt;
-      // Must match buildSaleRecord()'s stock branch exactly, or this preview
+      var qty=Math.max(1,parseInt(item.qty,10)||1);
+      // Per-PIECE gross weight, not the product's current (multi-piece)
+      // total — selling 2 of a batch of 3 must price 2 pieces, not 3's worth.
+      var unitGrossWt=productUnitWeight(p);
+      var netWt=Math.max(0,unitGrossWt-bb-dw-ow);
+      gv+=getRate(p.metal,p.purity)*netWt*qty;
+      // Must match buildSaleObj()'s stock branch exactly, or this preview
       // disagrees with the total actually locked onto the bill.
-      mc+=productMakingAmount(p, netWt);
+      mc+=productMakingAmount(p, netWt, unitGrossWt)*qty;
     });
   }
   mc+=(parseFloat(document.getElementById('s-making').value)||0);
@@ -1222,22 +1226,38 @@ function buildSaleObj(){
       var bb=parseFloat(item.blackBeads)||0;
       var dw=parseFloat(item.diamondWt)||0;
       var ow=parseFloat(item.otherWt)||0;
-      var netWt=Math.max(0,p.weight-bb-dw-ow);
+      // The quantity actually being sold out of this stock line — was
+      // hardcoded to 1 here, which bills 1 piece while deductSoldStock()
+      // (called separately, on UI.saleItems, not on this returned object)
+      // correctly removes the real quantity. Every downstream consumer of
+      // a saved sale (calcSaleTotals, reports, GST exports, customer/
+      // product history — all of them do `i.weight*i.qty`) already expects
+      // qty to be the real count and weight to be PER PIECE, so this is the
+      // one place that was feeding them wrong data, not a convention change.
+      var qty=Math.max(1,parseInt(item.qty,10)||1);
+      // Per-PIECE gross weight, not the product's current (multi-piece)
+      // total — see productUnitWeight(). Selling 2 of a batch of 3 must
+      // bill 2 pieces' worth, and leave the batch's weight (recomputed by
+      // deductSoldStock from unitWeight * remaining qty) representing the 1
+      // piece still in stock, not double-count the piece(s) just sold.
+      var unitGrossWt=productUnitWeight(p);
+      var netWt=Math.max(0,unitGrossWt-bb-dw-ow);
       var lockedRate=getRate(p.metal,p.purity);
       return{
-        pid:p.id,name:p.name,qty:1,
-        grossWeight:p.weight,
+        pid:p.id,name:p.name,qty:qty,
+        grossWeight:unitGrossWt,
         blackBeads:bb,
         diamondWt:dw,
         otherWt:ow,
-        weight:netWt,  // net gold weight used for billing
+        weight:netWt,  // net gold weight of ONE piece — callers multiply by qty
         purity:p.purity,metal:p.metal,
         // The product's "Making Charge ₹/g" (mcRate), converted here to the
-        // flat rupee amount itemMakingAmount() expects for a stock item, and
-        // charged on gross weight like every other making charge. Stored as a
-        // value, not a rate, so editing the product later cannot restate a
-        // bill that was already printed and paid.
-        making:productMakingAmount(p, netWt),
+        // flat per-piece rupee amount itemMakingAmount() expects for a stock
+        // item (it multiplies by qty itself), charged on gross weight like
+        // every other making charge. Stored as a value, not a rate, so
+        // editing the product later cannot restate a bill that was already
+        // printed and paid.
+        making:productMakingAmount(p, netWt, unitGrossWt),
         diamond:0,
         huid:p.huid||'',
         lockedRate:lockedRate

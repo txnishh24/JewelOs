@@ -73,6 +73,7 @@
   "getRate",
   "mktVal",
   "productMakingAmount",
+  "productUnitWeight",
   "productExtrasProblem",
   "girviItemWt",
   "getItemRate",
@@ -839,6 +840,7 @@
   "getRate",
   "mktVal",
   "productMakingAmount",
+  "productUnitWeight",
   "productExtrasProblem",
   "girviItemWt",
   "getItemRate",
@@ -1917,6 +1919,7 @@
   "dwEl",
   "mkEl",
   "scEl",
+  "unitGrossWt",
   "saleItems",
   "ogWtB",
   "ogPurB",
@@ -3038,10 +3041,10 @@
  "implicit": [
   "opts",
   "callback",
+  "grossWt",
   "tab",
   "billType",
   "receiptType",
-  "_saveLockToken",
-  "grossWt"
+  "_saveLockToken"
  ]
 }

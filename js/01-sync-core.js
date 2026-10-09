@@ -1000,9 +1000,26 @@ function mktVal(p){
 // Making on a stock item: the product's Making Charge ₹/g on gross weight
 // (unchanged), plus wastage / VA % of the gold value of the net weight sold
 // (Tanish 1 Oct). Used by the sale preview AND the locked bill, so they agree.
-function productMakingAmount(p, netWt){
-  return (parseFloat(p.mcRate)||0)*(parseFloat(p.weight)||0)
+// `grossWt` is the weight the mcRate term is charged on; omit it and it
+// falls back to the product's own (current, possibly multi-piece) `weight`
+// field — every pre-existing caller relies on exactly that default. A sale
+// selling fewer pieces than are left in stock must pass the PER-PIECE gross
+// weight explicitly (see buildSaleObj/updateSum), or this flat-rate term
+// silently prices the sold piece(s) on the whole remaining batch's weight.
+function productMakingAmount(p, netWt, grossWt){
+  if(grossWt===undefined) grossWt = parseFloat(p.weight)||0;
+  return (parseFloat(p.mcRate)||0)*grossWt
        + (parseFloat(p.wastagePct)||0)/100*(netWt||0)*getRate(p.metal,p.purity);
+}
+// The weight of ONE piece of a stock product, for billing a specific
+// quantity sold rather than the product's current (multi-piece) total.
+// `unitWeight` is the authoritative per-piece figure where set (CLAUDE.md:
+// "weight is derived, weight = unitWeight * qty"); for a product that
+// predates that field, p.qty is always 1 (each such product IS one piece),
+// so p.weight/p.qty already equals the per-piece weight.
+function productUnitWeight(p){
+  if(p.unitWeight>0) return p.unitWeight;
+  return (p.qty>0) ? (parseFloat(p.weight)||0)/p.qty : (parseFloat(p.weight)||0);
 }
 // Product form checks; returns words, or ''. Both addProduct() and
 // saveEditProd() already call this right after reading grossWt, so this is
