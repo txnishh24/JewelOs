@@ -17,7 +17,7 @@
   src="https://js.sentry-cdn.com/8eb35178a8a4cf454e8c7895ee7c5194.min.js"
   crossorigin="anonymous"
 ></script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="theme-color" content="#1a1814"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-title" content="Sri Sai"/>
@@ -247,7 +247,7 @@ body{
   color:var(--on-ink-muted);font-size:11px;font-weight:600;
   font-family:inherit;cursor:pointer;transition:color var(--t1),background var(--t1);
 }
-.hdr-btn:hover,.hdr-btn:focus-visible{color:var(--on-ink);background:rgba(255,255,255,.06);}
+.hdr-btn:focus-visible{color:var(--on-ink);background:rgba(255,255,255,.06);}
 
 /* ── SYNC ────────────────────────────────────────── */
 .sync-dot{width:6px;height:6px;border-radius:50%;background:var(--ink4);transition:background .4s;}
@@ -268,7 +268,7 @@ body{
   font-family:inherit;white-space:nowrap;font-weight:500;
   transition:color var(--t1),background var(--t1);letter-spacing:.04em;
 }
-.dtab:hover{color:var(--on-ink);background:rgba(255,255,255,.05);}
+
 .dtab.active{
   background:var(--ink2);
   color:var(--on-ink);border:none;
@@ -314,7 +314,7 @@ body{
   content:'';position:absolute;top:0;left:0;right:0;height:3px;
   background:var(--ma,linear-gradient(90deg,var(--gold-dark),var(--gold)));
 }
-.metric:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px);}
+
 .metric-label{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px;font-weight:600;}
 .metric-value{
   font-family:var(--font-display);
@@ -379,7 +379,7 @@ body{
   color:var(--ink);border:none;border-radius:8px;font-size:12px;font-weight:700;
   cursor:pointer;font-family:inherit;transition:background var(--t1),box-shadow var(--t1);letter-spacing:.04em;
 }
-.rate-save:hover{background:linear-gradient(135deg,var(--gold),var(--gold-light));box-shadow:var(--shadow-gold);}
+
 
 /* ── METAL TABS ──────────────────────────────────── */
 .metal-tabs{display:flex;gap:6px;margin-bottom:.9rem;}
@@ -393,7 +393,7 @@ body{
    nothing ever added .active, so both tabs used to render unselected. The
    .mtab.<x> form keeps the selected rule at the same specificity as .mtab:hover
    and later in the sheet, so hovering the selected tab does not flip its colour. */
-.mtab:hover{background:var(--silver-bg);color:var(--silver-dark);border-color:rgba(74,96,112,.3);}
+
 .mtab.mtab-g{background:var(--gold-bg);color:var(--gold-dark);border-color:rgba(179,146,87,.35);}
 .mtab.mtab-s{background:var(--silver-bg);color:var(--silver-dark);border-color:rgba(74,96,112,.3);}
 
@@ -404,7 +404,7 @@ body{
   border:0.5px solid var(--border2);background:transparent;color:var(--text3);
   font-family:inherit;font-weight:500;transition:background var(--t1),color var(--t1),border-color var(--t1);
 }
-.pill:hover{border-color:var(--border-gold);color:var(--ink);}
+
 .pill.active{background:var(--gold-bg);color:var(--gold-dark);border-color:rgba(179,146,87,.4);font-weight:600;}
 
 /* ── SEARCH ROW ──────────────────────────────────── */
@@ -418,6 +418,12 @@ body{
 .search-row input:focus,.search-row select:focus{
   outline:none;border-color:var(--border-gold);
   box-shadow:0 0 0 3px rgba(179,146,87,.1);
+}
+/* Purchases' secondary filter row: collapsed behind a button on phones,
+   always open on tablet/desktop where there's room for it. */
+@media(min-width:640px){
+  button.pb-filters-toggle{display:none;}
+  .pb-filters-body{display:flex !important;}
 }
 
 /* ── BUTTONS ─────────────────────────────────────── */
@@ -433,7 +439,7 @@ body{
   color:var(--ink);font-family:inherit;white-space:nowrap;
   transition:background var(--t1),border-color var(--t1);
 }
-.btn:hover{background:var(--bg2);border-color:var(--border3);}
+
 .btn:active{background:var(--bg3);}
 .btn:disabled{opacity:.45;cursor:not-allowed;}
 .btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
@@ -441,24 +447,24 @@ body{
   min-height:48px;
   background:var(--gold);color:var(--on-gold);border-color:transparent;font-weight:600;
 }
-.btn-gold:hover{background:var(--gold-light);}
+
 .btn-gold:active{background:var(--gold-deep);}
 .btn-warning{color:var(--warning);border-color:rgba(138,78,12,.35);background:transparent;font-weight:500;}
-.btn-warning:hover{background:var(--warning-bg);}
+
 .btn-dark{background:var(--surface);color:var(--ink);border-color:var(--border2);font-weight:500;}
-.btn-dark:hover{background:var(--bg2);}
+
 /* Solid-ink variant for the header-row "+ Add X" actions (Stock/Orders/Purchases,
    confirmed against redesign-shots) -- a separate class from .btn-dark so the
    other seven screens still using .btn-dark (Girvi/Day Book WhatsApp-share,
    assorted toggle/dialog buttons) are untouched until their own phase. */
 .btn-ink{background:var(--ink);color:var(--on-ink);border-color:var(--ink);font-weight:600;}
-.btn-ink:hover{background:var(--ink2);}
+
 .btn-danger{color:var(--danger);border-color:rgba(168,49,42,.35);background:transparent;}
-.btn-danger:hover{background:var(--danger-bg);}
+
 .btn-success{color:var(--success);border:none;background:transparent;}
-.btn-success:hover{background:var(--success-bg);}
+
 .btn-info{color:var(--info);border:none;background:transparent;}
-.btn-info:hover{background:var(--info-bg);}
+
 .btn-sm{min-height:var(--tap);padding:5px 12px;font-size:var(--text-sm);border-radius:var(--radius-sm);}
 .btn-xs{min-height:var(--tap);padding:3px 8px;font-size:var(--text-sm);border-radius:var(--radius-sm);}
 .btn-full{width:100%;}
@@ -521,7 +527,7 @@ select{
 .version-tag{background:var(--info-bg);color:var(--info);font-size:var(--text-sm);padding:2px 8px;border-radius:var(--radius-pill);margin-left:8px;font-weight:500;}
 
 /* ── TABLE ───────────────────────────────────────── */
-.tbl-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);}
+.tbl-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);touch-action:pan-x pan-y;}
 table{width:100%;border-collapse:collapse;font-size:var(--text-base);min-width:520px;}
 th{
   text-align:left;font-size:10px;font-weight:700;color:var(--text3);
@@ -532,7 +538,23 @@ th{
 td{padding:var(--space-2) var(--space-3);min-height:48px;border-bottom:1px solid var(--border);color:var(--ink);vertical-align:middle;}
 .num{text-align:right;font-weight:500;}
 tr:last-child td{border-bottom:none;}
-tr:hover td{background:var(--bg2);}
+
+/* Mobile card layout for the inventory list — same data and actions as the
+   table, swapped by breakpoint so nothing is ever rendered twice at once. */
+#inv-cards{display:none;}
+@media(max-width:639px){
+  #inv-table-wrap{display:none;}
+  #inv-cards{display:block;}
+}
+.inv-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;margin-bottom:10px;}
+.inv-card.sold-row{opacity:.5;}
+.inv-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px;}
+.inv-card-name{font-weight:600;font-size:14px;color:var(--ink);}
+.inv-card-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.inv-card-rows{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:13px;color:var(--ink);margin-bottom:10px;}
+.inv-card-rows .lbl{display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:2px;}
+.inv-card-actions{display:flex;gap:5px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border);}
+
 .sold-row td{opacity:.5;}
 .status-avail{
   background:var(--success-bg);color:var(--success);border:0.5px solid rgba(28,96,64,.25);
@@ -576,7 +598,7 @@ tr:hover td{background:var(--bg2);}
 /* ── MODE TOGGLE ─────────────────────────────────── */
 .mode-toggle-wrap{display:flex;gap:4px;margin-bottom:1rem;background:var(--ivory3);border-radius:12px;padding:4px;}
 .mode-btn{flex:1;padding:9px 8px;border-radius:9px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:transparent;color:var(--text3);font-family:inherit;transition:background var(--t2),color var(--t2),box-shadow var(--t2);}
-.mode-btn:hover{color:var(--ink);}
+
 .active-stock,.active-custom{background:var(--surface);color:var(--ink);box-shadow:var(--shadow);font-weight:600;}
 
 /* ── PAY TOGGLES ─────────────────────────────────── */
@@ -614,11 +636,11 @@ tr:hover td{background:var(--bg2);}
 /* ── SPLIT PAYMENT ROWS ──────────────────────────── */
 .split-pay-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:end;margin-bottom:8px;}
 .split-add-btn{width:100%;padding:8px;border:0.5px dashed var(--border2);border-radius:var(--radius);background:transparent;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;margin-top:4px;transition:border-color var(--t1),color var(--t1);}
-.split-add-btn:hover{border-color:var(--border-gold);color:var(--gold-dark);}
+
 
 /* ── ORDER CARDS ─────────────────────────────────── */
 .ord-card{background:var(--surface);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color var(--t2),box-shadow var(--t2);box-shadow:0 1px 3px rgba(0,0,0,.04);}
-.ord-card:hover{border-color:var(--border-gold);box-shadow:var(--shadow-md);}
+
 .ord-card.urgent{border-left:3px solid var(--warning);background:linear-gradient(135deg,var(--warning-bg),var(--surface));}
 
 /* ── ORDER STATUS ────────────────────────────────── */
@@ -634,7 +656,7 @@ tr:hover td{background:var(--bg2);}
 .ord-delivered{background:var(--ivory3);color:var(--text3);}
 .ord-cancelled{background:var(--danger-bg);color:var(--danger);}
 .status-btn{padding:6px 13px;border-radius:8px;font-size:12px;cursor:pointer;border:0.5px solid var(--border2);background:var(--surface);color:var(--ink3);font-family:inherit;transition:background var(--t1);}
-.status-btn:hover{background:var(--ivory2);}
+
 
 /* ── CHARTS ──────────────────────────────────────── */
 .bar-row{margin-bottom:10px;}
@@ -653,21 +675,23 @@ tr:hover td{background:var(--bg2);}
    buttons' natural height, not add a second nav-height's worth of padding. */
 .bnav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--ink);border-top:1px solid rgba(255,255,255,.08);z-index:200;padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:none;}
 .bnav-inner{display:flex;}
-.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 7px;background:transparent;border:none;color:var(--on-ink-muted);font-family:inherit;cursor:pointer;transition:color var(--t1);font-size:10px;font-weight:600;letter-spacing:.04em;}
-.bnav-btn:hover,.bnav-btn.active{color:var(--gold);}
+/* 10 Oct: was 9 buttons at ~41px each (needed the shrink-on-narrow-screens hack
+   below this comment used to live in); now 5 (4 destinations + More), so each
+   gets ~78px on a 375px phone -- plenty of room, and min-height guarantees the
+   44px tap target regardless of how the icon+label content measures. */
+.bnav-btn{flex:1;min-width:0;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:9px 4px 7px;background:transparent;border:none;color:var(--on-ink-muted);font-family:inherit;cursor:pointer;transition:color var(--t1);font-size:10px;font-weight:600;letter-spacing:.04em;}
+.bnav-btn.active{color:var(--gold);}
 .bnav-icon{font-size:20px;line-height:1;}
 .bnav-label{font-size:9px;text-transform:uppercase;letter-spacing:.05em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-/* F5: 9 buttons on a 375px phone get ~41px each; "CUSTOMERS" needed ~50px, so the row
-   ran to 413px and Settings was cut off. Let buttons shrink below their label and
-   tighten the label on narrow screens; anything still too long ends in an ellipsis. */
-.bnav-btn{min-width:0;}
 /* Developer-only cards (Cloud/SQL setup, diagnostics): hidden unless the app is opened with ?dev=1 */
 .dev-only{display:none!important;}
 html.dev .dev-only{display:block!important;}
-@media(max-width:420px){.bnav-btn{padding-left:1px;padding-right:1px;}.bnav-label{font-size:8.5px;letter-spacing:0;text-transform:none;white-space:normal;line-height:1.1;}
-  /* one word that still can't fit (Customers, 48px in 40px): show its short form; the full word stays in the DOM for screen readers */
-  .bnav-label[data-short]{font-size:0;}.bnav-label[data-short]::after{content:attr(data-short);font-size:8.5px;}}
 @media(max-width:639px){.bnav{display:block;}.dtabs{display:none;}}
+
+/* ── MORE MENU (mobile bnav overflow) ────────────────────────────────── */
+.more-menu-item{display:flex;align-items:center;gap:12px;width:100%;min-height:var(--tap);padding:10px 14px;border:none;background:none;font-size:15px;font-weight:500;color:var(--ink);cursor:pointer;font-family:inherit;text-align:left;border-radius:var(--radius);transition:background var(--t1);}
+.more-menu-item .bnav-icon{font-size:18px;}
+.more-menu-item.active{background:var(--bg2);color:var(--gold-dark);font-weight:700;}
 
 /* ── MODALS ──────────────────────────────────────── */
 /* Modal chrome family A (ord/pwd/invoice/edit/edit-bill/cust modals). No
@@ -688,7 +712,7 @@ html.dev .dev-only{display:block!important;}
 .modal-header{padding:var(--space-3) var(--space-4);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);border-radius:var(--radius-xl) var(--radius-xl) 0 0;}
 .modal-header h2{font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);}
 .modal-close{background:transparent;border:none;border-radius:50%;width:var(--tap);height:var(--tap);font-size:var(--text-md);cursor:pointer;color:var(--text2);display:flex;align-items:center;justify-content:center;transition:background var(--t1);}
-.modal-close:hover{background:var(--bg2);color:var(--ink);}
+
 .modal-body{padding:var(--space-4);overflow-y:auto;}
 @media(max-width:640px){
   .modal-bg{align-items:flex-end;padding:0;}
@@ -789,7 +813,7 @@ html.dev .dev-only{display:block!important;}
 .skel-circle{width:36px;height:36px;border-radius:50%;flex-shrink:0;}
 
 .pin-change-btn{background:transparent;border:0.5px solid rgba(201,163,78,.2);border-radius:100px;padding:9px 22px;color:#6a5c48;font-size:11px;cursor:pointer;font-family:inherit;letter-spacing:.08em;text-transform:uppercase;transition:border-color .2s,color .2s;touch-action:manipulation;}
-.pin-change-btn:hover{border-color:rgba(201,163,78,.4);color:#9a8e7c;}
+
 
 /* ── INACTIVITY OVERLAY ──────────────────────────── */
 #inactivity-overlay{position:fixed;top:0;right:0;bottom:0;left:0;background:linear-gradient(160deg,#18160e 0%,#2a1e0a 55%,#16120a 100%);z-index:10000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:2rem;text-align:center;}
@@ -877,11 +901,11 @@ html.dev .dev-only{display:block!important;}
   font-family:inherit;margin-top:4px;transition:opacity .15s;
   min-height:48px; -webkit-tap-highlight-color:transparent;
 }
-.auth-btn:hover{opacity:.9;}
+
 .auth-err{font-size:var(--text-sm);color:var(--danger);text-align:center;margin-top:8px;min-height:18px;}
 .auth-info{color:var(--gold-dark);}
 .auth-link{font-size:var(--text-sm);color:var(--text3);text-align:center;margin-top:12px;}
-.auth-link a{color:var(--gold);cursor:pointer;text-decoration:none;font-weight:600;}
+.auth-link a,.auth-link button{color:var(--gold);cursor:pointer;text-decoration:none;font-weight:600;border:none;background:none;padding:0;font-size:inherit;font-family:inherit;}
 
 /* Mobile sign-in redesign (Aug 2026) — designed intentionally for small
    viewports, not just a shrunk desktop layout. Fixes: input font-size
@@ -1049,11 +1073,11 @@ html.dev .dev-only{display:block!important;}
 
 /* ── Edit button on girvi card (new) ── */
 .gca.edit-btn{color:var(--info);}
-.gca.edit-btn:hover{background:var(--info-bg);}
+
 .gca.ledger-btn{color:var(--success);}
-.gca.ledger-btn:hover{background:var(--success-bg);}
+
 .gca.archive-btn{color:var(--warning);}
-.gca.archive-btn:hover{background:var(--warning-bg);}
+
 
 /* ── Renewal Modal ── */
 #girvi-renewal-modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:965;overflow-y:auto;-webkit-overflow-scrolling:touch;}
@@ -1085,7 +1109,7 @@ html.dev .dev-only{display:block!important;}
 /* ── Document Upload Area ── */
 .doc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;}
 .doc-slot{border:1.5px dashed rgba(179,146,87,.35);border-radius:10px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;background:rgba(179,146,87,.04);transition:border-color .15s,background .15s;position:relative;overflow:hidden;}
-.doc-slot:hover{border-color:var(--gold);background:rgba(179,146,87,.08);}
+
 .doc-slot.filled{border-style:solid;border-color:rgba(28,96,64,.3);background:rgba(28,96,64,.04);}
 .doc-slot-icon{font-size:20px;opacity:.5;}
 .doc-slot-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;text-align:center;}
@@ -1105,7 +1129,7 @@ html.dev .dev-only{display:block!important;}
   background:rgba(26,74,138,.08);color:var(--info);border:0.5px solid rgba(26,74,138,.2);
   cursor:pointer;font-family:inherit;transition:background .13s;
 }
-.girvi-card-badge-edit:hover{background:var(--info-bg);}
+
 
 /* ── Collection Efficiency Bar ── */
 .coll-eff-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
@@ -1124,7 +1148,7 @@ html.dev .dev-only{display:block!important;}
   padding:11px 14px;border-radius:12px;cursor:pointer;
   border:0.5px solid transparent;transition:box-shadow .15s;
 }
-.action-item:hover{box-shadow:0 2px 12px rgba(0,0,0,.12);}
+
 .action-item.urgent{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.25);}
 .action-item.warning{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25);}
 .action-item.info{background:rgba(96,165,250,.08);border-color:rgba(96,165,250,.25);}
@@ -1192,7 +1216,7 @@ html.dev .dev-only{display:block!important;}
 /* Section header with action */
 .section-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;}
 .section-hdr-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);}
-.section-hdr-action{font-size:11px;color:var(--gold);cursor:pointer;font-weight:600;}
+.section-hdr-action{font-size:11px;color:var(--gold);cursor:pointer;font-weight:600;border:none;background:none;padding:0;font-family:inherit;}
 
 /* Score ring */
 .score-ring{
@@ -1237,7 +1261,7 @@ body.demo-mode main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   margin-left:10px;cursor:pointer;opacity:.85;font-weight:400;
   border:none;background:none;color:#fff;font-size:14px;line-height:1;
 }
-#sub-banner .sub-x:hover{opacity:1;}
+
 body.sub-banner-on header.topbar{top:34px;}
 body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 
@@ -1417,6 +1441,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   display:grid;grid-template-columns:1fr 1fr 1fr 1fr;
   border-top:0.5px solid var(--border);
 }
+.girvi-card-actions.gca-6{grid-template-columns:1fr 1fr 1fr;}
 .gca{
   display:flex;flex-direction:column;align-items:center;
   justify-content:center;padding:9px 4px;gap:2px;
@@ -1477,7 +1502,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 /* ── Pagination ─────────────────────────────────────────────────── */
 .pg-bar { display:flex; align-items:center; gap:5px; padding:8px 0; flex-wrap:wrap; }
 .pg-bar .btn-sm { min-width:var(--tap); min-height:var(--tap); padding:5px 10px; font-size:var(--text-sm); font-weight:500; border-radius:var(--radius-sm); cursor:pointer; border:1px solid var(--border2); background:var(--surface); color:var(--ink3); transition:background .15s,border-color .15s; }
-.pg-bar .btn-sm:hover { background:var(--bg2); color:var(--ink); border-color:var(--border3); }
+
 .pg-bar .btn-gold { background:var(--gold) !important; color:var(--on-gold) !important; border-color:var(--gold) !important; }
 .pg-info { font-size:11px; color:var(--text3); margin-left:4px; }
 
@@ -1485,6 +1510,43 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 /* Tanish 1 Oct: Netlify's "Powered by Netlify" badge (an iframe its hud script injects) covered the
    bottom nav and the PIN screen's Forgot PIN on phones. */
 iframe.nl-badge-frame{display:none !important;}
+
+/* Hover-only feedback, gated so touch devices (coarse pointer / no hover) never
+   get a hover style stuck after a tap -- see mobile-native guidance. */
+@media (hover:hover) and (pointer:fine){
+.hdr-btn:hover{color:var(--on-ink);background:rgba(255,255,255,.06);}
+.dtab:hover{color:var(--on-ink);background:rgba(255,255,255,.05);}
+.more-menu-item:hover{background:var(--bg2);}
+.metric:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px);}
+.rate-save:hover{background:linear-gradient(135deg,var(--gold),var(--gold-light));box-shadow:var(--shadow-gold);}
+.mtab:hover{background:var(--silver-bg);color:var(--silver-dark);border-color:rgba(74,96,112,.3);}
+.pill:hover{border-color:var(--border-gold);color:var(--ink);}
+.btn:hover{background:var(--bg2);border-color:var(--border3);}
+.btn-gold:hover{background:var(--gold-light);}
+.btn-warning:hover{background:var(--warning-bg);}
+.btn-dark:hover{background:var(--bg2);}
+.btn-ink:hover{background:var(--ink2);}
+.btn-danger:hover{background:var(--danger-bg);}
+.btn-success:hover{background:var(--success-bg);}
+.btn-info:hover{background:var(--info-bg);}
+tr:hover td{background:var(--bg2);}
+.mode-btn:hover{color:var(--ink);}
+.split-add-btn:hover{border-color:var(--border-gold);color:var(--gold-dark);}
+.ord-card:hover{border-color:var(--border-gold);box-shadow:var(--shadow-md);}
+.status-btn:hover{background:var(--ivory2);}
+.bnav-btn:hover{color:var(--gold);}
+.modal-close:hover{background:var(--bg2);color:var(--ink);}
+.pin-change-btn:hover{border-color:rgba(201,163,78,.4);color:#9a8e7c;}
+.auth-btn:hover{opacity:.9;}
+.gca.edit-btn:hover{background:var(--info-bg);}
+.gca.ledger-btn:hover{background:var(--success-bg);}
+.gca.archive-btn:hover{background:var(--warning-bg);}
+.doc-slot:hover{border-color:var(--gold);background:rgba(179,146,87,.08);}
+.girvi-card-badge-edit:hover{background:var(--info-bg);}
+.action-item:hover{box-shadow:0 2px 12px rgba(0,0,0,.12);}
+#sub-banner .sub-x:hover{opacity:1;}
+.pg-bar .btn-sm:hover { background:var(--bg2); color:var(--ink); border-color:var(--border3); }
+}
 </style>
 </head>
 <body>
@@ -1493,7 +1555,7 @@ iframe.nl-badge-frame{display:none !important;}
 <div id="sub-banner"></div>
 
 <div id="demo-banner">
-  🎭 DEMO MODE — Sample data loaded. <a onclick="exitDemoMode()" style="color:#fde68a;cursor:pointer;text-decoration:underline;margin-left:8px;">Exit &amp; create your account →</a>
+  🎭 DEMO MODE — Sample data loaded. <button type="button" onclick="exitDemoMode()" style="color:#fde68a;cursor:pointer;text-decoration:underline;margin-left:8px;border:none;background:none;padding:0;font:inherit;">Exit &amp; create your account →</button>
 </div>
 
 <!-- ONBOARDING WIZARD -->
@@ -1554,53 +1616,53 @@ iframe.nl-badge-frame{display:none !important;}
 
     <!-- LOGIN FORM -->
     <div id="auth-login-form">
-      <div class="auth-field"><label>Email</label><input id="auth-email" type="email" placeholder="you@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')saasLogin()"></div>
-      <div class="auth-field"><label>Password</label><input id="auth-password" type="password" placeholder="Your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')saasLogin()"></div>
+      <div class="auth-field"><label for="auth-email">Email</label><input id="auth-email" type="email" placeholder="you@email.com" autocomplete="email" onkeydown="if(event.key==='Enter')saasLogin()"></div>
+      <div class="auth-field"><label for="auth-password">Password</label><input id="auth-password" type="password" placeholder="Your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')saasLogin()"></div>
       <button class="auth-btn" onclick="saasLogin()">Sign In</button>
       <div class="auth-err" id="auth-login-err"></div>
-      <div class="auth-link"><a onclick="showForgotPassword()">Forgot password?</a></div>
+      <div class="auth-link"><button type="button" onclick="showForgotPassword()">Forgot password?</button></div>
       <div id="auth-cloud-status" style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;"></div>
     </div>
 
     <!-- SIGNUP FORM -->
     <div id="auth-signup-form" style="display:none;">
-      <div class="auth-field"><label>Your Name</label><input id="signup-name" type="text" placeholder="Owner / Manager name"></div>
-      <div class="auth-field"><label>Email</label><input id="signup-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
-      <div class="auth-field"><label>Password</label><input id="signup-password" type="password" placeholder="Min 8 characters" autocomplete="new-password"></div>
-      <div class="auth-field"><label>Shop Name</label><input id="signup-shop" type="text" placeholder="e.g. Sri Sai Jewellers"></div>
-      <div class="auth-field"><label>City</label><input id="signup-city" type="text" placeholder="e.g. Mumbai"></div>
+      <div class="auth-field"><label for="signup-name">Your Name</label><input id="signup-name" type="text" placeholder="Owner / Manager name"></div>
+      <div class="auth-field"><label for="signup-email">Email</label><input id="signup-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+      <div class="auth-field"><label for="signup-password">Password</label><input id="signup-password" type="password" placeholder="Min 8 characters" autocomplete="new-password"></div>
+      <div class="auth-field"><label for="signup-shop">Shop Name</label><input id="signup-shop" type="text" placeholder="e.g. Sri Sai Jewellers"></div>
+      <div class="auth-field"><label for="signup-city">City</label><input id="signup-city" type="text" placeholder="e.g. Mumbai"></div>
       <button class="auth-btn" onclick="saasSignup()">Start Your Shop</button>
       <div class="auth-err" id="auth-signup-err"></div>
       <div class="auth-link" style="font-size:11px;color:var(--text3);">No card needed to sign up</div>
       <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:8px;line-height:1.6;">
         By creating an account you agree to our
-        <a onclick="showLegalModal('terms')" style="color:var(--gold);cursor:pointer;text-decoration:underline;">Terms of Service</a>
+        <button type="button" onclick="showLegalModal('terms')" style="color:var(--gold);cursor:pointer;text-decoration:underline;border:none;background:none;padding:0;font:inherit;">Terms of Service</button>
         and
-        <a onclick="showLegalModal('privacy')" style="color:var(--gold);cursor:pointer;text-decoration:underline;">Privacy Policy</a>
+        <button type="button" onclick="showLegalModal('privacy')" style="color:var(--gold);cursor:pointer;text-decoration:underline;border:none;background:none;padding:0;font:inherit;">Privacy Policy</button>
       </div>
     </div>
 
     <!-- FORGOT PASSWORD FORM -->
     <div id="auth-forgot-form" style="display:none;">
       <div id="forgot-step-email">
-        <div class="auth-field"><label>Email</label><input id="forgot-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
+        <div class="auth-field"><label for="forgot-email">Email</label><input id="forgot-email" type="email" placeholder="you@email.com" autocomplete="email"></div>
         <button class="auth-btn" id="forgot-request-btn" onclick="forgotPasswordRequestCode()">Send reset code</button>
         <div class="auth-err" id="forgot-err"></div>
       </div>
       <div id="forgot-step-code" style="display:none;">
         <input type="hidden" id="forgot-code-email">
-        <div class="auth-field"><label>6-digit code</label><input id="forgot-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456"></div>
-        <div class="auth-field"><label>New password</label><input id="forgot-new-password" type="password" placeholder="Min 8 characters" autocomplete="new-password"></div>
+        <div class="auth-field"><label for="forgot-code">6-digit code</label><input id="forgot-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456"></div>
+        <div class="auth-field"><label for="forgot-new-password">New password</label><input id="forgot-new-password" type="password" placeholder="Min 8 characters" autocomplete="new-password"></div>
         <button class="auth-btn" id="forgot-reset-btn" onclick="forgotPasswordSubmitReset()">Reset password</button>
         <div class="auth-err" id="forgot-code-err"></div>
       </div>
-      <div class="auth-link"><a onclick="cancelForgotPassword()">← Back to sign in</a></div>
+      <div class="auth-link"><button type="button" onclick="cancelForgotPassword()">← Back to sign in</button></div>
     </div>
   </div>
   <div style="text-align:center;padding:12px 0;font-size:10px;color:var(--text3);">
     <div style="margin-bottom:6px;">Your shop data is private, encrypted, and always yours to export.</div>
-    <a onclick="showLegalModal('privacy')" style="color:var(--text3);cursor:pointer;text-decoration:underline;margin:0 8px;">Privacy Policy</a>
-    <a onclick="showLegalModal('terms')" style="color:var(--text3);cursor:pointer;text-decoration:underline;margin:0 8px;">Terms of Service</a>
+    <button type="button" onclick="showLegalModal('privacy')" style="color:var(--text3);cursor:pointer;text-decoration:underline;margin:0 8px;border:none;background:none;padding:0;font:inherit;">Privacy Policy</button>
+    <button type="button" onclick="showLegalModal('terms')" style="color:var(--text3);cursor:pointer;text-decoration:underline;margin:0 8px;border:none;background:none;padding:0;font:inherit;">Terms of Service</button>
     <span style="margin:0 8px;">© <span id="footer-year">2026</span> JewelOS</span>
   </div>
 </div>
@@ -1613,12 +1675,12 @@ iframe.nl-badge-frame{display:none !important;}
       <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;">Set Up Your Shop</div>
       <div style="font-size:12px;color:var(--text3);">Takes 30 seconds. You can change this later.</div>
     </div>
-    <div class="auth-field"><label>Shop Name *</label><input id="ob-shopname" type="text" placeholder="e.g. Sri Sai Jewellers"></div>
+    <div class="auth-field"><label for="ob-shopname">Shop Name *</label><input id="ob-shopname" type="text" placeholder="e.g. Sri Sai Jewellers"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div class="auth-field"><label>City *</label><input id="ob-city" type="text" placeholder="Mumbai"></div>
-      <div class="auth-field"><label>Phone</label><input id="ob-phone" type="tel" placeholder="10-digit number"></div>
+      <div class="auth-field"><label for="ob-city">City *</label><input id="ob-city" type="text" placeholder="Mumbai"></div>
+      <div class="auth-field"><label for="ob-phone">Phone</label><input id="ob-phone" type="tel" placeholder="10-digit number"></div>
     </div>
-    <div class="auth-field"><label>GSTIN (optional)</label><input id="ob-gstin" type="text" placeholder="22AAAAA0000A1ZC" style="text-transform:uppercase"></div>
+    <div class="auth-field"><label for="ob-gstin">GSTIN (optional)</label><input id="ob-gstin" type="text" placeholder="22AAAAA0000A1ZC" style="text-transform:uppercase"></div>
     <!-- F5: USD/AED options removed -- nothing in the app used them; JewelOS is rupees + GST. -->
     <button class="auth-btn" onclick="saasOnboardSave()" style="margin-top:8px;">Start Managing My Shop</button>
     <div class="auth-err" id="ob-err"></div>
@@ -1743,7 +1805,7 @@ iframe.nl-badge-frame{display:none !important;}
   <!-- 0. HEADER: date + live rates (glanceable in <1s) -->
   <div class="section-hdr" style="margin-bottom:.5rem;">
     <div class="section-hdr-title" id="dash-date" style="font-size:13px;color:var(--ink3);"></div>
-    <div id="dash-rates-strip" style="display:flex;gap:14px;font-size:12px;font-weight:700;cursor:pointer;" onclick="switchTab('inventory')" title="Tap to update rates"></div>
+    <button type="button" id="dash-rates-strip" style="display:flex;gap:14px;font-size:12px;font-weight:700;cursor:pointer;border:none;background:none;padding:0;font-family:inherit;" onclick="switchTab('inventory')" title="Tap to update rates" aria-label="Tap to update rates"></button>
   </div>
 
   <!-- 1. TODAY — the answer to "what happened today" -->
@@ -1772,10 +1834,10 @@ iframe.nl-badge-frame{display:none !important;}
       <span>More details &amp; reports</span><span style="font-weight:400;">▾</span>
     </summary>
     <div style="margin-top:12px;">
-      <div class="card" style="padding:.8rem 1rem;">
+      <div style="margin-bottom:var(--space-3);">
         <div class="section-hdr">
           <div class="section-hdr-title">🧠 Business Insights</div>
-          <div class="section-hdr-action" onclick="renderDash()">Refresh</div>
+          <button type="button" class="section-hdr-action" onclick="renderDash()">Refresh</button>
         </div>
         <div class="insights-row" id="dash-insights"></div>
       </div>
@@ -1876,13 +1938,14 @@ iframe.nl-badge-frame{display:none !important;}
       </select>
     </div>
     <div class="pills" id="cat-pills"></div>
-    <div class="tbl-wrap">
+    <div class="tbl-wrap" id="inv-table-wrap">
       <table>
         <thead><tr><th>Product</th><th>HUID</th><th>Purity</th><th style="text-align:right;">Gross Wt</th><th style="text-align:right;">Net Wt</th><th style="text-align:right;">Mkt Value</th><th>Photo</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="inv-body"></tbody>
       </table>
-    <div id="inv-pagination" style="padding:6px 0;"></div>
     </div>
+    <div id="inv-cards"></div>
+    <div id="inv-pagination" style="padding:6px 0;"></div>
     <div id="inv-footer" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:13px;color:var(--text2);"></div>
   </div>
   </div>
@@ -1950,11 +2013,11 @@ iframe.nl-badge-frame{display:none !important;}
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gold-dark);">&#9851; Old Gold / Exchange</div>
           <div style="display:flex;gap:0;border:1px solid rgba(179,146,87,0.35);border-radius:6px;overflow:hidden;">
             <button id="og-mode-direct" onclick="setOgMode('direct')"
-              style="padding:4px 12px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:var(--gold);color:#1a1814;font-family:inherit;">
+              style="padding:4px 12px;min-height:var(--tap);font-size:11px;font-weight:700;border:none;cursor:pointer;background:var(--gold);color:#1a1814;font-family:inherit;">
               &#8377; Direct Amount
             </button>
             <button id="og-mode-calc" onclick="setOgMode('calc')"
-              style="padding:4px 12px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--gold-dark);font-family:inherit;">
+              style="padding:4px 12px;min-height:var(--tap);font-size:11px;font-weight:600;border:none;cursor:pointer;background:transparent;color:var(--gold-dark);font-family:inherit;">
               &#9878; Wt &amp; Purity
             </button>
           </div>
@@ -2193,7 +2256,7 @@ iframe.nl-badge-frame{display:none !important;}
 <!-- ORDER DETAIL MODAL -->
 <div class="modal-bg" id="ord-modal">
   <div class="modal">
-    <div class="modal-header"><h2 id="ord-modal-title">Order Details</h2><button class="modal-close" onclick="closeOrdModal()">&#10005;</button></div>
+    <div class="modal-header"><h2 id="ord-modal-title">Order Details</h2><button class="modal-close" onclick="closeOrdModal()" aria-label="Close order details">&#10005;</button></div>
     <div class="modal-body" id="ord-modal-body"></div>
   </div>
 </div>
@@ -2307,7 +2370,7 @@ iframe.nl-badge-frame{display:none !important;}
   <div class="card" style="padding:.8rem 1rem;" id="girvi-today-card">
     <div class="section-hdr">
       <div class="section-hdr-title">⚡ Today's Actions</div>
-      <div class="section-hdr-action" onclick="renderGirvi()">Refresh</div>
+      <button type="button" class="section-hdr-action" onclick="renderGirvi()">Refresh</button>
     </div>
     <div id="girvi-today-actions"></div>
   </div>
@@ -2542,7 +2605,7 @@ iframe.nl-badge-frame{display:none !important;}
 <!-- ── GIRVI DETAIL MODAL (Premium) ───────────────────────────────────── -->
 <div id="girvi-detail-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.82);z-index:901;overflow-y:auto;-webkit-overflow-scrolling:touch;">
   <div style="max-width:500px;margin:20px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .8rem;background:linear-gradient(135deg,rgba(179,146,87,.12),rgba(179,146,87,.04));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(179,146,87,.2);";border-bottom:0.5px solid var(--border);">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .8rem;background:linear-gradient(135deg,rgba(179,146,87,.12),rgba(179,146,87,.04));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(179,146,87,.2);">
       <div style="font-size:16px;font-weight:700;" id="gd-title">Girvi Detail</div>
       <button onclick="closeGirviDetail()" style="background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;padding:2px 6px;line-height:1;">✕</button>
     </div>
@@ -2784,10 +2847,10 @@ iframe.nl-badge-frame{display:none !important;}
     <div class="card">
       <div class="card-title">💎 Shop Profile</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Shop Name</div><input id="set-shopname" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;"></div>
-        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">City</div><input id="set-city" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;"></div>
-        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Phone</div><input id="set-phone" type="tel" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;"></div>
-        <div><div style="font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">GSTIN</div><input id="set-gstin" type="text" placeholder="22AAAAA0000A1ZC" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;text-transform:uppercase;"></div>
+        <div><label for="set-shopname" style="display:block;font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Shop Name</label><input id="set-shopname" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;"></div>
+        <div><label for="set-city" style="display:block;font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">City</label><input id="set-city" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;"></div>
+        <div><label for="set-phone" style="display:block;font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Phone</label><input id="set-phone" type="tel" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;"></div>
+        <div><label for="set-gstin" style="display:block;font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">GSTIN</label><input id="set-gstin" type="text" placeholder="22AAAAA0000A1ZC" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;text-transform:uppercase;"></div>
       </div>
       <button onclick="saveShopProfile()" class="btn btn-gold">Save Profile</button>
     </div>
@@ -2833,22 +2896,14 @@ iframe.nl-badge-frame{display:none !important;}
         <span style="font-size:11px;font-weight:400;color:var(--text3);">Runs daily at 9am even when app is closed</span>
       </div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.7;">
-        Get a daily email summary of: overdue Girvi loans, pending balances, yesterday's revenue, and top action items.<br>
-        <strong>Setup:</strong> Uses Supabase pg_cron + Resend.com (free tier: 100 emails/day).
+        Get a daily email summary of: overdue Girvi loans, pending balances, yesterday's revenue, and top action items.
       </div>
-      <div style="font-size:12px;font-weight:600;color:var(--gold-dark);margin-bottom:8px;">Setup steps:</div>
-      <ol style="font-size:11px;color:var(--text3);line-height:2;padding-left:1.2rem;margin-bottom:12px;">
-        <li>Sign up free at <strong>resend.com</strong> → get your API key</li>
-        <li>Add key to Supabase: Settings → Edge Functions → Secrets → <code>RESEND_API_KEY</code></li>
-        <li>Create Edge Function <code>daily-digest</code> (template in docs)</li>
-        <li>Enable pg_cron: <code>SELECT cron.schedule('daily-digest', '0 3 * * *', $$SELECT net.http_post(...)$$)</code></li>
-      </ol>
       <div class="fg" style="margin-bottom:10px;">
         <label>Your email for digest</label>
         <input id="set-digest-email" type="email" placeholder="owner@example.com"/>
       </div>
       <button onclick="saveDigestEmail()" class="btn btn-gold btn-sm">Save Email</button>
-      <div style="font-size:11px;color:var(--text3);margin-top:8px;">Email stored locally — used by the Edge Function when you set it up.</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px;">Email saved. Contact support to turn on your daily digest.</div>
     </div>
   </div>
 
@@ -2868,8 +2923,8 @@ iframe.nl-badge-frame{display:none !important;}
     <div class="card" id="set-invite-form" style="display:none;">
       <div class="card-title">📧 Invite Staff</div>
       <div style="display:grid;gap:8px;margin-bottom:12px;">
-        <input id="inv-name" type="text" placeholder="Staff name" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;">
-        <input id="inv-email" type="email" placeholder="Email address" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;">
+        <input id="inv-name" type="text" placeholder="Staff name" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;">
+        <input id="inv-email" type="email" placeholder="Email address" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;">
         <select id="inv-role" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:14px;font-family:inherit;">
           <option value="manager">Manager (full edit access)</option>
           <option value="staff">Staff (view + add only)</option>
@@ -3029,14 +3084,27 @@ iframe.nl-badge-frame{display:none !important;}
     <button class="bnav-btn active" onclick="switchTab('dashboard')" id="bn-dashboard"><span class="bnav-icon">&#128202;</span><span class="bnav-label">Home</span></button>
     <button class="bnav-btn" onclick="switchTab('inventory')" id="bn-inventory"><span class="bnav-icon">&#128230;</span><span class="bnav-label">Stock</span></button>
     <button class="bnav-btn" onclick="switchTab('sales')" id="bn-sales"><span class="bnav-icon">&#128179;</span><span class="bnav-label">Sale</span></button>
-    <button class="bnav-btn" onclick="switchTab('girvi')" id="bn-girvi"><span class="bnav-icon">&#129309;</span><span class="bnav-label">Girvi</span></button>
-    <button class="bnav-btn" onclick="switchTab('orders')" id="bn-orders"><span class="bnav-icon">&#128221;</span><span class="bnav-label">Orders</span></button>
-    <button class="bnav-btn" onclick="switchTab('customers')" id="bn-customers"><span class="bnav-icon">&#128101;</span><span class="bnav-label" data-short="Cust.">Customers</span></button>
-    <button class="bnav-btn" onclick="switchTab('reports')" id="bn-reports"><span class="bnav-icon">&#128200;</span><span class="bnav-label">Reports</span></button>
     <button class="bnav-btn" onclick="switchTab('daybook')" id="bn-daybook"><span class="bnav-icon">&#128214;</span><span class="bnav-label">Day Book</span></button>
-    <button class="bnav-btn" onclick="switchTab('settings')" id="bn-settings"><span class="bnav-icon">&#9881;</span><span class="bnav-label">Settings</span></button>
+    <button class="bnav-btn" onclick="openMoreMenu()" id="bn-more"><span class="bnav-icon">&#8942;</span><span class="bnav-label">More</span></button>
   </div>
 </nav>
+<!-- More menu (mobile bottom nav only — desktop .dtabs already shows every
+     destination, so this sheet is never reachable there): the 5 destinations
+     that moved out of the bottom bar when it went from 9 buttons to 5. Same
+     switchTab() as every other nav entry, so staff permission checks
+     (switchTab's staffBlocked list) apply exactly as before. -->
+<div class="modal-bg" id="more-menu-modal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-header"><h2>More</h2><button class="modal-close" onclick="closeMoreMenu()" aria-label="Close more menu">&#10005;</button></div>
+    <div class="modal-body" style="padding:.5rem;">
+      <button class="more-menu-item" onclick="switchTab('girvi');closeMoreMenu();" id="bn-girvi"><span class="bnav-icon">&#129309;</span><span>Girvi</span></button>
+      <button class="more-menu-item" onclick="switchTab('orders');closeMoreMenu();" id="bn-orders"><span class="bnav-icon">&#128221;</span><span>Orders</span></button>
+      <button class="more-menu-item" onclick="switchTab('customers');closeMoreMenu();" id="bn-customers"><span class="bnav-icon">&#128101;</span><span>Customers</span></button>
+      <button class="more-menu-item" onclick="switchTab('reports');closeMoreMenu();" id="bn-reports"><span class="bnav-icon">&#128200;</span><span>Reports</span></button>
+      <button class="more-menu-item" onclick="switchTab('settings');closeMoreMenu();" id="bn-settings"><span class="bnav-icon">&#9881;</span><span>Settings</span></button>
+    </div>
+  </div>
+</div>
 <!-- Safe confirm modal — replaces all window.confirm() -->
 <div id="safe-confirm-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.72);z-index:10001;align-items:center;justify-content:center;padding:1.5rem;">
   <div style="background:var(--surface);border-radius:20px;width:100%;max-width:380px;padding:1.5rem;box-shadow:0 12px 60px rgba(0,0,0,.4);border:0.5px solid var(--border2);">
@@ -3056,7 +3124,7 @@ iframe.nl-badge-frame{display:none !important;}
     <input type="password" id="reauth-password" autocomplete="current-password" placeholder="Password" onkeydown="if(event.key==='Enter')saasReauthSubmit()" style="width:100%;margin-bottom:.4rem;"/>
     <div id="reauth-err" style="color:#c0392b;font-size:13px;min-height:18px;margin-bottom:.8rem;"></div>
     <div style="display:flex;gap:8px;">
-      <button id="reauth-signout" onclick="saasReauthSignOut()" style="flex:1;padding:11px;border-radius:11px;border:0.5px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Sign out &amp; lose it</button>
+      <button id="reauth-signout" onclick="saasReauthSignOut()" style="flex:1;padding:11px;border-radius:11px;border:0.5px solid var(--border2);background:var(--bg2);color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Sign out without saving</button>
       <button id="reauth-submit" class="btn-gold" onclick="saasReauthSubmit()" style="flex:2;padding:11px;border-radius:11px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Continue</button>
     </div>
   </div>
@@ -3076,7 +3144,7 @@ iframe.nl-badge-frame{display:none !important;}
 <!-- Password modal (replaces window.prompt() for changePassword/forcePasswordReset — see js/05-auth-login.js) -->
 <div class="modal-bg" id="pwd-modal">
   <div class="modal" style="max-width:420px;">
-    <div class="modal-header"><h2 id="pwd-modal-title">&#128274; Change Password</h2><button class="modal-close" id="pwd-close-btn" onclick="closePwdModal()">&#10005;</button></div>
+    <div class="modal-header"><h2 id="pwd-modal-title">&#128274; Change Password</h2><button class="modal-close" id="pwd-close-btn" onclick="closePwdModal()" aria-label="Close change password">&#10005;</button></div>
     <div class="modal-body">
       <p id="pwd-modal-msg" style="margin:0 0 1rem;color:var(--text3);font-size:14px;line-height:1.5;"></p>
       <div class="fg" id="pwd-current-wrap" style="margin-bottom:.9rem;">
@@ -3103,7 +3171,7 @@ iframe.nl-badge-frame{display:none !important;}
 </div>
 <div class="modal-bg" id="invoice-modal">
   <div class="modal">
-    <div class="modal-header"><h2>&#128196; Bill Preview</h2><button class="modal-close" onclick="closeModal()">&#10005;</button></div>
+    <div class="modal-header"><h2>&#128196; Bill Preview</h2><button class="modal-close" onclick="closeModal()" aria-label="Close bill preview">&#10005;</button></div>
     <div class="modal-body">
       <!-- Bill type toggle -->
       <div style="display:flex;gap:6px;margin-bottom:12px;background:var(--bg2);border-radius:12px;padding:4px;" class="no-print">
@@ -3132,7 +3200,7 @@ iframe.nl-badge-frame{display:none !important;}
   <div class="modal">
     <div class="modal-header">
       <h2>&#9998; Edit Product</h2>
-      <button class="modal-close" onclick="closeEditModal()">&#10005;</button>
+      <button class="modal-close" onclick="closeEditModal()" aria-label="Close edit product">&#10005;</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="ep-id"/>
@@ -3196,7 +3264,7 @@ iframe.nl-badge-frame{display:none !important;}
   <div class="modal" style="max-width:660px;">
     <div class="modal-header">
       <h2>&#9998; Edit Bill <span class="version-tag" id="eb-version-tag">v1</span></h2>
-      <button class="modal-close" onclick="closeEditBillModal()">&#10005;</button>
+      <button class="modal-close" onclick="closeEditBillModal()" aria-label="Close edit bill">&#10005;</button>
     </div>
     <div class="modal-body" id="edit-bill-body">
       <!-- filled dynamically -->
@@ -3224,7 +3292,7 @@ iframe.nl-badge-frame{display:none !important;}
 
 <div class="modal-bg" id="cust-modal">
   <div class="modal">
-    <div class="modal-header"><h2 id="cust-modal-title">Customer History</h2><button class="modal-close" onclick="closeCustModal()">&#10005;</button></div>
+    <div class="modal-header"><h2 id="cust-modal-title">Customer History</h2><button class="modal-close" onclick="closeCustModal()" aria-label="Close customer history">&#10005;</button></div>
     <div class="modal-body" id="cust-modal-body"></div>
   </div>
 </div>

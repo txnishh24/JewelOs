@@ -273,7 +273,7 @@ function renderDash(){
   if(actEl){
     var actions = buildTodayActions();
     actEl.innerHTML = actions.map(function(a){
-      return '<div class="action-item '+a.type+'" '+(a.tab?'onclick="switchTab(\''+a.tab+'\')"':'')+'>' +
+      return '<div class="action-item '+a.type+'" '+(a.tab?'onclick="switchTab(\''+jsAttrEsc(a.tab)+'\')"':'')+'>' +
         '<div class="action-icon">'+a.icon+'</div>'+
         '<div class="action-body">'+
           '<div class="action-title">'+a.title+'</div>'+
@@ -673,7 +673,7 @@ function renderOrdersPipeline(){
   pipeDiv.innerHTML='<div class="card-title">🏭 Order Pipeline</div>'+
     '<div class="pipeline">'+
     stages.map(function(s){
-      return '<div class="pipe-stage" onclick="filterOrdersByStatus(\''+s+'\')" style="'+(counts[s]>0?'':'opacity:0.4;')+'">'+
+      return '<div class="pipe-stage" onclick="filterOrdersByStatus(\''+jsAttrEsc(s)+'\')" style="'+(counts[s]>0?'':'opacity:0.4;')+'">'+
         '<span class="pipe-count">'+counts[s]+'</span>'+
         stageLabels[s]+
       '</div>';
@@ -773,7 +773,7 @@ function showSettingsTab(tab){
       staffEl.innerHTML=users.length
         ?users.map(function(u){
           return '<div class="log-row"><div><b>'+escHtml(u.name)+'</b><div style="font-size:11px;color:var(--text3);">'+escHtml(u.email)+' &bull; '+escHtml(u.role)+'</div></div>'+
-            '<div>'+(u.id!==SAAS.user.id&&isOwner()?'<button onclick="removeStaff(\''+u.id+'\')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;">Remove</button>':'<span style="font-size:11px;color:var(--text3);">You</span>')+'</div></div>';
+            '<div>'+(u.id!==SAAS.user.id&&isOwner()?'<button onclick="removeStaff(\''+jsAttrEsc(u.id)+'\')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;">Remove</button>':'<span style="font-size:11px;color:var(--text3);">You</span>')+'</div></div>';
         }).join('')
         :'<div style="font-size:12px;color:var(--text3);">No team members yet.</div>';
     }
@@ -1084,7 +1084,7 @@ function renderWaRules(){
           '<div class="wa-rule-sub">'+r.trigger+'</div>'+
         '</div>'+
         '<label class="wa-toggle">'+
-          '<input type="checkbox" '+(r.enabled?'checked':'')+' onchange="toggleWaRule(\''+r.id+'\')">'+
+          '<input type="checkbox" '+(r.enabled?'checked':'')+' onchange="toggleWaRule(\''+jsAttrEsc(r.id)+'\')">'+
           '<div class="wa-toggle-slider"></div>'+
         '</label>'+
       '</div>'+
@@ -1094,9 +1094,9 @@ function renderWaRules(){
           '<textarea id="wa-tpl-'+r.id+'" rows="7" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;padding:10px;border-radius:10px;border:1px solid var(--border2);background:var(--card1);color:var(--ink);resize:vertical;">'+escHtml(r.messageTemplate||'')+'</textarea>'+
           '<div style="font-size:10px;color:var(--text3);margin:5px 0 8px;">Available: {customer_name} {shop_name} {amount} {due_date} {girvi_number} {invoice_number} {order_number} {items} {item_desc} \u2014 write in your own words, these get swapped in automatically.</div>'+
           '<div style="display:flex;gap:6px;flex-wrap:wrap;">'+
-            '<button onclick="saveWaRuleTemplate(\''+r.id+'\')" style="padding:6px 14px;border-radius:8px;border:none;background:var(--gold);color:#1a1200;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Save</button>'+
-            '<button onclick="previewWaRuleTemplate(\''+r.id+'\')" style="padding:6px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--card2);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit;">Preview</button>'+
-            '<button onclick="resetWaRuleTemplate(\''+r.id+'\')" style="padding:6px 14px;border-radius:8px;border:1px solid var(--border2);background:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;">Reset to Default</button>'+
+            '<button onclick="saveWaRuleTemplate(\''+jsAttrEsc(r.id)+'\')" style="padding:6px 14px;border-radius:8px;border:none;background:var(--gold);color:#1a1200;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Save</button>'+
+            '<button onclick="previewWaRuleTemplate(\''+jsAttrEsc(r.id)+'\')" style="padding:6px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--card2);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit;">Preview</button>'+
+            '<button onclick="resetWaRuleTemplate(\''+jsAttrEsc(r.id)+'\')" style="padding:6px 14px;border-radius:8px;border:1px solid var(--border2);background:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;">Reset to Default</button>'+
           '</div>'+
         '</div>'+
       '</details>'+
@@ -1235,7 +1235,7 @@ function renderSettingsAutomation(){
           '<span style="font-size:12px;font-weight:700;">'+escHtml(r.name)+'</span>'+
           (edited?'<span style="font-size:9px;font-weight:700;color:var(--gold-dark);background:var(--gold-bg);padding:2px 7px;border-radius:100px;letter-spacing:.04em;">YOUR WORDING</span>':'')+
           (r.enabled?'':'<span style="font-size:9px;font-weight:700;color:var(--text3);background:var(--bg2);padding:2px 7px;border-radius:100px;letter-spacing:.04em;">OFF</span>')+
-          '<button onclick="editWaTemplate(\''+r.id+'\')" style="margin-left:auto;flex:none;padding:5px 13px;border-radius:8px;border:1px solid var(--border-gold);background:var(--card1);color:var(--gold-dark);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">✏️ Edit</button>'+
+          '<button onclick="editWaTemplate(\''+jsAttrEsc(r.id)+'\')" style="margin-left:auto;flex:none;padding:5px 13px;border-radius:8px;border:1px solid var(--border-gold);background:var(--card1);color:var(--gold-dark);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">✏️ Edit</button>'+
         '</div>'+
         '<div style="font-size:11px;color:var(--text3);line-height:1.5;">'+escHtml(short)+'</div>'+
       '</div>';

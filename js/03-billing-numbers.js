@@ -36,7 +36,15 @@ function showSaleInvoice(saleId){
 function openInvoiceModal(html, initialBillType){
   var bt = initialBillType || 'gst';
   _billType = bt;
-  document.getElementById('invoice-content').innerHTML = '<iframe id="inv-frame" style="width:100%;height:500px;border:none;border-radius:8px;" srcdoc=""></iframe>';
+  // sandbox="" (no tokens at all, not even allow-same-origin): this frame only
+  // ever displays and prints a static invoice document, never runs script of
+  // its own, so there's no reason an injected one should either -- defense
+  // in depth alongside escaping the fields that land in it. Printing still
+  // works because "Print Bill" calls window.print() on the PARENT, not on
+  // this frame; a sandboxed frame still renders and prints normally, it just
+  // can't execute script or reach the parent's origin (this matters because
+  // the session token now lives in localStorage -- see F1, 29 Sep).
+  document.getElementById('invoice-content').innerHTML = '<iframe id="inv-frame" sandbox="" style="width:100%;height:500px;border:none;border-radius:8px;" srcdoc=""></iframe>';
   document.getElementById('invoice-modal').classList.add('open');
   setTimeout(function(){
     var f = document.getElementById('inv-frame');
@@ -557,7 +565,7 @@ function showCustHistory(encKey){
     hdr.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;';
     hdr.innerHTML=
       '<div>'+
-        '<div style="font-weight:700;font-size:13px;">'+s.invNo+'</div>'+
+        '<div style="font-weight:700;font-size:13px;">'+escHtml(s.invNo||'')+'</div>'+
         '<div style="font-size:12px;color:var(--text3);">'+fmtDate(s.date)+' at '+fmtTime(s.createdAt||s.date)+'</div>'+
         '<div style="font-size:12px;color:var(--text3);">'+escHtml(salePayModes(s))+'</div>'+
         (s.paidAt?'<div style="font-size:11px;color:var(--success);margin-top:2px;">&#10003; Paid on '+fmtDate(s.paidAt)+'</div>':'')+
@@ -690,7 +698,7 @@ function showCustHistory(encKey){
     gSection.innerHTML=
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'+
         '<div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;">🪙 Girvi Account — '+_cGirvi.length+' Loan'+(_cGirvi.length===1?'':'s')+'</div>'+
-        (_custRecord?'<button onclick="event.stopPropagation();closeModal(\'cust-modal\');addGirviLoanForCustomer(\''+_custRecord.id+'\');" style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--gold-dark);background:rgba(179,146,87,.1);color:var(--gold-dark);cursor:pointer;font-family:inherit;font-weight:700;">+ Add Loan</button>':'')+
+        (_custRecord?'<button onclick="event.stopPropagation();closeModal(\'cust-modal\');addGirviLoanForCustomer(\''+jsAttrEsc(_custRecord.id)+'\');" style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--gold-dark);background:rgba(179,146,87,.1);color:var(--gold-dark);cursor:pointer;font-family:inherit;font-weight:700;">+ Add Loan</button>':'')+
       '</div>'+
       '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;">'+
         '<div><div style="font-size:10px;color:var(--text3);">Active</div><div style="font-weight:700;color:var(--warning);">'+gActive.length+'</div></div>'+
@@ -705,7 +713,7 @@ function showCustHistory(encKey){
         if(ymd.years>0) dur+=ymd.years+'y ';
         if(ymd.months>0) dur+=ymd.months+'m ';
         dur+=ymd.days+'d';
-        return '<div onclick="closeModal(\'cust-modal\');setTimeout(function(){openGirviDetail(\''+g.id+'\');},150);" style="padding:8px 10px;border-radius:8px;background:var(--card2);margin-bottom:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'+
+        return '<div onclick="closeModal(\'cust-modal\');setTimeout(function(){openGirviDetail(\''+jsAttrEsc(g.id)+'\');},150);" style="padding:8px 10px;border-radius:8px;background:var(--card2);margin-bottom:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'+
           '<div>'+
             '<div style="font-size:12px;font-weight:700;">'+g.grvNo+' &nbsp;'+girviStatusBadge(g.status)+'</div>'+
             '<div style="font-size:11px;color:var(--text3);">'+
@@ -934,7 +942,7 @@ function exportMonthCSV(){
       fmtW(wt),salePayModes(s),t.grand,t.bal]);
   });
   var csv=rows.map(function(r){
-    return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');
+    return r.map(csvCell).join(',');
   }).join('\n');
   var blob=new Blob([csv],{type:'text/csv'});
   var url=URL.createObjectURL(blob);
@@ -1037,13 +1045,7 @@ function _doGSTR1Export(sales, label){
 
   // Build CSV
   var csv = rows.map(function(row){
-    return row.map(function(cell){
-      var s = String(cell || '');
-      if(s.indexOf(',') > -1 || s.indexOf('"') > -1 || s.indexOf('\n') > -1){
-        s = '"' + s.replace(/"/g, '""') + '"';
-      }
-      return s;
-    }).join(',');
+    return row.map(csvCell).join(',');
   }).join('\n');
 
   // Add BOM for Excel compatibility with Indian locale
@@ -1090,7 +1092,7 @@ function renderReports(){
       var mList = Object.keys(months).sort().reverse().slice(0,6);
       btnEl.innerHTML = mList.map(function(ym){
         var parts=ym.split('-'); var label=(parts[1]?['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(parts[1])-1]:ym)+' '+parts[0];
-        return '<button onclick="exportGSTR1Month(\''+ym+'\')" class="btn btn-sm" style="font-size:11px;">⬇ '+label+' ('+months[ym]+')</button>';
+        return '<button onclick="exportGSTR1Month(\''+jsAttrEsc(ym)+'\')" class="btn btn-sm" style="font-size:11px;">⬇ '+label+' ('+months[ym]+')</button>';
       }).join('');
     }
   })();

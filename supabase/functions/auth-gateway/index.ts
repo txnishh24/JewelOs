@@ -147,6 +147,21 @@ async function putBlob(supabase: ReturnType<typeof createClient>, id: "users" | 
   if (error) throw error;
 }
 
+// The token's role/shopId are a snapshot from login and live up to 6h. Privileged
+// routes re-read the caller's CURRENT record: removed, or moved to another shop
+// => null (401); role is then checked on `me.role`, never `session.role`.
+// Same rule as store-proxy's resolveTenant. Returns `users` so a route that needs
+// the users blob again (add-staff, remove-staff) does not fetch it twice.
+// (10 Oct critical remediation, Phase 3 — update-shop/add-staff/remove-staff
+// used to trust session.role, so a demoted or removed user kept access for the
+// rest of their token's 6h life.)
+async function loadActor(supabase: ReturnType<typeof createClient>, session: Record<string, unknown>) {
+  const users = (await getBlob(supabase, "users")) as Record<string, unknown>[];
+  const found = users.find((u) => u.id === session.userId);
+  return { users, me: found && found.shopId === session.shopId ? found : null };
+}
+const ACCESS_CHANGED = "Your access to this shop has changed — please sign in again";
+
 // Shop details and people's names are printed on invoices, receipts, labels and
 // staff lists. None legitimately contain < or >, and refusing them here protects
 // every screen that shows them — including any the client forgets to escape.
@@ -323,7 +338,10 @@ Deno.serve(async (req) => {
   if (route === "update-shop") {
     const session = await verifySession(String(body.sessionToken || ""));
     if (!session) return json({ error: "Session expired — please sign in again" }, 401, origin);
-    if (session.role !== "owner" && session.role !== "manager") {
+
+    const { me } = await loadActor(supabase, session);
+    if (!me) return json({ error: ACCESS_CHANGED }, 401, origin);
+    if (me.role !== "owner" && me.role !== "manager") {
       return json({ error: "Only the shop owner or a manager can update shop details" }, 403, origin);
     }
 
@@ -346,7 +364,10 @@ Deno.serve(async (req) => {
   if (route === "add-staff") {
     const session = await verifySession(String(body.sessionToken || ""));
     if (!session) return json({ error: "Session expired — please sign in again" }, 401, origin);
-    if (session.role !== "owner") return json({ error: "Only the shop owner can add staff" }, 403, origin);
+
+    const { users, me } = await loadActor(supabase, session);
+    if (!me) return json({ error: ACCESS_CHANGED }, 401, origin);
+    if (me.role !== "owner") return json({ error: "Only the shop owner can add staff" }, 403, origin);
 
     const email = String(body.email || "").trim().toLowerCase();
     const name = String(body.name || "").trim();
@@ -358,7 +379,6 @@ Deno.serve(async (req) => {
     const ALLOWED_ROLES = ["manager", "staff", "readonly"];
     const role = ALLOWED_ROLES.includes(String(body.role)) ? String(body.role) : "staff";
 
-    const users = (await getBlob(supabase, "users")) as Record<string, unknown>[];
     if (users.find((u) => String(u.email).toLowerCase() === email)) {
       return json({ error: "That email is already registered" }, 409, origin);
     }
@@ -381,10 +401,12 @@ Deno.serve(async (req) => {
   if (route === "remove-staff") {
     const session = await verifySession(String(body.sessionToken || ""));
     if (!session) return json({ error: "Session expired — please sign in again" }, 401, origin);
-    if (session.role !== "owner") return json({ error: "Only the shop owner can remove staff" }, 403, origin);
+
+    const { users, me } = await loadActor(supabase, session);
+    if (!me) return json({ error: ACCESS_CHANGED }, 401, origin);
+    if (me.role !== "owner") return json({ error: "Only the shop owner can remove staff" }, 403, origin);
 
     const staffUserId = String(body.staffUserId || "");
-    const users = (await getBlob(supabase, "users")) as Record<string, unknown>[];
     const target = users.find((u) => u.id === staffUserId);
     if (!target) return json({ error: "User not found" }, 404, origin);
     if (target.shopId !== session.shopId) {

@@ -173,6 +173,23 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders(origin) });
   }
 
+  // 9 Oct: read the whole request body before ANY response. The early
+  // returns below (401 / 403 / 500) used to answer without touching
+  // req.body; on a large PUT with an invalid token (726KB probe) the reply
+  // then never arrived at all (no status line within 60s), while a small
+  // body got a clean 401 in 0.48s. Reading first makes every path behave
+  // like the success path, which has always read the body and has never
+  // hung. See HANDOFF.md, 9 Oct critical-remediation entry, for the
+  // reasoning and the probe evidence this responds to.
+  let rawBody = "";
+  if (req.method === "PUT" || req.method === "POST") {
+    try {
+      rawBody = await req.text();
+    } catch {
+      return json({ error: "could not read request body" }, 400, origin);
+    }
+  }
+
   const session = await verifySession(req.headers.get("x-session-token"));
   // reason (30 Sep): the client used to guess "expired vs removed" from the
   // phone's clock and wiped a slow-clock phone. "expired" covers any token
@@ -219,7 +236,7 @@ Deno.serve(async (req) => {
     }
     let body: { data?: unknown; expectedVersion?: number };
     try {
-      body = await req.json();
+      body = JSON.parse(rawBody);
     } catch {
       return json({ error: "invalid JSON body" }, 400, origin);
     }
@@ -252,7 +269,7 @@ Deno.serve(async (req) => {
     if (!CAN_WRITE.has(role)) return json({ error: "forbidden" }, 403, origin);
     let body: { action?: string; counter?: string };
     try {
-      body = await req.json();
+      body = JSON.parse(rawBody);
     } catch {
       return json({ error: "invalid JSON body" }, 400, origin);
     }

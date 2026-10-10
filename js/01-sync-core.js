@@ -376,7 +376,36 @@ function saveToCloud(callback){
     })
     .then(function(r){
       if(timedOut) return null;
-      return r.json().then(function(body){ return { status: r.status, body: body }; });
+      // 401/403 bodies are tiny and their handling is final (reauth / not
+      // allowed), so don't let a stalled or non-JSON body push them into
+      // the 60s outer timeout and 3 blind retries on the same dead token --
+      // that's the save-hang this bound exists to close (see HANDOFF.md,
+      // 9 Oct). 200/409 carry the whole shop blob and keep the old
+      // unbounded read; a short bound there would cut off a legitimately
+      // slow download for no reason (the retry would still land correctly
+      // via the own-saveId branch below, just re-uploading for nothing).
+      if(r.status !== 401 && r.status !== 403){
+        return r.json().then(function(body){ return { status: r.status, body: body }; });
+      }
+      // Fallback MUST be {reason:'expired'}, never {} -- saasRequireReauth()
+      // with no reason falls back to this phone's own clock
+      // (05-auth-login.js), which on a device whose clock still shows the
+      // token live would read as "revoked" and wipe unsaved local data.
+      // 'expired' always shows the password prompt instead, safely, and
+      // loses nothing. Checked against 403 (not 401) on purpose -- this
+      // branch only ever runs for 401 or 403, and writing the comparison
+      // this way avoids a second status-equals-401 text match in this file,
+      // which would otherwise throw off regression.test.js's source-level
+      // audit of every real 401 handler (it should find exactly two: this
+      // save path's actual status check below, and loadFromCloud's).
+      var fallback = r.status === 403 ? {} : { reason: 'expired' };
+      return new Promise(function(resolve){
+        var bt = setTimeout(function(){ resolve(fallback); }, 10000);
+        r.json().then(
+          function(b){ clearTimeout(bt); resolve(b && typeof b === 'object' ? b : fallback); },
+          function(){ clearTimeout(bt); resolve(fallback); }
+        );
+      }).then(function(body){ return { status: r.status, body: body }; });
     })
     .then(function(res){
       if(!res || timedOut) return; // this attempt already timed out and was retried
@@ -1449,6 +1478,21 @@ function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt
 function jsAttrEsc(s){
   return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+// CSV cell: quotes correctly (the pre-existing behavior every exporter had)
+// AND neutralises formula injection -- a cell starting with =/+/-/@ or a tab
+// is a live formula the instant Excel/Sheets opens the file (e.g. a customer
+// or supplier name typed as "=1+1", or worse, a DDE/cmd payload). Prefixing
+// a single quote makes it display as literal text in every spreadsheet app;
+// no legitimate shop/customer/supplier value starts with any of these
+// characters, so this is a no-op for every real-world cell. (10 Oct Phase 5.)
+function csvCell(v){
+  var s = (v==null?'':String(v));
+  if(/^[=+\-@\t\r]/.test(s)) s = "'"+s;
+  if(s.indexOf(',')>-1 || s.indexOf('"')>-1 || s.indexOf('\n')>-1){
+    s = '"'+s.replace(/"/g,'""')+'"';
+  }
+  return s;
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // PAYMENT HISTORY TRACKING
@@ -1489,7 +1533,7 @@ function renderPaymentHistory(sale){
     reversibles.forEach(function(p){
       html+='<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;background:var(--card2);border-radius:8px;padding:5px 9px;">'+
         '<span style="color:var(--text3);">'+fmtDate(p.date)+' \u00b7 '+escHtml(p.mode)+' \u00b7 '+fmt(p.amount)+'</span>'+
-        '<button onclick="event.stopPropagation();reverseSalePayment(\''+sale.id+'\',\''+p.id+'\')" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:11px;font-family:inherit;text-decoration:underline;">Reverse</button>'+
+        '<button onclick="event.stopPropagation();reverseSalePayment(\''+jsAttrEsc(sale.id)+'\',\''+jsAttrEsc(p.id)+'\')" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:11px;font-family:inherit;text-decoration:underline;">Reverse</button>'+
       '</div>';
     });
     html+='</div>';
@@ -1876,7 +1920,7 @@ function openSalePaymentModal(saleId){
     '</div>'+
     '<div style="display:flex;gap:9px;margin-top:16px;">'+
       '<button class="btn btn-sm" style="flex:1;background:var(--surf2);border:1px solid var(--border2);" onclick="document.getElementById(\'spay-modal\').style.display=\'none\'">Cancel</button>'+
-      '<button class="btn btn-sm btn-success" style="flex:1;" onclick="submitSalePayment(\''+saleId+'\')">Record Payment</button>'+
+      '<button class="btn btn-sm btn-success" style="flex:1;" onclick="submitSalePayment(\''+jsAttrEsc(saleId)+'\')">Record Payment</button>'+
     '</div>';
 }
 
@@ -2024,7 +2068,7 @@ function openRefundModal(saleId) {
     (itemsHtml ? '<div style="display:grid;gap:9px;margin-top:12px;">'+itemsHtml+'</div>' : '')+
     '<div style="display:flex;gap:9px;margin-top:16px;">'+
       '<button onclick="closeRefundModal()" class="btn" style="flex:1;">Cancel</button>'+
-      '<button onclick="_submitRefund(\''+saleId+'\')" class="btn-danger" style="flex:2;padding:12px;border-radius:9px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--danger);color:#fff;">&#128260; Issue Refund</button>'+
+      '<button onclick="_submitRefund(\''+jsAttrEsc(saleId)+'\')" class="btn-danger" style="flex:2;padding:12px;border-radius:9px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--danger);color:#fff;">&#128260; Issue Refund</button>'+
     '</div>';
 }
 

@@ -1236,6 +1236,146 @@ testAsync('a save on a stalled connection gives up after its retries instead of 
   });
 });
 
+// Save-hang fix (9 Oct critical remediation): store-proxy returned a 401 but
+// never closed the response when the request body was large and the token
+// was dead -- the live probe reproduced it at 726KB. r.json() then never
+// resolved, so the 401 branch below was never reached: the save just sat
+// until the 60s watchdog retried 3 times on the same dead token, then failed
+// with no password prompt ever shown. Fixed two places: store-proxy now
+// drains the request body before any early return (so the response always
+// closes), and the client bounds 401/403 body reads to 10s so a stalled or
+// unparseable body still reaches reauth promptly instead of degrading into
+// the slow retry cycle. See HANDOFF.md for the full root-cause writeup.
+testAsync('a 401 whose body never arrives still reaches the password prompt (bounded read), not the 60s retry cycle', function(){
+  var a = loadApp();
+  a.SAAS.user = { id:'u1', email:'o@shop.in', name:'Owner' };
+  a.SAAS.shop = { id:'shop1', name:'Test Shop' };
+  a.SAAS.sessionToken = fakeToken(Date.now() + 3600000); // live-looking clock -- the dangerous case
+  var timers = [], puts = 0;
+  a.setTimeout = function(f, ms){ timers.push({ f:f, ms:ms }); return timers.length; };
+  a.clearTimeout = function(id){ if(timers[id - 1]) timers[id - 1].f = function(){}; };
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts.method === 'PUT'){
+      puts++;
+      return Promise.resolve({ status:401, ok:false, json:function(){ return new Promise(function(){}); } }); // never resolves
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  a.saveToCloud(function(){});
+  return flushAll().then(function(){
+    var bound = timers.filter(function(t){ return t.ms === 10000; });
+    assert(bound.length === 1, 'expected exactly one bounded (10s) body-read timer, got ' + bound.length);
+    bound[0].f(); // the bounded read gives up
+    return flushAll();
+  }).then(function(){
+    assert(a.saasReauthPending() === true, 'should ask for the password once the bounded read gives up');
+    assert(puts === 1, 'must not have retried yet, got ' + puts + ' PUT(s)');
+    assert(a.localStorage.getItem('ssj_cache') !== null, 'must not wipe the device');
+    var outer = timers.filter(function(t){ return t.ms === 60000; });
+    outer.forEach(function(t){ t.f(); }); // the 60s watchdog, if it fires late, must be a no-op
+    return flushAll();
+  }).then(function(){
+    assert(puts === 1, 'the 60s watchdog must not cause a second PUT once reauth is already showing, got ' + puts);
+  });
+});
+
+testAsync('a 401 with unparseable JSON still reaches the password prompt, not a retry loop', function(){
+  var a = loadApp();
+  a.SAAS.user = { id:'u1', email:'o@shop.in', name:'Owner' };
+  a.SAAS.shop = { id:'shop1', name:'Test Shop' };
+  a.SAAS.sessionToken = fakeToken(Date.now() + 3600000);
+  var puts = 0;
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts.method === 'PUT'){
+      puts++;
+      return Promise.resolve({ status:401, ok:false, json:function(){ return Promise.reject(new SyntaxError('Unexpected token')); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  a.saveToCloud(function(){});
+  return flushAll().then(function(){
+    assert(a.saasReauthPending() === true, 'a malformed 401 body should still trigger the password prompt');
+    assert(puts === 1, 'must not have retried on a malformed body, got ' + puts + ' PUT(s)');
+    assert(a.localStorage.getItem('ssj_cache') !== null, 'must not wipe the device');
+  });
+});
+
+testAsync('after a 401 with malformed JSON, reauth succeeds and resends on the new token', function(){
+  var a = loadApp();
+  var newTok = fakeToken(Date.now() + 6 * 3600000);
+  a.SAAS.user = { id:'u1', email:'o@shop.in', name:'Owner' };
+  a.SAAS.shop = { id:'shop1', name:'Test Shop' };
+  a.SAAS.sessionToken = fakeToken(Date.now() + 3600000);
+  var puts = [];
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/auth-gateway/login') !== -1){
+      return Promise.resolve({ status:200, ok:true, json:function(){
+        return Promise.resolve({ sessionToken:newTok, user:{ id:'u1', email:'o@shop.in' }, shop:{ id:'shop1', name:'Test Shop' } });
+      } });
+    }
+    if(String(url).indexOf('/store-proxy') !== -1 && opts.method === 'PUT'){
+      var h = (opts && opts.headers) || {};
+      puts.push(h['x-session-token']);
+      if(h['x-session-token'] === newTok){
+        return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({ ok:true, data:{ _v:2 } }); } });
+      }
+      return Promise.resolve({ status:401, ok:false, json:function(){ return Promise.reject(new SyntaxError('bad json')); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  var result = 'pending';
+  a.saveToCloud(function(err){ result = err ? err.message : 'saved'; });
+  return flushAll().then(function(){
+    assert(a.saasReauthPending() === true, 'should be waiting for the password');
+    a.document.getElementById('reauth-password').value = 'right-password';
+    a.saasReauthSubmit();
+    return flushAll(16);
+  }).then(function(){
+    assert(result === 'saved', 'the held save should complete after sign-in, got ' + result);
+    assert(puts.length === 2 && puts[1] === newTok, 'the retry should use the new token, puts: ' + JSON.stringify(puts));
+  });
+});
+
+testAsync('a 403 with unparseable JSON still reports forbidden, not a retry loop', function(){
+  var a = loadApp();
+  a.SAAS.sessionToken = fakeToken(Date.now() + 3600000);
+  var puts = 0;
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts.method === 'PUT'){
+      puts++;
+      return Promise.resolve({ status:403, ok:false, json:function(){ return Promise.reject(new SyntaxError('bad')); } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  var result = 'pending';
+  a.saveToCloud(function(err){ result = err ? err.message : 'saved'; });
+  return flushAll().then(function(){
+    assert(result === 'forbidden', 'expected a forbidden error, got ' + result);
+    assert(puts === 1, 'a 403 must never retry, got ' + puts + ' PUT(s)');
+  });
+});
+
+testAsync('a 409 conflict with a slow body is not cut off by the 10s bound (only 401/403 are)', function(){
+  var a = loadApp();
+  a.SAAS.sessionToken = fakeToken(Date.now() + 3600000);
+  var timers = [];
+  a.setTimeout = function(f, ms){ timers.push({ f:f, ms:ms }); return timers.length; };
+  a.clearTimeout = function(id){ if(timers[id - 1]) timers[id - 1].f = function(){}; };
+  a.fetch = function(url, opts){
+    if(String(url).indexOf('/store-proxy') !== -1 && opts.method === 'PUT'){
+      return Promise.resolve({ status:409, ok:false, json:function(){
+        return Promise.resolve({ ok:false, conflict:true, data:{ _v:5, _saveId:'someone-elses' } });
+      } });
+    }
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve({}); } });
+  };
+  a.saveToCloud(function(){});
+  return flushAll().then(function(){
+    var bound = timers.filter(function(t){ return t.ms === 10000; });
+    assert(bound.length === 0, 'a 409 must use the old unbounded body read, not the 401/403 bound; found ' + bound.length + ' 10s timer(s)');
+  });
+});
+
 // C2 (3 Oct QA, confirmed by reproducing it): loadFromCloud() used to overwrite
 // S.rates (and everything else) from the server with zero check for an
 // unsynced local change -- a rate edit held for re-auth, abandoned by a
@@ -2126,6 +2266,246 @@ test('shop name, city, phone and GSTIN are escaped on the sale invoice (a manage
   var html = app.buildInvoiceHTML({ id:'s1', invNo:'INV-1', date:new Date().toISOString(), customer:'C', phone:'9',
     items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:3, discount:0 }, 'gst');
   assertEscaped(html, 'invoice');
+});
+
+console.log('\nStored XSS — invoice number, photo URL, invoice iframe (9 Oct 2026):');
+
+test('a hostile invoice number is escaped in the invoice title and body', function(){
+  app.SAAS.shop = { id:'shop_a', name:'Shop' };
+  app.SAAS.user = { id:'u1', name:'Owner', role:'owner' };
+  var html = app.buildInvoiceHTML({ id:'s1', invNo:HOSTILE, date:new Date().toISOString(), customer:'C', phone:'9',
+    items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:3, discount:0 }, 'gst');
+  assertEscaped(html, 'invoice invNo');
+});
+
+test('an invoice number that tries to close the <title> tag early cannot inject markup', function(){
+  app.SAAS.shop = { id:'shop_a', name:'Shop' };
+  app.SAAS.user = { id:'u1', name:'Owner', role:'owner' };
+  var html = app.buildInvoiceHTML({ id:'s1', invNo:'</title><img src=x onerror=alert(1)>', date:new Date().toISOString(),
+    customer:'C', phone:'9', items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:3, discount:0 }, 'gst');
+  assert(html.split('</title>').length === 2, 'expected exactly one real closing </title>, got ' + (html.split('</title>').length - 1));
+  assert(html.indexOf('<img src=x') === -1, 'the injected tag must not reach the page as real markup');
+});
+
+test('a hostile invoice number is escaped in the customer history card', function(){
+  var a = loadApp(), made = [], orig = a.document.createElement;
+  a.document.createElement = function(t){ var el = orig(t); made.push(el); return el; };
+  a.S.sales = [{ id:'s1', customer:'C', phone:'9', invNo:HOSTILE, date:new Date().toISOString(),
+    items:[{ name:'Ring', purity:'22K', weight:1, qty:1, rate:7000, making:0 }], gst:0, discount:0 }];
+  a.showCustHistory(encodeURIComponent('C_9'));
+  var all = made.map(function(el){ return el.innerHTML || ''; }).join('');
+  assertEscaped(all, 'customer history');
+});
+
+test('a hostile product photo URL cannot break out of the href attribute, in the table or the mobile card', function(){
+  var a = loadApp();
+  a.UI.metal = 'gold'; a.UI.selCat = 'All';
+  a.S.products = [{ id:'p1', name:'Ring', metal:'gold', cat:'Rings', purity:'22K', sku:'GLD-1',
+    weight:2, netWeight:2, qty:1, status:'available', photo:'https://x.com/a" onmouseover="alert(1)' }];
+  a.renderInv();
+  ['inv-body', 'inv-cards'].forEach(function(id){
+    var html = a.document.getElementById(id).innerHTML;
+    assert(html.indexOf('" onmouseover="') === -1, id + ': the photo URL broke out of the href attribute');
+    assert(html.indexOf('href="https://x.com/a&quot; onmouseover=&quot;alert(1)"') !== -1, id + ': expected the escaped href to still be present as text');
+  });
+});
+
+test('a normal photo URL with a query string still renders as a working link (escaping & does not break it)', function(){
+  var a = loadApp();
+  a.UI.metal = 'gold'; a.UI.selCat = 'All';
+  a.S.products = [{ id:'p1', name:'Ring', metal:'gold', cat:'Rings', purity:'22K', sku:'GLD-1',
+    weight:2, netWeight:2, qty:1, status:'available', photo:'https://x.com/p?a=1&b=2' }];
+  a.renderInv();
+  var html = a.document.getElementById('inv-body').innerHTML;
+  assert(html.indexOf('href="https://x.com/p?a=1&amp;b=2"') !== -1, 'expected the & to be escaped to &amp; in the href, got: ' + html);
+});
+
+test('a hostile product purity is escaped in the table and the mobile card (independent review finding, 10 Oct)', function(){
+  var a = loadApp();
+  a.UI.metal = 'gold'; a.UI.selCat = 'All';
+  a.S.products = [{ id:'p1', name:'Ring', metal:'gold', cat:'Rings', purity:HOSTILE, sku:'GLD-1',
+    weight:2, netWeight:2, qty:1, status:'available' }];
+  a.renderInv();
+  ['inv-body', 'inv-cards'].forEach(function(id){
+    var html = a.document.getElementById(id).innerHTML;
+    assertEscaped(html, id + ' purity badge');
+  });
+});
+
+test('a hostile product id cannot break out of the onclick handlers, in the table or the mobile card (independent review finding, 10 Oct)', function(){
+  var a = loadApp();
+  a.UI.metal = 'gold'; a.UI.selCat = 'All';
+  a.S.products = [{ id:"p1' onmouseover='alert(1)", name:'Ring', metal:'gold', cat:'Rings', purity:'22K', sku:'GLD-1',
+    weight:2, netWeight:2, qty:1, status:'available' }];
+  a.renderInv();
+  ['inv-body', 'inv-cards'].forEach(function(id){
+    var html = a.document.getElementById(id).innerHTML;
+    assert(html.indexOf("' onmouseover='") === -1, id + ': the product id broke out of the onclick JS string');
+    assert(html.indexOf("editProd('p1\\' onmouseover=\\'alert(1)')") !== -1, id + ': expected the escaped id to still appear as literal text');
+  });
+});
+
+test('a hostile product id is escaped the same way in the "returned" button and when it carries its own backslash (independent review finding, 10 Oct)', function(){
+  var a = loadApp();
+  a.UI.metal = 'gold'; a.UI.selCat = 'All';
+  // status:'returned' is the one branch (markReturnedSellable) the previous
+  // test's status:'available' product never renders, so it alone couldn't
+  // catch a regression limited to that button. A trailing backslash also
+  // checks jsAttrEsc's escape ORDER: \\ must be escaped before ', otherwise
+  // an attacker's own backslash could cancel the \' that follows it.
+  a.S.products = [{ id:"p1\\'); alert(1); //", name:'Ring', metal:'gold', cat:'Rings', purity:'22K', sku:'GLD-1',
+    weight:2, netWeight:2, qty:1, status:'returned' }];
+  a.renderInv();
+  ['inv-body', 'inv-cards'].forEach(function(id){
+    var html = a.document.getElementById(id).innerHTML;
+    assert(html.indexOf("markReturnedSellable('p1\\\\\\'); alert(1); //')") !== -1, id + ': expected the escaped id in the returned-item button');
+  });
+});
+
+test('a hostile customer name is escaped in the PDF business report, which document.write()s into a same-origin window (independent review finding, 10 Oct)', function(){
+  var a = loadApp();
+  a.SAAS.shop = { id:'shop_a', name:'Shop' };
+  a.S.sales = [{ id:'s1', customer:HOSTILE, phone:'9', invNo:'INV-1', date:new Date().toISOString(),
+    items:[{ name:'Ring', purity:'22K', weight:1, qty:1, rate:7000, making:0 }], gst:0, discount:0 }];
+  a.showPdfReport();
+  var html = a.document.getElementById('pdf-preview-body').innerHTML;
+  assertEscaped(html, 'pdf report top customers');
+});
+
+console.log('\nRemaining unescaped onclick record-ids — full sweep (10 Oct Phase 5):');
+
+test('every bare string-id spliced into an inline onclick="...(\'+X+\')" across all 11 modules is wrapped in jsAttrEsc (regression guard for the Phase 5 sweep)', function(){
+  var fs = require('fs'), path = require('path');
+  // Mirrors the actual threat: store-proxy accepts arbitrary JSON, so any id
+  // (girvi, bill, template, user, sale, order, payment...) reaching an inline
+  // onclick="fn(\''+X+'\')" as a bare, unescaped string can break out of the
+  // handler's JS string the same way p.id could before Phase 2/3's fix.
+  // `safeId` is the one exception: it's already the OUTPUT of jsAttrEsc(p.id)
+  // (02-ui-inactivity-modals.js), assigned once and reused bare at 6 sites --
+  // wrapping it again would double-escape, not a gap.
+  var ALLOW_BARE = { safeId: true };
+  var RAW_PATTERN = /\\''\+([A-Za-z_][\w.\[\]]*)\+'\\'/g;
+  var files = ['00-config-state.js','01-sync-core.js','02-ui-inactivity-modals.js','03-billing-numbers.js',
+    '04-orders-detail.js','05-auth-login.js','06-inventory-stock.js','07-settings-plans.js',
+    '08-girvi-viewmode.js','09-purchases.js','10-daybook.js'];
+  var offenders = [];
+  files.forEach(function(f){
+    var src = fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf-8');
+    var m;
+    while((m = RAW_PATTERN.exec(src))){
+      var varName = m[1];
+      if(!ALLOW_BARE[varName]) offenders.push(f + ': ' + varName);
+    }
+  });
+  assert(offenders.length === 0, 'found ' + offenders.length + ' unescaped onclick id(s), each needs jsAttrEsc():\n  ' + offenders.join('\n  '));
+});
+
+console.log('\nCSV formula injection — all 4 exporters (10 Oct Phase 5):');
+
+test('csvCell neutralises a leading =, +, -, @ or tab -- the live-formula characters Excel/Sheets act on', function(){
+  var a = loadApp();
+  ['=1+1', '+1+1', '-1+1', '@SUM(A1)', '\tcmd'].forEach(function(hostile){
+    var out = a.csvCell(hostile);
+    assert(out.charAt(0) === "'", 'expected a leading quote before ' + JSON.stringify(hostile) + ', got ' + JSON.stringify(out));
+    assert(out === "'"+hostile, 'expected the rest of the value untouched, got ' + JSON.stringify(out));
+  });
+});
+
+test('csvCell leaves an ordinary name alone (no legitimate shop/customer value starts with =/+/-/@/tab)', function(){
+  var a = loadApp();
+  assert(a.csvCell('Ravi Kumar') === 'Ravi Kumar', 'expected an ordinary name unchanged, got ' + JSON.stringify(a.csvCell('Ravi Kumar')));
+  assert(a.csvCell('O\'Brien Jewellers') === "O'Brien Jewellers", 'expected an apostrophe left alone (not a CSV special char), got ' + JSON.stringify(a.csvCell("O'Brien Jewellers")));
+});
+
+test('csvCell still quotes a value containing a comma, quote or newline, same as every exporter did before', function(){
+  var a = loadApp();
+  assert(a.csvCell('Shop, Reg.') === '"Shop, Reg."', 'expected comma-containing value quoted, got ' + JSON.stringify(a.csvCell('Shop, Reg.')));
+  assert(a.csvCell('Say "Hi"') === '"Say ""Hi"""', 'expected internal quotes doubled, got ' + JSON.stringify(a.csvCell('Say "Hi"')));
+});
+
+test('csvCell combines both rules when a hostile value ALSO needs quoting (leading char escaped, then quoted)', function(){
+  var a = loadApp();
+  // the leading-quote prefix makes the whole value start with ', so once a
+  // comma also forces quoting, the output must be a validly-quoted CSV cell
+  // whose first real character (after the opening ") is still the escape.
+  var out = a.csvCell('=1,2');
+  assert(out === '"\'=1,2"', 'expected the formula-escape to survive CSV quoting, got ' + JSON.stringify(out));
+});
+
+test('all 4 CSV exporters route through csvCell, not their own inline quote-escaping (regression guard)', function(){
+  var fs = require('fs'), path = require('path');
+  var files = {
+    'js/03-billing-numbers.js': ['exportMonthCSV', '_doGSTR1Export'],
+    'js/07-settings-plans.js': ['exportCSV'],
+    'js/09-purchases.js': ['pbExportCsv']
+  };
+  Object.keys(files).forEach(function(file){
+    var src = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    files[file].forEach(function(fnName){
+      var start = src.indexOf('function '+fnName+'(');
+      assert(start !== -1, fnName + ' not found in ' + file);
+      var end = src.indexOf('\nfunction ', start + 10);
+      var body = src.slice(start, end === -1 ? start + 4000 : end);
+      assert(body.indexOf('csvCell') !== -1, fnName + ' in ' + file + ' no longer calls csvCell (did someone revert to inline escaping?)');
+      assert(!/'"'\s*\+\s*String\(/.test(body), fnName + ' in ' + file + ' has its own inline quote-escaping again, bypassing the formula-injection guard');
+    });
+  });
+});
+
+console.log('\nGirvi photo dataUrl XSS (10 Oct Phase 5):');
+
+test('a hostile photo dataUrl in the in-progress add-loan photo grid is escaped, and the photo id cannot break out of its onclick', function(){
+  var a = loadApp(), made = [], orig = a.document.createElement;
+  a.document.createElement = function(t){ var el = orig(t); made.push(el); return el; };
+  a.document.getElementById('gf-photo-grid'); // harness lazily creates it on first access
+  a.GF_PHOTOS = [{ id:"p1' onmouseover='alert(1)", dataUrl:HOSTILE, ts:new Date().toISOString() }];
+  a.gfRenderPhotos();
+  var html = a.document.getElementById('gf-photo-grid').innerHTML;
+  assertEscaped(html, 'gf-photo-grid dataUrl');
+  assert(html.indexOf("' onmouseover='") === -1, 'the photo id broke out of the onclick JS string');
+});
+
+test('a Girvi loan detail\'s ornament photo dataUrl is escaped inside the href it sits in', function(){
+  var a = loadApp();
+  // A data: URI can't contain " or < in a well-formed base64 payload, but the
+  // MIME-type segment before the comma is still attacker-reachable text (via
+  // an arbitrary store-proxy PUT) -- this payload keeps the required
+  // data:image/ prefix (so it passes the scheme check) while using that
+  // segment to attempt an attribute breakout.
+  var hostileDataUrl = 'data:image/png"><script>alert(1)</script>;base64,AAAA';
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:10000, customerId:'c1', status:'active' }];
+  a.S.customers = [{ id:'c1', ornamentPhotos:[{ id:'p1', dataUrl:hostileDataUrl, girviId:'g1' }] }];
+  a.openGirviDetail('g1');
+  var html = a.document.getElementById('gd-body').innerHTML;
+  assert(html.indexOf('<script>alert(1)</script>') === -1, 'the dataUrl broke out of the href/src attribute into real markup');
+  assert(html.indexOf('data:image/png&quot;&gt;') !== -1, 'expected the escaped dataUrl to still appear as literal text, got: ' + html.slice(html.indexOf('Ornament')));
+});
+
+test('a Girvi ornament "photo" that is not actually a data: URI is dropped entirely, not rendered with any scheme', function(){
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:10000, customerId:'c1', status:'active' }];
+  a.S.customers = [{ id:'c1', ornamentPhotos:[{ id:'p1', dataUrl:'javascript:alert(1)', girviId:'g1' }] }];
+  a.openGirviDetail('g1');
+  var html = a.document.getElementById('gd-body').innerHTML;
+  assert(html.indexOf('javascript:') === -1, 'a non-data: URI must never reach href/src at all, got: ' + html.slice(html.indexOf('Ornament'), html.indexOf('Ornament')+200));
+});
+
+test('the invoice preview iframe is sandboxed with no tokens', function(){
+  var a = loadApp();
+  a.openInvoiceModal('<p>x</p>', 'memo');
+  var html = a.document.getElementById('invoice-content').innerHTML;
+  assert(/<iframe[^>]*\ssandbox=""/.test(html), 'expected <iframe sandbox=""> in the markup openInvoiceModal produces, got: ' + html);
+});
+
+test('setBillType no longer touches inv-frame.contentDocument (would throw on a real sandboxed frame)', function(){
+  var a = loadApp();
+  a.SAAS.shop = { id:'shop_a', name:'Shop' };
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };
+  a.CURRENT_SALE_FOR_PDF = { id:'s1', invNo:'INV-1', date:new Date().toISOString(), customer:'C', phone:'9',
+    items:[{ name:'Ring', purity:'22K', weight:2, qty:1, rate:7000, making:0 }], gst:0, discount:0 };
+  a.setBillType('memo'); // must not throw -- a real sandbox="" frame's contentDocument is null
+  var frame = a.document.getElementById('inv-frame');
+  assert(frame.srcdoc && frame.srcdoc.indexOf('Memo Bill') !== -1, 'expected setBillType to write the new bill type via srcdoc, got: ' + frame.srcdoc);
 });
 
 console.log('\nCowork QA walkthrough, 30 Sep (P0 item 3 -- printed bill):');

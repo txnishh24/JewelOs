@@ -139,8 +139,9 @@ function renderPurchases(){
       '<select id="pb-status-filter" onchange="renderPurchaseList()" style="width:auto;padding:9px 28px 9px 10px;font-size:13px;">'+
         '<option value="all">All Status</option><option value="Paid">Paid</option><option value="Partial">Partial</option><option value="Unpaid">Unpaid</option>'+
       '</select>'+
+      '<button type="button" class="btn btn-sm pb-filters-toggle" onclick="pbToggleFilters()">&#128269; More filters</button>'+
     '</div>'+
-    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;">'+
+    '<div id="pb-filters-body" class="pb-filters-body" style="display:none;flex-wrap:wrap;gap:8px;margin:8px 0;">'+
       '<input type="date" id="pb-date-from" onchange="renderPurchaseList()" style="width:auto;font-size:12px;padding:7px 8px;"/>'+
       '<input type="date" id="pb-date-to" onchange="renderPurchaseList()" style="width:auto;font-size:12px;padding:7px 8px;"/>'+
       '<select id="pb-type-filter" onchange="renderPurchaseList()" style="width:auto;font-size:12px;padding:7px 8px;">'+
@@ -261,7 +262,7 @@ function pbWastageReportHtml(){
 function pbToggle(key, label){
   var checked = pbCfg()[key] ? 'checked' : '';
   return '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">'+
-    '<input type="checkbox" '+checked+' style="width:16px;height:16px;flex:0 0 auto;accent-color:var(--gold);" onchange="pbSetCfg(\''+key+'\',this.checked)"/> '+label+'</label>';
+    '<input type="checkbox" '+checked+' style="width:16px;height:16px;flex:0 0 auto;accent-color:var(--gold);" onchange="pbSetCfg(\''+jsAttrEsc(key)+'\',this.checked)"/> '+label+'</label>';
 }
 
 function pbSetCfg(key, val){
@@ -275,7 +276,7 @@ function pbSetCfg(key, val){
 
 function pbTh(field, label, align){
   var arrow = pbUI.sortBy === field ? (pbUI.sortDir === 'asc' ? ' \u25b2' : ' \u25bc') : '';
-  return '<th style="cursor:pointer;'+(align==='right'?'text-align:right;':'')+'" onclick="pbSort(\''+field+'\')">'+label+arrow+'</th>';
+  return '<th style="cursor:pointer;'+(align==='right'?'text-align:right;':'')+'" onclick="pbSort(\''+jsAttrEsc(field)+'\')">'+label+arrow+'</th>';
 }
 function pbSort(field){
   if(pbUI.sortBy === field) pbUI.sortDir = pbUI.sortDir === 'asc' ? 'desc' : 'asc';
@@ -1136,7 +1137,7 @@ function pbOpenPaymentModal(billId){
     '</div>'+
     '<div style="display:flex;gap:9px;margin-top:16px;">'+
       '<button class="btn btn-sm" style="flex:1;background:var(--surf2);border:1px solid var(--border2);" onclick="document.getElementById(\'pbpay-modal\').style.display=\'none\'">Cancel</button>'+
-      '<button class="btn btn-sm btn-success" style="flex:1;" onclick="pbSubmitPayment(\''+billId+'\')">Record Payment</button>'+
+      '<button class="btn btn-sm btn-success" style="flex:1;" onclick="pbSubmitPayment(\''+jsAttrEsc(billId)+'\')">Record Payment</button>'+
     '</div>';
 }
 
@@ -1236,7 +1237,7 @@ function pbOpenHistoryModal(billId){
       var isRev=p.type==='reversal', wasRev=reversedIds.indexOf(p.id)!==-1;
       return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:6px 10px;background:var(--card2);border-radius:8px;margin-bottom:5px;'+(wasRev?'opacity:.5;text-decoration:line-through;':'')+'">'+
         '<span'+(isRev?' style="color:var(--danger);"':'')+'>'+(isRev?'\u2718 Reversal':fmtDate(p.date))+' \u00b7 '+escHtml(p.mode||'')+' \u00b7 '+fmt(p.amount)+(p.ref?' \u00b7 '+escHtml(p.ref):'')+'<br><span style="color:var(--text3);font-size:11px;">by '+escHtml(p.by||'')+'</span></span>'+
-        ((!isRev&&!wasRev)?'<button onclick="pbReversePayment(\''+billId+'\',\''+p.id+'\')" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:11px;font-family:inherit;text-decoration:underline;">Reverse</button>':'')+
+        ((!isRev&&!wasRev)?'<button onclick="pbReversePayment(\''+jsAttrEsc(billId)+'\',\''+jsAttrEsc(p.id)+'\')" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:11px;font-family:inherit;text-decoration:underline;">Reverse</button>':'')+
       '</div>';
     }).join('')+
     '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:14px 0 6px;">Bill History</div>'+
@@ -1356,11 +1357,11 @@ function renderPurchaseList(){
         '<td class="num">'+fmt(b.pendingAmount)+'</td>'+
         '<td><span style="color:'+statusColor+';font-weight:700;">'+b.paymentStatus+'</span></td>'+
         '<td style="white-space:nowrap;">'+
-          '<button class="btn btn-sm" onclick="pbToggleForm(\''+b.id+'\')" title="Edit">\u270f\ufe0f</button> '+
-          '<button class="btn btn-sm" onclick="pbOpenPaymentModal(\''+b.id+'\')" title="Record supplier payment">\u20b9</button> '+
-          '<button class="btn btn-sm" onclick="pbOpenHistoryModal(\''+b.id+'\')" title="Bill history">\ud83d\udd52</button> '+
-          '<button class="btn btn-sm" onclick="pbPrintBill(\''+b.id+'\')" title="Print">\ud83d\uddb6\ufe0f</button> '+
-          '<button class="btn btn-sm" onclick="deletePurchase(\''+b.id+'\')" title="Delete">\ud83d\uddd1\ufe0f</button>'+
+          '<button class="btn btn-sm" onclick="pbToggleForm(\''+jsAttrEsc(b.id)+'\')" title="Edit">\u270f\ufe0f</button> '+
+          '<button class="btn btn-sm" onclick="pbOpenPaymentModal(\''+jsAttrEsc(b.id)+'\')" title="Record supplier payment">\u20b9</button> '+
+          '<button class="btn btn-sm" onclick="pbOpenHistoryModal(\''+jsAttrEsc(b.id)+'\')" title="Bill history">\ud83d\udd52</button> '+
+          '<button class="btn btn-sm" onclick="pbPrintBill(\''+jsAttrEsc(b.id)+'\')" title="Print">\ud83d\uddb6\ufe0f</button> '+
+          '<button class="btn btn-sm" onclick="deletePurchase(\''+jsAttrEsc(b.id)+'\')" title="Delete">\ud83d\uddd1\ufe0f</button>'+
         '</td>'+
       '</tr>';
     }).join('');
@@ -1422,6 +1423,11 @@ function pbPrintBill(id){
   w.document.close();
 }
 
+function pbToggleFilters(){
+  var el = document.getElementById('pb-filters-body');
+  if(el) el.style.display = (el.style.display==='none' ? 'flex' : 'none');
+}
+
 function pbPrintList(){
   var rows = pbGetFiltered();
   var body = rows.map(function(b){
@@ -1448,7 +1454,7 @@ function pbExportCsv(){
   if(cfg.hallmark) headers.push('Hallmark Charges');
   if(cfg.credit) headers.push('Credit Due Date');
 
-  function csvEsc(v){ v = (v==null?'':String(v)); return '"'+v.replace(/"/g,'""')+'"'; }
+  function csvEsc(v){ return csvCell(v); }
 
   var lines = [headers.map(csvEsc).join(',')];
   rows.forEach(function(b){

@@ -97,7 +97,7 @@ function showOrderDetail(ordId){
         '<div style="display:flex;gap:6px;align-items:center;">'+
           '<span class="badge '+(isRev?'bg-red':txn.type==='advance'?'bg-gold':'bg-green')+'">'+txn.type+'</span>'+
           (!isRev&&o.status!=='delivered'&&o.status!=='cancelled'?
-            '<button class="btn btn-xs btn-danger" onclick="reversePayment(\''+jsAttrEsc(ordId)+'\',\''+txn.txnId+'\')">Reverse</button>':'')+
+            '<button class="btn btn-xs btn-danger" onclick="reversePayment(\''+jsAttrEsc(ordId)+'\',\''+jsAttrEsc(txn.txnId)+'\')">Reverse</button>':'')+
         '</div>';
       ledgerList.appendChild(row);
     });

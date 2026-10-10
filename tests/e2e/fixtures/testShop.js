@@ -111,11 +111,20 @@ const TAB_ID = {
   settings: '#bn-settings',
 };
 
+// 10 Oct: the bottom nav went from 9 direct buttons to 4 + a "More" sheet
+// (js/02-ui-inactivity-modals.js openMoreMenu/closeMoreMenu). These 5 moved
+// into that sheet — same #bn-<tab> ids as before, just not clickable until
+// the sheet is open.
+const MORE_TABS = ['girvi', 'orders', 'customers', 'reports', 'settings'];
+
 // Clicks a bottom-nav tab (see TAB_ID for the valid keys), dismissing the
 // Netlify badge first — see dismissNetlifyBadge for why that matters
 // specifically for this click (the badge sits on top of this same row).
 async function goToTab(page, key) {
   await dismissNetlifyBadge(page);
+  if (MORE_TABS.indexOf(key) !== -1) {
+    await page.locator('#bn-more').click();
+  }
   await page.locator(TAB_ID[key]).click();
 }
 

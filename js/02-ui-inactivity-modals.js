@@ -139,6 +139,12 @@ function switchTab(tab){
     if(p)p.classList.toggle('active',t===tab);
     if(b)b.classList.toggle('active',t===tab);
   });
+  // Mobile bnav's "More" button: shows active (gold) whenever the current
+  // tab is one of the 5 destinations living inside its sheet, so the bar
+  // always shows where you are even when that destination isn't one of the
+  // 4 buttons shown directly.
+  var moreBtn=document.getElementById('bn-more');
+  if(moreBtn) moreBtn.classList.toggle('active',['girvi','orders','customers','reports','settings'].indexOf(tab)!==-1);
   document.querySelectorAll('.dtab').forEach(function(el,i){
     el.classList.toggle('active',['dashboard','inventory','sales','orders','girvi','customers','reports','daybook','settings'][i]===tab);
   });
@@ -160,6 +166,15 @@ function switchTab(tab){
       }
     });
   }
+}
+
+function openMoreMenu(){
+  var m=document.getElementById('more-menu-modal');
+  if(m) m.classList.add('open');
+}
+function closeMoreMenu(){
+  var m=document.getElementById('more-menu-modal');
+  if(m) m.classList.remove('open');
 }
 
 // ─── RATES ────────────────────────────────────────────────────────────────
@@ -275,7 +290,7 @@ function renderInv(){
   var q=(document.getElementById('inv-search').value||'').toLowerCase();
   var m=UI.metal;
   var sf=document.getElementById('inv-status-filter').value;
-  document.getElementById('cat-pills').innerHTML=CATS.map(function(c){return '<button class="pill'+(UI.selCat===c?' active':'')+'" onclick="setCat(\''+c+'\')">'+c+'</button>';}).join('');
+  document.getElementById('cat-pills').innerHTML=CATS.map(function(c){return '<button class="pill'+(UI.selCat===c?' active':'')+'" onclick="setCat(\''+jsAttrEsc(c)+'\')">'+c+'</button>';}).join('');
   var prods=S.products.filter(function(p){return p.metal===m;});
   if(UI.selCat!=='All') prods=prods.filter(function(p){return p.cat===UI.selCat;});
   if(sf==='available') prods=prods.filter(function(p){return p.status!=='sold'&&p.status!=='returned';});
@@ -294,37 +309,74 @@ function renderInv(){
   var pgEl = document.getElementById('inv-pagination');
   if(pgEl) pgEl.innerHTML = pgHtml;
 
-  document.getElementById('inv-body').innerHTML=pagedProds.length
-    ?pagedProds.map(function(p){
+  var invEmptyHtml='<span class="empty-icon">'+(isG?'&#127775;':'&#11088;')+'</span>No products found';
+  if(!pagedProds.length){
+    document.getElementById('inv-body').innerHTML='<tr><td colspan="9"><div class="empty">'+invEmptyHtml+'</div></td></tr>';
+    var cardsElEmpty=document.getElementById('inv-cards');
+    if(cardsElEmpty) cardsElEmpty.innerHTML='<div class="empty">'+invEmptyHtml+'</div>';
+  } else {
+    var trRows=[],cardRows=[];
+    pagedProds.forEach(function(p){
       var sold=p.status==='sold';
       var returned=p.status==='returned';
       var mv=mktVal(p);
       var pbg=isG?'background:#fef9ec;color:var(--gold-dark);border:1px solid rgba(179,146,87,0.3)':'background:#eef2f6;color:var(--silver-dark);border:1px solid rgba(168,180,192,0.35)';
       var safePhoto=(p.photo&&(p.photo.startsWith('http://')||p.photo.startsWith('https://')))?p.photo:'';
-      var photoHtml=safePhoto?'<a href="'+safePhoto+'" target="_blank" class="photo-link">&#128247; View</a>':'<span style="color:var(--text3);font-size:11px">&#8212;</span>';
+      var photoHtml=safePhoto?'<a href="'+escHtml(safePhoto)+'" target="_blank" class="photo-link">&#128247; View</a>':'<span style="color:var(--text3);font-size:11px">&#8212;</span>';
       var statusBadge=sold?'<span class="badge bg-red">&#128308; Sold</span>':returned?'<span class="badge" style="background:#fff4e0;color:#a86a00;border:1px solid rgba(168,106,0,0.3);">&#128269; Returned</span>':'<span class="badge bg-green">&#128994; Avail</span>';
-      return '<tr class="'+(sold?'sold-row':'')+'">'+
+      var netWtHtml=(p.netWeight&&p.netWeight>0?fmtW(p.netWeight):'<span style="color:var(--text3)">&#8212;</span>');
+      // Shared between the table row and the mobile card — same markup, same
+      // handlers, so the two layouts can never drift into different actions.
+      // store-proxy accepts arbitrary JSON per shop blob, so p.id (like
+      // sale.invNo/photo elsewhere) can't be trusted verbatim inside a
+      // single-quoted onclick="...('ID')" -- jsAttrEsc handles both the
+      // JS-string-breakout and the attribute-quote cases in one pass.
+      var safeId=jsAttrEsc(p.id);
+      var actionsHtml='<button class="btn btn-sm btn-info" onclick="editProd(\''+safeId+'\')" title="Edit product">&#9998;</button>'+
+          '<button class="btn btn-sm" onclick="openItemHistoryModal(\''+safeId+'\')" title="Movement history" style="background:var(--surf2);border:1px solid var(--border2);color:var(--text2);">&#128337;</button>'+
+          '<button class="btn btn-sm" onclick="openAdjustStockModal(\''+safeId+'\')" title="Adjust stock quantity" style="background:var(--surf2);border:1px solid var(--border2);color:var(--text2);">&#177;</button>'+
+          (returned
+            ?'<button class="btn btn-sm btn-success" onclick="markReturnedSellable(\''+safeId+'\')" title="Inspected — move to sellable stock" style="font-size:11px;">&#10003; Mark Sellable</button>'
+            :'<button class="btn btn-sm '+(sold?'btn-success':'btn-danger')+'" onclick="toggleStatus(\''+safeId+'\')" style="font-size:11px;">'+(sold?'&#9850; Restore':'&#10005; Sold')+'</button>'
+          )+
+          '<button class="btn btn-sm btn-danger" onclick="delProd(\''+safeId+'\')" title="Delete">&#128465;</button>';
+
+      trRows.push('<tr class="'+(sold?'sold-row':'')+'">'+
         '<td><div style="font-weight:600;font-size:13px">'+escHtml(p.name)+'</div>'+(p.notes?'<div style="font-size:11px;color:var(--text3)">'+escHtml(p.notes)+'</div>':'')+'<div style="font-size:10px;color:var(--text3)">'+escHtml(p.sku)+'</div></td>'+
-        '<td style="font-size:11px;font-weight:600;color:var(--info)">'+(p.huid?p.huid:'<span style="color:var(--text3)">&#8212;</span>')+'</td>'+
-        '<td><span class="badge" style="'+pbg+'">'+p.purity+'</span></td>'+
+        '<td style="font-size:11px;font-weight:600;color:var(--info)">'+(p.huid?escHtml(p.huid):'<span style="color:var(--text3)">&#8212;</span>')+'</td>'+
+        '<td><span class="badge" style="'+pbg+'">'+escHtml(p.purity)+'</span></td>'+
         '<td class="num" style="font-weight:700;color:'+(isG?'var(--gold-dark)':'var(--silver-dark)')+'">'+fmtW(p.weight)+'</td>'+
-        '<td class="num" style="font-size:12px;font-weight:400;color:var(--text2)">'+(p.netWeight&&p.netWeight>0?fmtW(p.netWeight):'<span style="color:var(--text3)">&#8212;</span>')+'</td>'+
+        '<td class="num" style="font-size:12px;font-weight:400;color:var(--text2)">'+netWtHtml+'</td>'+
         '<td class="num" style="color:var(--gold-dark)">'+fmt(mv)+'</td>'+
         '<td>'+photoHtml+'</td>'+
         '<td>'+statusBadge+'</td>'+
-        '<td><div style="display:flex;gap:5px;flex-wrap:wrap;">'+
-          '<button class="btn btn-sm btn-info" onclick="editProd(\''+p.id+'\')" title="Edit product">&#9998;</button>'+
-          '<button class="btn btn-sm" onclick="openItemHistoryModal(\''+p.id+'\')" title="Movement history" style="background:var(--surf2);border:1px solid var(--border2);color:var(--text2);">&#128337;</button>'+
-          '<button class="btn btn-sm" onclick="openAdjustStockModal(\''+p.id+'\')" title="Adjust stock quantity" style="background:var(--surf2);border:1px solid var(--border2);color:var(--text2);">&#177;</button>'+
-          (returned
-            ?'<button class="btn btn-sm btn-success" onclick="markReturnedSellable(\''+p.id+'\')" title="Inspected — move to sellable stock" style="font-size:11px;">&#10003; Mark Sellable</button>'
-            :'<button class="btn btn-sm '+(sold?'btn-success':'btn-danger')+'" onclick="toggleStatus(\''+p.id+'\')" style="font-size:11px;">'+(sold?'&#9850; Restore':'&#10005; Sold')+'</button>'
-          )+
-          '<button class="btn btn-sm btn-danger" onclick="delProd(\''+p.id+'\')" title="Delete">&#128465;</button>'+
-        '</div></td>'+
-      '</tr>';
-    }).join('')
-    :'<tr><td colspan="9"><div class="empty"><span class="empty-icon">'+(isG?'&#127775;':'&#11088;')+'</span>No products found</div></td></tr>';
+        '<td><div style="display:flex;gap:5px;flex-wrap:wrap;">'+actionsHtml+'</div></td>'+
+      '</tr>');
+
+      cardRows.push('<div class="inv-card'+(sold?' sold-row':'')+'">'+
+        '<div class="inv-card-top">'+
+          '<div style="min-width:0;">'+
+            '<div class="inv-card-name">'+escHtml(p.name)+'</div>'+
+            (p.notes?'<div class="inv-card-sub">'+escHtml(p.notes)+'</div>':'')+
+            '<div class="inv-card-sub">'+escHtml(p.sku)+'</div>'+
+          '</div>'+
+          statusBadge+
+        '</div>'+
+        '<div class="inv-card-rows">'+
+          '<div><span class="lbl">Purity</span><span class="badge" style="'+pbg+'">'+escHtml(p.purity)+'</span></div>'+
+          '<div><span class="lbl">Gross Wt</span><span style="font-weight:700;color:'+(isG?'var(--gold-dark)':'var(--silver-dark)')+'">'+fmtW(p.weight)+'</span></div>'+
+          '<div><span class="lbl">Net Wt</span>'+netWtHtml+'</div>'+
+          '<div><span class="lbl">Mkt Value</span><span style="color:var(--gold-dark);font-weight:600;">'+fmt(mv)+'</span></div>'+
+          '<div><span class="lbl">HUID</span>'+(p.huid?escHtml(p.huid):'<span style="color:var(--text3)">&#8212;</span>')+'</div>'+
+          '<div><span class="lbl">Photo</span>'+photoHtml+'</div>'+
+        '</div>'+
+        '<div class="inv-card-actions">'+actionsHtml+'</div>'+
+      '</div>');
+    });
+    document.getElementById('inv-body').innerHTML=trRows.join('');
+    var cardsEl=document.getElementById('inv-cards');
+    if(cardsEl) cardsEl.innerHTML=cardRows.join('');
+  }
 
   // "Available" here should mean sellable, not just "not sold" — a
   // returned/pending-inspection item is neither (Foundation audit B5).
@@ -864,7 +916,7 @@ function skuSearch(idx,val,sugBox){
           '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">'+
             '<span style="font-weight:700;color:var(--info);">'+escHtml(p.sku)+'</span>'+
             ' &bull; '+escHtml(p.purity)+' &bull; '+fmtW(p.weight)+
-            (p.huid?' &bull; HUID: '+p.huid:'')+
+            (p.huid?' &bull; HUID: '+escHtml(p.huid):'')+
           '</div>'+
         '</div>'+
         '<div style="text-align:right;flex-shrink:0;margin-left:8px;">'+
@@ -1979,8 +2031,8 @@ function setBillType(type){
       memoBtn.style.background = 'transparent';
       memoBtn.style.color      = 'var(--text2)';
     } else {
-      memoBtn.style.background = 'linear-gradient(135deg,#334155,#475569)';
-      memoBtn.style.color      = '#fff';
+      memoBtn.style.background = 'linear-gradient(135deg,var(--gold-dark),var(--gold))';
+      memoBtn.style.color      = '#1a1200';
       gstBtn.style.background  = 'transparent';
       gstBtn.style.color       = 'var(--text2)';
     }
@@ -1988,7 +2040,11 @@ function setBillType(type){
   if(CURRENT_SALE_FOR_PDF){
     var html = buildInvoiceHTML(CURRENT_SALE_FOR_PDF, type);
     var f = document.getElementById('inv-frame');
-    if(f){ f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close(); }
+    // #inv-frame is sandbox="" (03-billing-numbers.js, openInvoiceModal) --
+    // contentDocument is null on a sandboxed frame with no allow-same-origin,
+    // so document.write() would throw here. srcdoc works the same as
+    // openInvoiceModal's own initial render and needs no origin access.
+    if(f) f.srcdoc = html;
   }
 }
 
@@ -2127,7 +2183,15 @@ function buildInvoiceHTML(sale, billType){
   var hsnHeader = isGST ? '<th>HSN</th>' : '';
   var gstHeader = isGST ? '<th>GST</th>' : '';
 
-  return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><title>'+sale.invNo+'</title><style>'+
+  // CSP here (not just the #inv-frame sandbox) because this exact HTML
+  // string is also opened unsandboxed in a new window/tab via downloadPDF()
+  // (03-billing-numbers.js) as a blob: URL carrying the app's own origin --
+  // the sandbox attribute only protects the iframe preview, not that window.
+  // script-src 'none' blocks any injected script in either place; it doesn't
+  // affect the @import'd Google Fonts below (CSS, not script).
+  return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>'+
+    '<meta http-equiv="Content-Security-Policy" content="script-src \'none\'; object-src \'none\';"/>'+
+    '<title>'+escHtml(sale.invNo||'')+'</title><style>'+
     '@import url(\'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500&display=swap\');'+
     '*{box-sizing:border-box;margin:0;padding:0;}'+
     'body{font-family:\'Inter\',-apple-system,sans-serif;background:#fff;color:#212529;font-size:13px;line-height:1.55;-webkit-print-color-adjust:exact;}'+
@@ -2208,7 +2272,7 @@ function buildInvoiceHTML(sale, billType){
       '</div>'+
       '<div class="ibox">'+
         '<div class="ino">'+invoiceLabel+'</div>'+
-        '<div class="inv">'+sale.invNo+'</div>'+
+        '<div class="inv">'+escHtml(sale.invNo||'')+'</div>'+
         '<div class="idt">'+fmtDate(sale.date)+'&ensp;&middot;&ensp;'+fmtTime(sale.createdAt||sale.date)+'</div>'+
       '</div>'+
     '</div>'+
@@ -2241,13 +2305,13 @@ function buildInvoiceHTML(sale, billType){
       gstTotalsBlock+
       '<div class="tgrand"><span class="tgl">Grand Total</span><span class="tgv">'+fmt(t.grand)+'</span></div>'+
       ((sale.oldGold&&sale.oldGold.value>0)?
-        '<div class="tsettle"><span style="color:#6c757d;">&#9851; Old Gold'+(sale.oldGold.purity?' ('+sale.oldGold.purity+')':'')+(sale.oldGold.deductPct>0?' less '+sale.oldGold.deductPct+'%':'')+'</span><span class="tv cr">&minus; '+fmt(sale.oldGold.value)+'</span></div>':'')+
+        '<div class="tsettle"><span style="color:#6c757d;">&#9851; Old Gold'+(sale.oldGold.purity?' ('+escHtml(sale.oldGold.purity)+')':'')+(sale.oldGold.deductPct>0?' less '+sale.oldGold.deductPct+'%':'')+'</span><span class="tv cr">&minus; '+fmt(sale.oldGold.value)+'</span></div>':'')+
       ((sale.prevAdvance&&sale.prevAdvance.amount>0)?
-        '<div class="tsettle"><span style="color:#6c757d;">&#10003; Advance ('+sale.prevAdvance.mode+')</span><span class="tv cr">&minus; '+fmt(sale.prevAdvance.amount)+'</span></div>':'')+
+        '<div class="tsettle"><span style="color:#6c757d;">&#10003; Advance ('+escHtml(sale.prevAdvance.mode)+')</span><span class="tv cr">&minus; '+fmt(sale.prevAdvance.amount)+'</span></div>':'')+
       ((sale.splitPayments&&sale.splitPayments.length>0)?
-        sale.splitPayments.map(function(sp){return '<div class="tsettle"><span style="color:#6c757d;">&#128179; '+sp.mode+'</span><span class="tv cr">&minus; '+fmt(sp.amount)+'</span></div>';}).join('')
+        sale.splitPayments.map(function(sp){return '<div class="tsettle"><span style="color:#6c757d;">&#128179; '+escHtml(sp.mode)+'</span><span class="tv cr">&minus; '+fmt(sp.amount)+'</span></div>';}).join('')
       :(sale.nowPaying&&sale.nowPaying.amount>0?
-          '<div class="tsettle"><span style="color:#6c757d;">&#128179; Paid ('+sale.nowPaying.mode+')</span><span class="tv cr">&minus; '+fmt(sale.nowPaying.amount)+'</span></div>':
+          '<div class="tsettle"><span style="color:#6c757d;">&#128179; Paid ('+escHtml(sale.nowPaying.mode)+')</span><span class="tv cr">&minus; '+fmt(sale.nowPaying.amount)+'</span></div>':
           (!sale.oldGold&&!sale.prevAdvance&&sale.advance>0?
             '<div class="tsettle"><span style="color:#6c757d;">Advance Paid</span><span class="tv cr">&minus; '+fmt(t.adv)+'</span></div>':'')))+
       (t.bal>0?

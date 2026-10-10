@@ -1049,7 +1049,7 @@ function _dbPaintMonth(){
         var hIn  = Math.max(2, Math.round(d.totalIn/mx*80));
         var hOut = Math.max(2, Math.round(d.totalOut/mx*80));
         var dayNum = Number(d.date.slice(8,10));
-        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;cursor:pointer;" onclick="dbGoDate(\''+d.date+'\')" title="'+fmtDate(d.date)+'">'+
+        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;cursor:pointer;" onclick="dbGoDate(\''+jsAttrEsc(d.date)+'\')" title="'+fmtDate(d.date)+'">'+
           '<div style="width:100%;display:flex;align-items:flex-end;gap:1px;height:80px;">'+
             '<div style="flex:1;height:'+hIn+'px;background:var(--gold-dark);border-radius:2px 2px 0 0;"></div>'+
             '<div style="flex:1;height:'+hOut+'px;background:var(--danger);border-radius:2px 2px 0 0;opacity:.85;"></div>'+
@@ -1079,7 +1079,7 @@ function _dbPaintMonth(){
     html += '<div style="text-align:center;color:var(--text3);padding:16px;font-size:13px;">No days in this range yet.</div>';
   } else {
     html += trend.slice().reverse().map(function(d){
-      return '<div class="gl-entry" style="cursor:pointer;" onclick="dbGoDate(\''+d.date+'\')">'+
+      return '<div class="gl-entry" style="cursor:pointer;" onclick="dbGoDate(\''+jsAttrEsc(d.date)+'\')">'+
         '<div class="gl-entry-left">'+
           '<div class="gl-entry-amt">'+(d.isClosed?'🔒 ':'')+fmtDate(d.date)+'</div>'+
           '<div class="gl-entry-meta">In '+fmt(d.totalIn)+' • Out '+fmt(d.totalOut)+'</div>'+
@@ -1111,7 +1111,7 @@ function dbOpenEntryModal(){
   if(row){
     row.innerHTML = DB_ENTRY_CHIP_CATS.map(function(k){
       var c = DB_CATS[k];
-      return '<button type="button" class="gl-type-btn db-cat-chip" style="border-color:'+c.color+';" onclick="dbSetEntryCat(\''+k+'\',this)">'+c.icon+' '+escHtml(c.label)+'</button>';
+      return '<button type="button" class="gl-type-btn db-cat-chip" style="border-color:'+c.color+';" onclick="dbSetEntryCat(\''+jsAttrEsc(k)+'\',this)">'+c.icon+' '+escHtml(c.label)+'</button>';
     }).join('');
   }
   var amtEl = document.getElementById('db-entry-amt'); if(amtEl) amtEl.value = '';

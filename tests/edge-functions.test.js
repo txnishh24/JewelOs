@@ -365,6 +365,161 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     if (users.indexOf('a1@x.in') !== -1 || users.indexOf('a2@x.in') !== -1 || users.indexOf('r2@shop.in') !== -1) throw new Error('a refused account was still created');
   });
 
+  // ---- auth-gateway: Phase 3 critical remediation (10 Oct) — update-shop/
+  // add-staff/remove-staff used to trust session.role (a snapshot baked into
+  // the token at login, live up to 6h) instead of the caller's CURRENT
+  // record, so a demoted or removed user kept the old permissions until
+  // their token expired. Each test below that demotes/removes/expires an
+  // OWNER signs up its own fresh shop, so the shared ownerTok/shopId used by
+  // tests elsewhere in this file is never touched.
+  var mint = function (p) {
+    var b = Buffer.from(JSON.stringify(p)).toString('base64url');
+    return b + '.' + require('crypto').createHmac('sha256', SECRET).update(b).digest('base64url');
+  };
+  var freshShop = async function (tag) {
+    var s = await call(auth, 'signup', { name: 'Owner ' + tag, email: 'owner-' + tag + '@shop.in', password: 'ownerpass1', shopName: 'Shop ' + tag, city: 'City' });
+    return { tok: s.body.sessionToken, shopId: s.body.shop.id, userId: s.body.user.id };
+  };
+
+  await test('update-shop: a manager still on the team can update shop details (200)', async function () {
+    var o = await freshShop('m1');
+    var add = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'Mgr', email: 'mgr-m1@shop.in', role: 'manager' });
+    var mgrTok = (await call(auth, 'login', { email: 'mgr-m1@shop.in', password: add.body.tempPassword })).body.sessionToken;
+    eq((await call(auth, 'update-shop', { sessionToken: mgrTok, city: 'Pune' })).status, 200, 'status');
+  });
+  await test('update-shop: a manager demoted to staff after login is refused (403) and the shop is unchanged', async function () {
+    var o = await freshShop('m2');
+    var add = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'Mgr', email: 'mgr-m2@shop.in', role: 'manager' });
+    var mgrTok = (await call(auth, 'login', { email: 'mgr-m2@shop.in', password: add.body.tempPassword })).body.sessionToken;
+    var before = JSON.stringify(db.auth_store[1].data.find(function (s) { return s.id === o.shopId; }));
+    db.auth_store[0].data.find(function (u) { return u.email === 'mgr-m2@shop.in'; }).role = 'staff';
+    eq((await call(auth, 'update-shop', { sessionToken: mgrTok, city: 'Pune' })).status, 403, 'status');
+    eq(JSON.stringify(db.auth_store[1].data.find(function (s) { return s.id === o.shopId; })), before, 'shop record');
+  });
+  await test('update-shop: a manager REMOVED after login is refused (401) and the shop is unchanged', async function () {
+    var o = await freshShop('m3');
+    var add = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'Mgr', email: 'mgr-m3@shop.in', role: 'manager' });
+    var mgrLogin = await call(auth, 'login', { email: 'mgr-m3@shop.in', password: add.body.tempPassword });
+    var mgrTok = mgrLogin.body.sessionToken;
+    var before = JSON.stringify(db.auth_store[1].data.find(function (s) { return s.id === o.shopId; }));
+    eq((await call(auth, 'remove-staff', { sessionToken: o.tok, staffUserId: mgrLogin.body.user.id })).status, 200, 'remove-staff');
+    var r = await call(auth, 'update-shop', { sessionToken: mgrTok, city: 'Pune' });
+    eq(r.status, 401, 'status');
+    eq(r.body.error, 'Your access to this shop has changed — please sign in again', 'error message');
+    eq(JSON.stringify(db.auth_store[1].data.find(function (s) { return s.id === o.shopId; })), before, 'shop record');
+  });
+  await test('update-shop: a manager whose record now points at another shop is refused (401) and the shop is unchanged', async function () {
+    var o = await freshShop('m4');
+    var add = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'Mgr', email: 'mgr-m4@shop.in', role: 'manager' });
+    var mgrTok = (await call(auth, 'login', { email: 'mgr-m4@shop.in', password: add.body.tempPassword })).body.sessionToken;
+    var before = JSON.stringify(db.auth_store[1].data.find(function (s) { return s.id === o.shopId; }));
+    db.auth_store[0].data.find(function (u) { return u.email === 'mgr-m4@shop.in'; }).shopId = 'shop_other';
+    eq((await call(auth, 'update-shop', { sessionToken: mgrTok, city: 'Pune' })).status, 401, 'status');
+    eq(JSON.stringify(db.auth_store[1].data.find(function (s) { return s.id === o.shopId; })), before, 'shop record');
+  });
+  await test('update-shop: a staff token is refused (403)', async function () {
+    var o = await freshShop('m5');
+    var add = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'Staff', email: 'staff-m5@shop.in', role: 'staff' });
+    var tok = (await call(auth, 'login', { email: 'staff-m5@shop.in', password: add.body.tempPassword })).body.sessionToken;
+    eq((await call(auth, 'update-shop', { sessionToken: tok, city: 'Pune' })).status, 403, 'status');
+  });
+
+  await test('add-staff: an owner demoted after login cannot add staff (403) and no user is created', async function () {
+    var o = await freshShop('a1');
+    db.auth_store[0].data.find(function (u) { return u.id === o.userId; }).role = 'manager';
+    var r = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'New', email: 'new-a1@shop.in', role: 'staff' });
+    eq(r.status, 403, 'status');
+    eq(db.auth_store[0].data.some(function (u) { return u.email === 'new-a1@shop.in'; }), false, 'user created');
+  });
+  await test('add-staff: an owner whose user record is gone cannot add staff (401) and no user is created', async function () {
+    var o = await freshShop('a2');
+    db.auth_store[0].data = db.auth_store[0].data.filter(function (u) { return u.id !== o.userId; });
+    var r = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'New', email: 'new-a2@shop.in', role: 'staff' });
+    eq(r.status, 401, 'status');
+    eq(db.auth_store[0].data.some(function (u) { return u.email === 'new-a2@shop.in'; }), false, 'user created');
+  });
+  await test('add-staff: a current owner can still add staff (200), and re-adding the same email still returns 409', async function () {
+    var o = await freshShop('a3');
+    eq((await call(auth, 'add-staff', { sessionToken: o.tok, name: 'New', email: 'new-a3@shop.in', role: 'staff' })).status, 200, 'status');
+    eq((await call(auth, 'add-staff', { sessionToken: o.tok, name: 'New2', email: 'new-a3@shop.in', role: 'staff' })).status, 409, 'duplicate');
+  });
+
+  await test('remove-staff: an owner demoted after login cannot remove staff (403) and the target is still present', async function () {
+    var o = await freshShop('r1');
+    var add = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'Staff', email: 'staff-r1@shop.in', role: 'staff' });
+    var staffId = add.body.user.id;
+    db.auth_store[0].data.find(function (u) { return u.id === o.userId; }).role = 'manager';
+    eq((await call(auth, 'remove-staff', { sessionToken: o.tok, staffUserId: staffId })).status, 403, 'status');
+    eq(db.auth_store[0].data.some(function (u) { return u.id === staffId; }), true, 'target still present');
+  });
+  await test('remove-staff: an owner whose record is gone cannot remove staff (401) and the target is still present', async function () {
+    var o = await freshShop('r2');
+    var add = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'Staff', email: 'staff-r2@shop.in', role: 'staff' });
+    var staffId = add.body.user.id;
+    db.auth_store[0].data = db.auth_store[0].data.filter(function (u) { return u.id !== o.userId; });
+    eq((await call(auth, 'remove-staff', { sessionToken: o.tok, staffUserId: staffId })).status, 401, 'status');
+    eq(db.auth_store[0].data.some(function (u) { return u.id === staffId; }), true, 'target still present');
+  });
+  await test('remove-staff: the owner still cannot remove themselves (400)', async function () {
+    var o = await freshShop('r3');
+    eq((await call(auth, 'remove-staff', { sessionToken: o.tok, staffUserId: o.userId })).status, 400, 'status');
+  });
+  await test('remove-staff: the owner still cannot remove a user from another shop (403)', async function () {
+    var o1 = await freshShop('r4a');
+    var o2 = await freshShop('r4b');
+    var add = await call(auth, 'add-staff', { sessionToken: o2.tok, name: 'Staff', email: 'staff-r4b@shop.in', role: 'staff' });
+    eq((await call(auth, 'remove-staff', { sessionToken: o1.tok, staffUserId: add.body.user.id })).status, 403, 'status');
+  });
+  await test('remove-staff: a current owner can still remove staff (200) and the user is gone', async function () {
+    var o = await freshShop('r5');
+    var add = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'Staff', email: 'staff-r5@shop.in', role: 'staff' });
+    var staffId = add.body.user.id;
+    eq((await call(auth, 'remove-staff', { sessionToken: o.tok, staffUserId: staffId })).status, 200, 'status');
+    eq(db.auth_store[0].data.some(function (u) { return u.id === staffId; }), false, 'user still present');
+  });
+
+  await test('update-shop / add-staff / remove-staff: an expired token is refused (401 "Session expired")', async function () {
+    var o = await freshShop('e1');
+    var expired = mint({ userId: o.userId, shopId: o.shopId, role: 'owner', exp: Date.now() - 1000 });
+    eq((await call(auth, 'update-shop', { sessionToken: expired, city: 'X' })).status, 401, 'update-shop');
+    eq((await call(auth, 'add-staff', { sessionToken: expired, name: 'X', email: 'x-e1@shop.in' })).status, 401, 'add-staff');
+    eq((await call(auth, 'remove-staff', { sessionToken: expired, staffUserId: o.userId })).status, 401, 'remove-staff');
+  });
+  await test('update-shop / add-staff / remove-staff: a tampered token is refused (401)', async function () {
+    var o = await freshShop('e2');
+    // Flip the character right after the "." (the first real bits of the
+    // HMAC), not the token's last character -- that one is base64url's
+    // final 6-bit group for a 32-byte digest, which only uses its top 4
+    // bits; the bottom 2 are padding, so about 1 in 16 "tampered" last
+    // characters decode to the exact same bytes and the test flakes.
+    var dot = o.tok.indexOf('.');
+    var flip = function (c) { return c === 'a' ? 'b' : 'a'; };
+    var tampered = o.tok.slice(0, dot + 1) + flip(o.tok[dot + 1]) + o.tok.slice(dot + 2);
+    eq((await call(auth, 'update-shop', { sessionToken: tampered, city: 'X' })).status, 401, 'update-shop');
+    eq((await call(auth, 'add-staff', { sessionToken: tampered, name: 'X', email: 'x-e2@shop.in' })).status, 401, 'add-staff');
+    eq((await call(auth, 'remove-staff', { sessionToken: tampered, staffUserId: o.userId })).status, 401, 'remove-staff');
+  });
+  await test('update-shop / add-staff / remove-staff: a database error during the caller lookup never succeeds and changes nothing', async function () {
+    var o = await freshShop('e3');
+    var shopBefore = JSON.stringify(db.auth_store[1].data.find(function (s) { return s.id === o.shopId; }));
+    var usersBefore = JSON.stringify(db.auth_store[0].data);
+
+    db.fail.auth_store = true;
+    var r1 = null; try { r1 = await call(auth, 'update-shop', { sessionToken: o.tok, city: 'X' }); } catch (e) {}
+    if (r1 && r1.status === 200) throw new Error('update-shop got 200 on a failed lookup');
+    eq(JSON.stringify(db.auth_store[1].data.find(function (s) { return s.id === o.shopId; })), shopBefore, 'shop unchanged');
+
+    db.fail.auth_store = true;
+    var r2 = null; try { r2 = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'X', email: 'x-e3@shop.in' }); } catch (e) {}
+    if (r2 && r2.status === 200) throw new Error('add-staff got 200 on a failed lookup');
+    eq(JSON.stringify(db.auth_store[0].data), usersBefore, 'users unchanged');
+
+    db.fail.auth_store = true;
+    var r3 = null; try { r3 = await call(auth, 'remove-staff', { sessionToken: o.tok, staffUserId: o.userId }); } catch (e) {}
+    if (r3 && r3.status === 200) throw new Error('remove-staff got 200 on a failed lookup');
+    eq(JSON.stringify(db.auth_store[0].data), usersBefore, 'users unchanged');
+  });
+
   // ---- unchanged routes still work
   await test('login / change-password / update-shop unchanged', async function () {
     var t = (await call(auth, 'login', { email: 'owner@shop.in', password: 'newpass-123' })).body.sessionToken;

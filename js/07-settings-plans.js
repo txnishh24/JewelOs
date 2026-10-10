@@ -64,7 +64,12 @@ function showPdfReport(){
           return {name:c.name,rev:c.sales.reduce(function(s,x){return s+(calcSaleTotals(x).grand-calcRefundAdj(x).amount);},0),count:c.sales.length}; // H2: net of refunds
         }).sort(function(a,b){return b.rev-a.rev;}).slice(0,5);
         return custs.map(function(c,i){
-          return pdfRow((i+1)+'. '+c.name, fmt(c.rev)+' ('+plural(c.count,'order')+')','#333',false);
+          // c.name is free-typed by staff and reaches this via innerHTML
+          // (below) then document.write in printPdfPreview's new window --
+          // that window is same-origin (window.open('','_blank')) with full
+          // localStorage access, so an unescaped name is a stored-XSS path
+          // straight to the session token (9 Oct critical remediation).
+          return pdfRow((i+1)+'. '+escHtml(c.name), fmt(c.rev)+' ('+plural(c.count,'order')+')','#333',false);
         }).join('');
       }())+
     '</div>'+
@@ -108,7 +113,7 @@ function exportCSV(){
       Math.round(t.bal), Math.round(t.gstAmt), Math.round(p.profit)
     ]);
   });
-  var csv = rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var csv = rows.map(function(r){return r.map(csvCell).join(',');}).join('\n');
   var blob = new Blob([csv],{type:'text/csv'});
   var url  = URL.createObjectURL(blob);
   var a    = document.createElement('a');
@@ -384,8 +389,8 @@ function gfRenderPhotos(){
   if(!grid) return;
   grid.innerHTML = GF_PHOTOS.map(function(p){
     return '<div style="position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--border2);">'+
-      '<img src="'+p.dataUrl+'" style="width:100%;height:100%;object-fit:cover;display:block;">'+
-      '<button type="button" onclick="gfRemovePhoto(\''+p.id+'\')" title="Remove" '+
+      '<img src="'+escHtml(p.dataUrl)+'" style="width:100%;height:100%;object-fit:cover;display:block;">'+
+      '<button type="button" onclick="gfRemovePhoto(\''+jsAttrEsc(p.id)+'\')" title="Remove" '+
         'style="position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:12px;line-height:1;cursor:pointer;">✕</button>'+
     '</div>';
   }).join('');
@@ -867,15 +872,15 @@ function renderGirviTodayActions(){
 
   el.innerHTML = actions.slice(0,8).map(function(a){
     var g = a.g;
-    return '<div class="girvi-action '+a.urgency+'" onclick="openGirviDetail(\''+g.id+'\')">'+
+    return '<div class="girvi-action '+a.urgency+'" onclick="openGirviDetail(\''+jsAttrEsc(g.id)+'\')">'+
       '<div class="girvi-action-icon">'+(a.urgency==='red'?'\ud83d\udd34':a.urgency==='amber'?'\u26a0\ufe0f':'\ud83d\udfe6')+'</div>'+
       '<div class="girvi-action-body">'+
         '<div class="girvi-action-name">'+escHtml(g.customer)+'</div>'+
         '<div class="girvi-action-sub">'+g.grvNo+' &bull; '+a.type+' &bull; '+escHtml(g.item.desc||g.item.metal||'')+'</div>'+
         '<div class="girvi-action-btns" onclick="event.stopPropagation();">'+
           '<button class="girvi-action-btn gab-call" onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')">📞 Call</button>'+
-          '<button class="girvi-action-btn gab-wa"   onclick="girviWhatsApp(\''+g.id+'\')">💬 WA</button>'+
-          '<button class="girvi-action-btn gab-pay"  onclick="openGirviPayment(\''+g.id+'\')">₹ Pay</button>'+
+          '<button class="girvi-action-btn gab-wa"   onclick="girviWhatsApp(\''+jsAttrEsc(g.id)+'\')">💬 WA</button>'+
+          '<button class="girvi-action-btn gab-pay"  onclick="openGirviPayment(\''+jsAttrEsc(g.id)+'\')">₹ Pay</button>'+
         '</div>'+
       '</div>'+
       '<div class="girvi-action-right">'+
@@ -991,7 +996,7 @@ function girviLoanCardHTML(g){
 
     var canAct = status!=='closed';
 
-    return '<div class="girvi-card status-'+status+'" onclick="openGirviDetail(\''+g.id+'\')">'+
+    return '<div class="girvi-card status-'+status+'" onclick="openGirviDetail(\''+jsAttrEsc(g.id)+'\')">'+
       '<div class="girvi-card-top">'+
         '<div class="girvi-card-meta">'+
           '<div>'+
@@ -1031,13 +1036,13 @@ function girviLoanCardHTML(g){
           '<button class="gca call-btn" onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')">'+
             '<span class="gca-icon">\uD83D\uDCDE</span>Call'+
           '</button>'+
-          '<button class="gca wa-btn" onclick="girviWhatsApp(\''+g.id+'\')">'+
+          '<button class="gca wa-btn" onclick="girviWhatsApp(\''+jsAttrEsc(g.id)+'\')">'+
             '<span class="gca-icon">\uD83D\uDCAC</span>WhatsApp'+
           '</button>'+
-          '<button class="gca pay-btn" onclick="openGirviPayment(\''+g.id+'\')">'+
+          '<button class="gca pay-btn" onclick="openGirviPayment(\''+jsAttrEsc(g.id)+'\')">'+
             '<span class="gca-icon">₹</span>Pay'+
           '</button>'+
-          '<button class="gca" onclick="openGirviDetail(\''+g.id+'\')">'+
+          '<button class="gca" onclick="openGirviDetail(\''+jsAttrEsc(g.id)+'\')">'+
             '<span class="gca-icon">\uD83D\uDCCB</span>Details'+
           '</button>'+
         '</div>'
@@ -1176,8 +1181,8 @@ function openGirviDetail(gid){
         '<option value="Other">Other</option>'+
       '</select>'+
       '<div style="display:flex;gap:7px;">'+
-        '<button onclick="gdSaveAdjAmount(\''+gid+'\')" style="flex:1;padding:9px;border-radius:9px;border:none;background:var(--gold);color:#1a1200;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;">✅ Set Amount</button>'+
-        (g.adjustedAmount!=null?'<button onclick="gdResetAdjAmount(\''+gid+'\')" style="padding:9px 13px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit;">↺ Reset</button>':'')+
+        '<button onclick="gdSaveAdjAmount(\''+jsAttrEsc(gid)+'\')" style="flex:1;padding:9px;border-radius:9px;border:none;background:var(--gold);color:#1a1200;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;">✅ Set Amount</button>'+
+        (g.adjustedAmount!=null?'<button onclick="gdResetAdjAmount(\''+jsAttrEsc(gid)+'\')" style="padding:9px 13px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit;">↺ Reset</button>':'')+
       '</div>'+
       (g.amountAdjLog&&g.amountAdjLog.length?
         '<div style="margin-top:8px;font-size:11px;color:var(--text3);">Last adjustment: '+
@@ -1206,8 +1211,8 @@ function openGirviDetail(gid){
       '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">📝 Notes</div>'+
       notesRows+
       '<div style="display:flex;gap:7px;margin-top:6px;">'+
-        '<input id="gd-note-input" type="text" placeholder="Add a note…" style="flex:1;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:13px;font-family:inherit;" onkeydown="if(event.key===\'Enter\')gdAddNote(\''+gid+'\')">'+
-        '<button onclick="gdAddNote(\''+gid+'\')" style="padding:9px 14px;border-radius:9px;border:none;background:var(--gold);color:#1a1200;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;">+</button>'+
+        '<input id="gd-note-input" type="text" placeholder="Add a note…" style="flex:1;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:13px;font-family:inherit;" onkeydown="if(event.key===\'Enter\')gdAddNote(\''+jsAttrEsc(gid)+'\')">'+
+        '<button onclick="gdAddNote(\''+jsAttrEsc(gid)+'\')" style="padding:9px 14px;border-radius:9px;border:none;background:var(--gold);color:#1a1200;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;">+</button>'+
       '</div>'+
     '</div>'
   : (notesRows ? '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">📝 Notes</div>'+notesRows+'</div>' : '');
@@ -1371,8 +1376,17 @@ function openGirviDetail(gid){
         '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">📷 Ornament Photos</div>'+
         '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">'+
           pics.map(function(p){
-            return '<a href="'+p.dataUrl+'" target="_blank" rel="noopener" style="display:block;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--border2);">'+
-              '<img src="'+p.dataUrl+'" style="width:100%;height:100%;object-fit:cover;display:block;">'+
+            // store-proxy accepts arbitrary JSON, so dataUrl can't be trusted
+            // verbatim in href -- a real ornament photo is always a data:image/
+            // URI (produced client-side by gfCompressPhoto's canvas re-encode);
+            // anything else (e.g. javascript:...) is refused outright, same
+            // scheme-whitelist pattern as the product photo link (02-ui-
+            // inactivity-modals.js). img src is harmless either way, but kept
+            // consistent with the href it sits inside the same <a> as.
+            var safeDataUrl=(p.dataUrl&&p.dataUrl.indexOf('data:image/')===0)?p.dataUrl:'';
+            if(!safeDataUrl) return '';
+            return '<a href="'+escHtml(safeDataUrl)+'" target="_blank" rel="noopener" style="display:block;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--border2);">'+
+              '<img src="'+escHtml(safeDataUrl)+'" style="width:100%;height:100%;object-fit:cover;display:block;">'+
             '</a>';
           }).join('')+
         '</div>'+
@@ -1385,26 +1399,26 @@ function openGirviDetail(gid){
     // Actions
     (canAct?
       '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px;">'+
-        '<button onclick="openGirviPayment(\''+gid+'\')" style="padding:12px;border-radius:11px;border:none;background:var(--gold);color:#1a1200;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">💸 Add Payment</button>'+
-        '<button onclick="girviWhatsApp(\''+gid+'\')" style="padding:12px;border-radius:11px;border:none;background:#25d36622;color:#25d366;border:1px solid #25d36640;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">📱 WhatsApp</button>'+
+        '<button onclick="openGirviPayment(\''+jsAttrEsc(gid)+'\')" style="padding:12px;border-radius:11px;border:none;background:var(--gold);color:#1a1200;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">💸 Add Payment</button>'+
+        '<button onclick="girviWhatsApp(\''+jsAttrEsc(gid)+'\')" style="padding:12px;border-radius:11px;border:none;background:#25d36622;color:#25d366;border:1px solid #25d36640;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">📱 WhatsApp</button>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;">'+
         '<button onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--success);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📞 Call</button>'+
-        '<button onclick="openGirviEditModal(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">✏ Edit</button>'+
-        '<button onclick="openGirviRenewalModal(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(26,74,138,.3);background:var(--info-soft);color:var(--info);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔄 Renew</button>'+
+        '<button onclick="openGirviEditModal(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">✏ Edit</button>'+
+        '<button onclick="openGirviRenewalModal(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(26,74,138,.3);background:var(--info-soft);color:var(--info);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔄 Renew</button>'+
       '</div>'+
       // Ledger / Timeline / Receipt used to be bolted on by an override in
       // 08-girvi-viewmode.js that re-opened this modal and appended a second
       // action block — which is where the duplicate Edit, WhatsApp and Renew
       // buttons came from. Merged in here so each action appears exactly once.
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:7px;">'+
-        '<button onclick="openGirviLedger(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(28,96,64,.3);background:rgba(28,96,64,.08);color:var(--success);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">📒 Ledger</button>'+
-        '<button onclick="openGirviTimeline(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(138,78,12,.3);background:rgba(138,78,12,.08);color:var(--warning);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">📋 Timeline</button>'+
-        '<button onclick="openGirviReceiptModal(\''+gid+'\',\'creation\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🧾 Receipt</button>'+
+        '<button onclick="openGirviLedger(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(28,96,64,.3);background:rgba(28,96,64,.08);color:var(--success);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">📒 Ledger</button>'+
+        '<button onclick="openGirviTimeline(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(138,78,12,.3);background:rgba(138,78,12,.08);color:var(--warning);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">📋 Timeline</button>'+
+        '<button onclick="openGirviReceiptModal(\''+jsAttrEsc(gid)+'\',\'creation\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🧾 Receipt</button>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:7px;">'+
-        '<button onclick="closeGirviManual(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(28,96,64,.3);background:var(--success-soft);color:var(--success);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔓 Release Item</button>'+
-        '<button onclick="markGirviDefault(\''+gid+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(168,49,42,.3);background:var(--danger-soft);color:var(--danger);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔴 Mark Default</button>'+
+        '<button onclick="closeGirviManual(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(28,96,64,.3);background:var(--success-soft);color:var(--success);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔓 Release Item</button>'+
+        '<button onclick="markGirviDefault(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(168,49,42,.3);background:var(--danger-soft);color:var(--danger);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔴 Mark Default</button>'+
       '</div>'
     :'<div style="text-align:center;padding:10px;font-size:13px;color:var(--text3);">🔒 This loan is '+status+'. No further actions.</div>');
 
@@ -1548,7 +1562,7 @@ function openGirviPayment(gid){
       ' style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:11px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:13px;font-family:inherit;margin-bottom:12px;">'+
     '<div style="display:flex;gap:8px;">'+
       '<button onclick="closeGirviDetail()" style="flex:1;padding:12px;border-radius:11px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>'+
-      '<button onclick="submitGirviPayment(\''+gid+'\')" style="flex:2;padding:12px;border-radius:11px;border:none;background:var(--gold);color:#1a1200;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">\ud83d\udcb8 Record Payment</button>'+
+      '<button onclick="submitGirviPayment(\''+jsAttrEsc(gid)+'\')" style="flex:2;padding:12px;border-radius:11px;border:none;background:var(--gold);color:#1a1200;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">\ud83d\udcb8 Record Payment</button>'+
     '</div>';
 
   document.getElementById('gd-title').innerHTML='\ud83d\udcb8 Payment — '+escHtml(g.grvNo);

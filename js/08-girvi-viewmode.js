@@ -71,7 +71,7 @@ function renderGirviExecDash(){
             '<span style="font-size:11px;color:var(--text3);">'+g.grvNo+' \u00b7 '+di.overdue+'d overdue</span>'+
             '<span class="girvi-auction-stage '+stage+'">'+stageLabel+'</span>'+
             '<span style="font-weight:700;color:var(--danger);">\u20b9'+Math.round(girviOutstanding(g)).toLocaleString('en-IN')+'</span>'+
-            '<button style="padding:3px 9px;border-radius:8px;border:none;background:var(--danger);color:#fff;font-size:11px;font-weight:700;cursor:pointer;" onclick="openGirviLedger(\''+g.id+'\')">Collect</button>'+
+            '<button style="padding:3px 9px;border-radius:8px;border:none;background:var(--danger);color:#fff;font-size:11px;font-weight:700;cursor:pointer;" onclick="openGirviLedger(\''+jsAttrEsc(g.id)+'\')">Collect</button>'+
           '</div>';
         }).join('');
     } else {
@@ -143,7 +143,7 @@ function renderGirviByCustomer(search, filter, metalFilter){
         var its = Array.isArray(g.items)&&g.items.length ? g.items : (g.item?[g.item]:[]);
         var itemDesc = its.length===1 ? (its[0].desc||its[0].type||'Item') : (its.length+' items');
         var statusBadge = girviStatusBadge(g.status);
-        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:12px;background:rgba(0,0,0,0.02);margin-bottom:6px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background=\'rgba(179,146,87,.07)\'" onmouseout="this.style.background=\'rgba(0,0,0,0.02)\'" onclick="event.stopPropagation();openGirviDetail(\''+g.id+'\')">'+
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:12px;background:rgba(0,0,0,0.02);margin-bottom:6px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background=\'rgba(179,146,87,.07)\'" onmouseout="this.style.background=\'rgba(0,0,0,0.02)\'" onclick="event.stopPropagation();openGirviDetail(\''+jsAttrEsc(g.id)+'\')">'+
           '<div><span style="font-weight:700;font-size:12px;">'+g.grvNo+'</span> '+statusBadge+
           '<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+escHtml(itemDesc)+' &bull; '+fmtDate(g.startDate)+'</div></div>'+
           '<div style="text-align:right;"><div style="font-weight:700;font-size:13px;">\u20b9'+Math.round(g.status==='closed'?g.principal:girviOutstanding(g)).toLocaleString('en-IN')+'</div></div>'+
@@ -168,8 +168,8 @@ function renderGirviByCustomer(search, filter, metalFilter){
       '</div>'+
       '<div style="padding:0 16px;">'+entriesHtml+'</div>'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin:8px 16px 14px;gap:8px;">'+
-        (custIdAttr?'<button onclick="event.stopPropagation();addGirviLoanForCustomer(\''+custIdAttr+'\')" style="font-size:11px;padding:5px 14px;border-radius:20px;border:1px solid var(--gold-dark);background:rgba(179,146,87,.1);color:var(--gold-dark);cursor:pointer;font-family:inherit;font-weight:700;transition:background .15s;" onmouseover="this.style.background=\'rgba(179,146,87,.2)\'" onmouseout="this.style.background=\'rgba(179,146,87,.1)\'">+ Add Loan</button>':'<span></span>')+
-        (custIdAttr?'<button onclick="event.stopPropagation();showCustomerEditModal(\''+custIdAttr+'\')" style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--border2);background:var(--card2);color:var(--text2);cursor:pointer;font-family:inherit;transition:opacity .15s;" onmouseover="this.style.opacity=\'.8\'" onmouseout="this.style.opacity=\'1\'">✏️ Edit Customer</button>':'')+
+        (custIdAttr?'<button onclick="event.stopPropagation();addGirviLoanForCustomer(\''+jsAttrEsc(custIdAttr)+'\')" style="font-size:11px;padding:5px 14px;border-radius:20px;border:1px solid var(--gold-dark);background:rgba(179,146,87,.1);color:var(--gold-dark);cursor:pointer;font-family:inherit;font-weight:700;transition:background .15s;" onmouseover="this.style.background=\'rgba(179,146,87,.2)\'" onmouseout="this.style.background=\'rgba(179,146,87,.1)\'">+ Add Loan</button>':'<span></span>')+
+        (custIdAttr?'<button onclick="event.stopPropagation();showCustomerEditModal(\''+jsAttrEsc(custIdAttr)+'\')" style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--border2);background:var(--card2);color:var(--text2);cursor:pointer;font-family:inherit;transition:opacity .15s;" onmouseover="this.style.opacity=\'.8\'" onmouseout="this.style.opacity=\'1\'">✏️ Edit Customer</button>':'')+
       '</div>'+
     '</div>';
   }).join('');
@@ -209,7 +209,7 @@ var _v20_renderGirvi_installed = false;
               '<div class="girvi-card-item">'+((Array.isArray(g.items)&&g.items.length?g.items[0].type:g.item&&g.item.type)||'Item')+'</div></div>'+
               '<div class="girvi-card-right">'+
                 '<div class="girvi-card-outstanding normal">₹'+Math.round(g.principal).toLocaleString('en-IN')+'</div>'+
-                '<button onclick="recoverGirviEntry(\''+g.id+'\')" style="margin-top:6px;padding:5px 12px;border-radius:20px;border:1px solid var(--border-success);background:var(--success-soft);color:var(--success);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">↺ Recover</button>'+
+                '<button onclick="recoverGirviEntry(\''+jsAttrEsc(g.id)+'\')" style="margin-top:6px;padding:5px 12px;border-radius:20px;border:1px solid var(--border-success);background:var(--success-soft);color:var(--success);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">↺ Recover</button>'+
               '</div>'+
             '</div>'+
           '</div>'+
@@ -330,17 +330,17 @@ var _v20_renderGirvi_installed = false;
       if(status==='closed'){
         actionsHtml='<div style="text-align:center;font-size:11px;color:var(--text3);padding:8px;border-top:0.5px solid var(--border);">\ud83d\udd12 Released '+(g.closedAt?fmtDate(g.closedAt):'')+'</div>';
       } else {
-        actionsHtml='<div class="girvi-card-actions" onclick="event.stopPropagation();">'+
+        actionsHtml='<div class="girvi-card-actions gca-6" onclick="event.stopPropagation();">'+
           '<button class="gca call-btn" onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')"><span class="gca-icon">\ud83d\udcde</span>Call</button>'+
-          '<button class="gca wa-btn" onclick="girviWhatsApp(\''+g.id+'\')"><span class="gca-icon">\ud83d\udcac</span>WA</button>'+
-          '<button class="gca pay-btn" onclick="openGirviPayment(\''+g.id+'\')"><span class="gca-icon">\u20b9</span>Pay</button>'+
-          '<button class="gca edit-btn" onclick="openGirviEditModal(\''+g.id+'\')"><span class="gca-icon">\u270f\ufe0f</span>Edit</button>'+
-          '<button class="gca ledger-btn" onclick="openGirviLedger(\''+g.id+'\')"><span class="gca-icon">\ud83d\udcd2</span>Ledger</button>'+
-          '<button class="gca archive-btn" onclick="deleteGirviEntry(\''+g.id+'\')"><span class="gca-icon">\ud83d\udce6</span>Archive</button>'+
+          '<button class="gca wa-btn" onclick="girviWhatsApp(\''+jsAttrEsc(g.id)+'\')"><span class="gca-icon">\ud83d\udcac</span>WA</button>'+
+          '<button class="gca pay-btn" onclick="openGirviPayment(\''+jsAttrEsc(g.id)+'\')"><span class="gca-icon">\u20b9</span>Pay</button>'+
+          '<button class="gca edit-btn" onclick="openGirviEditModal(\''+jsAttrEsc(g.id)+'\')"><span class="gca-icon">\u270f\ufe0f</span>Edit</button>'+
+          '<button class="gca ledger-btn" onclick="openGirviLedger(\''+jsAttrEsc(g.id)+'\')"><span class="gca-icon">\ud83d\udcd2</span>Ledger</button>'+
+          '<button class="gca archive-btn" onclick="deleteGirviEntry(\''+jsAttrEsc(g.id)+'\')"><span class="gca-icon">\ud83d\udce6</span>Archive</button>'+
         '</div>';
       }
 
-      return '<div class="girvi-card status-'+status+'" onclick="openGirviDetail(\''+g.id+'\')">'+
+      return '<div class="girvi-card status-'+status+'" onclick="openGirviDetail(\''+jsAttrEsc(g.id)+'\')">'+
         '<div class="girvi-card-top">'+
           '<div class="girvi-card-meta">'+
             '<div>'+
@@ -558,7 +558,7 @@ function geRenderDocs(g){
       slot.className='doc-slot'+(val?' filled':'');
       if(val){
         slot.innerHTML='<img src="'+escHtml(val)+'" onerror="this.style.display=\'none\'">'
-          +'<button class="doc-slot-del" onclick="event.stopPropagation();geDelDoc(\''+k+'\',\''+cid+'\')">\u2715</button>'
+          +'<button class="doc-slot-del" onclick="event.stopPropagation();geDelDoc(\''+jsAttrEsc(k)+'\',\''+jsAttrEsc(cid)+'\')">\u2715</button>'
           +'<div class="doc-slot-label" style="position:absolute;bottom:4px;left:0;right:0;text-align:center;background:rgba(0,0,0,.55);color:#fff;font-size:8px;padding:2px;">'+labels[i]+'</div>';
       } else {
         slot.innerHTML='<div class="doc-slot-icon">\ud83d\udcc4</div><div class="doc-slot-label">'+labels[i]+'</div>';

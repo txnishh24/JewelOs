@@ -971,7 +971,7 @@ function renderSettings(){
         return '<div class="log-row">'+
           '<div><b>'+escHtml(u.name)+'</b><div style="font-size:11px;color:var(--text3);">'+escHtml(u.email)+'</div></div>'+
           '<div style="text-align:right;"><span class="role-badge '+roleClass+'">'+escHtml(u.role)+'</span>'+
-          (u.id!==SAAS.user.id&&isOwner()?'<br><a onclick="removeStaff(\''+u.id+'\')" style="font-size:10px;color:var(--danger);cursor:pointer;margin-top:3px;display:block;">Remove</a>':'')+
+          (u.id!==SAAS.user.id&&isOwner()?'<br><a onclick="removeStaff(\''+jsAttrEsc(u.id)+'\')" style="font-size:10px;color:var(--danger);cursor:pointer;margin-top:3px;display:block;">Remove</a>':'')+
           '</div></div>';
       }).join('');
     }
