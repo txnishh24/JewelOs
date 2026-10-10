@@ -22,8 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. Last session (11 Oct) committed the 10 Oct working tree
-> (see LOG entry below); next session can pick up anywhere.
+> Free — nothing in progress. Last session (11 Oct, third entry) fixed the `_custId`
+> finding; `checks/unescaped-ids.js` now reports none.
 
 ---
 
@@ -148,6 +148,102 @@ done and tested. One gap: the permanent regression-check script for the button-i
 was never written — low cost, your call whether it's worth doing. Everything 🔴 from the
 Phase 5 list (login timing, session versioning, lockout, concurrent-write races) is still
 untouched, still needs its own Opus design pass before anyone builds it.
+
+---
+
+### 2026-10-11 (second entry) · Claude Code (Sonnet) — added `checks/unescaped-ids.js`, the permanent regression check the previous entry flagged as missing. Found ONE real open finding the Phase 5 sweep missed — not fixed, outside this task's scope
+
+🟢 Low (dev tooling only — no app/auth/schema code touched). Picked the task up with
+the NOW line free; closing it again now, task done.
+
+**What it does:** scans every `js/` file, per line, for the exact marker the Phase 5
+sweep's fix always left behind — `\''+IDENT+'\'` inside an inline `on*="..."` handler,
+i.e. a bare identifier/property-chain spliced into a single-quoted attribute argument
+with the quote itself escaped, and NOT wrapped in `jsAttrEsc(...)`. A value here can
+break out of the HTML attribute (not just the JS string) if it ever contains a literal
+`'` — same threat model as every other escaping fix in this app. Call-wrapped
+expressions (`jsAttrEsc(x)`, `Math.round(x)`, etc.) never match structurally, because the
+regex requires `+` immediately after the identifier chain and a call's own `(` breaks
+that — no allowlist needed for those. One real allowlist IS needed and is in there: a
+bare local the file assigned straight from `jsAttrEsc(...)` earlier (e.g. `02-ui-
+inactivity-modals.js`'s `var safeId=jsAttrEsc(p.id)`, reused bare 6 times in the shared
+`actionsHtml` string) is pre-escaped and correctly not re-flagged — confirmed by reading
+that code, not guessed.
+
+**Deliberately scoped narrower than "every possible escaping gap":** only this app's one
+JS-string-quoting convention (single-quoted strings, confirmed project-wide, ES5
+throughout) — a double-quoted-JS-string variant doesn't occur anywhere in `js/` today, so
+it isn't handled. And it does NOT cover `03-billing-numbers.js:368`'s single `&quot;'+
+cid+'&quot;` site (`showCustHistory`) — that one is already safe via
+`encodeURIComponent()` at its own assignment one line above, a different mitigation this
+line-local check can't see, and outside what the Phase 5 sweep touched anyway. Per the
+task's own instruction, flagging this scope boundary rather than silently guessing at a
+broader pattern.
+
+**No separate fixture files** — no sibling check has its own fixture convention, so this
+one carries an inline self-test (4 cases: a known-unsafe splice, a `jsAttrEsc`-wrapped
+one, a plain numeric one, and the pre-escaped-local case) that exits 1 immediately if the
+detector logic itself breaks, before it ever scans real code.
+
+**🔴 Real open finding, not a false positive, NOT fixed (outside this task's scope):**
+`03-billing-numbers.js:444`, inside `renderCustomers()`'s per-customer card (the
+Customers tab's risk-card list, each card's "✏️ Edit" button) —
+`onclick="...showCustomerEditModal(\''+ _custId +'\')"`. `_custId = c.custId || null`
+(line 417) is never passed through `jsAttrEsc` anywhere. This is a real gap the Phase 5
+sweep missed, same class as everything else it fixed. Left open per this task's explicit
+boundary (no unrelated fixes); `checks/unescaped-ids.js` now fails (exit 1) until it's
+wrapped in `jsAttrEsc(_custId)`, same one-line pattern as every other site in that sweep.
+
+**Integrated into `check.bat`** (step 3 of 3, after `unquoted-args.js`) and
+`checks/README.md` (table entry, run list, "Nine" → "Ten", and a note in "Known false
+positives" that this one currently reports a real finding, not noise).
+
+**Validated:** `node --check` clean on all 11 `js/` files (unchanged by this task, re-run
+as a sanity check); `tests/regression.test.js` 420/420 (also unchanged, same reason); all
+10 `checks/*.js` scripts run clean against baseline except the new one's expected exit 1;
+the new check's own self-test passes. Did not run `edge-functions.test.js` or the e2e
+suite — nothing in `js/`, auth, or schema changed, only `checks/`, `check.bat`, and
+`checks/README.md`.
+
+→ FOR COWORK: nothing — dev tooling only, no app/DB-relevant change.
+→ FOR TANISH: the permanent check from the last entry's flagged gap now exists and is
+wired into `check.bat`. It immediately caught one real unescaped customer-id site the
+sweep missed (`_custId` into `showCustomerEditModal`, detail above) — low severity (same
+family as the rest of Phase 5, not auth/schema) but genuinely open; your call whether to
+have it fixed now or batch it with something else.
+
+---
+
+### 2026-10-11 (third entry) · Claude Code (Sonnet) — fixed the `_custId` finding `checks/unescaped-ids.js` surfaced last entry. One line, same pattern as the rest of Phase 5. Detector now reports none
+
+🟡 Medium (same "mechanical, pattern pre-approved" classification Phase 5 item 10 already
+used — not a new design decision).
+
+**The fix:** `js/03-billing-numbers.js:444`, `renderCustomers()`'s per-customer "✏️ Edit"
+button — `showCustomerEditModal(\''+ _custId +'\')` → `showCustomerEditModal(\''+
+jsAttrEsc(_custId) +'\')`. Same function, same call shape as `jsAttrEsc(c.name)` three
+lines above it in the same render. Did not touch `checks/unescaped-ids.js` itself, per
+instruction — the fix makes the finding disappear because it's actually fixed, not
+because the detector was softened.
+
+**Verified the fix actually holds, not just that the tool goes quiet:** simulated the
+exact post-fix splice against (a) a normal customer id — renders identically to before,
+no behaviour change for real data — and (b) an adversarial id
+(`'); alert(document.cookie); //"><img src=x onerror=alert(1)>`) crafted to close the JS
+string, inject a comment, and break the HTML tag. Confirmed the escaped output has no
+unescaped `'`/`"`/`<`/`>` anywhere in the argument, and — simulating what a browser
+actually does (HTML-entity-decode the attribute value, then compile it as the handler's
+JS) — confirmed the whole payload parses as inert string content inside a single
+`showCustomerEditModal(...)` call; `alert(...)` never becomes executable code.
+
+**Validated:** `node --check` clean on `03-billing-numbers.js`; `node
+checks/unescaped-ids.js .` → none (was 1); all 10 `checks/*.js` scripts still match
+baseline (same documented false positives, nothing newly broken); `tests/
+regression.test.js` 420/420.
+
+→ FOR COWORK: nothing — single-line app-code escaping fix, no DB/live-data involved.
+→ FOR TANISH: the open finding from the last entry is fixed. `checks/unescaped-ids.js`
+now reports none — the permanent regression gate is live and currently clean.
 
 ---
 

@@ -1,6 +1,6 @@
 # JewelOS — automated checks
 
-Nine small programs that read the JewelOS source code and look for a specific
+Ten small programs that read the JewelOS source code and look for a specific
 family of mistakes: something the code refers to that was never actually created.
 That kind of mistake breaks a whole section of the app silently — no error
 message, the section just stops working or goes blank.
@@ -38,6 +38,7 @@ node checks/backup-check.js .
 node checks/roundtrip.js    .
 node checks/making-basis.js .
 node checks/unquoted-args.js .
+node checks/unescaped-ids.js .
 ```
 
 Or just run `check.bat`, which does all of the above plus `node --check` on the
@@ -58,6 +59,7 @@ eleven modules and the regression suite in `tests/`.
 | `roundtrip.js` | Proves data survives export → wipe → restore, using the real source. |
 | `making-basis.js` | Making charges: gross basis on new sales, net preserved on records billed before the change, and the locked total matching the displayed breakdown. |
 | `unquoted-args.js` | Inline handlers splicing a value in unquoted — `onclick="fn('+id+')"`. Harmless for a number; for a string the browser reads the id as arithmetic, so the click throws silently and the button does nothing. This is what stopped order payments recording on 8 September. |
+| `unescaped-ids.js` | Inline handlers splicing a value in quoted but not through `jsAttrEsc()` — `onclick="fn(\''+id+'\')"`. A crafted value breaks out of the HTML attribute, not just the JS string — the XSS pattern the 10-11 Oct Phase 5 sweep hand-fixed across every `js/` file. Unlike the other checks here, a hit from this one is not a judgment call — it should always be zero. |
 
 ### Reading the output
 
@@ -75,6 +77,10 @@ Not every hit is a bug. Judge each one:
 
 `backup-check.js` and `roundtrip.js` should both pass cleanly. If `roundtrip.js`
 reports lost keys, the backup is silently dropping shop data — treat as urgent.
+`unescaped-ids.js` should also pass cleanly — **as of 11 Oct it does not**: it
+found one real site the Phase 5 sweep missed (`03-billing-numbers.js:444`,
+`_custId` into `showCustomerEditModal`), left unfixed because fixing it was
+outside that session's task. Treat as a real, open finding, not noise.
 
 ### Known false positives as of Sept 2026
 

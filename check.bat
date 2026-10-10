@@ -55,6 +55,7 @@ node backup-check.js ..
 node roundtrip.js ..
 node making-basis.js ..
 node unquoted-args.js ..
+node unescaped-ids.js ..
 popd
 
 echo.

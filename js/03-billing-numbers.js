@@ -441,7 +441,7 @@ function renderCustomers(){
           (f.totalExposure>0?'<div style="font-size:11px;color:'+riskColor+';font-weight:600;">Total exposure: \u20b9'+Math.round(f.totalExposure).toLocaleString('en-IN')+'</div>':'')+
         '</div>'+
       '</div>'+
-      (_custId?'<div style="text-align:right;margin-top:6px;"><button onclick="event.stopPropagation();showCustomerEditModal(\''+ _custId +'\')" style="font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border2);background:var(--card2);color:var(--text2);cursor:pointer;font-family:inherit;">✏️ Edit</button></div>':'')+
+      (_custId?'<div style="text-align:right;margin-top:6px;"><button onclick="event.stopPropagation();showCustomerEditModal(\''+ jsAttrEsc(_custId) +'\')" style="font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border2);background:var(--card2);color:var(--text2);cursor:pointer;font-family:inherit;">✏️ Edit</button></div>':'')+
       '';
     listEl.appendChild(div);
   });
