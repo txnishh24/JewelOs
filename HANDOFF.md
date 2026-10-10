@@ -22,8 +22,9 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. Last session (11 Oct, third entry) fixed the `_custId`
-> finding; `checks/unescaped-ids.js` now reports none.
+> Free — nothing in progress. Last session (11 Oct, fourth entry) redeployed the
+> Cloudflare worker with the current `main` (Phase 5 + `_custId` fix). Netlify
+> (real production) was NOT touched.
 
 ---
 
@@ -244,6 +245,57 @@ regression.test.js` 420/420.
 → FOR COWORK: nothing — single-line app-code escaping fix, no DB/live-data involved.
 → FOR TANISH: the open finding from the last entry is fixed. `checks/unescaped-ids.js`
 now reports none — the permanent regression gate is live and currently clean.
+
+---
+
+### 2026-10-11 (fourth entry) · Claude Code (Sonnet) — redeployed the Cloudflare worker (jewelos-e2e.workers.dev) from current `main`, catching it up with everything committed today. Netlify (Srisai's real production) deliberately NOT touched
+
+🟡 Medium (production deployment to the Cloudflare *cutover candidate*, not the real
+production Srisai uses — Tanish explicitly chose this target over Netlify when asked,
+specifically to avoid touching her live shop before the offline-mode phone test from the
+10 Oct entry happens).
+
+**Why this was needed:** the first two Cloudflare deploys (10 Oct) shipped from
+`jewelos-batch51-DEPLOY.zip` (a Downloads zip, predating all of today's work) plus one
+direct `manifest.json` patch. Everything from commits `d79e087` (Phase 5 security +
+mobile nav + invoice-XSS fixes) and `0f9329e` (the `checks/unescaped-ids.js` finding fix)
+was sitting in `main` but had never reached either live surface.
+
+**What changed:** staged the exact 16 files the site serves (`index.html`,
+`manifest.json`, 2 icons, `sw.js`, all 11 `js/*.js` — same list `build-deploy-zip.js`
+uses, minus the Netlify-only `CHANGELOG.md`, which nothing reads at runtime) from current
+`main` into a clean folder outside the repo, byte-verified against the repo before
+touching anything live. Deployed via `wrangler deploy` with a `wrangler.jsonc` that also
+lives outside the repo (no committed wrangler config exists in this repo — none was found
+anywhere on the machine, so one was created fresh for this deploy; **if a canonical one
+existed from the 10 Oct session, it wasn't where this session could find it** — flagging
+in case Tanish knows where it went). `wrangler deploy --dry-run` first, then the real
+deploy: 11 of 16 files changed (everything except `00-config-state.js`, the 2 icons, and
+`manifest.json`, none of which this work touched), 5 unchanged and skipped automatically.
+
+**Verified live, the same way the 10 Oct cutover did:** all 16 files byte-identical
+between the deployed stage and `https://jewelos.jewelos-e2e.workers.dev` (via HTTP,
+following `index.html`'s known 307→`/` redirect, same canonicalization noted 10 Oct, not
+a content diff); `GET /` (the PWA's actual `start_url`) returns 200 directly, confirming
+the 10 Oct offline-launch fix is still intact after this deploy, not regressed.
+
+**Explicitly not done:** Netlify was not touched — it remains exactly as it was,
+serving Srisai. Supabase edge functions (`store-proxy`, `auth-gateway`) were not
+redeployed — those fixes (committed in `d79e087`) are outside Claude Code's reach per
+the standing Cowork/Claude Code split; **Cowork still needs to redeploy them** for the
+Phase-1/Phase-3 fixes in that commit to actually take effect anywhere.
+
+→ FOR COWORK: the auth-gateway (`loadActor` re-check) and store-proxy (body-read-before-
+response) fixes from `d79e087` are in `main` but have NOT been redeployed to Supabase —
+please redeploy those two edge functions when you get a chance; until then they're
+committed source, not live behavior.
+→ FOR TANISH: the Cloudflare test URL now has everything through today. Netlify (what
+Srisai actually uses) is untouched — still don't send her the Cloudflare URL until the
+real phone/airplane-mode test from the 10 Oct entry happens. No wrangler config was found
+anywhere on this machine from the original 10 Oct deploy; a fresh one was made for this
+deploy (now only in this session's temp scratch space, not committed to the repo) — let
+me know if you'd like it committed somewhere so the next session doesn't have to redo
+this.
 
 ---
 
