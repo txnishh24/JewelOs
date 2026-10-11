@@ -96,6 +96,17 @@ async function verifyPassword(pw: string, storedHash: string, salt: string) {
   return r.hash === storedHash;
 }
 
+// Login always pays for exactly one PBKDF2 hash, account or no account, so the
+// response time can't reveal whether an email is registered (10 Oct Phase 5,
+// item 3 -- see docs/login-timing-sidechannel-design.md). Not secrets; they
+// only exist to be hashed against.
+//   DUMMY_SALT: 32 hex chars, the same length as a real salt, so PBKDF2 does
+//     identical work.
+//   DUMMY_HASH: the same length as a real "pbkdf2:<64 hex>" value, but "-" is
+//     never a hex digit, so no password can ever produce it.
+const DUMMY_SALT = "a916d76f434c963972bef9307fc3def9";
+const DUMMY_HASH = "pbkdf2:" + "-".repeat(64);
+
 // ── Signed session tokens ───────────────────────────────────────────────
 function b64url(bytes: ArrayBuffer | Uint8Array) {
   const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
@@ -248,7 +259,16 @@ Deno.serve(async (req) => {
 
     const users = (await getBlob(supabase, "users")) as Record<string, unknown>[];
     const user = users.find((u) => String(u.email).toLowerCase() === email);
-    const ok = user ? await verifyPassword(password, String(user.passwordHash), String(user.salt)) : false;
+    // Always hash, even when no account matches: skipping it made unknown emails
+    // answer measurably faster than wrong passwords (see DUMMY_HASH above).
+    // `!!user` is what actually rejects an unknown email; DUMMY_HASH can never
+    // match anyway, but this line must not depend on that.
+    const passwordMatches = await verifyPassword(
+      password,
+      user ? String(user.passwordHash) : DUMMY_HASH,
+      user ? String(user.salt) : DUMMY_SALT,
+    );
+    const ok = !!user && passwordMatches;
 
     await supabase.from("login_attempts").insert({ email, ip, succeeded: ok });
 

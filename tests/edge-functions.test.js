@@ -35,6 +35,25 @@ var SECRET = 'test-secret-0123456789abcdef';
 var logs = [];
 var sentEmails = []; // every outbound Resend call the functions made
 
+// Every PBKDF2 the functions run, in order. Login must run exactly one per
+// request whether or not the email is registered (docs/login-timing-sidechannel-design.md).
+var deriveCalls = [];
+var countingCrypto = {
+  getRandomValues: function (a) { return webcrypto.getRandomValues(a); },
+  randomUUID: function () { return webcrypto.randomUUID(); },
+  subtle: new Proxy(webcrypto.subtle, {
+    get: function (t, k) {
+      if (k === 'deriveBits') return function (params, key, len) {
+        deriveCalls.push({ name: params.name, iterations: params.iterations, hash: params.hash,
+                           saltLen: params.salt && params.salt.byteLength, len: len });
+        return t.deriveBits(params, key, len);
+      };
+      var v = t[k];
+      return typeof v === 'function' ? v.bind(t) : v;
+    },
+  }),
+};
+
 // ── fake database ─────────────────────────────────────────────────────
 function makeDb() {
   return {
@@ -137,7 +156,7 @@ function load(file, db, env) {
     __mock: { createClient: function () { return makeClient(db); } },
     fetch: fakeFetch,
     Deno: { env: { get: function (k) { return envMap[k]; } }, serve: function (h) { handler = h; } },
-    crypto: webcrypto, TextEncoder: TextEncoder, TextDecoder: TextDecoder, btoa: btoa, atob: atob,
+    crypto: countingCrypto, TextEncoder: TextEncoder, TextDecoder: TextDecoder, btoa: btoa, atob: atob,
     Response: Response, URL: URL, Uint8Array: Uint8Array, Uint32Array: Uint32Array, Array: Array, String: String, JSON: JSON, Date: Date, Math: Math, Set: Set, Promise: Promise,
     console: { log: function (m) { logs.push(String(m)); }, error: function (m, x) { logs.push('ERR ' + m + (x || '')); } },
   };
@@ -518,6 +537,42 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     var r3 = null; try { r3 = await call(auth, 'remove-staff', { sessionToken: o.tok, staffUserId: o.userId }); } catch (e) {}
     if (r3 && r3.status === 200) throw new Error('remove-staff got 200 on a failed lookup');
     eq(JSON.stringify(db.auth_store[0].data), usersBefore, 'users unchanged');
+  });
+
+  // ---- auth-gateway: login timing side-channel (Phase 5 item 3)
+  var pbkdf2During = async function (fn) {
+    var before = deriveCalls.length; var r = await fn();
+    return { r: r, calls: deriveCalls.slice(before) };
+  };
+
+  await test('login: an unknown email runs exactly one PBKDF2, the same as a wrong password for a real account', async function () {
+    await freshShop('t1');
+    var real = await pbkdf2During(function () { return call(auth, 'login', { email: 'owner-t1@shop.in', password: 'wrong-pass-1' }); });
+    var none = await pbkdf2During(function () { return call(auth, 'login', { email: 'nobody-t1@shop.in', password: 'wrong-pass-1' }); });
+    eq(real.calls.length, 1, 'real account, wrong password: PBKDF2 calls');
+    eq(none.calls.length, 1, 'unknown email: PBKDF2 calls');            // 0 on today's code: this is the bug
+    eq(JSON.stringify(none.calls[0]), JSON.stringify(real.calls[0]), 'same PBKDF2 parameters on both paths');
+  });
+
+  await test('login: an unknown email gets the identical 401 status and body as a wrong password', async function () {
+    await freshShop('t2');
+    var real = await call(auth, 'login', { email: 'owner-t2@shop.in', password: 'wrong-pass-2' });
+    var none = await call(auth, 'login', { email: 'nobody-t2@shop.in', password: 'wrong-pass-2' });
+    eq(real.status, 401, 'real status'); eq(none.status, 401, 'unknown status');
+    eq(JSON.stringify(none.body), JSON.stringify(real.body), 'body');
+  });
+
+  await test('login: an unknown email never logs in, and its attempt is recorded as failed', async function () {
+    var r = await call(auth, 'login', { email: 'nobody-t3@shop.in', password: 'anything-at-all' });
+    eq(r.status, 401, 'status'); eq(r.body.sessionToken, undefined, 'no token');
+    var rows = db.login_attempts.filter(function (a) { return a.email === 'nobody-t3@shop.in'; });
+    eq(rows.length, 1, 'attempt recorded'); eq(rows[0].succeeded, false, 'succeeded');
+  });
+
+  await test('login: the correct password still succeeds with exactly one PBKDF2', async function () {
+    await freshShop('t4');
+    var ok = await pbkdf2During(function () { return call(auth, 'login', { email: 'owner-t4@shop.in', password: 'ownerpass1' }); });
+    eq(ok.r.status, 200, 'status'); eq(ok.calls.length, 1, 'PBKDF2 calls');
   });
 
   // ---- unchanged routes still work
