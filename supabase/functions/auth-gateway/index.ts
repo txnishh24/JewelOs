@@ -27,10 +27,19 @@
 // Endpoints (all POST, JSON body):
 //   /auth-gateway/signup                 { name, email, password, shopName, city }
 //   /auth-gateway/login                  { email, password }
+//   /auth-gateway/change-password        { sessionToken, currentPassword, newPassword }
+//   /auth-gateway/update-shop            { sessionToken, name?, city?, phone?, gstin?, locale? }
 //   /auth-gateway/add-staff              { sessionToken, name, email }
 //   /auth-gateway/remove-staff           { sessionToken, staffUserId }
 //   /auth-gateway/request-password-reset { email }
 //   /auth-gateway/reset-password         { email, code, newPassword }
+//
+// auth_store (the `users`/`shops` blobs) is written through mutateBlob(), a
+// compare-and-swap helper backed by the auth_store_cas_write() RPC
+// (migrations/008_auth_store_cas_history.sql) -- every write re-checks its
+// own preconditions against fresh data on a conflict and retries, rather
+// than overwriting a concurrent change to an unrelated record. See
+// docs/auth-store-cas-audit-design.md (10/11 Oct Phase 5, items 7+8).
 //
 // Email delivery (request-password-reset): sends a 6-digit code via the
 // Resend API. Requires secret RESEND_API_KEY and RESEND_FROM_EMAIL (a
@@ -153,23 +162,59 @@ async function getBlob(supabase: ReturnType<typeof createClient>, id: "users" | 
   if (error) throw error;
   return data && data.length ? (data[0].data as unknown[]) : [];
 }
-async function putBlob(supabase: ReturnType<typeof createClient>, id: "users" | "shops", arr: unknown[]) {
-  const { error } = await supabase.from("auth_store").upsert({ id, data: arr }, { onConflict: "id" });
+
+// Read-modify-write one auth_store row with compare-and-swap (10/11 Oct Phase 5
+// items 7+8 -- see docs/auth-store-cas-audit-design.md, migrations/008). Replaces
+// the old putBlob, which did a whole-array upsert with no lock and no version
+// check: two overlapping writes (even for unrelated shops, since `users`/`shops`
+// are each ONE shared array for the whole platform) could silently lose one
+// side's change. `apply` is called with a FRESH copy of the array on every
+// attempt and must be synchronous and self-contained: every check it makes
+// (actor role, duplicate email, target exists) re-runs against the latest data
+// on a retry. Do any async work (hashing, id generation) BEFORE calling this,
+// since `apply` itself cannot be async. `apply` returns `{ res }` to stop
+// without writing (a 4xx that doesn't change anything), or `{ next, res }` to
+// write `next` and return `res` once it lands.
+type Rec = Record<string, unknown>;
+const CAS_ATTEMPTS = 5;
+async function mutateBlob(
+  supabase: ReturnType<typeof createClient>,
+  id: "users" | "shops",
+  actor: string,
+  apply: (arr: Rec[]) => { next?: Rec[]; res: Response },
+): Promise<Response> {
+  const { data, error } = await supabase.from("auth_store").select("data, version").eq("id", id).limit(1);
   if (error) throw error;
+  let arr = (data && data.length ? data[0].data : []) as Rec[];
+  let version = data && data.length ? Number(data[0].version ?? 0) : 0;
+  for (let i = 0; i < CAS_ATTEMPTS; i++) {
+    const out = apply(JSON.parse(JSON.stringify(arr)));
+    if (!out.next) return out.res;
+    const { data: rows, error: e } = await supabase.rpc("auth_store_cas_write", {
+      p_id: id, p_data: out.next, p_expected_version: version, p_actor: actor,
+    });
+    if (e) throw e;
+    const r = Array.isArray(rows) ? rows[0] : rows;
+    if (r.ok) return out.res;
+    arr = (r.current_data ?? []) as Rec[]; // someone else wrote in between: re-apply on theirs
+    version = r.cur_version;
+  }
+  throw new Error(`auth_store ${id}: still conflicting after ${CAS_ATTEMPTS} attempts`);
 }
 
 // The token's role/shopId are a snapshot from login and live up to 6h. Privileged
 // routes re-read the caller's CURRENT record: removed, or moved to another shop
 // => null (401); role is then checked on `me.role`, never `session.role`.
-// Same rule as store-proxy's resolveTenant. Returns `users` so a route that needs
-// the users blob again (add-staff, remove-staff) does not fetch it twice.
+// Same rule as store-proxy's resolveTenant.
 // (10 Oct critical remediation, Phase 3 — update-shop/add-staff/remove-staff
 // used to trust session.role, so a demoted or removed user kept access for the
-// rest of their token's 6h life.)
+// rest of their token's 6h life. 11 Oct: no longer returns `users` -- add-staff
+// and remove-staff now re-check their own actor inside mutateBlob's `apply`,
+// against data that's actually fresh on a CAS retry, not this one snapshot.)
 async function loadActor(supabase: ReturnType<typeof createClient>, session: Record<string, unknown>) {
   const users = (await getBlob(supabase, "users")) as Record<string, unknown>[];
   const found = users.find((u) => u.id === session.userId);
-  return { users, me: found && found.shopId === session.shopId ? found : null };
+  return { me: found && found.shopId === session.shopId ? found : null };
 }
 const ACCESS_CHANGED = "Your access to this shop has changed — please sign in again";
 
@@ -320,9 +365,23 @@ Deno.serve(async (req) => {
       shopId, role: "owner", createdAt: new Date().toISOString(),
     };
 
-    const shops = (await getBlob(supabase, "shops")) as unknown[];
-    await putBlob(supabase, "shops", [...shops, newShop]);
-    await putBlob(supabase, "users", [...users, newUser]);
+    // Shops first, on purpose. If the users write below then loses a duplicate-
+    // email race, the result is an orphan shop nobody points to -- invisible
+    // and harmless, same failure mode as today. The reverse order would leave
+    // a user pointing at a missing shop, which can never log in and
+    // permanently holds the email.
+    // ponytail: orphan shops on a lost signup race. Sweep them if they ever
+    // show up in numbers.
+    await mutateBlob(supabase, "shops", `auth-gateway:signup:${shopId}`, (shops) => {
+      return { next: [...shops, newShop], res: json({ ok: true }, 200, origin) };
+    });
+    const signupRes = await mutateBlob(supabase, "users", `auth-gateway:signup:${userId}`, (freshUsers) => {
+      if (freshUsers.find((u) => String(u.email).toLowerCase() === email)) {
+        return { res: json({ error: "Account already exists with this email" }, 409, origin) };
+      }
+      return { next: [...freshUsers, newUser], res: json({ ok: true }, 200, origin) };
+    });
+    if (signupRes.status !== 200) return signupRes;
 
     const token = await signSession({
       userId, shopId, role: "owner", exp: Date.now() + SESSION_TTL_HOURS * 3600000,
@@ -348,10 +407,21 @@ Deno.serve(async (req) => {
     if (!ok) return json({ error: "Current password is incorrect" }, 401, origin);
 
     const hashed = await hashPassword(newPassword);
-    users[idx] = { ...users[idx], passwordHash: hashed.hash, salt: hashed.salt, mustResetPassword: false };
-    await putBlob(supabase, "users", users);
-
-    return json({ ok: true }, 200, origin);
+    const verifiedHash = String(users[idx].passwordHash);
+    // Re-find and re-check inside `apply`: if two change-password calls for
+    // the same user race (two devices, or an attacker holding a stolen
+    // session plus the old password), the one that lands SECOND must not
+    // silently overwrite the first's new hash with a hash of the password
+    // that's no longer current.
+    return mutateBlob(supabase, "users", `auth-gateway:change-password:${session.userId}`, (fresh) => {
+      const i = fresh.findIndex((u) => u.id === session.userId);
+      if (i === -1) return { res: json({ error: "User not found" }, 404, origin) };
+      if (fresh[i].passwordHash !== verifiedHash) {
+        return { res: json({ error: "Your password was just changed elsewhere — please sign in again" }, 409, origin) };
+      }
+      fresh[i] = { ...fresh[i], passwordHash: hashed.hash, salt: hashed.salt, mustResetPassword: false };
+      return { next: fresh, res: json({ ok: true }, 200, origin) };
+    });
   }
 
   // ── UPDATE SHOP PROFILE (owner only) ────────────────────────────────
@@ -365,19 +435,23 @@ Deno.serve(async (req) => {
       return json({ error: "Only the shop owner or a manager can update shop details" }, 403, origin);
     }
 
-    const shops = (await getBlob(supabase, "shops")) as Record<string, unknown>[];
-    const idx = shops.findIndex((s) => s.id === session.shopId);
-    if (idx === -1) return json({ error: "Shop not found" }, 404, origin);
-
     const patch: Record<string, unknown> = {};
     for (const field of ["name", "city", "phone", "gstin", "locale"]) {
       if (typeof body[field] === "string") patch[field] = body[field];
     }
     if (hasMarkup(...Object.values(patch))) return json({ error: NO_MARKUP_ERROR }, 400, origin);
-    shops[idx] = { ...shops[idx], ...patch };
-    await putBlob(supabase, "shops", shops);
 
-    return json({ ok: true, shop: shops[idx] }, 200, origin);
+    // The actor check above reads `users` (via loadActor) while this write
+    // goes to `shops` -- a leftover TOCTOU (owner demoted between the two)
+    // that already existed before this change, milliseconds wide. Accepted,
+    // not widened; closing it needs the bigger one-row-per-record restructure
+    // (docs/auth-store-cas-audit-design.md section 3, option A, rejected for now).
+    return mutateBlob(supabase, "shops", `auth-gateway:update-shop:${session.userId}`, (shops) => {
+      const idx = shops.findIndex((s) => s.id === session.shopId);
+      if (idx === -1) return { res: json({ error: "Shop not found" }, 404, origin) };
+      shops[idx] = { ...shops[idx], ...patch };
+      return { next: shops, res: json({ ok: true, shop: shops[idx] }, 200, origin) };
+    });
   }
 
   // ── ADD STAFF (owner only) ────────────────────────────────────────
@@ -385,7 +459,7 @@ Deno.serve(async (req) => {
     const session = await verifySession(String(body.sessionToken || ""));
     if (!session) return json({ error: "Session expired — please sign in again" }, 401, origin);
 
-    const { users, me } = await loadActor(supabase, session);
+    const { me } = await loadActor(supabase, session);
     if (!me) return json({ error: ACCESS_CHANGED }, 401, origin);
     if (me.role !== "owner") return json({ error: "Only the shop owner can add staff" }, 403, origin);
 
@@ -399,12 +473,9 @@ Deno.serve(async (req) => {
     const ALLOWED_ROLES = ["manager", "staff", "readonly"];
     const role = ALLOWED_ROLES.includes(String(body.role)) ? String(body.role) : "staff";
 
-    if (users.find((u) => String(u.email).toLowerCase() === email)) {
-      return json({ error: "That email is already registered" }, 409, origin);
-    }
-
-    // Temp password — owner shares this out-of-band; user should change it
-    // on first login (existing client flow already supports forced reset).
+    // Temp password, id and hash generated once, outside `apply` — a CAS
+    // retry must hand the owner back the SAME temp password it already
+    // reported, not mint a fresh one it then throws away.
     const tempPassword = crypto.randomUUID().slice(0, 12);
     const hashed = await hashPassword(tempPassword);
     const userId = "usr_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -412,9 +483,17 @@ Deno.serve(async (req) => {
       id: userId, name, email, passwordHash: hashed.hash, salt: hashed.salt,
       shopId: session.shopId, role, createdAt: new Date().toISOString(), mustResetPassword: true,
     };
-    await putBlob(supabase, "users", [...users, newUser]);
-
-    return json({ ok: true, user: sanitizeUser(newUser), tempPassword }, 200, origin);
+    return mutateBlob(supabase, "users", `auth-gateway:add-staff:${session.userId}`, (fresh) => {
+      // Re-check the actor role too: a retry must re-run every decision
+      // against fresh data, including whether the owner is still an owner.
+      const actor = fresh.find((u) => u.id === session.userId);
+      if (!actor || actor.shopId !== session.shopId) return { res: json({ error: ACCESS_CHANGED }, 401, origin) };
+      if (actor.role !== "owner") return { res: json({ error: "Only the shop owner can add staff" }, 403, origin) };
+      if (fresh.find((u) => String(u.email).toLowerCase() === email)) {
+        return { res: json({ error: "That email is already registered" }, 409, origin) };
+      }
+      return { next: [...fresh, newUser], res: json({ ok: true, user: sanitizeUser(newUser), tempPassword }, 200, origin) };
+    });
   }
 
   // ── REMOVE STAFF (owner only, own shop only) ─────────────────────
@@ -422,20 +501,20 @@ Deno.serve(async (req) => {
     const session = await verifySession(String(body.sessionToken || ""));
     if (!session) return json({ error: "Session expired — please sign in again" }, 401, origin);
 
-    const { users, me } = await loadActor(supabase, session);
-    if (!me) return json({ error: ACCESS_CHANGED }, 401, origin);
-    if (me.role !== "owner") return json({ error: "Only the shop owner can remove staff" }, 403, origin);
-
+    // Every check moves inside `apply` so a CAS retry re-checks it against
+    // fresh data -- including this closing a small window where an owner
+    // demoted mid-request could still have removed someone.
     const staffUserId = String(body.staffUserId || "");
-    const target = users.find((u) => u.id === staffUserId);
-    if (!target) return json({ error: "User not found" }, 404, origin);
-    if (target.shopId !== session.shopId) {
-      return json({ error: "That user does not belong to your shop" }, 403, origin);
-    }
-    if (target.id === session.userId) return json({ error: "You cannot remove yourself" }, 400, origin);
-
-    await putBlob(supabase, "users", users.filter((u) => u.id !== staffUserId));
-    return json({ ok: true }, 200, origin);
+    return mutateBlob(supabase, "users", `auth-gateway:remove-staff:${session.userId}`, (users) => {
+      const me = users.find((u) => u.id === session.userId);
+      if (!me || me.shopId !== session.shopId) return { res: json({ error: ACCESS_CHANGED }, 401, origin) };
+      if (me.role !== "owner") return { res: json({ error: "Only the shop owner can remove staff" }, 403, origin) };
+      const target = users.find((u) => u.id === staffUserId);
+      if (!target) return { res: json({ error: "User not found" }, 404, origin) };
+      if (target.shopId !== session.shopId) return { res: json({ error: "That user does not belong to your shop" }, 403, origin) };
+      if (target.id === session.userId) return { res: json({ error: "You cannot remove yourself" }, 400, origin) };
+      return { next: users.filter((u) => u.id !== staffUserId), res: json({ ok: true }, 200, origin) };
+    });
   }
 
   // ── REQUEST PASSWORD RESET ────────────────────────────────────────
@@ -532,19 +611,17 @@ Deno.serve(async (req) => {
       return json({ error: "That code is invalid or has expired. Request a new one." }, 401, origin);
     }
 
-    const users = (await getBlob(supabase, "users")) as Record<string, unknown>[];
-    const idx = users.findIndex((u) => String(u.email).toLowerCase() === email);
-    if (idx === -1) {
-      // Shouldn't happen (token only issued for a real user), but don't
-      // leak that distinction to the caller.
-      return json({ error: "That code is invalid or has expired. Request a new one." }, 401, origin);
-    }
-
     const hashed = await hashPassword(newPassword);
-    users[idx] = { ...users[idx], passwordHash: hashed.hash, salt: hashed.salt, mustResetPassword: false };
-    await putBlob(supabase, "users", users);
-
-    return json({ ok: true }, 200, origin);
+    return mutateBlob(supabase, "users", `auth-gateway:reset-password:${email}`, (fresh) => {
+      const idx = fresh.findIndex((u) => String(u.email).toLowerCase() === email);
+      if (idx === -1) {
+        // Shouldn't happen (token only issued for a real user), but don't
+        // leak that distinction to the caller.
+        return { res: json({ error: "That code is invalid or has expired. Request a new one." }, 401, origin) };
+      }
+      fresh[idx] = { ...fresh[idx], passwordHash: hashed.hash, salt: hashed.salt, mustResetPassword: false };
+      return { next: fresh, res: json({ ok: true }, 200, origin) };
+    });
   }
 
   return json({ error: "unknown route" }, 404, origin);

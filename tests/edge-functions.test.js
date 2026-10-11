@@ -57,9 +57,14 @@ var countingCrypto = {
 // ── fake database ─────────────────────────────────────────────────────
 function makeDb() {
   return {
-    auth_store: [{ id: 'users', data: [] }, { id: 'shops', data: [] }],
+    auth_store: [{ id: 'users', data: [], version: 0 }, { id: 'shops', data: [], version: 0 }],
+    auth_store_history: [],
     login_attempts: [], password_reset_tokens: [], store: [], counters: {},
     seq: 1, fail: {}, rpcCalls: [],
+    // One-shot: fires right before the NEXT auth_store_cas_write call, then
+    // clears itself. Lets a test simulate "another write landed between the
+    // gateway's read and its CAS call" by mutating db.auth_store directly.
+    beforeRpc: null,
   };
 }
 function Q(db, t) { this.db = db; this.t = t; this.f = []; this.op = 'select'; this.opts = {}; this.lim = null; this.ord = null; }
@@ -96,6 +101,24 @@ Q.prototype.exec = function () {
   return { data: JSON.parse(JSON.stringify(out)), error: null };
 };
 
+// JS model of 008's auth_store_cas_write (migrations/008_auth_store_cas_history.sql;
+// the SQL itself is proven separately by tests/sql-auth-store-cas.test.mjs).
+function casWriteModel(db, a) {
+  if (db.beforeRpc) { var hook = db.beforeRpc; db.beforeRpc = null; hook(); }
+  var row = db.auth_store.find(function (r) { return r.id === a.p_id; });
+  if (!row) return { ok: true, conflict: false, cur_version: 1, current_data: null };
+  if (row.version !== a.p_expected_version) {
+    return { ok: false, conflict: true, cur_version: row.version, current_data: JSON.parse(JSON.stringify(row.data)) };
+  }
+  db.auth_store_history.push({
+    row_id: a.p_id, old_version: row.version, new_version: row.version + 1,
+    old_data: JSON.parse(JSON.stringify(row.data)), actor: a.p_actor || null,
+  });
+  row.data = JSON.parse(JSON.stringify(a.p_data));
+  row.version += 1;
+  return { ok: true, conflict: false, cur_version: row.version, current_data: null };
+}
+
 // JS model of 003's consume_password_reset_code (the SQL itself can't run here).
 function consumeModel(db, a) {
   var toks = db.password_reset_tokens.filter(function (t) { return t.email === a.p_email; })
@@ -115,6 +138,7 @@ function makeClient(db) {
       db.rpcCalls.push({ name: name, args: args });
       if (db.fail['rpc:' + name]) { delete db.fail['rpc:' + name]; return Promise.resolve({ data: null, error: { message: 'injected rpc failure' } }); }
       if (name === 'consume_password_reset_code') return Promise.resolve({ data: consumeModel(db, args), error: null });
+      if (name === 'auth_store_cas_write') return Promise.resolve({ data: [casWriteModel(db, args)], error: null });
       if (name === 'store_cas_write') {
         var ex = db.store.find(function (r) { return r.id === args.p_shop_id; });
         var v = ex ? (ex.data._v || 0) : 0;
@@ -573,6 +597,68 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     await freshShop('t4');
     var ok = await pbkdf2During(function () { return call(auth, 'login', { email: 'owner-t4@shop.in', password: 'ownerpass1' }); });
     eq(ok.r.status, 200, 'status'); eq(ok.calls.length, 1, 'PBKDF2 calls');
+  });
+
+  // ---- auth_store CAS + history (Phase 5 items 7+8, migrations/008)
+  await test('add-staff: a cross-shop race retries and both writes survive', async function () {
+    var o = await freshShop('cas1');
+    var before = db.rpcCalls.length;
+    // Simulates an UNRELATED shop's write landing between this request's
+    // read and its CAS call — exactly the item-7 race (one shared `users`
+    // array for the whole platform).
+    db.beforeRpc = function () {
+      var row = db.auth_store.find(function (r) { return r.id === 'users'; });
+      row.data = row.data.concat([{ id: 'other-shop-user', email: 'other@other.in', shopId: 'shop_other_cas1' }]);
+      row.version += 1;
+    };
+    var r = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'New', email: 'new-cas1@shop.in', role: 'staff' });
+    eq(r.status, 200, 'status (retried, not failed, on an unrelated conflict)');
+    var ids = db.auth_store.find(function (row) { return row.id === 'users'; }).data.map(function (u) { return u.id; });
+    eq(ids.indexOf('other-shop-user') !== -1, true, 'the unrelated write survived');
+    eq(ids.indexOf(r.body.user.id) !== -1, true, 'this request\'s new staff member also survived');
+    var casCalls = db.rpcCalls.slice(before).filter(function (c) { return c.name === 'auth_store_cas_write'; });
+    eq(casCalls.length, 2, 'exactly one retry happened (2 CAS calls: the conflict, then the successful re-apply)');
+  });
+
+  await test('remove-staff: a role change mid-request is re-checked on retry, not just at the start', async function () {
+    var o = await freshShop('cas2');
+    var add = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'Staff', email: 'staff-cas2@shop.in', role: 'staff' });
+    var staffId = add.body.user.id;
+    db.beforeRpc = function () {
+      var row = db.auth_store.find(function (r) { return r.id === 'users'; });
+      row.data.find(function (u) { return u.id === o.userId; }).role = 'staff'; // demoted mid-flight
+      row.version += 1;
+    };
+    var r = await call(auth, 'remove-staff', { sessionToken: o.tok, staffUserId: staffId });
+    eq(r.status, 403, 'status (re-checked the actor\'s role on the retry, found it changed)');
+    var stillThere = db.auth_store.find(function (row) { return row.id === 'users'; }).data.some(function (u) { return u.id === staffId; });
+    eq(stillThere, true, 'the target staff member is still present — the write never landed');
+  });
+
+  await test('change-password: a password changed elsewhere mid-request is detected, not silently overwritten', async function () {
+    var o = await freshShop('cas3');
+    var loginTok = (await call(auth, 'login', { email: 'owner-cas3@shop.in', password: 'ownerpass1' })).body.sessionToken;
+    var hookHash = 'pbkdf2:' + 'f'.repeat(64);
+    db.beforeRpc = function () {
+      var row = db.auth_store.find(function (r) { return r.id === 'users'; });
+      var u = row.data.find(function (x) { return x.id === o.userId; });
+      u.passwordHash = hookHash; u.salt = 'hook-salt-aaaaaaaaaaaaaaaaaaaaaaaa';
+      row.version += 1;
+    };
+    var r = await call(auth, 'change-password', { sessionToken: loginTok, currentPassword: 'ownerpass1', newPassword: 'brand-new-pass-1' });
+    eq(r.status, 409, 'status (the stored hash moved out from under this request)');
+    var liveHash = db.auth_store.find(function (row) { return row.id === 'users'; }).data.find(function (u) { return u.id === o.userId; }).passwordHash;
+    eq(liveHash, hookHash, 'the hash is left exactly as the concurrent change set it, not overwritten by the loser');
+  });
+
+  await test('add-staff: an RPC failure never succeeds and changes nothing', async function () {
+    var o = await freshShop('cas4');
+    var usersBefore = JSON.stringify(db.auth_store.find(function (row) { return row.id === 'users'; }).data);
+    db.fail['rpc:auth_store_cas_write'] = true;
+    var r = null;
+    try { r = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'New', email: 'new-cas4@shop.in', role: 'staff' }); } catch (e) {}
+    if (r && r.status === 200) throw new Error('add-staff got 200 on an injected RPC failure');
+    eq(JSON.stringify(db.auth_store.find(function (row) { return row.id === 'users'; }).data), usersBefore, 'users unchanged');
   });
 
   // ---- unchanged routes still work
