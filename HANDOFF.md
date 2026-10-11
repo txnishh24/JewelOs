@@ -22,9 +22,10 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. Last session (11 Oct, fourth entry) redeployed the
-> Cloudflare worker with the current `main` (Phase 5 + `_custId` fix). Netlify
-> (real production) was NOT touched.
+> Free — nothing in progress. Last session (11 Oct) finished implementing, testing and
+> Opus-reviewing all four 🔴 Phase 5 fixes (login timing, `auth_store` CAS+history, login
+> lockout, session versioning). Nothing is deployed or migrated live yet — see the LOG entries
+> below and the "FOR COWORK" line on each for exactly what's needed next.
 
 ---
 
@@ -83,6 +84,226 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-11 (eighth entry) · Claude Code (Sonnet) — items 6+5 (login lockout, session versioning) implemented, tested, Opus-reviewed. Last two of the four 🔴 Phase 5 fixes — all four now code-complete
+
+🔴 High (auth), implemented per `docs/login-lockout-design.md` and `docs/session-versioning-design.md`.
+Landed together — they interleave in the same files (auth-gateway's `login`/`signup`/
+`reset-password` routes, the shared test harness) — in commit `ce15d77`, on top of items 3
+(`f44f034`) and 7+8 (`f50d699`).
+
+**Login lockout (item 6, new migration `supabase/migrations/009_login_throttle.sql`):** the old
+`login_attempts`-count-then-check sequence let parallel guesses race past the 5-attempt cap, and
+was keyed on email alone — a stranger who knew an owner's email could lock them out of their own
+shop forever. Replaced with `login_throttle_take()`, an atomic locked-statement function (same
+shape as migration 003's reset-code guesser), plus a signed per-device token issued at login/
+signup/reset-password: a device that's signed in before gets its own bucket a stranger can't
+fill. Unknown-device lockouts now escalate 15min → 30 → 60... capped at 24h, instead of a flat
+15-minute window repeatable forever. Device tokens are domain-separated from session tokens
+(signed over `"device."+body` vs the bare body) so neither can ever verify as the other.
+
+**Session versioning (item 5, no migration — missing `sessionVersion` reads as 0 on both sides):**
+`change-password` and `reset-password` now bump a per-user counter, embedded in the token at
+login and checked everywhere a stale/removed session is already checked. A mismatch answers
+`reason: "expired"`, **never `"revoked"`** — `"revoked"` wipes the device including unsaved
+work, correct for a removed user but wrong for "password changed on another device," which also
+hits the owner's own other legitimate devices. `change-password` now mints and returns a fresh
+token so the device that changed the password isn't signed out by its own action.
+
+**A real gap the Opus review caught, fixed before this commit:** `remove-staff` has no outer
+`loadActor` call (unlike `add-staff`/`update-shop`) — every check happens inside the CAS retry
+closure, and that closure's `ACCESS_CHANGED` guard never checked `sessionVersion` at all. A
+stale or stolen token could keep deleting staff (and wiping their device) for up to 6 hours
+after the real owner changed or reset their password — exactly the attack this feature exists to
+close. One-line fix (`|| ver(me.sessionVersion) !== ver(session.sessionVersion)`), same fix
+applied to `add-staff`'s inner re-check for consistency (not independently exploitable there,
+since its outer `loadActor` already catches a stale token first), both covered by new tests.
+
+**Tests:** 70 edge-function tests (58 prior + 12 new: the lockout race proven to fail against
+pre-fix code with `expected 5, got 10`; zero-logout guarantee for pre-deploy tokens; a legacy
+token dying after a password change on a *different* token; two-device and staff-list-edit
+scenarios; the `remove-staff` stale-token gap above). 22 new PGlite SQL assertions for
+`login_throttle_take` (escalation math, the 24h quiet-reset, refused attempts not counted,
+anon refused execute). 422 regression tests (2 new, for `submitPwdModal` adopting the fresh
+token). `check.bat` clean. **Live e2e** (`auth.spec.js`, `session-restore.spec.js`) run against
+the real, still-undeployed test shop: 8/9 pass — the 1 failure is `session-restore.spec.js`'s
+documented pre-existing flake (HANDOFF already notes it reproduces on old baselines too), caused
+by the exact bug this fix targets (no reset-on-success), so it's expected to clear once deployed,
+not a regression from this diff.
+
+**Independent Opus reviews:** login lockout — PASS (two tiny nits fixed: a stale header
+comment describing the old mechanism, a non-number RPC-result edge case tightened to fail
+closed). Session versioning — **FAIL, then PASS** after the `remove-staff` fix above; every
+other check (expired-never-revoked, zero-logout correctness, the CAS-retry version math, role
+never trusted from the token) passed clean on the first pass.
+
+**Not done:** none of this is live. Deploy order per the lockout doc: client zip → store-proxy →
+auth-gateway, and migration 009 must apply after 008 is confirmed live (both need Cowork/
+Tanish — Claude Code has no live-DB or `supabase functions deploy` access).
+
+→ FOR COWORK: **migration 009 (`supabase/migrations/009_login_throttle.sql`) is ready, additive,
+apply AFTER 008 is confirmed live.** No migration needed for session versioning. Deploy order
+once both migrations are live: Tanish's Netlify zip (client changes) → `store-proxy` →
+`auth-gateway`. Manual smoke-test SQL is in 009's trailing comments.
+→ FOR TANISH: all four Phase 5 🔴 fixes from the 10 Oct remediation plan are now code-complete,
+tested, and reviewed — login timing, `auth_store` races, login lockout, and session versioning.
+Nothing is live yet. Once Cowork applies both migrations (008 then 009) and the three Edge
+Functions/client are redeployed in order, these close out the entire Phase 5 list from the
+critical remediation task. No visible change for shop owners in any of the four — same screens,
+same messages, just safe against the specific attacks each one targets.
+
+---
+
+### 2026-10-11 (seventh entry) · Claude Code (Sonnet) — items 7+8 (`auth_store` CAS + history) implemented, tested, Opus-reviewed. Second of the four 🔴 Phase 5 fixes; two more in progress this same session
+
+🔴 High (auth, schema/migration), implemented per `docs/auth-store-cas-audit-design.md`. New
+migration `supabase/migrations/008_auth_store_cas_history.sql`: a `version` column on
+`auth_store`, a new `auth_store_history` table, a `BEFORE UPDATE` trigger that bumps the version
+and logs history on every data-changing write (including writes that don't go through the new
+RPC — those show up with `actor IS NULL`), and the `auth_store_cas_write()` RPC (optimistic CAS,
+same shape as migration 002's `store_cas_write`). `auth-gateway/index.ts`'s `putBlob` is replaced
+by `mutateBlob()`, which retries up to 5× by re-running each route's own checks against fresh data
+on a conflict. Rewrote `signup`, `change-password`, `update-shop`, `add-staff`, `remove-staff`,
+`reset-password` onto it. `loadActor` no longer returns `users` (only `me`).
+
+**`razorpay-webhook` held, as instructed.** It's a 7th writer of the `shops` blob this design
+found (bypassing `putBlob` via its own raw `.update()`) — not migrated to the new helper this
+pass. Safe to defer: the migration's trigger still passively bumps its version and logs its
+writes (`actor IS NULL`), so nothing regresses; it just isn't retry-safe against a conflict yet.
+
+New `tests/sql-auth-store-cas.test.mjs` proves the SQL against real Postgres (PGlite) — 28
+assertions, all green (CAS success/conflict, a simulated two-writer race where both changes
+survive, history-per-write, manual-edit version bump + `actor NULL`, version can't be rewound,
+shape/big-drop rejections, 30-day retention pruning). `tests/edge-functions.test.js` gets a JS
+model of the RPC plus a one-shot `db.beforeRpc` hook for injecting a race mid-request, and 4 new
+tests (cross-shop race+retry, mid-request role-change re-check on `remove-staff`, mid-request
+password-change conflict on `change-password`, an RPC-failure path). All 46 pre-existing tests
+pass **unchanged** — same status codes, same error messages; 50 total, 0 failed.
+
+Independent Opus review: **PASS**, no correctness/security issues. Confirmed `mutateBlob`'s
+retry/response threading can't go stale, `signup`'s duplicate-email race returns 409 without
+leaking the orphaned shop's token, `change-password` can never write a hash of the old password
+on a retry, `add-staff`/`remove-staff`'s inline re-checks are equal-or-stricter than the old
+outer-only checks, and every remaining `loadActor` caller was updated consistently (grepped,
+confirmed zero leftover `{ users, me }` destructures). Minor non-blocking notes: no top-level
+try/catch (unchanged from before — an RPC error still surfaces as a 500 without CORS headers,
+same as the old `putBlob` failure mode); `update-shop`'s markup-check-before-shop-lookup order is
+cosmetic. Commit `f50d699`, after design-docs commit `8e4e781` and login-timing fix `f44f034` —
+pre-commit regression suite ran clean.
+
+**Not done:** deploying `auth-gateway`, and applying migration 008 to the live database — both
+need Cowork/Tanish (Claude Code has no live-DB or `supabase functions deploy` access).
+
+Moving on to item 6 (login lockout) next — migration 009, since 008 claims this slot.
+
+→ FOR COWORK: **migration 008 (`supabase/migrations/008_auth_store_cas_history.sql`) is ready to
+apply, additive and idempotent.** Apply it BEFORE deploying the new `auth-gateway` (the new code
+calls a column/RPC that only exists after this migration — it would 500 on every write
+otherwise). Manual verification SQL is in the migration file's trailing comments. After
+applying, confirm both `auth_store` rows start at `version = 0` and `auth_store_history` is
+empty.
+→ FOR TANISH: item 7+8 is code-complete, tested, and reviewed. Nothing changes live until
+Cowork applies migration 008 and `auth-gateway` is redeployed. No visible change for shop
+owners — same error messages, same behavior, just safe under concurrent writes now.
+
+---
+
+### 2026-10-11 (sixth entry) · Claude Code (Sonnet) — item 3 (login timing side-channel) implemented, tested, Opus-reviewed. First of the four 🔴 Phase 5 fixes; three more in progress this same session
+
+🔴 High (auth), implemented per `docs/login-timing-sidechannel-design.md`. `auth-gateway/index.ts`
+login route now always pays for one PBKDF2 hash — a real user's hash+salt, or a fixed
+`DUMMY_HASH`/`DUMMY_SALT` that can never match (`DUMMY_HASH` contains `-`, outside
+`hashPassword`'s hex output space) — so "no such account" and "wrong password" cost the same.
+`!!user` still does the actual rejection, unchanged.
+
+Four new tests in `tests/edge-functions.test.js` (prove-it confirmed: the first failed against
+pre-fix code with `expected 1, got 0`, exactly as the design doc predicted). All 46 tests
+(42 existing + 4 new) pass. Independent Opus review: **PASS, no issues** — confirmed `!!user`
+is load-bearing, confirmed `DUMMY_HASH` can never equal a real hash, confirmed the
+`login_attempts`/401 lines are byte-for-byte unchanged, confirmed the test harness's
+`countingCrypto` proxy can't be bypassed. Two commits: `8e4e781` (the four design docs) and
+`f44f034` (this fix) — pre-commit regression suite ran clean on both.
+
+**Not done:** deploy. Claude Code has no `supabase functions deploy` access — needs Tanish or a
+session with CLI access to run `supabase functions deploy auth-gateway`. The doc's two follow-up
+items (signup's 409 leaking account existence, and `request-password-reset`'s Resend-round-trip
+timing leaking it louder) are logged as open, not fixed — separate decisions, not bugs in this fix.
+
+Moving on to item 7+8 (`auth_store` CAS + history) next, per the recommended order — `razorpay-webhook`
+held per instruction, not folded into this pass.
+
+→ FOR COWORK: nothing to apply — no migration, no schema change. Nothing live changes until
+`auth-gateway` is redeployed (Tanish/CLI access only).
+→ FOR TANISH: item 3 is code-complete and reviewed, just needs `supabase functions deploy
+auth-gateway` to go live. No app/customer-visible change — same error message, same screen.
+
+---
+
+### 2026-10-11 (fifth entry) · Claude Code (Sonnet, dispatching Opus) — Opus design docs for all four 🔴 Phase 5 findings (items 3, 5, 6, 7+8). Design only, nothing implemented, as the plan's own workflow requires
+
+🔴 High topic (auth/schema), 🟢 Low action this entry (four Opus design passes dispatched in
+parallel, reviewed, one numbering conflict resolved by hand — no app code or migration touched).
+Per MODEL-POLICY §2/§8: these four findings were flagged "needs its own Opus design pass" by the
+10 Oct Phase 5 planning entry; this session ran that design step.
+
+**Docs produced (all in `docs/`, each self-contained with an "Implementation checklist for
+Claude Code" and "Migration checklist for Cowork"):**
+- `login-timing-sidechannel-design.md` (item 3) — fixed dummy hash+salt constant, same PBKDF2 cost
+  on both branches. **No migration needed.** Flags two related leaks explicitly left open as
+  follow-ups: signup's 409 and reset-password's email-only-sent-for-real-accounts behavior.
+- `session-versioning-design.md` (item 5) — `sessionVersion` on the user record and in the token;
+  missing = `0` on both sides, so **no backfill, nobody force-logged-out on deploy**. A version
+  mismatch returns `reason:"expired"`, never `"revoked"` — `"revoked"` wipes the device including
+  unsaved bills in `js/05-auth-login.js`, which is wrong for a legitimate device that's merely
+  behind. Deploy order: client zip → store-proxy → auth-gateway (the client must pick up the new
+  token `change-password` returns, or that device locks itself out).
+- `login-lockout-design.md` (item 6) — rejected BOTH options the 10 Oct plan floated (email+IP
+  keying defeated by IP rotation, and a plausibly-spoofable `x-forwarded-for`; a growing per-email
+  delay still lets a script grab every slot the instant it opens). Chosen instead: the migration-003
+  atomic-counter pattern for the race, plus a signed per-device token (issued at login/signup/reset)
+  so a device that's signed in before gets its own bucket a stranger can't fill by guessing against
+  the email alone.
+- `auth-store-cas-audit-design.md` (items 7+8, bundled per the 10 Oct plan's instruction) —
+  **scope correction: HANDOFF's item 8 names `store_history` on the `store` table, not `auth_store`**
+  (the brief this session gave conflated them). `store` history at full 30-day snapshots is ~3GB/
+  shop/month — deferred as its own follow-up pending Tanish's cost call, not bundled here. What IS
+  in this doc: `auth_store` CAS (new `version` column — `_v` inside the array would literally insert
+  a fake user, since `data` is an array not an object) plus cheap `auth_store` history via a
+  `BEFORE UPDATE` trigger (catches manual SQL edits too, labelled `actor = NULL`). **Also found a
+  7th writer the 10 Oct plan's list of six missed:** `razorpay-webhook` writes the `shops` blob
+  directly, outside `putBlob` — a payment landing mid-signup/update-shop could silently lose a
+  paid-plan upgrade. Included in the fix.
+
+**Coordination issue found and resolved by hand (not a design question, just bookkeeping):** the
+`auth_store` CAS doc and the login-lockout doc were written in parallel and each independently
+claimed migration number 008. Resolved: **`auth_store` CAS + history is 008 (apply first — session-
+versioning's implementation builds on its `mutateBlob` helper), login-lockout is 009.** Edited
+`login-lockout-design.md` in place to renumber every reference; no logic changed, only numbers.
+Both docs flag that `signup` and `reset-password` are touched by both designs, so their code changes
+land one after the other, not simultaneously — whoever implements second rebases on the first.
+
+**Recommended implementation order:** 1) login-timing (independent, no migration, smallest).
+2) `auth_store` CAS + history (008) — unblocks session-versioning's code. 3) login-lockout (009) —
+independent of the others but still needs its own migration slot. 4) session-versioning — last,
+since it touches `change-password`, which step 2 already rewrites.
+
+Nothing implemented yet. Per MODEL-POLICY's pipeline (Opus designs → Claude Code implements →
+Cowork migrates → Opus reviews the diff), the next step for each is a Sonnet implementation pass
+against its own doc, not a blocking Tanish sign-off — but given four bundled 🔴 auth/schema changes,
+flagging for Tanish's awareness before any of them gets implemented, not just at migration time.
+
+→ FOR COWORK: nothing to apply yet — all four are design docs only, no migration files exist.
+When Claude Code starts implementing, migrations will be numbered 008 (`auth_store` CAS+history)
+and 009 (login throttle), in that order; the other two findings need no migration.
+→ FOR TANISH: four Opus design docs are ready for the four 🔴 security/auth findings from the
+10 Oct remediation plan (login timing, session versioning, login lockout, auth_store races). Full
+detail is in `docs/`, one file per finding. Nothing is built yet — this was the design step the
+10 Oct plan said each of these needed before anyone touched code. One real gap the designs
+surfaced that wasn't on anyone's list before: `razorpay-webhook` can silently lose a paid-plan
+upgrade under the same race `auth_store` has everywhere else — folded into the auth_store fix,
+no separate decision needed from you.
 
 ---
 
