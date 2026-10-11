@@ -852,6 +852,9 @@ test('no new unscoped localStorage key holds shop state', function(){
     'ssj_cache',              // tagged with the owning shop id inside the value
     'ssj_last_save', 'ssj_last_cloud_load',
     '_t',                     // storage-availability probe
+    'jewelos_login_devices',  // per-EMAIL login-throttle device tokens (docs/login-lockout-design.md);
+                               // must exist before any shop is known and must survive sign-out, so it
+                               // can't be shop-scoped by design — not shop state, holds no shop data
     // Reached through a variable rather than a literal, and correctly unscoped:
     'jewelos_signout_notice', // written while signed OUT — there is no shop to scope to
     'jewelos_users',          // device cache of auth_store; each record carries its own shopId
@@ -2728,6 +2731,49 @@ test('batch37: a split-paid bill says "Cash + UPI", not just "Cash"', function()
   assert(app.salePayModes({ payment:'UPI' }) === 'UPI', 'an old single-mode sale keeps its mode');
   var h = app.buildInvoiceHTML(sale, 'memo');
   assert(h.indexOf('<span class="chip cp">Cash + UPI</span>') !== -1, 'the bill chip shows both modes');
+});
+
+// Session versioning (docs/session-versioning-design.md, Phase 5 item 5):
+// change-password now returns a fresh sessionToken, since the OLD one just
+// stopped working on this very device. submitPwdModal must adopt it.
+function pwdModalApp(mode, respondWith){
+  var a = require('./harness.js').loadApp();
+  a.SAAS.user = { id:'u1', mustResetPassword: mode === 'forced' };
+  a.SAAS.shop = { id:'shop1' };
+  a.SAAS.sessionToken = 'OLD';
+  a._pwdModalMode = mode;
+  a._pwdModalTempPw = mode === 'forced' ? 'temp-pw-1' : '';
+  a.authGatewayCall = function(){ return Promise.resolve(respondWith); };
+  var vals = { 'pwd-current': 'current-pw-1', 'pwd-new': 'brand-new-pass-1' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){ return (id in vals) ? { value: vals[id] } : _o(id); };
+  return a;
+}
+
+testAsync('submitPwdModal adopts the fresh sessionToken the server returns, in both normal and forced mode', function(){
+  var a = pwdModalApp('change', { ok:true, sessionToken:'NEW' });
+  a.submitPwdModal();
+  return flushAll().then(function(){
+    assert(a.SAAS.sessionToken === 'NEW', 'SAAS.sessionToken adopted, got ' + a.SAAS.sessionToken);
+    var stored = JSON.parse(a.localStorage.getItem(a.AUTH_KEY) || 'null');
+    assert(stored && stored.token === 'NEW', 'the stored AUTH_KEY record has the new token too, got ' + JSON.stringify(stored));
+
+    var b = pwdModalApp('forced', { ok:true, sessionToken:'NEW2' });
+    b.submitPwdModal();
+    return flushAll().then(function(){
+      assert(b.SAAS.sessionToken === 'NEW2', 'forced mode: SAAS.sessionToken adopted, got ' + b.SAAS.sessionToken);
+      var storedB = JSON.parse(b.localStorage.getItem(b.AUTH_KEY) || 'null');
+      assert(storedB && storedB.token === 'NEW2', 'forced mode: AUTH_KEY has the new token too, got ' + JSON.stringify(storedB));
+    });
+  });
+});
+
+testAsync('submitPwdModal against an old server (no sessionToken in the response) keeps the current token, no throw', function(){
+  var a = pwdModalApp('change', { ok:true });
+  a.submitPwdModal();
+  return flushAll().then(function(){
+    assert(a.SAAS.sessionToken === 'OLD', 'token unchanged when the server did not return a fresh one, got ' + a.SAAS.sessionToken);
+  });
 });
 
 test('batch37 P2-21: background refresh is once a minute, not every 15 s', function(){

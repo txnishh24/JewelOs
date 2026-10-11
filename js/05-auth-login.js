@@ -435,16 +435,23 @@ function submitPwdModal(){
   errEl.textContent = '';
 
   authGatewayCall('change-password', {sessionToken: SAAS.sessionToken, currentPassword: current, newPassword: newPw})
-    .then(function(){
+    .then(function(res){
+      // The server mints a fresh token on every password change, now that
+      // one is tied to a sessionVersion that just bumped — this device's
+      // own OLD token stops working the moment the new one isn't adopted
+      // (docs/session-versioning-design.md). Falls back to the current
+      // token against an old server that doesn't return one yet.
+      var tok = (res && res.sessionToken) || SAAS.sessionToken;
       document.getElementById('pwd-modal').classList.remove('open');
       if(isForced){
         toast('\u2713 Password set — welcome to JewelOS!');
         saasActivityLog('account', 'Password changed (forced first-login reset)');
         if(SAAS.user) SAAS.user.mustResetPassword = false;
-        saasSetSession(SAAS.user, SAAS.shop, SAAS.sessionToken); // now safe to keep on the device
+        saasSetSession(SAAS.user, SAAS.shop, tok); // now safe to keep on the device
         hideAuthScreen();
         bootApp();
       } else {
+        saasSetSession(SAAS.user, SAAS.shop, tok);
         toast('\u2713 Password changed!');
         saasActivityLog('account', 'Password changed');
       }

@@ -2,9 +2,11 @@
 // auth-gateway — replaces direct client REST access to `auth_store`.
 //
 // Fixes two audit findings at once:
-//  1. "Login rate limiting is client-side only (resets on reload)" —
-//     failed attempts are now counted in the login_attempts table, which
-//     a page refresh can't touch.
+//  1. "Login rate limiting is client-side only (resets on reload)" — login
+//     attempts are throttled server-side via login_throttle_take()
+//     (migrations/009_login_throttle.sql, docs/login-lockout-design.md),
+//     which a page refresh can't touch. login_attempts itself is now just
+//     an audit log of checked attempts; nothing reads it to decide anything.
 //  2. "Staff permission enforcement is UI-only, no function-level
 //     authorization" — role checks (e.g. "only an owner can add/remove
 //     staff") now happen here, server-side, using a signed session token
@@ -26,8 +28,8 @@
 //
 // Endpoints (all POST, JSON body):
 //   /auth-gateway/signup                 { name, email, password, shopName, city }
-//   /auth-gateway/login                  { email, password }
-//   /auth-gateway/change-password        { sessionToken, currentPassword, newPassword }
+//   /auth-gateway/login                  { email, password, deviceToken? }
+//   /auth-gateway/change-password        { sessionToken, currentPassword, newPassword } -- returns a fresh sessionToken
 //   /auth-gateway/update-shop            { sessionToken, name?, city?, phone?, gstin?, locale? }
 //   /auth-gateway/add-staff              { sessionToken, name, email }
 //   /auth-gateway/remove-staff           { sessionToken, staffUserId }
@@ -40,6 +42,21 @@
 // own preconditions against fresh data on a conflict and retries, rather
 // than overwriting a concurrent change to an unrelated record. See
 // docs/auth-store-cas-audit-design.md (10/11 Oct Phase 5, items 7+8).
+//
+// `login` accepts an optional `deviceToken` (proof this browser has signed
+// in to that email before, so it gets its own failed-login throttle bucket
+// a stranger can't fill by guessing against the email alone); `login`,
+// `signup`, and a successful `reset-password` all return a fresh one. See
+// docs/login-lockout-design.md and migrations/009_login_throttle.sql
+// (10/11 Oct Phase 5, item 6).
+//
+// Session tokens carry a `sessionVersion`, bumped on change-password and
+// reset-password; a mismatch against the user record's current value is
+// treated the same as a removed/moved user wherever that's already checked
+// (loadActor here, resolveTenant in store-proxy) -- so a password change
+// signs out every OTHER device within one request, not just at `exp`. No
+// migration: a missing field reads as 0 on both sides. See
+// docs/session-versioning-design.md (10/11 Oct Phase 5, item 5).
 //
 // Email delivery (request-password-reset): sends a 6-digit code via the
 // Resend API. Requires secret RESEND_API_KEY and RESEND_FROM_EMAIL (a
@@ -61,7 +78,9 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SESSION_SECRET = Deno.env.get("SESSION_SECRET")!;
 
 const MAX_FAILED_ATTEMPTS = 5;
-const LOCKOUT_WINDOW_MIN = 15;
+const BASE_LOCK_MIN = 15;       // first lock length; replaces LOCKOUT_WINDOW_MIN
+const MAX_LOCK_MIN = 24 * 60;   // locks double up to this; also the quiet period that forgets a key
+const DEVICE_TOKEN_DAYS = 180;
 const SESSION_TTL_HOURS = 6; // Tanish, 29 Sep: token now survives app reopen on the device, so shorter life
 const RESET_CODE_TTL_MIN = 15;
 const RESET_MAX_REQUESTS_PER_HOUR = 3;
@@ -140,6 +159,12 @@ async function signSession(payload: Record<string, unknown>): Promise<string> {
   const sig = await crypto.subtle.sign("HMAC", await hmacKey(), new TextEncoder().encode(body));
   return `${body}.${b64url(sig)}`;
 }
+// Missing/legacy = 0. Used on the token AND the user record, never one side
+// only -- that's what makes "a token minted before sessionVersion existed
+// still works" and "a user record that's never had a password change on
+// the new code still matches" both true on day one of this shipping
+// (docs/session-versioning-design.md, Phase 5 item 5).
+const ver = (v: unknown) => (typeof v === "number" ? v : 0);
 async function verifySession(token: string): Promise<Record<string, unknown> | null> {
   const parts = token.split(".");
   if (parts.length !== 2) return null;
@@ -154,6 +179,36 @@ async function verifySession(token: string): Promise<Record<string, unknown> | n
   const payload = JSON.parse(new TextDecoder().decode(b64urlDecode(body)));
   if (typeof payload.exp !== "number" || Date.now() > payload.exp) return null;
   return payload;
+}
+
+// ── Device tokens (docs/login-lockout-design.md) ──────────────────────
+// Proof that this browser has signed in to `email` before. NOT a session:
+// it grants no access, only a separate failed-login bucket. Signed over
+// "device." + body, so it can never verify as a session token (signSession
+// signs the bare body), and a session token can never verify as this.
+async function signDeviceToken(email: string, did: string) {
+  const body = b64url(new TextEncoder().encode(JSON.stringify({
+    email, did, exp: Date.now() + DEVICE_TOKEN_DAYS * 86400000,
+  })));
+  const sig = await crypto.subtle.sign("HMAC", await hmacKey(), new TextEncoder().encode("device." + body));
+  return `${body}.${b64url(sig)}`;
+}
+// Returns the device id only if the token is genuine, unexpired, and was
+// issued for THIS email. The email check is what stops someone using a
+// token from their own account as a fresh bucket against someone else's.
+async function verifyDeviceToken(token: string, email: string): Promise<string | null> {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 2) return null;
+    const ok = await crypto.subtle.verify("HMAC", await hmacKey(), b64urlDecode(parts[1]),
+      new TextEncoder().encode("device." + parts[0]));
+    if (!ok) return null;
+    const p = JSON.parse(new TextDecoder().decode(b64urlDecode(parts[0])));
+    if (p.email !== email || typeof p.did !== "string" || typeof p.exp !== "number" || Date.now() > p.exp) return null;
+    return p.did;
+  } catch {
+    return null; // garbage base64/JSON must fall back to the e: key, never 500
+  }
 }
 
 // ── auth_store helpers (service-role only, past the RLS lockdown) ──────
@@ -210,11 +265,17 @@ async function mutateBlob(
 // used to trust session.role, so a demoted or removed user kept access for the
 // rest of their token's 6h life. 11 Oct: no longer returns `users` -- add-staff
 // and remove-staff now re-check their own actor inside mutateBlob's `apply`,
-// against data that's actually fresh on a CAS retry, not this one snapshot.)
+// against data that's actually fresh on a CAS retry, not this one snapshot.
+// Also 11 Oct: refuses a token whose sessionVersion doesn't match the
+// record's -- a password change bumps the record, so every OTHER token
+// issued before that change stops working here too, not just on store-proxy
+// (docs/session-versioning-design.md, Phase 5 item 5).)
 async function loadActor(supabase: ReturnType<typeof createClient>, session: Record<string, unknown>) {
   const users = (await getBlob(supabase, "users")) as Record<string, unknown>[];
   const found = users.find((u) => u.id === session.userId);
-  return { me: found && found.shopId === session.shopId ? found : null };
+  const current = found && found.shopId === session.shopId &&
+    ver(found.sessionVersion) === ver(session.sessionVersion);
+  return { me: current ? found : null };
 }
 const ACCESS_CHANGED = "Your access to this shop has changed — please sign in again";
 
@@ -290,16 +351,39 @@ Deno.serve(async (req) => {
     const password = String(body.password || "");
     if (!email || !password) return json({ error: "email and password required" }, 400, origin);
 
-    // Server-side rate limit — cannot be reset by refreshing the page.
-    const windowStart = new Date(Date.now() - LOCKOUT_WINDOW_MIN * 60000).toISOString();
-    const { count } = await supabase
-      .from("login_attempts")
-      .select("id", { count: "exact", head: true })
-      .eq("email", email)
-      .eq("succeeded", false)
-      .gte("created_at", windowStart);
-    if ((count ?? 0) >= MAX_FAILED_ATTEMPTS) {
-      return json({ error: `Too many failed attempts. Try again in ${LOCKOUT_WINDOW_MIN} minutes.` }, 429, origin);
+    // Throttle BEFORE checking the password. login_throttle_take counts this
+    // attempt and decides in one locked statement, so parallel guesses can't
+    // all slip past the cap (migrations/009_login_throttle.sql,
+    // docs/login-lockout-design.md). A device that has signed in to this
+    // email before has its own bucket, so a stranger hammering the email
+    // can't lock the owner out of their own phone. IP is deliberately not
+    // part of the key — it's still logged in login_attempts below.
+    const did = await verifyDeviceToken(String(body.deviceToken || ""), email);
+    const throttleKey = did ? `d:${email}|${did}` : `e:${email}`;
+    const { data: waitSec, error: throttleErr } = await supabase.rpc("login_throttle_take", {
+      p_key: throttleKey,
+      p_max_failures: MAX_FAILED_ATTEMPTS,
+      p_base_lock_min: BASE_LOCK_MIN,
+      p_max_lock_min: MAX_LOCK_MIN,
+    });
+    // Fail closed, same as reset-password: without a genuine numeric answer
+    // from the throttle, every guess would be free. Already signed-in
+    // sessions are unaffected. `typeof waitSec !== "number"` with no `error`
+    // shouldn't happen (the RPC returns an integer), but treating it as a
+    // failure rather than silently falling through keeps this route
+    // fail-closed by construction, not by the RPC's good behavior.
+    if (throttleErr || typeof waitSec !== "number") {
+      console.error("[auth-gateway] login_throttle_take failed:", throttleErr?.message ?? `non-numeric result: ${JSON.stringify(waitSec)}`);
+      return json({ error: "Could not sign in right now. Please try again in a minute." }, 503, origin);
+    }
+    if (waitSec > 0) {
+      const mins = Math.ceil(waitSec / 60);
+      // Same text whether or not the email has an account (no enumeration).
+      return json({
+        error: `Too many failed attempts. Try again in ${mins} minute${mins === 1 ? "" : "s"}, ` +
+          `or use "Forgot password" to sign in now.`,
+        retryAfterSec: waitSec,
+      }, 429, origin);
     }
 
     const users = (await getBlob(supabase, "users")) as Record<string, unknown>[];
@@ -315,9 +399,16 @@ Deno.serve(async (req) => {
     );
     const ok = !!user && passwordMatches;
 
+    // Audit log only — nothing reads this to decide anything any more.
     await supabase.from("login_attempts").insert({ email, ip, succeeded: ok });
 
     if (!ok || !user) return json({ error: "Invalid email or password" }, 401, origin);
+
+    // Right password: forget THIS key's failures and lock. Never clear the
+    // e: key from a device-token sign-in — that would hand an attacker 5
+    // fresh guesses every time the owner signs in on their phone.
+    const { error: clearErr } = await supabase.from("login_throttle").delete().eq("key", throttleKey);
+    if (clearErr) console.error("[auth-gateway] login_throttle clear failed:", clearErr.message);
 
     const shops = (await getBlob(supabase, "shops")) as Record<string, unknown>[];
     const shop = shops.find((s) => s.id === user.shopId);
@@ -327,10 +418,12 @@ Deno.serve(async (req) => {
       userId: user.id,
       shopId: user.shopId,
       role: user.role,
+      sessionVersion: ver(user.sessionVersion),
       exp: Date.now() + SESSION_TTL_HOURS * 3600000,
     });
 
-    return json({ sessionToken: token, user: sanitizeUser(user), shop }, 200, origin);
+    const deviceToken = await signDeviceToken(email, did || crypto.randomUUID());
+    return json({ sessionToken: token, deviceToken, user: sanitizeUser(user), shop }, 200, origin);
   }
 
   // ── SIGNUP ─────────────────────────────────────────────────────────
@@ -387,7 +480,8 @@ Deno.serve(async (req) => {
       userId, shopId, role: "owner", exp: Date.now() + SESSION_TTL_HOURS * 3600000,
     });
 
-    return json({ sessionToken: token, user: sanitizeUser(newUser), shop: newShop }, 200, origin);
+    const deviceToken = await signDeviceToken(email, crypto.randomUUID());
+    return json({ sessionToken: token, deviceToken, user: sanitizeUser(newUser), shop: newShop }, 200, origin);
   }
 
   // ── CHANGE PASSWORD (self-service, any authenticated user) ─────────
@@ -399,29 +493,46 @@ Deno.serve(async (req) => {
     const newPassword = String(body.newPassword || "");
     if (newPassword.length < 8) return json({ error: "New password must be at least 8 characters" }, 400, origin);
 
-    const users = (await getBlob(supabase, "users")) as Record<string, unknown>[];
-    const idx = users.findIndex((u) => u.id === session.userId);
-    if (idx === -1) return json({ error: "User not found" }, 404, origin);
+    // loadActor (not a plain findIndex) so a stale token -- including a
+    // thief's, after the real owner changes password elsewhere -- is
+    // refused here too, the same way every other privileged route already
+    // is. Closes "a thief who knows the old password keeps changing it
+    // back" (docs/session-versioning-design.md, Phase 5 item 5).
+    const { me } = await loadActor(supabase, session);
+    if (!me) return json({ error: ACCESS_CHANGED }, 401, origin);
 
-    const ok = await verifyPassword(currentPassword, String(users[idx].passwordHash), String(users[idx].salt));
+    const ok = await verifyPassword(currentPassword, String(me.passwordHash), String(me.salt));
     if (!ok) return json({ error: "Current password is incorrect" }, 401, origin);
 
     const hashed = await hashPassword(newPassword);
-    const verifiedHash = String(users[idx].passwordHash);
+    const verifiedHash = String(me.passwordHash);
+    // A password change invalidates every OTHER token for this user --
+    // bumped in the SAME object spread as the new hash/salt, so it can
+    // never land without the password change or vice versa.
+    const newVersion = ver(me.sessionVersion) + 1;
     // Re-find and re-check inside `apply`: if two change-password calls for
     // the same user race (two devices, or an attacker holding a stolen
     // session plus the old password), the one that lands SECOND must not
     // silently overwrite the first's new hash with a hash of the password
     // that's no longer current.
-    return mutateBlob(supabase, "users", `auth-gateway:change-password:${session.userId}`, (fresh) => {
+    const result = await mutateBlob(supabase, "users", `auth-gateway:change-password:${session.userId}`, (fresh) => {
       const i = fresh.findIndex((u) => u.id === session.userId);
       if (i === -1) return { res: json({ error: "User not found" }, 404, origin) };
       if (fresh[i].passwordHash !== verifiedHash) {
         return { res: json({ error: "Your password was just changed elsewhere — please sign in again" }, 409, origin) };
       }
-      fresh[i] = { ...fresh[i], passwordHash: hashed.hash, salt: hashed.salt, mustResetPassword: false };
+      fresh[i] = { ...fresh[i], passwordHash: hashed.hash, salt: hashed.salt, mustResetPassword: false, sessionVersion: newVersion };
       return { next: fresh, res: json({ ok: true }, 200, origin) };
     });
+    if (result.status !== 200) return result;
+
+    // This device's own token is replaced with one that matches the new
+    // version, so the owner isn't signed out by their own password change.
+    const token = await signSession({
+      userId: session.userId, shopId: session.shopId, role: me.role,
+      sessionVersion: newVersion, exp: Date.now() + SESSION_TTL_HOURS * 3600000,
+    });
+    return json({ ok: true, sessionToken: token }, 200, origin);
   }
 
   // ── UPDATE SHOP PROFILE (owner only) ────────────────────────────────
@@ -486,8 +597,14 @@ Deno.serve(async (req) => {
     return mutateBlob(supabase, "users", `auth-gateway:add-staff:${session.userId}`, (fresh) => {
       // Re-check the actor role too: a retry must re-run every decision
       // against fresh data, including whether the owner is still an owner.
+      // Also re-check sessionVersion: not independently exploitable here
+      // (the outer loadActor above already catches a stale token before
+      // this closure ever runs), but kept consistent with remove-staff,
+      // where the equivalent inner check is load-bearing.
       const actor = fresh.find((u) => u.id === session.userId);
-      if (!actor || actor.shopId !== session.shopId) return { res: json({ error: ACCESS_CHANGED }, 401, origin) };
+      if (!actor || actor.shopId !== session.shopId || ver(actor.sessionVersion) !== ver(session.sessionVersion)) {
+        return { res: json({ error: ACCESS_CHANGED }, 401, origin) };
+      }
       if (actor.role !== "owner") return { res: json({ error: "Only the shop owner can add staff" }, 403, origin) };
       if (fresh.find((u) => String(u.email).toLowerCase() === email)) {
         return { res: json({ error: "That email is already registered" }, 409, origin) };
@@ -503,11 +620,18 @@ Deno.serve(async (req) => {
 
     // Every check moves inside `apply` so a CAS retry re-checks it against
     // fresh data -- including this closing a small window where an owner
-    // demoted mid-request could still have removed someone.
+    // demoted mid-request could still have removed someone. This route has
+    // NO outer loadActor call (unlike add-staff/update-shop), so the
+    // sessionVersion check here is the ONLY place a stale token gets
+    // caught -- without it, a thief's token kept working to delete staff
+    // (and wipe their device) for up to 6h after a real password change or
+    // reset (docs/session-versioning-design.md, Phase 5 item 5).
     const staffUserId = String(body.staffUserId || "");
     return mutateBlob(supabase, "users", `auth-gateway:remove-staff:${session.userId}`, (users) => {
       const me = users.find((u) => u.id === session.userId);
-      if (!me || me.shopId !== session.shopId) return { res: json({ error: ACCESS_CHANGED }, 401, origin) };
+      if (!me || me.shopId !== session.shopId || ver(me.sessionVersion) !== ver(session.sessionVersion)) {
+        return { res: json({ error: ACCESS_CHANGED }, 401, origin) };
+      }
       if (me.role !== "owner") return { res: json({ error: "Only the shop owner can remove staff" }, 403, origin) };
       const target = users.find((u) => u.id === staffUserId);
       if (!target) return { res: json({ error: "User not found" }, 404, origin) };
@@ -612,6 +736,10 @@ Deno.serve(async (req) => {
     }
 
     const hashed = await hashPassword(newPassword);
+    // Proving control of the inbox counts as owner-level proof, same as a
+    // successful login — issue a device token so this device gets its own
+    // throttle bucket from now on (docs/login-lockout-design.md).
+    const deviceToken = await signDeviceToken(email, crypto.randomUUID());
     return mutateBlob(supabase, "users", `auth-gateway:reset-password:${email}`, (fresh) => {
       const idx = fresh.findIndex((u) => String(u.email).toLowerCase() === email);
       if (idx === -1) {
@@ -619,8 +747,17 @@ Deno.serve(async (req) => {
         // leak that distinction to the caller.
         return { res: json({ error: "That code is invalid or has expired. Request a new one." }, 401, origin) };
       }
-      fresh[idx] = { ...fresh[idx], passwordHash: hashed.hash, salt: hashed.salt, mustResetPassword: false };
-      return { next: fresh, res: json({ ok: true }, 200, origin) };
+      // Account recovery is the strongest "someone else may have my
+      // password" signal there is -- bump sessionVersion here too, in the
+      // same spread, so every token issued before this reset stops working
+      // (docs/session-versioning-design.md). No token is returned from this
+      // route, so there's no "own device" to carry forward, unlike
+      // change-password.
+      fresh[idx] = {
+        ...fresh[idx], passwordHash: hashed.hash, salt: hashed.salt, mustResetPassword: false,
+        sessionVersion: ver(fresh[idx].sessionVersion) + 1,
+      };
+      return { next: fresh, res: json({ ok: true, deviceToken }, 200, origin) };
     });
   }
 

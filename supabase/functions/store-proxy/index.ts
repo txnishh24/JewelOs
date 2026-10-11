@@ -67,10 +67,14 @@ function json(body: unknown, status: number, origin: string | null) {
 // ── Session verification ──────────────────────────────────────────────
 // Mirrors auth-gateway's signSession() exactly:
 //   b64url(JSON payload) + "." + b64url(HMAC-SHA256(payload))
-//   payload = { userId, shopId, role, exp }
+//   payload = { userId, shopId, role, sessionVersion, exp }
 // NOTE: exp is epoch MILLISECONDS (auth-gateway sets
 // Date.now() + TTL*3600000), not seconds. Treating it as seconds would
 // mark every live token expired.
+// Missing/legacy = 0, same normaliser as auth-gateway's. Used on the token
+// AND the user record, never one side only -- see resolveTenant below and
+// docs/session-versioning-design.md (Phase 5 item 5).
+const ver = (v: unknown) => (typeof v === "number" ? v : 0);
 function b64urlDecode(str: string): Uint8Array {
   str = str.replace(/-/g, "+").replace(/_/g, "/");
   while (str.length % 4) str += "=";
@@ -87,7 +91,7 @@ async function hmacKey() {
   );
 }
 
-type Session = { userId: string; shopId: string; role: string };
+type Session = { userId: string; shopId: string; role: string; sessionVersion: number };
 
 async function verifySession(token: string | null): Promise<Session | null> {
   if (!token) return null;
@@ -124,6 +128,7 @@ async function verifySession(token: string | null): Promise<Session | null> {
     userId: String(payload.userId),
     shopId: String(payload.shopId),
     role: String(payload.role ?? "staff"),
+    sessionVersion: ver(payload.sessionVersion),
   };
 }
 
@@ -141,7 +146,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 type Tenant =
   | { ok: true; rowKey: string; role: string }
-  | { ok: false; reason: "user_gone" | "shop_gone" };
+  | { ok: false; reason: "user_gone" | "shop_gone" | "stale_session" };
 
 async function resolveTenant(
   supabase: ReturnType<typeof createClient>,
@@ -155,6 +160,10 @@ async function resolveTenant(
 
   const user = blob("users").find((u) => u.id === session.userId);
   if (!user || user.shopId !== session.shopId) return { ok: false, reason: "user_gone" };
+  // A password change elsewhere bumped the record's version past this
+  // token's — treated as a stale session, not a removed user, so the
+  // client re-signs-in in place instead of wiping unsaved work.
+  if (ver(user.sessionVersion) !== session.sessionVersion) return { ok: false, reason: "stale_session" };
 
   const shop = blob("shops").find((s) => s.id === session.shopId);
   if (!shop) return { ok: false, reason: "shop_gone" };
@@ -209,9 +218,17 @@ Deno.serve(async (req) => {
     // 401 on a removed user sends the client down its existing "session
     // expired — sign in again" path (js/01-sync-core.js), where the login
     // itself will now fail.
-    return tenant.reason === "user_gone"
-      ? json({ error: "unauthenticated", reason: "revoked", message: "Please sign in again." }, 401, origin)
-      : json({ error: "invalid_tenant", message: "Shop not found for this session." }, 403, origin);
+    if (tenant.reason === "user_gone") {
+      return json({ error: "unauthenticated", reason: "revoked", message: "Please sign in again." }, 401, origin);
+    }
+    // A password change elsewhere, not a removal — "expired", never
+    // "revoked": saasRequireReauth holds this device's unsaved work and
+    // replays it after a fresh sign-in, instead of wiping it
+    // (docs/session-versioning-design.md).
+    if (tenant.reason === "stale_session") {
+      return json({ error: "unauthenticated", reason: "expired", message: "Your password was changed. Please sign in again." }, 401, origin);
+    }
+    return json({ error: "invalid_tenant", message: "Shop not found for this session." }, 403, origin);
   }
   const shopKey = tenant.rowKey;
   const role = tenant.role;

@@ -59,7 +59,7 @@ function makeDb() {
   return {
     auth_store: [{ id: 'users', data: [], version: 0 }, { id: 'shops', data: [], version: 0 }],
     auth_store_history: [],
-    login_attempts: [], password_reset_tokens: [], store: [], counters: {},
+    login_attempts: [], login_throttle: [], password_reset_tokens: [], store: [], counters: {},
     seq: 1, fail: {}, rpcCalls: [],
     // One-shot: fires right before the NEXT auth_store_cas_write call, then
     // clears itself. Lets a test simulate "another write landed between the
@@ -119,6 +119,25 @@ function casWriteModel(db, a) {
   return { ok: true, conflict: false, cur_version: row.version, current_data: null };
 }
 
+// JS model of 009's login_throttle_take (migrations/009_login_throttle.sql;
+// the SQL itself is proven separately by tests/sql-login-throttle.test.mjs).
+// Proves the ROUTE's wiring and ordering against a synchronous (and
+// therefore atomic) model, not Postgres's `for update` locking under real
+// concurrent connections -- same limitation `consumeModel` below has.
+function throttleModel(db, a) {
+  var now = Date.now(), r = db.login_throttle.find(function (x) { return x.key === a.p_key; });
+  if (!r) { r = { key: a.p_key, failures: 0, lockouts: 0, locked_until: null, last_attempt_at: now }; db.login_throttle.push(r); }
+  if (r.locked_until && r.locked_until > now) return Math.max(1, Math.ceil((r.locked_until - now) / 1000));
+  if (Math.max(r.last_attempt_at, r.locked_until || 0) <= now - a.p_max_lock_min * 60000) { r.failures = 0; r.lockouts = 0; }
+  r.failures++;
+  if (r.failures >= a.p_max_failures) {
+    r.locked_until = now + Math.min(a.p_max_lock_min, a.p_base_lock_min * Math.pow(2, Math.min(r.lockouts, 16))) * 60000;
+    r.lockouts++; r.failures = 0;
+  }
+  r.last_attempt_at = now;
+  return 0;
+}
+
 // JS model of 003's consume_password_reset_code (the SQL itself can't run here).
 function consumeModel(db, a) {
   var toks = db.password_reset_tokens.filter(function (t) { return t.email === a.p_email; })
@@ -139,6 +158,7 @@ function makeClient(db) {
       if (db.fail['rpc:' + name]) { delete db.fail['rpc:' + name]; return Promise.resolve({ data: null, error: { message: 'injected rpc failure' } }); }
       if (name === 'consume_password_reset_code') return Promise.resolve({ data: consumeModel(db, args), error: null });
       if (name === 'auth_store_cas_write') return Promise.resolve({ data: [casWriteModel(db, args)], error: null });
+      if (name === 'login_throttle_take') return Promise.resolve({ data: throttleModel(db, args), error: null });
       if (name === 'store_cas_write') {
         var ex = db.store.find(function (r) { return r.id === args.p_shop_id; });
         var v = ex ? (ex.data._v || 0) : 0;
@@ -308,7 +328,13 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     var code = await newCode('owner@shop.in');
     for (var i = 0; i < 4; i++) await reset('owner@shop.in', wrong(code), 'newpass-123');
     eq((await reset('owner@shop.in', code, 'newpass-123')).status, 200, 'right code on 5th try');
-    eq((await call(auth, 'login', { email: 'owner@shop.in', password: 'newpass-123' })).status, 200, 'login with new password');
+    var relogin = await call(auth, 'login', { email: 'owner@shop.in', password: 'newpass-123' });
+    eq(relogin.status, 200, 'login with new password');
+    // A successful reset bumps sessionVersion (docs/session-versioning-design.md),
+    // which deliberately invalidates the shared `ownerTok` minted at signup —
+    // every test below this point that still needs a valid owner token must
+    // use a fresh one, same as the real app would after any password reset.
+    ownerTok = relogin.body.sessionToken;
   });
   await test('a used code cannot be replayed', async function () {
     var code = codeFor('owner@shop.in');
@@ -661,11 +687,245 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     eq(JSON.stringify(db.auth_store.find(function (row) { return row.id === 'users'; }).data), usersBefore, 'users unchanged');
   });
 
+  // ---- auth-gateway: login lockout race + IP-less lockout (Phase 5 item 6)
+  var decodeTokenPayload = function (tok) {
+    return JSON.parse(Buffer.from(tok.split('.')[0], 'base64url').toString());
+  };
+
+  await test('login: 10 parallel wrong-password guesses are capped at exactly 5 checked, not all 10 (bug A, the race)', async function () {
+    var o = await freshShop('lo1');
+    var results = await Promise.all(Array.from({ length: 10 }, function () {
+      return call(auth, 'login', { email: 'owner-lo1@shop.in', password: 'wrong-guess' });
+    }));
+    var count401 = results.filter(function (r) { return r.status === 401; }).length;
+    var count429 = results.filter(function (r) { return r.status === 429; }).length;
+    eq(count401, 5, '401s (checked attempts)');       // 10 on today's (pre-throttle) code: this is the bug
+    eq(count429, 5, '429s (refused, uncounted)');
+    var rows = db.login_attempts.filter(function (a) { return a.email === 'owner-lo1@shop.in'; });
+    eq(rows.length, 5, 'exactly 5 login_attempts rows — the refused ones never reached the password check');
+    var r = await call(auth, 'login', { email: 'owner-lo1@shop.in', password: 'ownerpass1' });
+    eq(r.status, 429, 'the right password is ALSO refused while locked — the lock does not peek at correctness');
+  });
+
+  await test('login: a different IP on the locked email still gets 429 (no IP component in the key)', async function () {
+    await freshShop('lo2');
+    for (var i = 0; i < 5; i++) await call(auth, 'login', { email: 'owner-lo2@shop.in', password: 'wrong' });
+    var r = await call(auth, 'login', { email: 'owner-lo2@shop.in', password: 'ownerpass1' }, { 'x-forwarded-for': '203.0.113.9' });
+    eq(r.status, 429, 'status');
+  });
+
+  await test('login: the owner\'s own device is immune to a lock on their email (bug B)', async function () {
+    var signup = await call(auth, 'signup', { name: 'Owner', email: 'owner-lo3@shop.in', password: 'ownerpass1', shopName: 'Shop lo3', city: 'City' });
+    var devTok = signup.body.deviceToken;
+    for (var i = 0; i < 5; i++) await call(auth, 'login', { email: 'owner-lo3@shop.in', password: 'wrong' });
+    var lockedRowBefore = db.login_throttle.find(function (r) { return r.key === 'e:owner-lo3@shop.in'; });
+    var r = await call(auth, 'login', { email: 'owner-lo3@shop.in', password: 'ownerpass1', deviceToken: devTok });
+    eq(r.status, 200, 'status — the device bucket is separate, so the e: lock does not apply to it');
+    eq(decodeTokenPayload(r.body.deviceToken).did, decodeTokenPayload(devTok).did, 'the returned device token keeps the same device id');
+    var lockedRowAfter = db.login_throttle.find(function (r) { return r.key === 'e:owner-lo3@shop.in'; });
+    eq(lockedRowAfter.locked_until, lockedRowBefore.locked_until, 'the e: key is still locked, unchanged — a device sign-in never clears the attacker\'s bucket');
+  });
+
+  await test('login: a device token issued for a DIFFERENT email is not a bypass', async function () {
+    var other = await call(auth, 'signup', { name: 'Other', email: 'other-lo4@shop.in', password: 'otherpass1', shopName: 'Shop other-lo4', city: 'City' });
+    await freshShop('lo4');
+    for (var i = 0; i < 5; i++) await call(auth, 'login', { email: 'owner-lo4@shop.in', password: 'wrong' });
+    var r = await call(auth, 'login', { email: 'owner-lo4@shop.in', password: 'ownerpass1', deviceToken: other.body.deviceToken });
+    eq(r.status, 429, 'a device token minted for a different email gives no bucket on this one');
+  });
+
+  await test('login: no token-type confusion between device tokens and session tokens', async function () {
+    var signup = await call(auth, 'signup', { name: 'Owner', email: 'owner-lo5@shop.in', password: 'ownerpass1', shopName: 'Shop lo5', city: 'City' });
+    var devTok = signup.body.deviceToken, sessTok = signup.body.sessionToken;
+    for (var i = 0; i < 5; i++) await call(auth, 'login', { email: 'owner-lo5@shop.in', password: 'wrong' });
+    var a = await call(auth, 'login', { email: 'owner-lo5@shop.in', password: 'ownerpass1', deviceToken: sessTok });
+    eq(a.status, 429, 'a session token presented as a deviceToken on the locked email is not accepted (still locked)');
+    var b = await sp(devTok, 'GET');
+    eq(b.status, 401, 'a device token presented to store-proxy as a session token is rejected');
+    var c = await call(auth, 'change-password', { sessionToken: devTok, currentPassword: 'ownerpass1', newPassword: 'irrelevant1' });
+    eq(c.status, 401, 'a device token presented as a sessionToken to change-password is rejected');
+  });
+
+  await test('login: a garbage deviceToken never crashes the route, it just falls back to the e: key', async function () {
+    await freshShop('lo6');
+    var garbage = ['abc', 'a.b.c', '!!!.###'];
+    for (var i = 0; i < garbage.length; i++) {
+      var r = await call(auth, 'login', { email: 'owner-lo6@shop.in', password: 'wrong', deviceToken: garbage[i] });
+      eq(r.status, 401, 'garbage deviceToken ' + JSON.stringify(garbage[i]) + ' still gets a normal 401, not a 500');
+    }
+  });
+
+  await test('login: a successful sign-in resets the counter for that key', async function () {
+    await freshShop('lo7');
+    for (var i = 0; i < 4; i++) eq((await call(auth, 'login', { email: 'owner-lo7@shop.in', password: 'wrong' })).status, 401, 'wrong #' + (i + 1));
+    eq((await call(auth, 'login', { email: 'owner-lo7@shop.in', password: 'ownerpass1' })).status, 200, 'the success');
+    for (var j = 0; j < 5; j++) eq((await call(auth, 'login', { email: 'owner-lo7@shop.in', password: 'wrong' })).status, 401, 'post-reset wrong #' + (j + 1));
+    eq((await call(auth, 'login', { email: 'owner-lo7@shop.in', password: 'wrong' })).status, 429, 'the 6th after reset is locked');
+  });
+
+  await test('login: the 5th attempt is still evaluated (it might be the right password), and a success leaves no row', async function () {
+    await freshShop('lo8');
+    for (var i = 0; i < 4; i++) await call(auth, 'login', { email: 'owner-lo8@shop.in', password: 'wrong' });
+    var r = await call(auth, 'login', { email: 'owner-lo8@shop.in', password: 'ownerpass1' });
+    eq(r.status, 200, 'the 5th counted attempt, with the right password, succeeds');
+    eq(db.login_throttle.some(function (row) { return row.key === 'e:owner-lo8@shop.in'; }), false, 'the row is gone after the success-clear');
+  });
+
+  await test('login: escalation — a second lock in a row is longer than the first', async function () {
+    await freshShop('lo9');
+    for (var i = 0; i < 5; i++) await call(auth, 'login', { email: 'owner-lo9@shop.in', password: 'wrong' });
+    var row = db.login_throttle.find(function (r) { return r.key === 'e:owner-lo9@shop.in'; });
+    row.locked_until = Date.now() - 1; // force the lock to have already expired
+    for (var j = 0; j < 5; j++) await call(auth, 'login', { email: 'owner-lo9@shop.in', password: 'wrong' });
+    var r6 = await call(auth, 'login', { email: 'owner-lo9@shop.in', password: 'wrong' });
+    eq(r6.status, 429, 'status');
+    var ok = r6.body.retryAfterSec > 1740 && r6.body.retryAfterSec <= 1800;
+    if (!ok) throw new Error('retryAfterSec: expected ~1741-1800 (the second, 30-minute lock), got ' + r6.body.retryAfterSec);
+  });
+
+  await test('login: an RPC failure fails closed (503) and never reaches the password check', async function () {
+    await freshShop('lo10');
+    var before = db.login_attempts.filter(function (a) { return a.email === 'owner-lo10@shop.in'; }).length;
+    db.fail['rpc:login_throttle_take'] = true;
+    var r = await call(auth, 'login', { email: 'owner-lo10@shop.in', password: 'ownerpass1' });
+    eq(r.status, 503, 'status');
+    var after = db.login_attempts.filter(function (a) { return a.email === 'owner-lo10@shop.in'; }).length;
+    eq(after, before, 'no login_attempts row was added — the password was never checked');
+  });
+
+  await test('signup and a successful reset-password both issue a usable device token', async function () {
+    var signup = await call(auth, 'signup', { name: 'Owner', email: 'owner-lo11@shop.in', password: 'ownerpass1', shopName: 'Shop lo11', city: 'City' });
+    eq(typeof signup.body.deviceToken, 'string', 'signup returns a deviceToken');
+    for (var i = 0; i < 5; i++) await call(auth, 'login', { email: 'owner-lo11@shop.in', password: 'wrong' });
+    var r = await call(auth, 'login', { email: 'owner-lo11@shop.in', password: 'ownerpass1', deviceToken: signup.body.deviceToken });
+    eq(r.status, 200, 'the signup-issued device token is immediately usable to bypass the e: lock');
+
+    var code = await newCode('owner-lo11@shop.in');
+    var resetRes = await reset('owner-lo11@shop.in', code, 'brand-new-pass-2');
+    eq(typeof resetRes.body.deviceToken, 'string', 'a successful reset-password also returns a deviceToken');
+    for (var j = 0; j < 5; j++) await call(auth, 'login', { email: 'owner-lo11@shop.in', password: 'wrong' });
+    var r2 = await call(auth, 'login', { email: 'owner-lo11@shop.in', password: 'brand-new-pass-2', deviceToken: resetRes.body.deviceToken });
+    eq(r2.status, 200, 'the reset-password-issued device token is also immediately usable to bypass the e: lock');
+  });
+
+  // ---- session versioning: a password change signs out every OTHER device (Phase 5 item 5)
+  await test('zero-logout guarantee: a hand-minted legacy token (no sessionVersion) still works, for a user record that also has none', async function () {
+    var o = await freshShop('sv1');
+    var legacy = mint({ userId: o.userId, shopId: o.shopId, role: 'owner', exp: Date.now() + 3600000 }); // no sessionVersion field at all
+    eq((await sp(legacy, 'GET')).status, 200, 'store-proxy GET');
+    eq((await sp(legacy, 'PUT', { data: { a: 1 }, expectedVersion: 0 })).status, 200, 'store-proxy PUT'); // fresh shop's first save, not ownerTok's shop
+    eq((await call(auth, 'update-shop', { sessionToken: legacy, city: 'Pre-deploy City' })).status, 200, 'update-shop');
+  });
+
+  await test('a legacy token dies the moment the password is changed on a DIFFERENT token', async function () {
+    var o = await freshShop('sv2');
+    var legacy = mint({ userId: o.userId, shopId: o.shopId, role: 'owner', exp: Date.now() + 3600000 });
+    eq((await sp(legacy, 'GET')).status, 200, 'legacy token works before any change');
+    var fresh = (await call(auth, 'login', { email: 'owner-sv2@shop.in', password: 'ownerpass1' })).body.sessionToken;
+    eq((await call(auth, 'change-password', { sessionToken: fresh, currentPassword: 'ownerpass1', newPassword: 'sv2-new-pass-1' })).status, 200, 'change-password');
+    var r = await sp(legacy, 'GET');
+    eq(r.status, 401, 'legacy token now rejected');
+    eq(r.body.reason, 'expired', 'reason is "expired", never "revoked" — this is not a removed user, just a stale one');
+    eq((await call(auth, 'add-staff', { sessionToken: legacy, name: 'X', email: 'x-sv2@shop.in' })).status, 401, 'auth-gateway side (loadActor) also rejects it');
+  });
+
+  await test('two devices: changing the password on one signs the OTHER out, and the changer gets a fresh token that works immediately', async function () {
+    var o = await freshShop('sv3');
+    var t1 = (await call(auth, 'login', { email: 'owner-sv3@shop.in', password: 'ownerpass1' })).body.sessionToken;
+    var t2 = (await call(auth, 'login', { email: 'owner-sv3@shop.in', password: 'ownerpass1' })).body.sessionToken;
+    var changed = await call(auth, 'change-password', { sessionToken: t1, currentPassword: 'ownerpass1', newPassword: 'sv3-new-pass-1' });
+    eq(changed.status, 200, 'change-password via t1');
+    var t1prime = changed.body.sessionToken;
+    eq((await sp(t2, 'GET')).status, 401, 't2 (the other device) is signed out');
+    eq((await sp(t1, 'GET')).status, 401, 'the OLD t1 itself is also dead — only the NEW token from change-password works');
+    eq((await sp(t1prime, 'GET')).status, 200, "t1' GET");
+    eq((await sp(t1prime, 'PUT', { data: { x: 1 }, expectedVersion: 0 })).status, 200, "t1' PUT"); // this shop's first save, not ownerTok's shop
+    eq((await call(auth, 'update-shop', { sessionToken: t1prime, city: 'Pune' })).status, 200, "t1' update-shop");
+  });
+
+  await test('a token minted after the change works, and its sessionVersion matches the record', async function () {
+    var o = await freshShop('sv4');
+    await call(auth, 'change-password', {
+      sessionToken: (await call(auth, 'login', { email: 'owner-sv4@shop.in', password: 'ownerpass1' })).body.sessionToken,
+      currentPassword: 'ownerpass1', newPassword: 'sv4-new-pass-1',
+    });
+    var fresh = await call(auth, 'login', { email: 'owner-sv4@shop.in', password: 'sv4-new-pass-1' });
+    eq(fresh.status, 200, 'login with the new password');
+    eq((await sp(fresh.body.sessionToken, 'GET')).status, 200, 'the new token works on store-proxy');
+    eq(decodeTokenPayload(fresh.body.sessionToken).sessionVersion, 1, "the token's sessionVersion is 1, matching the one bump so far");
+  });
+
+  await test('reset-password bumps the version too: a pre-reset token dies, login after the reset works', async function () {
+    var o = await freshShop('sv5');
+    var preReset = (await call(auth, 'login', { email: 'owner-sv5@shop.in', password: 'ownerpass1' })).body.sessionToken;
+    var code = await newCode('owner-sv5@shop.in');
+    eq((await reset('owner-sv5@shop.in', code, 'sv5-reset-pass-1')).status, 200, 'reset succeeds');
+    eq((await sp(preReset, 'GET')).status, 401, 'the pre-reset token is dead');
+    eq((await call(auth, 'login', { email: 'owner-sv5@shop.in', password: 'sv5-reset-pass-1' })).status, 200, 'login with the reset password works');
+  });
+
+  await test('a stale token cannot be used to change the password again, and the hash is left unchanged', async function () {
+    var o = await freshShop('sv6');
+    var t1 = (await call(auth, 'login', { email: 'owner-sv6@shop.in', password: 'ownerpass1' })).body.sessionToken;
+    var t2 = (await call(auth, 'login', { email: 'owner-sv6@shop.in', password: 'ownerpass1' })).body.sessionToken;
+    await call(auth, 'change-password', { sessionToken: t1, currentPassword: 'ownerpass1', newPassword: 'sv6-new-pass-1' });
+    var r = await call(auth, 'change-password', { sessionToken: t2, currentPassword: 'ownerpass1', newPassword: 'attacker-pass-1' });
+    eq(r.status, 401, "a stale token's change-password attempt is refused");
+    eq((await call(auth, 'login', { email: 'owner-sv6@shop.in', password: 'attacker-pass-1' })).status, 401, "the attacker's new password was never set");
+    eq((await call(auth, 'login', { email: 'owner-sv6@shop.in', password: 'sv6-new-pass-1' })).status, 200, 'the real new password still works');
+  });
+
+  await test('staff-list edits do not bump the owner — a second token the owner holds keeps working across add-staff/remove-staff/update-shop', async function () {
+    var o = await freshShop('sv7');
+    var tokA = (await call(auth, 'login', { email: 'owner-sv7@shop.in', password: 'ownerpass1' })).body.sessionToken;
+    var tokB = (await call(auth, 'login', { email: 'owner-sv7@shop.in', password: 'ownerpass1' })).body.sessionToken;
+    var add = await call(auth, 'add-staff', { sessionToken: tokA, name: 'Staff', email: 'staff-sv7@shop.in', role: 'staff' });
+    eq(add.status, 200, 'add-staff with token A');
+    eq((await call(auth, 'remove-staff', { sessionToken: tokA, staffUserId: add.body.user.id })).status, 200, 'remove-staff with token A');
+    eq((await call(auth, 'update-shop', { sessionToken: tokA, city: 'Chennai' })).status, 200, 'update-shop with token A');
+    eq((await sp(tokB, 'GET')).status, 200, "token B (never involved in any of that) is still perfectly valid");
+    eq((await call(auth, 'update-shop', { sessionToken: tokB, city: 'Chennai' })).status, 200, 'token B still works on auth-gateway too');
+  });
+
+  await test('remove-staff: a stale (pre-password-change) owner token is rejected, not just add-staff/update-shop', async function () {
+    // remove-staff has NO outer loadActor call -- unlike add-staff and
+    // update-shop, its sessionVersion re-check happens ONLY inside
+    // mutateBlob's apply closure. Opus review (11 Oct) caught this as the
+    // one route where that inner check was originally missing entirely.
+    var o = await freshShop('sv9');
+    var add = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'Staff', email: 'staff-sv9@shop.in', role: 'staff' });
+    var staleOwnerTok = o.tok;
+    var freshOwnerTok = await call(auth, 'login', { email: 'owner-sv9@shop.in', password: 'ownerpass1' });
+    await call(auth, 'change-password', { sessionToken: freshOwnerTok.body.sessionToken, currentPassword: 'ownerpass1', newPassword: 'sv9-new-pass-1' });
+    var r = await call(auth, 'remove-staff', { sessionToken: staleOwnerTok, staffUserId: add.body.user.id });
+    eq(r.status, 401, 'the stale owner token cannot remove staff');
+    eq(r.body.error, 'Your access to this shop has changed — please sign in again', 'the error is the generic ACCESS_CHANGED, not a silent 200');
+    var stillThere = db.auth_store.find(function (row) { return row.id === 'users'; }).data.some(function (u) { return u.id === add.body.user.id; });
+    eq(stillThere, true, 'the target staff member was NOT removed');
+  });
+
+  await test('forced first-login reset: the token change-password returns works on store-proxy immediately', async function () {
+    var o = await freshShop('sv8');
+    var add = await call(auth, 'add-staff', { sessionToken: o.tok, name: 'New', email: 'new-sv8@shop.in', role: 'staff' });
+    var firstLogin = await call(auth, 'login', { email: 'new-sv8@shop.in', password: add.body.tempPassword });
+    eq(firstLogin.status, 200, 'first login with the temp password');
+    var changed = await call(auth, 'change-password', {
+      sessionToken: firstLogin.body.sessionToken, currentPassword: add.body.tempPassword, newPassword: 'sv8-chosen-pass-1',
+    });
+    eq(changed.status, 200, 'forced change-password');
+    eq((await sp(changed.body.sessionToken, 'GET')).status, 200, 'the returned token works on store-proxy right away');
+  });
+
   // ---- unchanged routes still work
-  await test('login / change-password / update-shop unchanged', async function () {
+  await test('login / change-password / update-shop still work, using the FRESH token change-password returns', async function () {
     var t = (await call(auth, 'login', { email: 'owner@shop.in', password: 'newpass-123' })).body.sessionToken;
-    eq((await call(auth, 'change-password', { sessionToken: t, currentPassword: 'newpass-123', newPassword: 'final-pass-77' })).status, 200, 'change-password');
-    eq((await call(auth, 'update-shop', { sessionToken: t, city: 'Vizag' })).status, 200, 'update-shop');
+    var changed = await call(auth, 'change-password', { sessionToken: t, currentPassword: 'newpass-123', newPassword: 'final-pass-77' });
+    eq(changed.status, 200, 'change-password');
+    eq(typeof changed.body.sessionToken, 'string', 'change-password returns a fresh sessionToken');
+    // The PRE-change token `t` is now stale (sessionVersion bumped) -- this is
+    // the whole point of docs/session-versioning-design.md, not a bug.
+    eq((await call(auth, 'update-shop', { sessionToken: t, city: 'Vizag' })).status, 401, 'the pre-change token is rejected, not silently still valid');
+    eq((await call(auth, 'update-shop', { sessionToken: changed.body.sessionToken, city: 'Vizag' })).status, 200, 'the fresh token from change-password works immediately');
     eq((await call(auth, 'login', { email: 'owner@shop.in', password: 'wrong' })).status, 401, 'wrong password');
   });
 

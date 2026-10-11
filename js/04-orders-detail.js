@@ -1953,14 +1953,35 @@ function showAuthTab(tab){
 // All login/signup/staff-management now goes through this Edge Function,
 // which holds the service_role key server-side. The browser never again
 // downloads the full users/shops table.
+//
+// Device token (docs/login-lockout-design.md): proof this browser has
+// signed in to a given email before, so a stranger hammering that email
+// with wrong passwords can't lock the owner's own phone out too (Phase 5
+// item 6). One per browser per email, kept in its own localStorage key —
+// deliberately NOT shopScopedKey(): it must exist before any shop is known,
+// and it must survive sign-out (_clearDeviceSession's fixed key list in
+// 05-auth-login.js doesn't include it, so surviving sign-out needs no
+// change there). Not shop state, not a session: it grants no access by
+// itself, only which failed-login bucket this device queues in.
+var LOGIN_DEVICES_KEY = 'jewelos_login_devices';
+function _loginDevices(){
+  try{ return JSON.parse(localStorage.getItem(LOGIN_DEVICES_KEY) || '{}') || {}; }catch(e){ return {}; }
+}
 function authGatewayCall(route, body){
+  body = body || {};
+  var em = String(body.email || '').trim().toLowerCase();
+  if(route === 'login' && em){ var dt = _loginDevices()[em]; if(dt) body.deviceToken = dt; }
   return fetch(SB_FUNCTIONS + '/auth-gateway/' + route, {
     method: 'POST',
     headers: { 'Content-Type':'application/json', 'apikey':SB_KEY, 'Authorization':'Bearer '+SB_KEY },
-    body: JSON.stringify(body || {})
+    body: JSON.stringify(body)
   }).then(function(r){
     return r.json().then(function(data){
       if(!r.ok) throw Object.assign(new Error(data.error || ('HTTP '+r.status)), {status:r.status, data:data});
+      if(data && data.deviceToken && em){
+        var m = _loginDevices(); m[em] = data.deviceToken;
+        try{ localStorage.setItem(LOGIN_DEVICES_KEY, JSON.stringify(m)); }catch(e){}
+      }
       return data;
     });
   });
