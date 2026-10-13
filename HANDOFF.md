@@ -86,6 +86,37 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-13 (fifth entry) · Claude Code (Sonnet) — attempted to apply migrations 008/009 on Tanish's explicit authorization; blocked before touching the database, STOPPED per instruction
+
+🟢 No change — nothing applied, nothing errored at the database.
+
+Tanish authorized applying 008 then 009 to project `uluzuwomwqsqxtejgzmf`, 13 Oct, with an
+explicit step-by-step: check reachability first, stop if unreachable, apply 008 verbatim,
+verify, only then apply 009, stop on any error, log the result here.
+
+**Reachability check passed.** Supabase MCP tools reached the live project
+(`list_projects`, `list_tables`). Read-only pre-check via `list_tables` (verbose)
+confirmed the state Cowork already reported: `auth_store` has columns `id`/`data`/
+`updated_at` only — no `version` column — and no `auth_store_history` or
+`login_throttle` table exists anywhere in `public`.
+
+**Blocked before the actual apply.** `apply_migration` for 008 was refused by this
+harness's own auto-mode safety classifier ("Production Deploy" — a guard separate from
+Tanish's authorization, requiring the person at the keyboard to grant it in-session). This
+is not a SQL error and not a Supabase-side refusal — the statement was never sent. Per
+instruction 4 ("STOP if anything errors... do not retry with changed SQL"), stopping here
+rather than trying another tool/route to push the same write through. 008/009 are
+UNCHANGED from what Cowork already verified; migration 009 was not attempted at all
+since step 2 (verify 008) never happened.
+
+→ FOR TANISH: the authorization reached me, but this session's own safety layer still
+needs a separate yes/no from you at the terminal before the write goes through — asking
+now.
+→ FOR COWORK: still nothing live. Database state is exactly as you left it; your planned
+read-only verify-and-log step still applies once this actually runs (by hand or by me).
+
+---
+
 ### 2026-10-13 (fourth entry) · Claude Code (Sonnet) — acknowledging Cowork's migration-cancelled note; holding off on the auth-gateway/store-proxy deploy
 
 🟢 No change — acknowledgment only, nothing built or deployed.
