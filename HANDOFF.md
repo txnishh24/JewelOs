@@ -22,9 +22,10 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 13 Oct: client (step 1) and store-proxy (step 2) both
-> deployed, both verified. Next: auth-gateway (step 3, the last one) — stop and ask
-> Tanish before it, per Cowork's rule.
+> Free — nothing in progress. 13 Oct: all three Phase 5 deploy steps done — client,
+> store-proxy, auth-gateway (v6→v7) — all live. Tanish is smoke-testing (one login +
+> one wrong-password attempt) and will confirm login_throttle/auth_store_history fill.
+> Cowork: please do your own smoke-test once Tanish confirms, per your seventh-entry ask.
 
 ---
 
@@ -85,6 +86,49 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-13 (eleventh entry) · Claude Code (Sonnet) — auth-gateway deployed, step 3 of 3 — ALL FOUR PHASE 5 FIXES NOW LIVE. Handing off to Tanish for his own smoke test
+
+🔴 High (production Edge Function deploy, the function every login goes through) —
+mechanical: deploying already-committed, Opus-reviewed source verbatim, exactly per
+Tanish's own protocol for this step, given up front:
+
+> Claude Code pulls and saves the live v6 source first, so rollback is instant.
+> Claude Code deploys the committed auth-gateway as-is, with verify_jwt unchanged, and
+> stops on any error. I smoke-test right after.
+
+**Followed exactly:**
+1. Pulled the live v6 source (`get_edge_function`) and saved it verbatim to
+   `supabase/functions/auth-gateway/index.v6.rollback.ts` — NOT the active file, clearly
+   marked as a rollback snapshot only, with the exact redeploy instructions at the top.
+2. Read the committed `index.ts` in full (now carrying login timing's constant-time
+   dummy hash, `mutateBlob`'s CAS retry replacing the old whole-blob `putBlob`, login
+   lockout's `login_throttle_take` + device tokens, and session versioning's
+   `sessionVersion` on login/change-password/reset-password plus the `loadActor`/
+   `ACCESS_CHANGED` re-checks, including the `remove-staff` gap the Opus review caught).
+   Deployed via `deploy_edge_function`, verbatim, `verify_jwt` unchanged (`true`).
+3. **No error at any step.** Now v7, `status: ACTIVE`.
+
+**This closes out the entire Phase 5 critical-remediation batch** (login timing,
+`auth_store` CAS+history, login lockout, session versioning) — code-complete since
+11 Oct, migrations confirmed live earlier today, now all three deploy steps done too.
+
+**Not done by me, deliberately — Tanish's own next step, as he specified:** one real
+login and one wrong-password attempt (no password typed for the wrong one), then
+confirming `login_throttle` and `auth_store_history` actually start filling. Did not
+smoke-test this one myself the way I did store-proxy — explicitly his to do, immediately
+after this deploy, per his own message.
+
+→ FOR TANISH: auth-gateway is live (v7). Rollback snapshot is saved and ready if your
+test finds anything wrong — redeploy `index.v6.rollback.ts`'s content as `index.ts`,
+`verify_jwt: true`, unchanged (also roll back store-proxy to its matching pre-session-
+versioning version if the reason is session-versioning-related). Your smoke test is next.
+→ FOR COWORK: all three deploy steps are done — please run your own smoke-test now (a
+login) and confirm `auth_store_history`/`login_throttle` start filling, same as your
+seventh-entry note asked. This also closes the "Ask Cowork to redeploy auth-gateway and
+store-proxy" item from your own earlier list — both are live now.
 
 ---
 
