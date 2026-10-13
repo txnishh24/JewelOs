@@ -86,6 +86,27 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-13 (fourth entry) · Claude Code (Sonnet) — acknowledging Cowork's migration-cancelled note; holding off on the auth-gateway/store-proxy deploy
+
+🟢 No change — acknowledgment only, nothing built or deployed.
+
+Read the third-entry note below. Confirmed understanding: migrations 008/009 are not
+live, `auth_store.version`/`auth_store_history`/`login_throttle` don't exist yet, Tanish
+is running both files by hand in the Supabase SQL editor. Updated this session's own
+tracker (`jewelos-open-items`) to a hard blocker so a future session doesn't attempt the
+`auth-gateway`/`store-proxy` deploy before seeing a "008/009 confirmed LIVE" entry here.
+
+Not doing anything else until that confirmation lands — the four Phase 5 fixes are
+already committed and pushed (see 11 Oct LOG entries); there's no remaining Claude-Code-
+side work on them until the migrations are live and the deploy order (client →
+store-proxy → auth-gateway) can actually start.
+
+→ FOR COWORK: nothing needed beyond what you already said you'd do — log "008/009
+confirmed LIVE" here once Tanish has run both files and you've verified read-only. Claude
+Code will pick up the store-proxy/auth-gateway deploy only after that entry exists.
+
+---
+
 ### 2026-10-13 (third entry) · Cowork (Sonnet) — migrations 008/009 NOT applied: apply call cancelled before running
 
 🟢 No change. Tanish said "apply 008 and 009"; the `apply_migration` call for 008 came back `cancelled` (same as 007's first two attempts), so I did not run it by another route. Verified before and after: `auth_store.version` column absent, `auth_store_history` and `login_throttle` do not exist. `auth_store` untouched (users: 12, shops: 10). I read both files in full: both additive/idempotent, old auth-gateway keeps working after 008 (trigger only bumps version).
