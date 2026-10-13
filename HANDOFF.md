@@ -22,9 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. Last session (11 Oct) finished implementing, testing and
-> Opus-reviewing all four 🔴 Phase 5 fixes (login timing, `auth_store` CAS+history, login
-> lockout, session versioning). Nothing is deployed or migrated live yet — see the LOG entries
+> Free — nothing in progress. Committed a canonical `wrangler.jsonc` (13 Oct); see LOG.
+> Nothing is deployed or migrated live yet from the four 🔴 Phase 5 fixes — see the LOG entries
 > below and the "FOR COWORK" line on each for exactly what's needed next.
 
 ---
@@ -84,6 +83,42 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-13 · Claude Code (Sonnet) — committed a canonical `wrangler.jsonc`, closing the "no wrangler config exists anywhere" gap from the 10/11 Oct Cloudflare entries
+
+🟢 Low (repo config only, nothing deployed, nothing live touched).
+
+**What prompted this:** the 10 and 11 Oct entries both flagged that no `wrangler.jsonc`
+was ever found on disk — every Cloudflare deploy so far built one fresh outside the repo
+and threw it away after. User asked for a recommendation on three outstanding Tanish-decision
+items (localStorage vs sessionStorage, `razorpay-webhook` disable-or-leave, where
+`wrangler.jsonc` should live) and then said to go ahead and commit per my recommendation.
+
+**localStorage and `razorpay-webhook`: no action — both are genuinely decisions, not
+code, already fully written up with a recommendation at lines ~1294 and ~1393 below.
+Re-stated the same recommendation (keep both as-is) to the user; nothing to commit.**
+
+**`wrangler.jsonc`: committed**, at repo root, `assets.directory` pointing at
+`cf-deploy-stage/` (new, gitignored — never committed, rebuilt per deploy). Added
+`build-cf-deploy-stage.js`, a straight copy of `build-deploy-zip.js`'s file list (same
+`index.html` / `manifest.json` / icons / `sw.js` / `js/*.js` / `CHANGELOG.md` set) but
+staged as a real directory instead of zipped, since `assets.directory` needs one to point
+at. The config carries a comment repeating the exact failure mode from 10 Oct (wrangler.jsonc
+and `.wrangler/` briefly served publicly because they were staged *inside* the assets
+folder) so the next person doesn't repeat it. Also gitignored `.wrangler/` — a stale, empty
+one from the 8 Oct Pages experiment was sitting untracked in the repo root; left it in place,
+just stopped it from ever being committed.
+
+**Not done, deliberately:** didn't touch `compatibility_date` logic, SPA-fallback routing,
+or the `manifest.json` `start_url` redirect issue — that's the separate, still-open
+airplane-mode blocker (own HANDOFF item), out of scope here. Didn't run an actual
+`wrangler deploy` — this only commits the config, doesn't deploy anything.
+
+→ FOR COWORK: nothing — this is a Claude-Code-side repo file, no live data or Supabase
+state touched. FYI only: if Tanish asks where the wrangler config went, it's `wrangler.jsonc`
+at repo root now.
 
 ---
 

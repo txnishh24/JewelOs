@@ -1,0 +1,15 @@
+{
+  // Cloudflare Worker (static assets), not a Pages project — see HANDOFF.md's
+  // 10 Oct entry for why. Canonical copy, committed per Tanish's decision
+  // (3 Oct item: no original was ever found on disk after the first deploy).
+  //
+  // "directory" MUST stay outside anything this file itself lives in — the
+  // first-ever deploy put wrangler.jsonc and .wrangler/ inside the served
+  // folder and they were briefly publicly reachable at /wrangler.jsonc.
+  // Run `node build-cf-deploy-stage.js <batch>` first to populate it.
+  "name": "jewelos",
+  "compatibility_date": "2026-10-10",
+  "assets": {
+    "directory": "./cf-deploy-stage"
+  }
+}

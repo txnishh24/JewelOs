@@ -13,6 +13,11 @@ blob-report/
 # Build handoffs are zipped out of here, never kept in the tree
 *.zip
 
+# Cloudflare: staged assets (rebuilt per deploy) and wrangler's local cache —
+# neither belongs in the tree; see wrangler.jsonc's comment for why
+cf-deploy-stage/
+.wrangler/
+
 # OS / editor noise
 desktop.ini
 Thumbs.db
