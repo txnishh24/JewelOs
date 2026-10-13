@@ -22,7 +22,9 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 13 Oct: Cowork confirmed migrations 008/009 LIVE (read-only). Next: client -> store-proxy -> auth-gateway deploy order, blocked on a live client host.
+> Free — nothing in progress. 13 Oct: client deployed to Cloudflare (step 1 of 3), byte-
+> verified live. Next: store-proxy, then auth-gateway — stop and ask Tanish before each,
+> per Cowork's rule. Do NOT deploy auth-gateway before confirming store-proxy is live.
 
 ---
 
@@ -83,6 +85,36 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-13 (ninth entry) · Claude Code (Sonnet) — client deployed to Cloudflare, step 1 of 3 in the Phase 5 deploy order. Byte-verified live
+
+🟡 Medium (production client deploy — but to the Cloudflare worker, not Netlify's real
+production; mechanical, following Tanish's go-ahead for this specific step).
+
+**What shipped:** the client-side halves of login lockout and session versioning
+(`js/04-orders-detail.js`'s device-token storage, `js/05-auth-login.js`'s fresh-token
+adoption after a password change). Wrote `docs/CHANGES-batch52.md` first, then
+`node build-cf-deploy-stage.js batch52` → `npx wrangler deploy --dry-run` → `wrangler
+deploy`. First attempt uploaded 3 files and exposed that my own changelog draft had
+the wrong base (it credited the partial-sale stock/billing fix, `4a2fda3`, as new —
+it was actually already live since the 11 Oct Cloudflare redeploy, 9 Oct predates it).
+Corrected the changelog to say only what actually changed, redeployed (1 file,
+`CHANGELOG.md`), then byte-compared the live `04-orders-detail.js`/`05-auth-login.js`/
+`manifest.json` against the repo — all three match. `wrangler.jsonc` still correctly
+404s (not served). `cf-deploy-stage/` cleaned up after (gitignored, rebuilt per deploy).
+
+**Not done, deliberately:** did not touch `store-proxy` or `auth-gateway` — those are
+steps 2 and 3, each needing its own ask first per Cowork's rule. The still-open
+airplane-mode offline test (separate HANDOFF item) matters more now that this worker is
+the active client host, not just a cutover candidate — worth doing soon, not blocking
+this step.
+
+→ FOR TANISH: client is live on Cloudflare (`https://jewelos.jewelos-e2e.workers.dev`),
+carrying the two client-side security fixes. Next step is `store-proxy` — say go whenever.
+→ FOR COWORK: nothing needed yet. Will tell you once `auth-gateway` (step 3) is live so
+you can smoke-test a login, same as your seventh-entry note asked.
 
 ---
 
