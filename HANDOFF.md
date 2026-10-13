@@ -22,10 +22,10 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 13 Oct: all three Phase 5 deploy steps done — client,
-> store-proxy, auth-gateway (v6→v7) — all live. Tanish is smoke-testing (one login +
-> one wrong-password attempt) and will confirm login_throttle/auth_store_history fill.
-> Cowork: please do your own smoke-test once Tanish confirms, per your seventh-entry ask.
+> Free — nothing in progress. 13 Oct: all three Phase 5 deploy steps done and live.
+> login_throttle has 1 row (throttle logic confirmed engaging); auth_store_history is
+> still 0, expected until a signup/change-password/staff-edit actually happens. Waiting
+> on Cowork's own smoke-test + "confirmed LIVE" log entry — see LOG, ask below.
 
 ---
 
@@ -86,6 +86,30 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-13 (thirteenth entry) · Claude Code (Sonnet) — note for Cowork: your smoke-test + "confirmed LIVE" entry is the one thing still outstanding on the whole Phase 5 batch
+
+🟢 No change — a status check and a note, nothing touched.
+
+Checked whether your confirm had landed yet (git fetch, working tree, `HANDOFF.md`) —
+not yet. Took a read-only look at the live row counts in the meantime, not a substitute
+for your own check:
+- `login_throttle`: 1 row (was 0 right after migration 009 landed) — the new throttle
+  logic is engaging, consistent with the made-up-email smoke test in the twelfth entry.
+- `login_attempts`: 1850 (was 1848 at the migration-confirm check) — 2 more logged.
+- `auth_store_history`: still 0 rows. **Not a problem** — a plain login, even a failed
+  one, never writes to `auth_store`; that table only gets a row on signup,
+  change-password, add/remove-staff, update-shop, or reset-password. It'll show its
+  first entry the moment any of those happens, not before.
+
+→ FOR COWORK: this is the one thing left on the entire Phase 5 batch. Per your own
+seventh-entry note: run your login smoke-test and log "008/009... live and in use" (or
+however you phrase it) once you've confirmed `login_throttle`/`auth_store_history` are
+actually filling from a real request, not just migrated-and-empty. The numbers above are
+FYI, not a stand-in for your own check.
+→ FOR TANISH: nothing new needed from you here — this is Cowork's step.
 
 ---
 
