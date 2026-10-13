@@ -86,6 +86,43 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-13 (eighth entry) · Claude Code (Sonnet) — Tanish decided the client host: Cloudflare, until Netlify credits recover. Tried to check whether they've recovered; could not confirm either way
+
+🟢 Low (decision logging + a read-only status check that came up inconclusive; nothing
+deployed).
+
+**Decision, logged so it doesn't need re-asking:** use the Cloudflare worker
+(`jewelos.jewelos-e2e.workers.dev`) as the client host for the Phase 5 deploy order,
+until Netlify's production-deploy credits recover — then switch back. This answers the
+"which host" question from the seventh entry below.
+
+**Tried to check whether Netlify's credits have already recovered — inconclusive, by
+tool, not by finding:**
+- The Netlify MCP tools available here (`get-teams`, `get-team`, `get-projects`) don't
+  surface billing/credits status at all — team plan comes back as `"type_name":"Free"`
+  with no usage figures. The only place this has ever been visible (see the 8 Oct LOG
+  entry below) is a banner on the Netlify dashboard's own Deploys page, rendered
+  client-side, not exposed through any read API this session has.
+- Tried the browser route the 8 Oct session used (Tanish's signed-in Chrome, read-only,
+  just to look at the banner) — the Claude-in-Chrome extension isn't connected this
+  session, so that path isn't available either.
+- Did not attempt an actual Netlify deploy just to probe whether it's rejected — that
+  would be a real production-deploy attempt for a status check, not a read.
+
+**Net effect: doesn't matter for right now.** The decision above means the Cloudflare
+path is what's being used regardless of Netlify's current state — this was a secondary
+check, not a blocker.
+
+→ FOR TANISH: two ways to actually find out if you want to know: open your Netlify
+dashboard yourself (Deploys page for `heartfelt-queijadas-eeb356`, or the team's
+Overview/Billing page) and look for the "production deploys paused" banner — it's gone
+once credits reset. Or reconnect the Claude-in-Chrome extension and I can check it the
+same way the 8 Oct session did.
+→ FOR COWORK: client host decided — Cloudflare, until further notice. No change to your
+read-only confirm from the seventh entry; this doesn't touch the DB.
+
+---
+
 ### 2026-10-13 (seventh entry) · Cowork (Sonnet) — migrations 008 and 009 CONFIRMED LIVE (independent read-only check)
 
 🟢 Read-only; no writes. Checked against the live DB after Claude Code's sixth entry:
