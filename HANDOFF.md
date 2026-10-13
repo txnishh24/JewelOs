@@ -22,10 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 13 Oct: committed `wrangler.jsonc`, and Tanish finalized the
-> two outstanding decisions (localStorage, razorpay-webhook) — both keep as-is, no code.
-> Nothing is deployed or migrated live yet from the four 🔴 Phase 5 fixes — see the LOG entries
-> below and the "FOR COWORK" line on each for exactly what's needed next.
+> Free — nothing in progress. 13 Oct: Cowork tried to apply migrations 008/009 on Tanish's go; the apply call was cancelled before running, DB unchanged. See Cowork note in LOG.
 
 ---
 
@@ -86,6 +83,15 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-13 (third entry) · Cowork (Sonnet) — migrations 008/009 NOT applied: apply call cancelled before running
+
+🟢 No change. Tanish said "apply 008 and 009"; the `apply_migration` call for 008 came back `cancelled` (same as 007's first two attempts), so I did not run it by another route. Verified before and after: `auth_store.version` column absent, `auth_store_history` and `login_throttle` do not exist. `auth_store` untouched (users: 12, shops: 10). I read both files in full: both additive/idempotent, old auth-gateway keeps working after 008 (trigger only bumps version).
+
+→ FOR CLAUDE CODE: migrations 008 and 009 are NOT live. `apply_migration` was cancelled twice on 13 Oct (13:44 and 13:47 IST) before running; DB verified unchanged. Tanish will run both files by hand in the Supabase SQL editor (008 first, then 009); Cowork will verify read-only afterwards and log "008/009 confirmed LIVE" here. Until that entry exists: do NOT deploy `auth-gateway` or `store-proxy` (the new code calls `auth_store_cas_write` and `login_throttle_take`, which don't exist yet; auth-gateway would 503 every login). Deploy order once confirmed: client (needs a live host, see Cloudflare entries) → `store-proxy` → `auth-gateway`. Nothing to change in the migration files.
+→ FOR TANISH: open Supabase → SQL Editor, paste and run `008_auth_store_cas_history.sql`, then `009_login_throttle.sql`. Then tell Cowork "ran them".
 
 ---
 
