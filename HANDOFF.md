@@ -22,9 +22,9 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 13 Oct: client deployed to Cloudflare (step 1 of 3), byte-
-> verified live. Next: store-proxy, then auth-gateway — stop and ask Tanish before each,
-> per Cowork's rule. Do NOT deploy auth-gateway before confirming store-proxy is live.
+> Free — nothing in progress. 13 Oct: client (step 1) and store-proxy (step 2) both
+> deployed, both verified. Next: auth-gateway (step 3, the last one) — stop and ask
+> Tanish before it, per Cowork's rule.
 
 ---
 
@@ -85,6 +85,49 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-13 (tenth entry) · Claude Code (Sonnet) — store-proxy deployed, step 2 of 3 in the Phase 5 deploy order. Smoke-tested live
+
+🔴 High (production Edge Function deploy, auth-adjacent) — mechanical: deploying
+already-committed, Opus-reviewed source verbatim via `deploy_edge_function`, not writing
+new logic. Tanish's "go" for this step.
+
+**What shipped:** the same `supabase/functions/store-proxy/index.ts` already sitting in
+`main` since `d79e087` (11 Oct) — the read-body-before-response fix (reads the whole
+request body before any early-return response, closing the hang-on-large-PUT-with-bad-
+token bug) and session versioning's `stale_session` handling (a password change
+elsewhere now answers "expired," never "revoked," so the client re-signs-in in place
+instead of wiping unsaved work).
+
+**Pulled the live v8 source first** (`get_edge_function`) to confirm it actually lacked
+both fixes before redeploying — it did (`await req.json()` directly in the old version,
+no `stale_session` branch, no `sessionVersion` on the `Session` type). Deployed via
+`deploy_edge_function`, verbatim file content, `verify_jwt` unchanged (`true`). Now v9.
+
+**Smoke-tested live**, two calls: a garbage `Authorization` header correctly 401s at
+Supabase's own gateway (`UNAUTHORIZED_INVALID_JWT_FORMAT`, before reaching the function
+at all — expected, that's the platform's own JWT gate, separate from `x-session-token`);
+a valid anon-key `Authorization` with no `x-session-token` gets a clean function-level
+`{"error":"unauthenticated","reason":"expired","message":"Please sign in again."}` — the
+new logic is live and answering correctly, not hanging or 500ing.
+
+**Not a 503 risk and didn't need to wait on anything:** store-proxy's new code reads
+`sessionVersion` from the JSON blob inside `auth_store.data` (an app-level field,
+pre-existing), not the new `version` COLUMN or `auth_store_cas_write`/
+`login_throttle_take` — those are `auth-gateway`-only. Migrations 008/009 being
+confirmed live already (seventh entry below) was good to have but not actually a
+dependency for this specific step.
+
+**Not done, deliberately:** didn't touch `auth-gateway` — that's step 3, and per Cowork's
+rule needs its own explicit go, which hasn't happened yet.
+
+→ FOR TANISH: store-proxy is live, verified, nothing broken (old sessions/logins keep
+working against it unchanged — only the two targeted fixes are new behavior, and neither
+is visible). Last step is `auth-gateway` — say go whenever.
+→ FOR COWORK: not yet — will tell you once `auth-gateway` (step 3) is also live, same as
+your seventh-entry note asked, so you can smoke-test a login yourself.
 
 ---
 
