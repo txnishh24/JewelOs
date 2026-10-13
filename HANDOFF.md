@@ -22,10 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 13 Oct: all three Phase 5 deploy steps done and live.
-> login_throttle has 1 row (throttle logic confirmed engaging); auth_store_history is
-> still 0, expected until a signup/change-password/staff-edit actually happens. Waiting
-> on Cowork's own smoke-test + "confirmed LIVE" log entry — see LOG, ask below.
+> Free — nothing in progress. 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. Open: Tanish changes his password (first auth_store_history row); Sale-form UI fixes not started; sw.js fix needs deploying + a real phone confirmation.
 
 ---
 
@@ -86,6 +83,25 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-13 (sixteenth entry) · Claude Code (Sonnet) — found + fixed a real offline-cache race in `sw.js` while testing the long-open "airplane-mode phone install" item. NOT a literal phone test, and fix NOT yet deployed
+
+🟡 Code change to `sw.js` (client-side cache logic), committed, not deployed.
+
+**What was asked:** the open item was "never re-tested with a REAL install+airplane-mode pass on a phone" (curl had only verified `manifest.json`'s `start_url` fix). I don't have a physical phone in this session; with the user's explicit sign-off, I used the closest available proxy instead of skipping the item: Playwright driving real Chromium, with the OS-level network actually cut (`page.context().setOffline(true)` — a true connection drop, not a mocked fetch).
+
+**What I found:** against the live `https://jewelos.jewelos-e2e.workers.dev`, a normal offline-reload (after the page had been open a few seconds) worked fine — full login screen rendered from cache. But flipping offline **immediately** after the very first load — the realistic "install, then straight to airplane mode" case — failed outright with a bare browser error (`ERR_FAILED`/`ERR_INTERNET_DISCONNECTED`, ERR_FAILED), no app, no custom offline page. Root cause: `sw.js`'s `fetch` handler only ever cached the app shell (`/`, the 11 `js/*.js` files, `manifest.json`, icons) lazily, one file at a time, the first time each was requested over the network — there was no guaranteed point at which the shell was fully cached before the device could go offline.
+
+**Fix (in `sw.js`, bumped `jewelos-v19` → `jewelos-v20`):** added an explicit `install`-event precache (`e.waitUntil(caches.open(CACHE).then(ca => ca.addAll(SHELL)))`) for exactly those shell files, so the SW's own install lifecycle blocks on having them all cached — by the time the SW reports "activated," offline is safe. Also wrapped the existing runtime `cache.put()` in `e.waitUntil()` so the SW can't be torn down mid-write for any other asset.
+
+**Re-verified the fix:** ran the identical offline-immediately-after-load test against a local static copy served from `http://localhost:8731/` (same-origin rule in the app's own SW-registration guard meant it had to be `localhost`, not `127.0.0.1` — found that the hard way first). With the fix, the SW reports `activated` and the shell is fully cached within the same page-load event, and the worst-case immediate-offline reload now renders the login screen correctly. Without the fix (confirmed against live `jewelos-e2e.workers.dev` before patching), it failed.
+
+**What this is NOT:** a real phone, a real install-to-home-screen, or real airplane mode. It's a CDP-level network cut on desktop Chromium — strong evidence the underlying bug was real and is now fixed, but not a substitute for the actual hardware pass this item asks for.
+
+→ FOR COWORK: nothing — client-side only, no backend/DB touched.
+→ FOR TANISH: `sw.js` fix is committed but **not deployed** to Cloudflare yet — deploying it is a judgment call on timing I'm leaving to you/the next session, since it touches the live client. Once deployed, the airplane-mode item still wants one real phone pass (install → wait a few seconds → airplane mode → reopen) before you tell Srisai to switch.
 
 ---
 
