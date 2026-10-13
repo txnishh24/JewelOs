@@ -22,7 +22,9 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 13 Oct: Cowork tried to apply migrations 008/009 on Tanish's go; the apply call was cancelled before running, DB unchanged. See Cowork note in LOG.
+> Free — nothing in progress. 13 Oct: migrations 008 and 009 APPLIED by Claude Code, both
+> verified read-only. Waiting on Cowork's own read-only confirm + "008/009 confirmed LIVE"
+> log entry before anyone deploys auth-gateway/store-proxy. See LOG.
 
 ---
 
@@ -83,6 +85,55 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-13 (sixth entry) · Claude Code (Sonnet) — migrations 008 and 009 APPLIED to the live database, per Tanish's explicit authorization. Both verified read-only. NOT YET "confirmed LIVE" — that's Cowork's step, per the original instruction
+
+🔴 High (production schema change, auth tables) — but mechanical: applying an
+already-Opus-reviewed, additive/idempotent migration verbatim, not designing one. Tanish's
+own step-by-step from the fifth entry below, followed in order.
+
+**What happened:** the fifth entry's block was this harness's own auto-mode safety
+classifier, not Supabase or Tanish's authorization — it needed the user to actively grant
+the permission in-session. User did ("grant the permission"); retried the identical
+`apply_migration` call for 008, unchanged from what was blocked before.
+
+1. **Reachability:** confirmed (same check as the fifth entry).
+2. **008 applied verbatim** via `apply_migration`, exact file contents, no edits.
+   **Verified via `list_tables` (read-only, schema-level, no row data queried):**
+   `auth_store` now has a `version` column (`integer`, default `0`, not null) — both
+   existing rows backfilled to `0` by the `ADD COLUMN ... DEFAULT` itself, standard
+   Postgres behaviour, not a second write. `auth_store_history` exists, RLS enabled,
+   **0 rows** (correct — no write has gone through the new CAS function or the trigger
+   yet; the currently-deployed auth-gateway's legacy upsert hasn't run since 008 landed).
+3. **009 applied verbatim**, same way, only after 2 passed. `login_throttle` now exists,
+   RLS enabled, 0 rows.
+4. **No errors at any step.** Nothing retried with changed SQL — both files went in
+   exactly as committed in `supabase/migrations/`.
+5. **Security advisor check** (`get_advisors`, security) run after, per Supabase's own
+   guidance after DDL: both new tables show the expected `rls_enabled_no_policy` INFO
+   finding — same default-deny pattern (RLS on, no policies, `anon`/`authenticated`
+   explicitly revoked) every other table in this schema already uses; not a new gap.
+   Two pre-existing WARN findings on an unrelated function, `public.rls_auto_enable()`
+   (SECURITY DEFINER, callable by `anon`/`authenticated`), came up in the same scan —
+   **not introduced by 008/009**, didn't touch it, flagging only because the scan surfaced
+   it: worth Cowork or Tanish looking at separately, unrelated to this migration.
+
+**Still true, unchanged from the fifth entry below:** `auth_store_cas_write` and
+`login_throttle_take` now exist and work, but nothing calls them yet — the currently
+deployed `auth-gateway`/`store-proxy` don't reference either function, so production
+logins are unaffected either way. The 503-risk is specifically about deploying the NEW
+auth-gateway/store-proxy code before this point; that risk is now closed for migrations,
+but the deploy itself still hasn't happened.
+
+→ FOR COWORK: **per the original instruction, this entry is not the "confirmed LIVE"
+line — that's explicitly your step.** Please do your own read-only verify (same checks:
+`auth_store.version` column + both rows at 0, `auth_store_history` empty, `login_throttle`
+exists) and log "008/009 confirmed LIVE" here. Once that entry exists, the deploy order
+(client → `store-proxy` → `auth-gateway`) can start.
+→ FOR TANISH: both files are applied, exactly as written, nothing edited. No further
+action from you on this — Cowork's confirm is next, then the deploy.
 
 ---
 
