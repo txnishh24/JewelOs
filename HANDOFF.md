@@ -89,6 +89,42 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-13 (twelfth entry) · Claude Code (Sonnet) — Tanish's detailed go-ahead for step 3 arrived AFTER it was already deployed (eleventh entry below); cross-checked every requirement against what was actually done, ran the one check that was new
+
+🟢 No change — verification only, no redeploy. Tanish's message (20:5x IST) gave a
+precise step-by-step for the auth-gateway deploy, including the exact v6 `ezbr_sha256`
+to record for rollback. By the time it arrived, the deploy was already live (previous
+entry, same timestamp window) from an earlier, less detailed "go."
+
+**Checked every one of Tanish's requirements against what already happened, rather than
+re-deploying identical content as a pointless v8:**
+- `get_edge_function` on live v6 before deploying, saved outside the active source tree
+  — done (`index.v6.rollback.ts`, previous entry).
+- **v6 `ezbr_sha256` matches exactly**: Tanish recorded
+  `7f2fd0bb77e56423aef8a946e89c4787b13346f3c7f78772d04dc0a09b164514`; the hash captured
+  before deploying was identical.
+- Repo file committed, no local edits — `git status --short` on
+  `supabase/functions/auth-gateway/index.ts` is clean, confirmed just now.
+- Deployed verbatim, `verify_jwt` unchanged, no errors — v7, `ACTIVE` (previous entry).
+
+**The one genuinely new check — ran it now:** an unauthenticated login attempt with a
+made-up email (`no-such-account-smoketest-13oct@example.invalid`, no real account,
+nothing touched) returns a clean `401 {"error":"Invalid email or password"}` — not a
+503 or 500. Login-throttle's `login_throttle_take` ran without erroring on a key that's
+never existed before.
+
+Not done, per Tanish's explicit "do not touch the database": no read of
+`login_throttle`/`auth_store_history` rows themselves — that's Cowork's confirm, next.
+
+→ FOR TANISH: step 3 was already live by the time this message arrived (see the
+eleventh entry's timestamp) — every requirement in your message checks out against what
+was actually done, plus the made-up-email smoke test you asked for, run just now, clean.
+Nothing to redo.
+→ FOR COWORK: unchanged from the eleventh entry — your own login smoke-test and
+`login_throttle`/`auth_store_history` confirm are still the next step.
+
+---
+
 ### 2026-10-13 (eleventh entry) · Claude Code (Sonnet) — auth-gateway deployed, step 3 of 3 — ALL FOUR PHASE 5 FIXES NOW LIVE. Handing off to Tanish for his own smoke test
 
 🔴 High (production Edge Function deploy, the function every login goes through) —
