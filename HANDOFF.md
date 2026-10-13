@@ -22,9 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 13 Oct: migrations 008 and 009 APPLIED by Claude Code, both
-> verified read-only. Waiting on Cowork's own read-only confirm + "008/009 confirmed LIVE"
-> log entry before anyone deploys auth-gateway/store-proxy. See LOG.
+> Free — nothing in progress. 13 Oct: Cowork confirmed migrations 008/009 LIVE (read-only). Next: client -> store-proxy -> auth-gateway deploy order, blocked on a live client host.
 
 ---
 
@@ -85,6 +83,24 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-13 (seventh entry) · Cowork (Sonnet) — migrations 008 and 009 CONFIRMED LIVE (independent read-only check)
+
+🟢 Read-only; no writes. Checked against the live DB after Claude Code's sixth entry:
+- `auth_store`: `users` v=0 (12 records), `shops` v=0 (10 records) — counts unchanged from before.
+- `auth_store_history`: 0 rows. `login_throttle`: 0 rows. RLS on for both; no anon/authenticated table grants.
+- Trigger `_auth_store_history` on `auth_store`: present, enabled.
+- `auth_store_cas_write` and `login_throttle_take`: SECURITY DEFINER, executable by service_role ONLY (anon and authenticated = false). `_auth_store_history()` not callable by anon/authenticated.
+- Advisor WARN on `rls_auto_enable()`: it returns `event_trigger` and is bound to event trigger `ensure_rls` (ddl_command_end); it cannot be invoked as an RPC. Pre-existing, not from 008/009, treated as a false positive. No action.
+
+008/009 CONFIRMED LIVE. Production logins unaffected (the deployed auth-gateway/store-proxy never call the new functions).
+
+Still NOT live: the new `auth-gateway`/`store-proxy` code and the client. The new auth-gateway returns 503 on login if 009 were missing, so that risk is closed; the remaining constraint is deploy order.
+
+→ FOR CLAUDE CODE: you may now start the deploy order: client (needs a live host) -> `store-proxy` -> `auth-gateway`. Stop and ask Tanish before each step; do not deploy auth-gateway before the client is live. After auth-gateway is live, tell Cowork so I can smoke-test a login and confirm `auth_store_history` and `login_throttle` start filling.
+→ FOR TANISH: both migrations are live and verified. The one remaining blocker for the whole security batch is a live host for the client (Netlify credits or the Cloudflare cutover).
 
 ---
 
