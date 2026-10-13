@@ -22,7 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. Committed a canonical `wrangler.jsonc` (13 Oct); see LOG.
+> Free — nothing in progress. 13 Oct: committed `wrangler.jsonc`, and Tanish finalized the
+> two outstanding decisions (localStorage, razorpay-webhook) — both keep as-is, no code.
 > Nothing is deployed or migrated live yet from the four 🔴 Phase 5 fixes — see the LOG entries
 > below and the "FOR COWORK" line on each for exactly what's needed next.
 
@@ -56,7 +57,9 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   (Cowork's own account skills) write to the paused Office, and `jewelos-health`'s drift SQL still
   reads `nextInvNo`, stale since migration 005 changed the invoice-floor source.** Flagged by Cowork's
   3 Oct skills audit; explicitly out of scope for Claude Code to touch; Cowork/Tanish's to fix.
-**Closed (don't re-ask):** Day Book receipt photos → skipped (needs Supabase Storage if it returns) ·
+**Closed (don't re-ask):** (13 Oct) session token storage → Tanish confirmed keep
+`localStorage`, no change · (13 Oct) `razorpay-webhook` → Tanish confirmed leave as is,
+no disable/pause · Day Book receipt photos → skipped (needs Supabase Storage if it returns) ·
 Demo mode → built, batch21 · renewal contact → `+91 72086 23428`, no UPI handle in code ·
 owner-PIN test → built 27 Sep · e2e test shop → reset before a same-day re-run streak, no cleanup
 logic in the app · login token (F1) → option B, 6 h life, PIN on reopen within 6 h · old-gold
@@ -83,6 +86,41 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-13 (second entry) · Claude Code (Sonnet) — Tanish finalized the two outstanding decision items (localStorage, razorpay-webhook); consolidated note for Cowork on what's still outstanding on its side
+
+🟢 Low (decision logging only, no code, no deploy).
+
+**Decided, both keep-as-is, no code change:**
+- **Session token storage stays `localStorage`.** Item 4 in the LOG entry further below
+  (search "retain-or-change recommendation") — the recommendation was to keep it, Tanish
+  confirmed. Marked DECIDED inline there and added to WAITING ON TANISH's closed list.
+- **`razorpay-webhook` stays as is — not disabled/paused.** Item 11, same entry. Same
+  treatment: marked DECIDED inline, added to the closed list.
+
+Neither needs anything from Cowork either — flagging only so it doesn't get re-surfaced
+as an open question from that side.
+
+**Consolidated note — everything currently waiting on Cowork, in one place** (scattered
+across several LOG entries below; gathering it here so it's not missed):
+1. **Redeploy `auth-gateway` and `store-proxy`** — commit `d79e087` (11 Oct) fixed
+   `auth-gateway`'s `loadActor` re-check and `store-proxy`'s read-body-before-response bug.
+   Committed source only; not live until redeployed.
+2. **Apply migrations 008 then 009** to Supabase (`auth_store` CAS + history, then login
+   lockout + session versioning), then deploy, in this exact order: Netlify client zip →
+   `store-proxy` → `auth-gateway`. Session versioning's deploy-order constraint is why the
+   order matters — see the four Phase 5 LOG entries below (8e4e781, f44f034, f50d699,
+   ce15d77, dff640f) for what each migration/fix does.
+3. **`jewelos-health` / `jewelos-client-queries` drift SQL still reads `nextInvNo`**,
+   stale since migration 005 moved the invoice-floor source — Cowork's own account skills,
+   Cowork's fix, out of scope for Claude Code (per the 3 Oct skills audit, WAITING ON
+   TANISH section above).
+
+→ FOR COWORK: items 1-3 above are yours. Nothing else changed on the Claude Code side
+today beyond the `wrangler.jsonc` commit (separate entry below) — no live data, no schema,
+no auth logic touched.
 
 ---
 
@@ -1333,6 +1371,8 @@ a tab reload). The 14 Sep security review called `sessionStorage` "solid" as a b
 moving to `localStorage` traded that property away, and it raises the stakes of every XSS
 finding in this whole remediation task — an XSS now gets 6h of direct token access
 instead of none. **My recommendation: retain `localStorage`, given it's not alone.**
+**DECIDED 13 Oct — Tanish confirmed: keep `localStorage`.** No code change; closed, see
+the "Closed (don't re-ask)" list below.
 The token's actual exposure is bounded by how many stored-XSS sinks exist, and this
 remediation (Phase 2 + the Sep-14 batch19 fixes already in main) has closed the
 highest-reach ones (invoice preview, customer history, photo URLs, now sandboxed at the
@@ -1436,10 +1476,12 @@ either disable/pause the function until Razorpay is actually reactivated, or lea
 (low risk as long as its own signature verification is intact — not independently
 re-audited this phase) — Tanish's call, not a code gap to schedule. 🟢 Low — no Opus
 needed either way, this is a deploy/ops decision.
+**DECIDED 13 Oct — Tanish confirmed: leave `razorpay-webhook` as is, no disable/pause.**
+No code change; closed, see the "Closed (don't re-ask)" list below.
 
 **Summary for Tanish — what actually needs your decision vs. what's just a backlog
-item:** items 4 (localStorage) and 11 (webhook) are DECISIONS, not code — I've given you
-the trade-off for each, your call. Items 5, 6, 7, 8 are 🔴 and each needs its own Opus
+item:** items 4 (localStorage) and 11 (webhook) were DECISIONS, not code — both now
+DECIDED 13 Oct (see above), no action needed. Items 5, 6, 7, 8 are 🔴 and each needs its own Opus
 design pass before anything is implemented, per the same rule this whole task has
 followed — none of them are quick patches. Items 1, 2, 9, 10 are 🟡/🟢 and mechanical —
 safe to schedule into ordinary Sonnet work whenever, no architecture risk.
