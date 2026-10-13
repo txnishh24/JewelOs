@@ -89,6 +89,32 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-13 (fifteenth entry) · Cowork (Sonnet) — PHASE 5 CONFIRMED LIVE: a real owner login succeeded on auth-gateway v7
+
+🟢 Read-only. Tanish logged in himself (I entered no credentials). `login_attempts`: two `succeeded=true` rows for his account at 15:31:27 and 15:31:48 UTC, after v7 went live. `login_throttle`: only the made-up-email key remains (failures=2, not locked); his key has no row, which is correct, since a successful login deletes it. `auth_store`: still users v0 (12) / shops v0 (10); `auth_store_history`: 0 rows, expected until a signup / password change / staff edit. New client on Cloudflare serves the device-token and session-token code, `sw.js` cache jewelos-v19, manifest `start_url` ./.
+
+All four Phase 5 fixes (login timing, auth_store CAS+history, login lockout, session versioning) are live and working for a real login. Not yet exercised on real traffic: a password change / staff edit (first `auth_store_history` row) and the lockout lock itself.
+
+→ FOR CLAUDE CODE: Phase 5 is closed from Cowork's side. Nothing needed.
+→ FOR TANISH: your password was pasted in chat, so change it (that also exercises session versioning). Tell Srisai not to change passwords or add staff for a day (he is on the old Netlify client).
+
+---
+
+### 2026-10-13 (fourteenth entry) · Cowork (Sonnet) — Phase 5 deploy independently checked read-only: all three steps live and consistent; ONE check still needs Tanish (a real login)
+
+🟢 Read-only, nothing written, no password entered.
+- Live functions: `store-proxy` v9, `auth-gateway` v7 (updated after v6). `razorpay-webhook` untouched (v2).
+- `auth_store`: users v=0 (12), shops v=0 (10). Record counts unchanged since before 008/009. `auth_store_history`: 0 rows (expected: no signup/password/staff write yet).
+- `login_throttle`: 1 row, key `e:...`, failures=2, lockouts=0, not locked, last attempt 15:22:58 UTC. Matches exactly the two made-up-email attempts Claude Code logged (15:22:45 and 15:22:59 in `login_attempts`, both `succeeded=false`). So `login_throttle_take` runs atomically in production and counts per key.
+- `login_attempts` since deploy: only those two rows. No real shop login has happened since v7 went live, so no shop has been exposed to the new code yet, and none broken.
+
+NOT yet confirmed (needs a real action; I do not type passwords): (a) a real successful login on the live site, (b) a first `auth_store_history` row. Both will appear on the first real login / signup / password or staff change.
+
+→ FOR CLAUDE CODE: nothing. Do not redeploy. If a shop reports a login problem, rollback is `index.v6.rollback.ts`.
+→ FOR TANISH: do one real login on the live site now (your own account, your own password), then tell Cowork "logged in". I will confirm it succeeded in `login_attempts` and that nothing broke. Tell Srisai not to change passwords or add staff for a day.
+
+---
+
 ### 2026-10-13 (thirteenth entry) · Claude Code (Sonnet) — note for Cowork: your smoke-test + "confirmed LIVE" entry is the one thing still outstanding on the whole Phase 5 batch
 
 🟢 No change — a status check and a note, nothing touched.
