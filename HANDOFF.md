@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; sw.js fix needs deploying + a real phone confirmation; auth-gateway+store-proxy CORS fix needs deploying; check Sentry Replay masking settings.
+> Free — nothing in progress. 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). 15 Oct (21st entry): Tanish said GO — both deploys done: auth-gateway v8 + store-proxy v10 (CORS allowlist) and sw.js v20 (Cloudflare), both byte/hash-verified live. Waiting on Cowork to test CORS + a real login next. Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; real phone pass for sw.js v20; check Sentry Replay masking settings; add jewelos.co to ALLOWED_ORIGINS the day it's attached.
 
 ---
 
@@ -83,6 +83,29 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-15 (twenty-first entry) · Claude Code (Sonnet) — BOTH deploys from Tanish's GO: CORS allowlist live (auth-gateway v8, store-proxy v10) AND sw.js v20 live on Cloudflare
+
+🔴 Two production deploys, both per Tanish's explicit step-by-step instructions (pasted ~19:48 IST, matched the live `ezbr_sha256` of auth-gateway v7/store-proxy v9 exactly before touching anything).
+
+**Deploy 1 — CORS allowlist (20th entry's fix):**
+- Pre-deploy: fetched live `auth-gateway` v7 and `store-proxy` v9 verbatim via `get_edge_function`; both `ezbr_sha256` matched Tanish's recorded values exactly (`608698f2…ccebac` / `24b45e75…0d34fbd`). Saved as `supabase/functions/auth-gateway/index.v7.rollback.ts` and `supabase/functions/store-proxy/index.v9.rollback.ts` (same pattern as the existing `index.v6.rollback.ts`), committed to the repo.
+- Deployed `store-proxy` first, then `auth-gateway`, both verbatim from the committed source, `verify_jwt: true` unchanged on both. No errors at either step.
+- **New versions: `store-proxy` v9→v10** (`ezbr_sha256: d92861ed…dd6137`), **`auth-gateway` v7→v8** (`ezbr_sha256: 3fadbed3…bf3f27`).
+- **Verified live, not just assumed:** CORS preflight from each of the 3 allowed origins gets its own origin echoed back; a fake origin (`evil.example.com`) gets refused — the response doesn't match its `Origin`, so a browser blocks it. Both functions still answer ordinary requests correctly (empty-body login → 400, no-token store-proxy → 401, same as before). I did not attempt a real login myself — that's explicitly Cowork's check below.
+
+**Deploy 2 — sw.js v20 offline-cache fix (16th entry, 13 Oct):**
+- `checks/` has nothing that covers `supabase/functions/*.ts` or the Cloudflare deploy pipeline, so this followed the project's existing deploy process exactly: wrote `docs/CHANGES-batch53.md` (required by `build-cf-deploy-stage.js` — it refuses to stage without a changelog), ran `node build-cf-deploy-stage.js batch53` (staged 17 files, base = batch52's already-live 11 Oct content), `npx wrangler deploy --dry-run` first, confirmed the authenticated account was `tanishkatkojwala2407@gmail.com` (correct one), then deployed for real.
+- Only 2 of 18 files actually uploaded (`sw.js`, `CHANGELOG.md`) — the other 15 were already live and untouched, consistent with batch52's note about incremental uploads.
+- **Byte-verified live** (not just "deploy said success"): fetched `https://jewelos.jewelos-e2e.workers.dev/sw.js` and diffed it against the committed file — identical, `jewelos-v20`. Cloudflare Version ID `285a3011-0b37-4449-a509-74bc2fce683a`.
+- Netlify was not touched at all (still paused, per instruction).
+
+**What's still open after this:** the real-phone airplane-mode pass for sw.js v20 (this deploy doesn't substitute for it, per the 16th entry); and whatever Cowork's CORS/login verification below turns up.
+
+→ FOR COWORK: **please test now** — CORS preflights from all three allowed origins (`jewelos.jewelos-e2e.workers.dev`, `heartfelt-queijadas-eeb356.netlify.app`, `jewelos-test.pages.dev`) plus one fake origin (must be refused), and confirm a real login still succeeds end-to-end against `auth-gateway` v8/`store-proxy` v10. I checked CORS headers and basic error paths myself but deliberately did not attempt a real login (no credentials, and that's your side's check to do against the live DB). Rollback files are in the repo (`index.v7.rollback.ts` / `index.v9.rollback.ts`) if anything regresses — redeploy those verbatim, `verify_jwt: true`, to go back.
+→ FOR TANISH: both deploys are live and byte/hash-verified as you asked. Waiting on Cowork's CORS+login check next. Reminder noted: the moment `jewelos.co` is attached, it goes in `ALLOWED_ORIGINS` in both `auth-gateway/index.ts` and `store-proxy/index.ts` the same day, or that origin gets silently locked out.
 
 ---
 
