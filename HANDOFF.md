@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. Open: Tanish changes his password (first auth_store_history row); Sale-form UI fixes not started; sw.js fix needs deploying + a real phone confirmation.
+> Free — nothing in progress. 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; sw.js fix needs deploying + a real phone confirmation; auth-gateway+store-proxy CORS fix needs deploying; check Sentry Replay masking settings.
 
 ---
 
@@ -83,6 +83,83 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-14 (twentieth entry) · Claude Code (Sonnet) — fixed the open-CORS finding in auth-gateway AND store-proxy; committed, NOT deployed
+
+🔴 Per MODEL-POLICY.md §8 this is auth/security — flagging the classification rather than quietly treating it as routine. Implemented as Sonnet since it's a small, mechanical, well-understood fix (narrow an allowlist, no logic change); said so here rather than silently skipping the policy.
+
+**Important context found while doing this, surfaced rather than overridden:** `docs/SECURITY-REVIEW-2026-09-14.md` §8 already lists this exact finding — *"CORS reflects any origin. Harmless here because auth is a header token, not a cookie."* That's a real, correct point: because these functions check a bearer token, not a cookie, a cross-origin page can't ride a victim's existing session the way classic CSRF works, so the open CORS was a **reviewed, accepted** risk, not an overlooked bug. Fixing it anyway because it's free (no legitimate caller is excluded) and it does close one thing the 14 Sep review didn't weigh: a quick client-side-JS phishing clone making a real `fetch()` straight to the real backend and reading back the response (sessionToken etc.) — restrictive CORS blocks the browser from completing that preflighted request for any other origin. It does **not** stop the more realistic phishing method (a fake form POSTing to the attacker's own server, which then calls the real backend server-to-server) — CORS is a browser-only restriction and never applies to that path. Said so plainly rather than overselling what this buys.
+
+**What changed:** both `auth-gateway/index.ts` and `store-proxy/index.ts` had the identical `corsHeaders()` bug (`"Access-Control-Allow-Origin": origin ?? "*"`, reflecting whatever `Origin` header the caller sent). The task named only auth-gateway; store-proxy turned out to have the exact same copy-pasted pattern, so fixed both — same root cause, same fix, and leaving one open while "fixing" the other would've been the kind of symptom-patch the house style explicitly says not to do. Both now check an explicit `ALLOWED_ORIGINS` allowlist and only echo back the caller's origin if it's in it (otherwise falls back to a fixed listed origin, which won't match the real caller's `Origin` header — so the browser still blocks the response for anyone not on the list). Added `Vary: Origin`.
+
+**Why these three origins, not just the one I've been testing against:** docs/HANDOFF history mentioned three different client URLs across this project's life (Netlify, a Cloudflare Pages stand-in, Cloudflare Workers). Rather than trust which one is "current" from docs that disagree with each other over time, checked all three live just now — **all three actually respond right now and all three point at this same Supabase project** (`uluzuwomwqsqxtejgzmf`), so all three are real, currently-used client deployments and had to go in the allowlist or real shops on any of them would be locked out the moment this deploys:
+- `https://jewelos.jewelos-e2e.workers.dev` (what this session has been testing against)
+- `https://heartfelt-queijadas-eeb356.netlify.app` (README.md's "current state" production URL)
+- `https://jewelos-test.pages.dev` (the temporary Netlify-credits stand-in)
+
+**NOT yet deployed.** No `supabase` CLI is installed in this environment, and a production deploy of an auth-path Edge Function is exactly the kind of action to confirm before taking, not do automatically — asked Tanish first. Source is committed; `supabase functions deploy auth-gateway store-proxy` (or the Supabase MCP `deploy_edge_function` tool) is the next step once he says go.
+
+**No automated check run.** `checks/` only covers the eleven client `js/*.js` modules; there's no existing syntax/test harness for `supabase/functions/*.ts` in this repo. Reviewed the diff manually instead (small, mechanical, no control-flow change) — flagging the gap rather than claiming a test that doesn't exist.
+
+→ FOR COWORK: nothing yet — this is source-only until deployed. Once Tanish says deploy, whoever deploys should re-verify all three origins actually still resolve first (CLAUDE.md's `jewelos-deploy-verifier` or equivalent), since a typo in the allowlist would lock out a real shop with no obvious error in the UI (CORS failures are silent/confusing in devtools).
+→ FOR TANISH: say the word and I'll deploy both functions. Also: if any OTHER client origin exists that I didn't find in the docs/HANDOFF history, tell me now — it'll get silently locked out by this otherwise.
+
+---
+
+### 2026-10-14 (nineteenth entry) · Claude Code (Sonnet) — full authenticated walkthrough, real owner login, at Tanish's explicit request; no data mutated
+
+🟡 Not read-only like the 17th/18th entries — Tanish asked for "a full-fledged test of the application" and pasted his own real login credentials into chat to authorize it. Logged in and clicked through all 9 main screens (Dashboard, Inventory, Record Sale, Orders, Girvi, Customers, Reports, Day Book, Settings) using REA's browser-automation tool against the live site. **No bills, orders, Girvi loans, inventory, or customer records were created/edited/deleted** — navigation and screenshots only, by design (asked first, defaulted to view-only since this is real production data, not a demo shop).
+
+**Result: everything works.** Dashboard shows correct live numbers (₹72,508 inventory value, ₹1,41,852 pending Girvi, today's tiles all ₹0, onboarding checklist); Inventory lists the real gold product with correct rates; Record Sale/GST-Memo form renders clean and empty; Orders pipeline (New→Design→Making→Polish→QC→Ready→Done) all zero as expected; Girvi shows 2 real active loans (₹1.4L lent, ₹24,458 interest accrued); Customers lists real records; Reports' October 2026 P&L computes correctly; Day Book shows the right opening/closing balance; Settings' Shop Profile/Demo Mode/tabs all present. Found no functional bugs.
+
+**Flagging again, same as the 13 Oct 15th entry:** the real password was pasted in plaintext chat to authorize this. Recommend changing it, same reasoning as last time — a password typed into a chat session isn't somewhere it should live.
+
+**Worth knowing for anyone else automating a login here:** a "JewelOS v18.1 What's New" modal (`#v18-modal`) pops up over the dashboard right after login and sits on top of the nav tabs. A scripted click on a tab before dismissing it can hang indefinitely if no action timeout is set, since Playwright waits for the covered element to become clickable — found this the hard way (one attempt hung 48 minutes before being aborted; fixed by dismissing the modal first and always setting `timeout_ms`). Not a bug in the app, just a trap for browser automation against it.
+
+**Side note, not a JewelOS issue:** cleaning up the first (hung) attempt's orphaned browser process was done correctly this time, by exact PID — learned from a mistake earlier the same session where a blanket `taskkill /F /IM chrome.exe` closed the session's own regular Chrome windows as collateral damage.
+
+→ FOR COWORK: nothing — client-side-only UI walkthrough, no DB writes.
+→ FOR TANISH: change your password (pasted in chat again). Everything you can see in the app is confirmed working end to end as of this afternoon.
+
+---
+
+### 2026-10-14 (eighteenth entry) · Claude Code (Sonnet) — redid the 17th entry's recon with REA itself once its MCP connection got fixed; one real new finding (Sentry Session Replay), plus a self-inflicted side-effect worth flagging
+
+🟢 Read-only recon only, same rules as the 17th entry (no login, no forms, no credentials). REA's MCP server (which had timed out earlier) got reconnected mid-session by the user; this redoes that recon with REA's actual browser tools (`list_browser_targets`, `analyze_web_bundle`, `inspect_web_page`) against a headless Chrome instance pointed at the live site, instead of plain `curl`.
+
+**Cross-validated from the 17th entry:** REA's own static route/endpoint detector (`analyze_web_bundle`) parsed all 12 scripts (126,607 AST nodes) and found **zero** routes/endpoints, with its own explicit limitation note that string-built routes may remain unknown. That independently confirms the 17th entry's point: `auth-gateway`/`store-proxy`'s routes are built via string concatenation (`SB_FUNCTIONS + '/auth-gateway/' + route`), so an automated scanner — not just REA — genuinely cannot enumerate this app's API surface. Only reading the source finds it.
+
+**One real new finding (missed in the 17th entry):** `inspect_web_page` surfaced a `sentryReplaySession` sessionStorage key on every page load. Traced to `index.html`'s very first inline `<script>` (loads before everything else):
+```js
+Sentry.init({ tracesSampleRate: 1.0, replaysSessionSampleRate: 0.1, replaysOnErrorSampleRate: 1.0 });
+```
+loading `js.sentry-cdn.com/8eb35178a8a4cf454e8c7895ee7c5194.min.js`. **Sentry Session Replay is live in production** — recording 10% of normal sessions and 100% of error sessions — with no masking/privacy options visible in the init call the client ships. The Sentry key itself isn't a secret (meant to be public, same class as the Supabase anon key). The thing worth checking: this app's screens show real customer names, bill amounts, and jewellery weights — worth a quick look at the Sentry project's own Replay settings (`maskAllText`/`blockAllMedia`) to confirm that data isn't landing in session recordings by default. Confirmed via REA that no Supabase/Razorpay network calls fire on an unauthenticated page view, consistent with the 17th entry.
+
+**Side-effect to flag, not a JewelOS issue:** while cleaning up the headless Chrome instance this recon launched, `taskkill /F /IM chrome.exe` was run to kill it — that kills every Chrome process on the machine by image name, not just the one launched for this. If the session's own Chrome windows/tabs were open at the time, they were force-closed (Chrome's session restore should recover them on reopen). Flagging here in case anything looks like it vanished — unrelated to the app or deploy, just this machine's browser state.
+
+→ FOR COWORK: nothing — same as 17th entry, client/edge-layer only.
+→ FOR TANISH: worth a 2-minute check — open the Sentry project's Replay settings and confirm text/input masking is on, given the screens being replayed show real customer and billing data. Not urgent, just worth closing the loop on.
+
+---
+
+### 2026-10-14 (seventeenth entry) · Claude Code (Sonnet) — outside-in recon of the live site, read-only (no login, no forms, no credentials, no binaries run)
+
+🟢 Read-only external recon only. Nothing written, no code changed, no login attempted. Asked for by name ("use REA"); REA's MCP server timed out connecting and no local `rea` CLI was installed, so this was done with plain `curl` against the public site + the public anon-key Supabase endpoint instead — flagging that substitution since the ask named REA specifically. Everything below is from ordinary HTTP requests, not REA Evidence.
+
+**Findings, worst first:**
+
+1. 🟡 **MEDIUM — CORS on `auth-gateway` is wide open.** Sent an `OPTIONS` preflight with `Origin: https://evil.example.com` to `/functions/v1/auth-gateway/login`; it echoed that origin straight back in `access-control-allow-origin` and allowed `POST`. Any website can call `login`, `request-password-reset`, `reset-password`, `change-password`, `add-staff`, `remove-staff`, `update-shop` directly from a visitor's browser — the anon `apikey` header it needs is already public (it ships in the client JS, see #3). Biggest real risk: a pixel-perfect phishing clone of the login screen, hosted anywhere, that submits straight to the real `auth-gateway` and genuinely authenticates — nothing server-side would tell the difference from the real client. Fix is standard: restrict `Access-Control-Allow-Origin` to the real deployed origin(s) in the Edge Function.
+2. 🟢 **LOW — no `Content-Security-Policy`, `X-Frame-Options`/`frame-ancestors`, `Strict-Transport-Security`, or `Referrer-Policy` on the served HTML.** Compounds #1: without `frame-ancestors`/`X-Frame-Options` the real login page itself can be iframed for a clickjacking overlay. Cheap to add at the Worker/edge layer.
+3. ℹ️ **INFO, not a bug — verified the Aug 2026 RLS hardening is actually enforced live.** `00-config-state.js` ships the Supabase anon JWT + project URL in plain text (expected/by-design for a Supabase client — the anon key is meant to be public, protected by RLS). Direct-tested it: `GET /rest/v1/store` with that anon key → `401 permission denied for table store`. The code comment's claim ("RLS now default-denies anon/authenticated on that table") checked out against the live database, not just the source.
+4. ℹ️ **INFO — the shipped client is fully unminified ES5 with verbose internal commentary**, which is a real exposure even though nothing in it is independently exploitable: a stranger reading `js/*.js` gets the full Edge Function route list (`login`, `request-password-reset`, `reset-password`, `change-password`, `add-staff`, `remove-staff`, `update-shop`), a diagnostic probe route (`auth-gateway/_diag-ping`, meant to be hit unauthenticated — confirmed, returns clean `405`/`404`, no leak), the names of internal design docs (`docs/login-lockout-design.md`, `docs/save-conflict-fix-design.md`), migration filenames (`supabase/migrations/001_lockdown_rls.sql`), and a plain-English history of past bug classes and exactly how/when each was fixed (e.g. "this bug class has been found and fixed six times now"). None of this is a vulnerability by itself, but it's a free roadmap for anyone probing further and isn't something a production bundle should ship. No actual secret was in it — checked for Stripe/Razorpay/AWS/Firebase/Resend/Twilio/service-role keys specifically, found none (Razorpay key is a `localStorage`-sourced placeholder, `rzp_test_REPLACE_WITH_YOUR_KEY`, not a real key; `service_role` only appears in a comment explaining it's held server-side and never shipped — also independently true, confirmed by #3).
+5. ℹ️ **INFO, confirms what's already in WAITING ON TANISH above** — `sw.js` served live is still `jewelos-v19`; the offline-cache fix from the sixteenth entry (bumped to v20) is confirmed **not yet deployed** to Cloudflare, visible from outside too.
+
+**Checked and clean:** no `.env`, `wrangler.toml`, `.git/config`, `package.json`, or admin/debug paths exposed (all 404); no sourcemaps served; malformed-JSON and missing-`apikey` requests to the Edge Functions both fail cleanly with no stack trace or internal detail; `store-proxy` and `auth-gateway` both reject unauthenticated calls with generic messages.
+
+→ FOR COWORK: nothing to action on your side — this was client/edge-layer only, no DB touched, no auth exercised. FYI: the CORS finding (#1) means the `auth-gateway` Edge Function itself needs the origin restriction, not the client.
+→ FOR TANISH: one real fix worth doing before wider rollout — lock `auth-gateway`'s CORS down to your actual site origin instead of allowing any website to call it (#1). Everything else here is informational, nothing urgent.
 
 ---
 

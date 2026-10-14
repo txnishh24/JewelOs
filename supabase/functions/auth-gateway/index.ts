@@ -88,11 +88,28 @@ const RESET_MAX_GUESSES = 5; // wrong guesses before a reset code is burned
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
 
+// Every origin a real deployed client is currently served from (verified live
+// 14 Oct — Netlify is still production, pages.dev is the Netlify-credits
+// stand-in, workers.dev is the Cloudflare migration target; all three are up
+// and point at this same Supabase project). CORS previously reflected any
+// origin back (accepted 14 Sep as low-risk since auth is a header token, not
+// a cookie — true, but it still let any site complete a real login/signup
+// via fetch() from a victim's browser). Add a new deploy target here before
+// anyone can sign in from it: an unlisted origin's request still runs
+// server-side, but the browser refuses to hand the page the response, so the
+// app just looks broken there.
+const ALLOWED_ORIGINS = [
+  "https://jewelos.jewelos-e2e.workers.dev",
+  "https://heartfelt-queijadas-eeb356.netlify.app",
+  "https://jewelos-test.pages.dev",
+];
 function corsHeaders(origin: string | null) {
+  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   return {
-    "Access-Control-Allow-Origin": origin ?? "*",
+    "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
   };
 }
 function json(body: unknown, status = 200, origin: string | null = null) {

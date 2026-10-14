@@ -48,12 +48,21 @@ const ALLOWED_COUNTERS = new Set([
 const CAN_WRITE = new Set(["owner", "manager", "staff"]);
 const CAN_READ = new Set(["owner", "manager", "staff", "readonly"]);
 
+// Same allowlist and reasoning as auth-gateway's corsHeaders() — keep both in
+// sync; add a new deploy target to both at once.
+const ALLOWED_ORIGINS = [
+  "https://jewelos.jewelos-e2e.workers.dev",
+  "https://heartfelt-queijadas-eeb356.netlify.app",
+  "https://jewelos-test.pages.dev",
+];
 function corsHeaders(origin: string | null) {
+  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   return {
-    "Access-Control-Allow-Origin": origin ?? "*",
+    "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Headers":
       "authorization, x-client-info, apikey, content-type, x-session-token, prefer",
     "Access-Control-Allow-Methods": "GET, PUT, POST, OPTIONS",
+    "Vary": "Origin",
   };
 }
 
