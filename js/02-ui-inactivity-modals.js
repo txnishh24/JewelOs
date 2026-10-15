@@ -323,7 +323,7 @@ function renderInv(entrance){
     pagedProds.forEach(function(p,idx){
       // P4: entrance stagger, first render of this list only (see renderTab).
       var rowCls=entrance?' row-enter':'';
-      var rowStyle=entrance?' style="--i:'+Math.min(idx,8)+'"':'';
+      var rowStyle=entrance?' style="--i:'+Math.min(idx,6)+'"':''; // v2: cap 6, was 8
       var sold=p.status==='sold';
       var returned=p.status==='returned';
       var mv=mktVal(p);
