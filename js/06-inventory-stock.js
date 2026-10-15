@@ -187,17 +187,23 @@ function renderOnboarding(){
 
   checklist.style.display = 'block';
   var doneCount = steps.filter(function(s){ return s.done; }).length;
+  var summaryEl = document.getElementById('onboarding-summary-label');
+  if(summaryEl) summaryEl.textContent = '👋 Setup '+doneCount+'/'+steps.length+' ›';
 
   stepsEl.innerHTML = steps.map(function(s, i){
     return '<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:'+(s.done?'rgba(37,165,75,0.08)':'var(--surface)')+';border-radius:var(--radius);border:0.5px solid '+(s.done?'rgba(37,165,75,0.25)':'var(--border2)')+';">' +
       '<span style="font-size:16px;">'+(s.done?'✅':'⬜')+'</span>' +
       '<span style="flex:1;font-size:13px;color:'+(s.done?'var(--text3)':'var(--ink)')+';font-weight:'+(s.done?'400':'600')+';text-decoration:'+(s.done?'line-through':'none')+';">'+(i+1)+'. '+s.label+'</span>' +
-      (!s.done?'<button onclick="(_onboardingSteps['+i+'].action)()" style="font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--gold);background:transparent;color:var(--gold-dark);cursor:pointer;font-weight:600;font-family:inherit;">'+s.cta+'</button>':'')+
+      (!s.done?'<button onclick="(_onboardingSteps['+i+'].action)()" style="font-size:11px;min-height:44px;padding:4px 14px;border-radius:20px;border:1px solid var(--gold);background:transparent;color:var(--gold-dark);cursor:pointer;font-weight:600;font-family:inherit;">'+s.cta+'</button>':'')+
     '</div>';
   }).join('');
 
   // Store steps for onclick access
   window._onboardingSteps = steps;
+}
+function dismissOnboarding(){
+  var el=document.getElementById('onboarding-checklist');
+  if(el) el.style.display='none';
 }
 
 function renderDash(){
@@ -263,7 +269,7 @@ function renderDash(){
   if(snapEl2){
     snapEl2.innerHTML =
       fsnCard('Inventory Value', fmt(tgv+tsv), 'gold + silver stock', null, '', 'var(--gold-dark)')+
-      fsnCard('Outstanding Payments', fmt(totalPendingBal), getSalesDueSoon(30).length+' overdue 30d+', null, '', 'var(--danger)')+
+      fsnCard('Outstanding Payments', fmt(totalPendingBal), getSalesDueSoon(30).length+' overdue 30d+', null, '', totalPendingBal>0?'var(--danger)':'var(--success)')+
       fsnCard('Pending Girvi', fmt(activeGirviTotal), activeGirviList.length+' active loan(s)', null, '', 'var(--warning)')+
       fsnCard('Pieces in Stock', stockPieces, stockCatCount+' categor'+(stockCatCount===1?'y':'ies'), null, '', 'var(--gold-dark)');
   }
@@ -694,16 +700,13 @@ function renderOrdersPipeline(){
       '</div>';
     }());
 
-  // Insert before the first child of orders panel
+  // Always sits directly above the metrics tiles, whatever else is above
+  // them (e.g. the "+ New Order" button moved to the top of the panel,
+  // UI/UX audit 15 Oct) — anchoring on ord-metrics itself, not its previous
+  // sibling, keeps that true regardless of panel layout above it.
   var ordMetrics = document.getElementById('ord-metrics');
   if(ordMetrics && ordMetrics.parentNode===panel){
-    // Was ordMetrics.parentNode.previousSibling — but the line above has just
-    // established that parentNode IS panel, so that asked panel to insert
-    // before its own sibling, which is not one of its children. insertBefore
-    // throws on that, and it threw every time the orders screen redrew: the
-    // list itself had already been drawn, but everything after this point was
-    // skipped, including the "order saved" confirmation.
-    panel.insertBefore(pipeDiv, ordMetrics.previousSibling||ordMetrics);
+    panel.insertBefore(pipeDiv, ordMetrics);
   } else {
     panel.insertBefore(pipeDiv, panel.firstChild);
   }

@@ -5,6 +5,11 @@ function setSyncStatus(status, label){
   var lbl = document.getElementById('sync-label');
   var bar = document.getElementById('sync-bar-inner');
   dot.className = 'sync-dot ' + status;
+  // Mobile hides #sync-label (space), leaving the dot's colour as the only
+  // signal of sync state — give it the same text via aria-label/title so it
+  // isn't color-only (UI/UX audit, 15 Oct).
+  dot.setAttribute('aria-label', label);
+  dot.setAttribute('title', label);
   lbl.textContent = label;
   if(status==='syncing'){
     // P2: the bar's own width transition (.sync-bar-inner, index.html) existed

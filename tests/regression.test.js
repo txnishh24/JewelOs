@@ -2344,7 +2344,12 @@ test('a hostile product id cannot break out of the onclick handlers, in the tabl
   ['inv-body', 'inv-cards'].forEach(function(id){
     var html = a.document.getElementById(id).innerHTML;
     assert(html.indexOf("' onmouseover='") === -1, id + ': the product id broke out of the onclick JS string');
-    assert(html.indexOf("editProd('p1\\' onmouseover=\\'alert(1)')") !== -1, id + ': expected the escaped id to still appear as literal text');
+    // Edit/History/Adjust/Delete moved behind one "more actions" (⋯) button
+    // (UI/UX audit, 15 Oct) — openProdActionMenu(id) is now the only place
+    // this row splices the id into an onclick string; editProd() itself is
+    // called later from prodActionRun() with a plain JS variable, not a
+    // spliced string, so there's no new injection surface to cover here.
+    assert(html.indexOf("openProdActionMenu('p1\\' onmouseover=\\'alert(1)')") !== -1, id + ': expected the escaped id to still appear as literal text');
   });
 });
 

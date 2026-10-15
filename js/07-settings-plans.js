@@ -800,6 +800,7 @@ function saveGirviEntry(_ltvConfirmed){
 }
 
 // ── CONTROL PANEL RENDERER ────────────────────────────────────────────
+// Dead since the "Girvi Portfolio" card (#girvi-cp) was removed from index.html (UI/UX audit, 15 Oct) — still called, now a no-op (el is always null below).
 function renderGirviCP(){
   var girvi     = (S.girvi||[]).filter(function(g){return !g._deleted;});
   var active    = girvi.filter(function(g){return g.status==='active';});
@@ -1416,9 +1417,15 @@ function openGirviDetail(gid){
         '<button onclick="openGirviTimeline(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(138,78,12,.3);background:rgba(138,78,12,.08);color:var(--warning);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">📋 Timeline</button>'+
         '<button onclick="openGirviReceiptModal(\''+jsAttrEsc(gid)+'\',\'creation\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🧾 Receipt</button>'+
       '</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:7px;">'+
-        '<button onclick="closeGirviManual(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(28,96,64,.3);background:var(--success-soft);color:var(--success);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔓 Release Item</button>'+
-        '<button onclick="markGirviDefault(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(168,49,42,.3);background:var(--danger-soft);color:var(--danger);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔴 Mark Default</button>'+
+      '<div style="margin-top:7px;">'+
+        '<button onclick="closeGirviManual(\''+jsAttrEsc(gid)+'\')" style="width:100%;padding:10px 4px;border-radius:10px;border:1px solid rgba(28,96,64,.3);background:var(--success-soft);color:var(--success);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔓 Release Item</button>'+
+      '</div>'+
+      // Mark Default is a high-consequence, rare action (declares the loan
+      // defaulted) — kept apart from Release Item and styled as a plain
+      // secondary link so it can't be mistapped as the matching other half
+      // of a button pair (UI/UX audit, 15 Oct).
+      '<div style="text-align:center;margin-top:10px;">'+
+        '<button onclick="markGirviDefault(\''+jsAttrEsc(gid)+'\')" style="padding:10px 12px;min-height:var(--tap);border:none;background:none;color:var(--danger);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:underline;">🔴 Mark as Defaulted</button>'+
       '</div>'
     :'<div style="text-align:center;padding:10px;font-size:13px;color:var(--text3);">🔒 This loan is '+status+'. No further actions.</div>');
 

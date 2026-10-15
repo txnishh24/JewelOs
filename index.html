@@ -222,21 +222,32 @@ body{
   -webkit-font-smoothing:antialiased;
 }
 .serif,h1,h2,h3{font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif;}
+/* Money/weight/count figures always render in Inter, never the serif display font —
+   Cormorant's old-style digits make 0 look like "o" and 1 look like "I" on amounts.
+   Headings stay serif; this only overrides the value classes that showed numerals in it. */
+.metric-value,.gl-entry-amt,.ged-val,.gl-sum-val{font-family:var(--font-body);font-variant-numeric:tabular-nums;}
 
 /* ── TOPBAR ──────────────────────────────────────── */
 .topbar{
   background:var(--ink);
-  padding:0 var(--space-3);
+  padding:var(--space-1) var(--space-3);
   display:flex;align-items:center;justify-content:space-between;
   flex-wrap:nowrap;gap:var(--space-2);
-  height:var(--topbar-h);position:sticky;top:0;z-index:200;
+  min-height:var(--topbar-h);position:sticky;top:0;z-index:200;
   border-bottom:1px solid rgba(255,255,255,.08);
   box-shadow:none;
 }
 .logo-wrap{display:flex;align-items:center;gap:var(--space-2);min-width:0;flex:1 1 auto;overflow:hidden;}
-/* QA P2-20: a long shop name ran under the header buttons at 375px. It now shrinks and ends in "…". */
 .logo-wrap>div{min-width:0;flex:1 1 auto;overflow:hidden;}
-.logo-name,.logo-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+/* QA P2-20 (375px overlap bug): a long shop name used to run under the header
+   buttons. Fixed then by single-line ellipsis truncation, which hid the rest
+   of the name; UI/UX audit (15 Oct) asked for the full name back without the
+   overlap returning, so it now wraps onto up to 2 lines instead — horizontal
+   space is still bounded by the flex layout above (min-width:0 + flex:1 1 auto
+   on this column vs. flex:0 0 auto on .topbar-actions), so it can't run under
+   the icons; .topbar grew from a fixed height to min-height to fit the 2nd line. */
+.logo-name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;max-width:100%;word-break:break-word;}
+.logo-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
 /* On a phone the three header buttons show their icon only (the title is the tooltip),
    so the shop name has room. #sync-label stays: it is where "Saved ✓" shows. */
 @media(max-width:480px){
@@ -414,11 +425,14 @@ body{
 .mtab.mtab-s{background:var(--silver-bg);color:var(--silver-dark);border-color:rgba(74,96,112,.3);}
 
 /* ── PILLS ───────────────────────────────────────── */
-.pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.9rem;}
+/* One horizontally scrolling row instead of wrapping to many lines
+   (17 category chips) — UI/UX audit, 15 Oct. */
+.pills{display:flex;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:6px;margin-bottom:.9rem;padding-bottom:2px;}
 .pill{
-  padding:5px 14px;border-radius:20px;font-size:12px;cursor:pointer;
+  padding:8px 14px;min-height:36px;border-radius:20px;font-size:12px;cursor:pointer;
   border:0.5px solid var(--border2);background:transparent;color:var(--text3);
-  font-family:inherit;font-weight:500;transition:background var(--t1),color var(--t1),border-color var(--t1);
+  font-family:inherit;font-weight:500;white-space:nowrap;flex:none;
+  transition:background var(--t1),color var(--t1),border-color var(--t1);
 }
 
 .pill.active{background:var(--gold-bg);color:var(--gold-dark);border-color:rgba(179,146,87,.4);font-weight:600;}
@@ -707,6 +721,12 @@ tr:last-child td{border-bottom:none;}
 .dev-only{display:none!important;}
 html.dev .dev-only{display:block!important;}
 @media(max-width:639px){.bnav{display:block;}.dtabs{display:none;}}
+
+/* Day Book's Add Entry/Close Day bar — sticky above the (fixed) bottom nav on
+   mobile, above the real page bottom on desktop where there's no bnav
+   (UI/UX audit, 15 Oct). */
+.db-sticky-actions{position:sticky;bottom:0;z-index:150;background:var(--ivory);padding:8px 0;margin-bottom:12px;}
+@media(max-width:639px){.db-sticky-actions{bottom:var(--nav-h);}}
 
 /* ── MORE MENU (mobile bnav overflow) ────────────────────────────────── */
 .more-menu-item{display:flex;align-items:center;gap:12px;width:100%;min-height:var(--tap);padding:10px 14px;border:none;background:none;font-size:15px;font-weight:500;color:var(--ink);cursor:pointer;font-family:inherit;text-align:left;border-radius:var(--radius);transition:background var(--t1);}
@@ -1367,15 +1387,16 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 .digest-row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;}
 .digest-row strong{color:var(--text1);}
 
-/* Settings tabs */
-.settings-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:1rem;overflow-x:auto;}
+/* Settings tabs — wrapped grid instead of a sideways-scrolling strip, so all
+   7 tabs are visible without scrolling (UI/UX audit, 15 Oct). */
+.settings-tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:6px;margin-bottom:1rem;}
 .settings-tab{
-  padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;
-  color:var(--text3);border-bottom:2px solid transparent;white-space:nowrap;
-  transition:color .15s,border-bottom-color .15s;background:none;border-top:none;border-left:none;border-right:none;
+  padding:10px 6px;min-height:44px;font-size:12px;font-weight:600;cursor:pointer;text-align:center;
+  color:var(--text3);border:0.5px solid var(--border2);border-radius:var(--radius);
+  transition:color .15s,background .15s,border-color .15s;background:var(--surface);
   font-family:inherit;
 }
-.settings-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+.settings-tab.active{color:var(--gold-dark);background:var(--gold-bg);border-color:rgba(179,146,87,.4);}
 
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1651,7 +1672,18 @@ tr:hover td{background:var(--bg2);}
 <div id="saas-auth-screen" style="display:none;">
   <div class="auth-box">
     <div class="auth-logo">
-      <div class="auth-logo-mark">💎</div>
+      <div class="auth-logo-mark">
+        <svg class="logo-svg" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" style="width:36px;height:36px;" aria-hidden="true">
+          <circle cx="19" cy="19" r="18" fill="#0e0d0a"/>
+          <circle cx="19" cy="19" r="17.2" fill="none" stroke="#c9a84c" stroke-width="1.6"/>
+          <circle cx="19" cy="2.5" r="1" fill="#c9a84c" opacity="0.8"/><circle cx="19" cy="35.5" r="1" fill="#c9a84c" opacity="0.8"/>
+          <circle cx="2.5" cy="19" r="1" fill="#c9a84c" opacity="0.8"/><circle cx="35.5" cy="19" r="1" fill="#c9a84c" opacity="0.8"/>
+          <polygon points="19,7 26,16 19,20 12,16" fill="#c9a84c"/>
+          <polygon points="19,20 26,16 28,25 19,31" fill="#a3833a"/>
+          <polygon points="19,20 12,16 10,25 19,31" fill="#8f7230"/>
+          <polygon points="10,25 19,31 28,25 19,20" fill="#8a6a1f"/>
+        </svg>
+      </div>
       <div class="auth-title">JewelOS</div>
       <div class="auth-sub">Smart management for jewellery shops</div>
     </div>
@@ -1812,11 +1844,10 @@ tr:hover td{background:var(--bg2);}
   </div>
   <div class="topbar-actions">
     <div class="topbar-btns">
-      <div class="sync-dot" id="sync-dot"></div>
+      <div class="sync-dot" id="sync-dot" role="status" aria-label="Sync status"></div>
       <button class="hdr-btn" onclick="forceSync()" title="Force sync" aria-label="Sync">&#9729;<span class="hdr-lbl"> Sync</span></button>
 
       <button class="hdr-btn" onclick="switchTab('settings')" title="Settings & account" aria-label="Settings">&#9881;<span class="hdr-lbl"> Settings</span></button>
-      <button class="hdr-btn" onclick="saasLogout()" title="Sign out" aria-label="Sign out">&#128682;<span class="hdr-lbl"> Sign Out</span></button>
       <span id="sync-label"></span>
     </div>
     <nav class="dtabs" id="dtabs">
@@ -1838,16 +1869,6 @@ tr:hover td{background:var(--bg2);}
 <!-- DASHBOARD -->
 <div id="panel-dashboard" class="panel active">
 
-  <!-- ONBOARDING CHECKLIST — shown only for new shops -->
-  <div id="onboarding-checklist" style="display:none;background:var(--gold-bg);border:1px solid rgba(179,146,87,0.35);border-radius:var(--radius-lg);padding:1rem 1.2rem;margin-bottom:.85rem;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <div style="font-size:13px;font-weight:700;color:var(--gold-dark);">👋 Welcome! Set up your shop in 4 steps</div>
-      <button onclick="document.getElementById('onboarding-checklist').style.display='none'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;">✕</button>
-    </div>
-    <div id="onboarding-steps" style="display:flex;flex-direction:column;gap:7px;"></div>
-    <div style="margin-top:10px;font-size:11px;color:var(--text3);">This guide disappears once all steps are done.</div>
-  </div>
-
   <!-- 0. HEADER: date + live rates (glanceable in <1s) -->
   <div class="section-hdr" style="margin-bottom:.5rem;">
     <div class="section-hdr-title" id="dash-date" style="font-size:13px;color:var(--ink3);"></div>
@@ -1856,6 +1877,22 @@ tr:hover td{background:var(--bg2);}
 
   <!-- 1. TODAY — the answer to "what happened today" -->
   <div class="fin-snapshot" id="dash-today-strip"></div>
+
+  <!-- ONBOARDING CHECKLIST — shown only for new shops. Collapsed to one line
+       below the KPI tiles (tap to expand) so Today's Actions stays on screen
+       at 390px (UI/UX audit, 15 Oct). -->
+  <div id="onboarding-checklist" style="display:none;background:var(--gold-bg);border:1px solid rgba(179,146,87,0.35);border-radius:var(--radius-lg);margin-bottom:.85rem;overflow:hidden;">
+    <details id="onboarding-details">
+      <summary style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:.6rem .5rem .6rem 1rem;cursor:pointer;list-style:none;">
+        <span id="onboarding-summary-label" style="font-size:13px;font-weight:700;color:var(--gold-dark);flex:1;">👋 Setup 0/4 ›</span>
+        <button onclick="event.preventDefault();event.stopPropagation();dismissOnboarding();" aria-label="Dismiss setup checklist" style="min-width:44px;min-height:44px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex:none;">✕</button>
+      </summary>
+      <div style="padding:0 1rem 1rem;">
+        <div id="onboarding-steps" style="display:flex;flex-direction:column;gap:7px;"></div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3);">This guide disappears once all steps are done.</div>
+      </div>
+    </details>
+  </div>
 
   <!-- 2. TODAY'S ACTIONS — what needs doing right now -->
   <div class="card" style="padding:.8rem 1rem;">
@@ -1932,15 +1969,20 @@ tr:hover td{background:var(--bg2);}
   </div>
   <div id="inv-sub-stock">
   <div class="rate-bar">
-    <div class="rate-bar-title">&#9733; Today's Market Rate</div>
-    <div class="rate-inputs">
-      <div class="rate-item"><label>24K/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-g24" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
-      <div class="rate-item"><label>22K/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-g22" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
-      <div class="rate-item"><label>18K/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-g18" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
-      <div class="rate-item"><label>14K/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-g14" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
-      <div class="rate-item"><label>Silver/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-sil" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
-      <button class="rate-save" onclick="saveRates()">&#10003; Save &amp; Sync</button>
-    </div>
+    <details id="rate-details">
+      <summary style="display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;list-style:none;min-height:44px;">
+        <span class="rate-bar-title" style="margin-bottom:0;">&#9733; Today's Market Rate</span>
+        <span id="rate-summary-line" style="font-size:12px;font-weight:700;color:var(--gold-dark);white-space:nowrap;"></span>
+      </summary>
+      <div class="rate-inputs" style="margin-top:10px;">
+        <div class="rate-item"><label>24K/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-g24" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
+        <div class="rate-item"><label>22K/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-g22" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
+        <div class="rate-item"><label>18K/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-g18" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
+        <div class="rate-item"><label>14K/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-g14" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
+        <div class="rate-item"><label>Silver/g</label><div class="rate-iw"><input type="number" inputmode="decimal" id="rate-sil" placeholder="0"/><span class="rate-unit">&#8377;</span></div></div>
+        <button class="rate-save" onclick="saveRates()">&#10003; Save &amp; Sync</button>
+      </div>
+    </details>
   </div>
   <div class="metal-tabs">
     <button class="mtab mtab-g" id="mtab-gold" onclick="setMetal('gold')">&#127775; Gold Items</button>
@@ -2194,6 +2236,9 @@ tr:hover td{background:var(--bg2);}
 <!-- ORDERS -->
 <div id="panel-orders" class="panel">
 
+  <!-- + New Order moved to the top of the panel (UI/UX audit, 15 Oct) -->
+  <button class="btn btn-ink" onclick="toggleOrdForm()" id="ord-add-btn" style="width:100%;margin-bottom:.6rem;">+ New Order</button>
+
   <!-- METRICS -->
   <div class="metrics" id="ord-metrics"></div>
   <div id="ord-urgent-wrap"></div>
@@ -2203,7 +2248,6 @@ tr:hover td{background:var(--bg2);}
     <div class="card-title">
       &#128221; Custom Orders
       <span style="font-size:11px;font-weight:400;color:var(--text3);">Production tracking</span>
-      <button class="btn btn-ink" onclick="toggleOrdForm()" id="ord-add-btn">+ New Order</button>
     </div>
 
     <div id="ord-form" style="display:none;">
@@ -2321,17 +2365,15 @@ tr:hover td{background:var(--bg2);}
     <div id="bal-due-list" style="margin-top:10px;"></div>
   </div>
   <div class="card">
-    <div class="card-title">
-      &#128101; Customer Records
-      <div style="display:flex;gap:6px;align-items:center;">
-        <button onclick="showAddCustomerModal()" class="btn btn-gold btn-sm" style="font-size:11px;padding:5px 10px;">+ Add Customer</button>
-        <select id="cust-sort" onchange="renderCustomers()" style="width:auto;padding:6px 26px 6px 10px;font-size:12px;">
-          <option value="purchases">Most purchases</option>
-          <option value="amount">Highest spent</option>
-          <option value="recent">Most recent</option>
-          <option value="balance">Has balance due</option>
-        </select>
-      </div>
+    <div class="card-title">&#128101; Customer Records</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+      <button onclick="showAddCustomerModal()" class="btn btn-gold" style="min-height:44px;flex:1 1 auto;">+ Add Customer</button>
+      <select id="cust-sort" onchange="renderCustomers()" style="flex:1 1 150px;min-width:150px;min-height:44px;padding:9px 28px 9px 10px;font-size:12px;">
+        <option value="purchases">Most purchases</option>
+        <option value="amount">Highest spent</option>
+        <option value="recent">Most recent</option>
+        <option value="balance">Has balance due</option>
+      </select>
     </div>
     <div class="search-row"><input id="cust-search" placeholder="Search by name or phone..." oninput="debouncedRenderCustomers()"/></div>
     <div id="cust-list"></div>
@@ -2409,8 +2451,13 @@ tr:hover td{background:var(--bg2);}
   <!-- OVERDUE BANNER (v20) -->
   <div id="girvi-overdue-banner"></div>
 
-  <!-- CONTROL PANEL HEADER -->
-  <div class="girvi-cp" id="girvi-cp"></div>
+  <!-- "Girvi Portfolio" card (id was girvi-cp) removed (UI/UX audit, 15 Oct)
+       — it duplicated the Executive Dashboard KPI tiles above (same
+       Outstanding/Interest/Overdue numbers, see 08-girvi-viewmode.js's
+       renderGirviExecDash comment). renderGirviCP() in 07-settings-plans.js
+       is left in place and still gets called; its lookup of that element
+       now comes back null and it no-ops, same as any other removed-element
+       guard in this codebase. -->
 
   <!-- TODAY'S ACTIONS -->
   <div class="card" style="padding:.8rem 1rem;" id="girvi-today-card">
@@ -2420,6 +2467,9 @@ tr:hover td{background:var(--bg2);}
     </div>
     <div id="girvi-today-actions"></div>
   </div>
+
+  <!-- + New Girvi moved above search/filters (UI/UX audit, 15 Oct) -->
+  <button class="btn btn-gold" onclick="openGirviForm()" style="width:100%;margin-bottom:.6rem;border-radius:9px;padding:11px 14px;font-size:13px;">＋ New Girvi</button>
 
   <!-- SEARCH + FILTER BAR (v20 Advanced) -->
   <div class="girvi-adv-search">
@@ -2441,7 +2491,6 @@ tr:hover td{background:var(--bg2);}
     <button class="girvi-search-chip" id="girvi-chip-due7" onclick="toggleGirviChip('due7',this)">⏰ Due in 7d</button>
     <button class="girvi-search-chip" id="girvi-chip-highval" onclick="toggleGirviChip('highval',this)">💰 ₹50K+</button>
     <button class="girvi-search-chip" id="girvi-chip-bycust" onclick="toggleGirviViewMode(this)">👤 By Customer</button>
-    <button class="btn btn-gold" onclick="openGirviForm()" style="white-space:nowrap;border-radius:9px;padding:7px 14px;font-size:12px;">＋ New Girvi</button>
   </div>
 
   <!-- GIRVI CARDS LIST -->
@@ -2452,16 +2501,19 @@ tr:hover td{background:var(--bg2);}
 
 <!-- ── GIRVI WIZARD MODAL ─────────────────────────────────────────────── -->
 <div id="girvi-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.8);z-index:900;overflow-y:auto;-webkit-overflow-scrolling:touch;">
-  <div style="max-width:480px;margin:20px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.4),0 0 0 1px rgba(179,146,87,.18);">
+  <div style="max-width:480px;margin:20px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.4),0 0 0 1px rgba(179,146,87,.18);position:relative;z-index:1;">
 
-    <!-- Modal header -->
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .6rem;background:linear-gradient(135deg,rgba(179,146,87,.1),rgba(179,146,87,.03));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(179,146,87,.2);">
+    <!-- Modal header — sticky so it (and the ✕) stay reachable on a long
+         scrolled wizard step; explicit background/z-index so the progress
+         dots right below it can never render underneath it (UI/UX audit,
+         15 Oct: "progress bar hidden under the header"). -->
+    <div style="position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .6rem;background:linear-gradient(135deg,rgba(179,146,87,.1),rgba(179,146,87,.03));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(179,146,87,.2);">
       <div style="font-size:16px;font-weight:700;color:var(--gold-dark);" id="girvi-modal-title">🪙 New Girvi</div>
       <button onclick="closeGirviModal()" style="background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;padding:2px 6px;line-height:1;">✕</button>
     </div>
 
     <!-- Step progress dots -->
-    <div class="gf-step-nav" id="gf-step-nav" style="padding:0 1.3rem;"></div>
+    <div class="gf-step-nav" id="gf-step-nav" style="padding:.8rem 1.3rem 0;position:relative;z-index:1;background:var(--bg);"></div>
 
     <!-- Step label -->
     <div style="padding:0 1.3rem;margin-bottom:.8rem;">
@@ -2900,14 +2952,6 @@ tr:hover td{background:var(--bg2);}
       </div>
       <button onclick="saveShopProfile()" class="btn btn-gold">Save Profile</button>
     </div>
-    <div class="card">
-      <div class="card-title">🎭 Demo Mode</div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Load sample data to explore all features before entering real data.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button onclick="loadDemoData()" class="btn btn-gold">Load Demo Data</button>
-        <button onclick="clearDemoData()" class="btn" style="color:var(--danger);">Clear All Data</button>
-      </div>
-    </div>
   </div>
 
   <div id="stab-automation" class="stab-content" style="display:none;">
@@ -2990,6 +3034,14 @@ tr:hover td{background:var(--bg2);}
 
 
   <div id="stab-data" class="stab-content" style="display:none;">
+    <div class="card" style="border:1.5px solid var(--danger);">
+      <div class="card-title" style="color:var(--danger);">&#9888; Danger Zone</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Load sample data to explore all features before entering real data, or wipe everything and start over.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button onclick="loadDemoData()" class="btn">&#127917; Load Demo Data</button>
+        <button onclick="clearDemoData()" class="btn" style="color:var(--danger);border-color:var(--danger);">Clear All Data</button>
+      </div>
+    </div>
     <!-- Supabase Setup Guide Card -- developer only (QA 30 Sep: table, function and
          migration names were shown to jewellers). Open the app with ?dev=1 to see it. -->
     <div class="card dev-only" style="border:1.5px solid var(--gold);margin-bottom:12px;">
@@ -3148,6 +3200,20 @@ tr:hover td{background:var(--bg2);}
       <button class="more-menu-item" onclick="switchTab('customers');closeMoreMenu();" id="bn-customers"><span class="bnav-icon">&#128101;</span><span>Customers</span></button>
       <button class="more-menu-item" onclick="switchTab('reports');closeMoreMenu();" id="bn-reports"><span class="bnav-icon">&#128200;</span><span>Reports</span></button>
       <button class="more-menu-item" onclick="switchTab('settings');closeMoreMenu();" id="bn-settings"><span class="bnav-icon">&#9881;</span><span>Settings</span></button>
+    </div>
+  </div>
+</div>
+<!-- Stock row overflow menu — Edit/History/Adjust/Delete, shared by one product
+     at a time (openProdActionMenu stores which id it's for). Keeps the Sold/Restore
+     toggle as the one always-visible action; everything else collapses here. -->
+<div class="modal-bg" id="prod-action-modal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-header"><h2>Product actions</h2><button class="modal-close" onclick="closeProdActionMenu()" aria-label="Close actions menu">&#10005;</button></div>
+    <div class="modal-body" style="padding:.5rem;">
+      <button class="more-menu-item" onclick="prodActionRun('edit')">&#9998;<span>&nbsp;Edit</span></button>
+      <button class="more-menu-item" onclick="prodActionRun('history')">&#128337;<span>&nbsp;Movement History</span></button>
+      <button class="more-menu-item" onclick="prodActionRun('adjust')">&#177;<span>&nbsp;Adjust Stock</span></button>
+      <button class="more-menu-item" onclick="prodActionRun('delete')" style="color:var(--danger);">&#128465;<span>&nbsp;Delete</span></button>
     </div>
   </div>
 </div>

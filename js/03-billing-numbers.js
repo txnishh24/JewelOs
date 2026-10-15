@@ -1603,7 +1603,8 @@ function renderOrders(){
   var tBal=active.reduce(function(s,o){return s+Math.max(0,(o.quote||o.estTotal||0)-ordAdvance(o));},0);
   var urgent=active.filter(function(o){return new Date(o.delivery)<=week;});
   var metricsEl=document.getElementById('ord-metrics');
-  if(metricsEl) metricsEl.innerHTML=
+  // No orders yet means all 4 tiles would read zero -- nothing to show (UI/UX audit, 15 Oct).
+  if(metricsEl) metricsEl.innerHTML = !S.orders.length ? '' :
     '<div class="metric" style="--ma:linear-gradient(90deg,var(--info),#6ba3f5)"><div class="metric-label">Active Orders</div><div class="metric-value">'+active.length+'</div><div class="metric-sub">'+S.orders.length+' total</div></div>'+
     '<div class="metric" style="--ma:linear-gradient(90deg,var(--gold-dark),var(--gold))"><div class="metric-label">Total Advance</div><div class="metric-value" style="font-size:20px;">'+fmt(tAdv)+'</div><div class="metric-sub">collected</div></div>'+
     '<div class="metric" style="--ma:linear-gradient(90deg,var(--danger),#f08080)"><div class="metric-label">Balance Due</div><div class="metric-value" style="font-size:20px;">'+fmt(tBal)+'</div><div class="metric-sub">on delivery</div></div>'+

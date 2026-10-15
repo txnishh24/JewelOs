@@ -967,10 +967,15 @@ function _dbPaintDay(){
   }
   html += '</div>';
 
-  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">'+
-    (v.closed ? '' :
-      '<button class="btn btn-gold" onclick="dbOpenEntryModal()">+ Add Entry</button>'+
-      '<button class="btn" onclick="dbOpenCloseModal()">🔒 Close Day</button>')+
+  // Add Entry / Close Day stay reachable while scrolling a long day
+  // (UI/UX audit, 15 Oct) — sticky just above the bottom nav on mobile.
+  if(!v.closed){
+    html += '<div class="db-sticky-actions" style="display:flex;gap:8px;flex-wrap:wrap;">'+
+      '<button class="btn btn-gold" style="min-height:44px;" onclick="dbOpenEntryModal()">+ Add Entry</button>'+
+      '<button class="btn" style="min-height:44px;" onclick="dbOpenCloseModal()">🔒 Close Day</button>'+
+    '</div>';
+  }
+  html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 20px;">'+
     '<button class="btn" onclick="dbPrintDay()">🖨 Print</button>'+
     '<button class="btn btn-dark" onclick="dbWhatsAppDay()">💬 WhatsApp</button>'+
   '</div>';

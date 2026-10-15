@@ -181,6 +181,30 @@ function closeMoreMenu(){
   if(m) m.classList.remove('open');
 }
 
+// Stock row overflow menu (UI/UX audit, 15 Oct): Edit/History/Adjust/Delete
+// collapse behind one "more actions" button; _prodActionId remembers which
+// product the open menu is for until the user picks an action or closes it.
+var _prodActionId=null;
+function openProdActionMenu(id){
+  _prodActionId=id;
+  var m=document.getElementById('prod-action-modal');
+  if(m) m.classList.add('open');
+}
+function closeProdActionMenu(){
+  _prodActionId=null;
+  var m=document.getElementById('prod-action-modal');
+  if(m) m.classList.remove('open');
+}
+function prodActionRun(action){
+  var id=_prodActionId;
+  closeProdActionMenu();
+  if(!id) return;
+  if(action==='edit') editProd(id);
+  else if(action==='history') openItemHistoryModal(id);
+  else if(action==='adjust') openAdjustStockModal(id);
+  else if(action==='delete') delProd(id);
+}
+
 // ─── RATES ────────────────────────────────────────────────────────────────
 function loadRates(){
   document.getElementById('rate-g24').value=S.rates.g24||'';
@@ -188,6 +212,9 @@ function loadRates(){
   document.getElementById('rate-g18').value=S.rates.g18||'';
   document.getElementById('rate-g14').value=S.rates.g14||'';
   document.getElementById('rate-sil').value=S.rates.sil||'';
+  // One-line summary for the collapsed rate editor (UI/UX audit, 15 Oct).
+  var sumEl=document.getElementById('rate-summary-line');
+  if(sumEl) sumEl.textContent='22K ₹'+(S.rates.g22||0).toLocaleString('en-IN')+' · Silver ₹'+(S.rates.sil||0).toLocaleString('en-IN')+' · Edit';
 }
 // QA 1 Oct P1-6: 24K = Rs 0, Rs 100, or 22K above 24K all saved. Returns what is
 // wrong in words, or '' when the rates look like real per-gram prices.
@@ -339,14 +366,11 @@ function renderInv(entrance){
       // single-quoted onclick="...('ID')" -- jsAttrEsc handles both the
       // JS-string-breakout and the attribute-quote cases in one pass.
       var safeId=jsAttrEsc(p.id);
-      var actionsHtml='<button class="btn btn-sm btn-info" onclick="editProd(\''+safeId+'\')" title="Edit product">&#9998;</button>'+
-          '<button class="btn btn-sm" onclick="openItemHistoryModal(\''+safeId+'\')" title="Movement history" style="background:var(--surf2);border:1px solid var(--border2);color:var(--text2);">&#128337;</button>'+
-          '<button class="btn btn-sm" onclick="openAdjustStockModal(\''+safeId+'\')" title="Adjust stock quantity" style="background:var(--surf2);border:1px solid var(--border2);color:var(--text2);">&#177;</button>'+
-          (returned
+      var actionsHtml=(returned
             ?'<button class="btn btn-sm btn-success" onclick="markReturnedSellable(\''+safeId+'\')" title="Inspected — move to sellable stock" style="font-size:11px;">&#10003; Mark Sellable</button>'
             :'<button class="btn btn-sm '+(sold?'btn-success':'btn-danger')+'" onclick="toggleStatus(\''+safeId+'\')" style="font-size:11px;">'+(sold?'&#9850; Restore':'&#10005; Sold')+'</button>'
           )+
-          '<button class="btn btn-sm btn-danger" onclick="delProd(\''+safeId+'\')" title="Delete">&#128465;</button>';
+          '<button class="btn btn-sm" onclick="openProdActionMenu(\''+safeId+'\')" title="More actions" aria-label="More actions" style="background:var(--surf2);border:1px solid var(--border2);color:var(--text2);min-width:44px;min-height:44px;font-size:16px;">&#8942;</button>';
 
       trRows.push('<tr class="'+(sold?'sold-row':'')+rowCls+'"'+rowStyle+'>'+
         '<td><div style="font-weight:600;font-size:13px">'+escHtml(p.name)+'</div>'+(p.notes?'<div style="font-size:11px;color:var(--text3)">'+escHtml(p.notes)+'</div>':'')+'<div style="font-size:10px;color:var(--text3)">'+escHtml(p.sku)+'</div></td>'+
@@ -519,7 +543,13 @@ function toggleAdd(){
   f.style.display=show?'block':'none';
   b.textContent=show?'X Close':'+ Add product';
   b.className=show?'btn btn-danger':'btn btn-ink';
-  if(show) fillPurities();
+  if(show){
+    fillPurities();
+    // Scroll the opened form into view (UI/UX audit, 15 Oct) — on a
+    // phone the card title can stay above the fold while the fields open
+    // below it unseen.
+    setTimeout(function(){ f.scrollIntoView({behavior:'smooth',block:'start'}); },50);
+  }
 }
 
 function addProduct(){
