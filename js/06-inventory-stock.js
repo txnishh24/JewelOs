@@ -240,12 +240,15 @@ function renderDash(){
   var todayEl = document.getElementById('dash-today-strip');
   if(todayEl){
     todayEl.innerHTML =
-      fsnCard("Today's Sales", fmt(todaySalesTotal), todaySales.length+' bill(s)', null, '', 'var(--gold-dark)')+
-      fsnCard("Today's Purchase", fmt(todayPurchaseTotal), todayPurchases.length+' bill(s)', null, '', 'var(--warning)')+
+      fsnCard("Today's Sales", fmt(todaySalesTotal), todaySales.length+' bill(s)', null, '', 'var(--gold-dark)', 'fsn-today-sales')+
+      fsnCard("Today's Purchase", fmt(todayPurchaseTotal), todayPurchases.length+' bill(s)', null, '', 'var(--warning)', 'fsn-today-purchase')+
       // Colour by sign, like the Net Cash line below — a loss shown in the
       // same green as a profit is the one number on this strip a jeweller
       // cannot afford to misread.
-      fsnCard("Today's Profit", fmt(todayProfitTotal), '', null, '', todayProfitTotal>=0?'var(--success)':'var(--danger)');
+      fsnCard("Today's Profit", fmt(todayProfitTotal), '', null, '', todayProfitTotal>=0?'var(--success)':'var(--danger)', 'fsn-today-profit');
+    animateCountUp('fsn-today-sales', todaySalesTotal, fmt);
+    animateCountUp('fsn-today-purchase', todayPurchaseTotal, fmt);
+    animateCountUp('fsn-today-profit', todayProfitTotal, fmt);
   }
 
   // ── 3. BUSINESS SNAPSHOT (the 4 numbers before any decision) ────
@@ -262,10 +265,14 @@ function renderDash(){
   var snapEl2 = document.getElementById('dash-business-snapshot');
   if(snapEl2){
     snapEl2.innerHTML =
-      fsnCard('Inventory Value', fmt(tgv+tsv), 'gold + silver stock', null, '', 'var(--gold-dark)')+
-      fsnCard('Outstanding Payments', fmt(totalPendingBal), getSalesDueSoon(30).length+' overdue 30d+', null, '', 'var(--danger)')+
-      fsnCard('Pending Girvi', fmt(activeGirviTotal), activeGirviList.length+' active loan(s)', null, '', 'var(--warning)')+
-      fsnCard('Pieces in Stock', stockPieces, stockCatCount+' categor'+(stockCatCount===1?'y':'ies'), null, '', 'var(--gold-dark)');
+      fsnCard('Inventory Value', fmt(tgv+tsv), 'gold + silver stock', null, '', 'var(--gold-dark)', 'fsn-inv-value')+
+      fsnCard('Outstanding Payments', fmt(totalPendingBal), getSalesDueSoon(30).length+' overdue 30d+', null, '', 'var(--danger)', 'fsn-outstanding')+
+      fsnCard('Pending Girvi', fmt(activeGirviTotal), activeGirviList.length+' active loan(s)', null, '', 'var(--warning)', 'fsn-pending-girvi')+
+      fsnCard('Pieces in Stock', stockPieces, stockCatCount+' categor'+(stockCatCount===1?'y':'ies'), null, '', 'var(--gold-dark)', 'fsn-pieces');
+    animateCountUp('fsn-inv-value', tgv+tsv, fmt);
+    animateCountUp('fsn-outstanding', totalPendingBal, fmt);
+    animateCountUp('fsn-pending-girvi', activeGirviTotal, fmt);
+    animateCountUp('fsn-pieces', stockPieces, function(n){ return String(Math.round(n)); });
   }
 
   // ── A. TODAY'S ACTIONS ──────────────────────────────────────────
@@ -466,20 +473,55 @@ function renderDash(){
 }
 
 // ── HELPER: Financial Snapshot Card ──────────────────────────────────
-function fsnCard(label, val, sub, trend, extra, valColor){
+function fsnCard(label, val, sub, trend, extra, valColor, id){
   var trendHtml = '';
   if(trend !== null && trend !== undefined){
     var tClass = trend>=5?'trend-up':trend<=-5?'trend-down':'trend-flat';
     var tIcon  = trend>=5?'▲':trend<=-5?'▼':'—';
     trendHtml  = '<div class="fsn-trend '+tClass+'">'+tIcon+' '+Math.abs(Math.round(trend))+'% vs last month</div>';
   }
+  // P6: optional 7th `id` param (unused by existing callers, e.g. 09-purchases.js's
+  // wastage-report cards) lets renderDash() target this specific value for its
+  // count-up — see animateCountUp() below.
   return '<div class="fin-snap-card">'+
     '<div class="fsn-label">'+label+'</div>'+
-    '<div class="fsn-val" style="color:'+valColor+';">'+val+'</div>'+
+    '<div class="fsn-val"'+(id?' id="'+id+'"':'')+' style="color:'+valColor+';">'+val+'</div>'+
     '<div class="fsn-sub">'+sub+'</div>'+
     trendHtml+
     (extra||'')+
   '</div>';
+}
+
+// ── P6 (motion pass, 15 Oct): dashboard summary count-up ───────────────
+// ES5 requestAnimationFrame tween from the previously displayed raw number
+// to the new one, ending on fmtFn(target) exactly — the same formatter
+// (fmt(), or a plain integer for "Pieces in Stock") the rest of the app
+// already uses for that number, never a separate money/number path.
+var _cuPrev = {}, _cuRaf = {};
+function animateCountUp(elId, target, fmtFn){
+  var el = document.getElementById(elId);
+  if(!el) return;
+  var prev = _cuPrev.hasOwnProperty(elId) ? _cuPrev[elId] : target;
+  _cuPrev[elId] = target;
+  // Nothing to animate on the very first render, no real change, when the
+  // user asked for reduced motion, or in an environment with no rAF (the
+  // node-based regression suite renders the dashboard with no real DOM/
+  // window) — just show the final value.
+  if(prev === target || typeof requestAnimationFrame === 'undefined' ||
+     (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)){
+    el.textContent = fmtFn(target); return;
+  }
+  if(_cuRaf[elId]) cancelAnimationFrame(_cuRaf[elId]);
+  var start = null, dur = 600;
+  function step(ts){
+    if(!start) start = ts;
+    var p = Math.min(1, (ts-start)/dur);
+    var eased = 1 - Math.pow(1-p, 3); // ease-out cubic
+    el.textContent = fmtFn(p<1 ? prev+(target-prev)*eased : target);
+    if(p<1) _cuRaf[elId] = requestAnimationFrame(step);
+    else delete _cuRaf[elId];
+  }
+  _cuRaf[elId] = requestAnimationFrame(step);
 }
 
 // ── UPGRADE renderReports WITH SMART SECTIONS ─────────────────────────
