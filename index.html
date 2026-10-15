@@ -437,10 +437,13 @@ body{
   font-size:var(--text-base);font-weight:500;
   cursor:pointer;border:1px solid var(--border2);background:var(--surface);
   color:var(--ink);font-family:inherit;white-space:nowrap;
-  transition:background var(--t1),border-color var(--t1);
+  transition:background var(--t1),border-color var(--t1),transform 80ms var(--ease);
 }
 
-.btn:active{background:var(--bg3);}
+/* P3 (motion pass, 15 Oct): press feedback on the one shared button system —
+   every .btn variant (gold/dark/ink/danger/etc) inherits this since none of
+   them redeclare transform on :active. */
+.btn:active{background:var(--bg3);transform:scale(.97);}
 .btn:disabled{opacity:.45;cursor:not-allowed;}
 .btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px;}
 .btn-gold{
@@ -679,8 +682,9 @@ tr:last-child td{border-bottom:none;}
    below this comment used to live in); now 5 (4 destinations + More), so each
    gets ~78px on a 375px phone -- plenty of room, and min-height guarantees the
    44px tap target regardless of how the icon+label content measures. */
-.bnav-btn{flex:1;min-width:0;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:9px 4px 7px;background:transparent;border:none;color:var(--on-ink-muted);font-family:inherit;cursor:pointer;transition:color var(--t1);font-size:10px;font-weight:600;letter-spacing:.04em;}
+.bnav-btn{flex:1;min-width:0;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:9px 4px 7px;background:transparent;border:none;color:var(--on-ink-muted);font-family:inherit;cursor:pointer;transition:color var(--t1),transform 80ms var(--ease);font-size:10px;font-weight:600;letter-spacing:.04em;}
 .bnav-btn.active{color:var(--gold);}
+.bnav-btn:active{transform:scale(.97);}
 .bnav-icon{font-size:20px;line-height:1;}
 .bnav-label{font-size:9px;text-transform:uppercase;letter-spacing:.05em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 /* Developer-only cards (Cloud/SQL setup, diagnostics): hidden unless the app is opened with ?dev=1 */
@@ -738,6 +742,25 @@ html.dev .dev-only{display:block!important;}
    the layout cost is a non-issue. */
 .ac-panel{max-height:0;opacity:0;visibility:hidden;pointer-events:none;transform:scale(.97);transform-origin:top center;transition:opacity 120ms var(--ease-out),transform 120ms var(--ease-out),max-height 120ms var(--ease-out),visibility 0s linear 120ms;}
 .ac-panel.show{max-height:320px;opacity:1;visibility:visible;pointer-events:auto;transform:scale(1);transition:opacity 120ms var(--ease-out),transform 120ms var(--ease-out),max-height 120ms var(--ease-out),visibility 0s linear 0s;}
+
+/* ── LIST ROWS (motion pass, 15 Oct) ──────────────────────────────
+   Press feedback for the one list row that is a tap target as a whole
+   (customer card in Customers — `renderCustomers()` in 03-billing-numbers.js
+   sets this class on the row div it builds). Inventory/bills rows don't
+   have their own tap handler (only the .btn actions inside do, already
+   covered by the shared .btn:active rule above), so they need nothing here. */
+.cust-row-card{transition:transform 80ms var(--ease);}
+.cust-row-card:active{transform:scale(.97);}
+
+/* P4: entrance stagger for a list's FIRST render only (switchTab's initial
+   renderInv()/renderCustomers()/renderReports() call passes entrance=true;
+   the 15s auto-refresh and every search/filter keystroke call the same
+   function with no second arg, so they render with this class/animation
+   simply absent -- no re-animation, no flicker, by construction rather
+   than a flag check at render time). backwards fill-mode holds opacity:0
+   through each row's own delay instead of flashing full-opacity first. */
+.row-enter{animation:rowEnter 220ms var(--ease-out) backwards;animation-delay:calc(var(--i,0) * 30ms);}
+@keyframes rowEnter{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
 
 /* ── LOADING ─────────────────────────────────────── */
 .loading-screen{position:fixed;top:0;right:0;bottom:0;left:0;background:linear-gradient(160deg,#18160e,#22200a 55%,#18160e);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:999;}

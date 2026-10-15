@@ -411,6 +411,7 @@ function renderCustomers(){
     var riskColor = {low:'var(--success)',medium:'var(--warning)',high:'var(--danger)'}[f.riskLevel]||'var(--text3)';
     var riskIcon  = {low:'🟢',medium:'🟡',high:'🔴'}[f.riskLevel]||'⚪';
     var div=document.createElement('div');
+    div.className='cust-row-card'; // P3: press feedback (:active scale) — see index.html
     div.style.cssText='background:var(--surface);border:0.5px solid '+(f.totalExposure>0?'rgba(168,49,42,0.25)':'var(--border2)')+';border-left:3px solid '+(f.riskLevel==='high'?'var(--danger)':f.riskLevel==='medium'?'var(--warning)':'var(--gold)')+';border-radius:var(--radius-lg);padding:13px 15px;margin-bottom:9px;cursor:pointer;box-shadow:var(--shadow);';
     div.onclick=function(){showCustHistory(encodeURIComponent(cid));};
     // Store custId for edit button and girvi link
