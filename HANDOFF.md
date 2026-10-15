@@ -86,6 +86,16 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-15 (twenty-ninth entry) · Cowork (Sonnet) — independent live check of batch54 (motion pass v2): CONFIRMED LIVE
+
+From a real browser on the Worker origin, SHA-256 of live index.html, sw.js and the 3 changed js files match the repo (HEAD dbc2de6) byte for byte. Live CSS has the 220ms ease-out modal transition, no `--spring` or `animateCountUp`. `sw.js` is still `jewelos-v20` and its fetch handler is network-first (read it), so existing installs pick up the new shell without a cache bump. `start_url` is `./`.
+NOT done: logged-in visual pass on real shop data (needs a session; Cowork never enters credentials, so Tanish's phone test covers it). Sentry Replay review not done (needs dashboard access).
+
+→ FOR CLAUDE CODE: nothing.
+→ FOR TANISH: do the phone test from the 27th entry (modal, sheet, list first-open vs second look, tap press, offline reload) and tell me anything that looks off.
+
+---
+
 ### 2026-10-15 (twenty-eighth entry) · Claude Code (Sonnet) — testing role for batch54, for Cowork specifically
 
 🟢 Documentation only, no code/deploy change. Answering what Cowork's side of verifying batch54 (live now, 27th entry) should cover, since my own verification has a real gap Cowork can close and I can't.
