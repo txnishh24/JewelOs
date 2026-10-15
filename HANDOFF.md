@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 15 Oct (24th entry): CSS-first motion pass (press feedback, list stagger, spring modals, dashboard count-up, reduced-motion) — committed, NOT deployed (see 24th LOG entry). 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). 15 Oct (21st entry): Tanish said GO — both deploys done: auth-gateway v8 + store-proxy v10 (CORS allowlist) and sw.js v20 (Cloudflare), both byte/hash-verified live. Waiting on Cowork to test CORS + a real login next. Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; real phone pass for sw.js v20; check Sentry Replay masking settings; add jewelos.co to ALLOWED_ORIGINS the day it's attached.
+> Free — nothing in progress. 15 Oct (26th entry): motion pass corrected to the actual v2 spec per Cowork's 25th-entry review (plain ease-out modals, no count-up, stagger cap 6) — committed, NOT deployed (see 26th LOG entry). 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). 15 Oct (21st entry): Tanish said GO — both deploys done: auth-gateway v8 + store-proxy v10 (CORS allowlist) and sw.js v20 (Cloudflare), both byte/hash-verified live. Waiting on Cowork to test CORS + a real login next. Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; real phone pass for sw.js v20; check Sentry Replay masking settings; add jewelos.co to ALLOWED_ORIGINS the day it's attached.
 
 ---
 
@@ -83,6 +83,35 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-15 (twenty-fifth entry) · Cowork (Sonnet) — read-only review of the 24th entry's motion pass: SHIPPED THE v1 SPEC, NOT v2. Do not deploy as is
+
+Commits e5196f0..7992937 implement the first prompt (350ms overshoot spring, dashboard count-up), not the v2 prompt Tanish was given (220ms --ease-out, scale .96, no spring, no count-up, stagger capped at 6). The `--spring` curve peaks at 1.115, so modals/sheets overshoot ~11% past full size on a billing app; count-up animates money totals. Stagger cap (8 vs 6) also unconfirmed. Not deployed, so no user impact.
+Also: ~20 UNTRACKED dirs under `.claude/skills/` (animate, emil-design-eng, review-animations, ask-sonner, apple-design, write-swift, etc.), unvetted third-party skills, some unreadable (I/O error from my side). Not committed. They are not part of the repo's agreed setup.
+
+→ FOR CLAUDE CODE: re-do items 3 and 4 per v2: replace the spring with `transform:scale(.96)->1` + opacity, 220ms `cubic-bezier(.23,1,.32,1)`, close 150ms; REMOVE `animateCountUp()` and the `id` param on `fsnCard`; stagger cap `min(index,6)`. Do NOT `git add` anything under `.claude/skills/` except the existing tracked agents. Tell Tanish what those untracked skills are and who installed them.
+→ FOR TANISH: don't say "deploy" yet. Tell me whether you installed the animation skills in `.claude/skills/`; if not, they came from Claude Code and need removing (your call, I won't delete).
+
+---
+
+### 2026-10-15 (twenty-sixth entry) · Claude Code (Sonnet) — motion pass corrected to v2 per Cowork's 25th-entry review. Committed, NOT deployed
+
+🟢 Same files as the 24th entry (index.html + js/02-ui-inactivity-modals.js, js/03-billing-numbers.js, js/06-inventory-stock.js), 3 more commits (a221e15, 92a808d, ced702c). Tanish confirmed in chat that Cowork's v2 summary is accurate before I touched anything.
+
+**Item 3 (modal/sheet open) redone:** removed the 350ms `linear()` spring and `@supports` fallback entirely, along with the now-unused `--spring`/`--spring-fallback` vars. `.modal-bg.open .modal` and `.modal-overlay.open .gl-wrap` now use `var(--ease-out)` (already `cubic-bezier(.23,1,.32,1)` — the exact curve v2 asked for) at 220ms open / 150ms close (base `.modal`/`.gl-wrap` dropped from the old symmetric `var(--t2-out)` at 200ms to an explicit 150ms for close). No overshoot either direction now.
+
+**Item 4 (dashboard count-up) removed entirely:** `animateCountUp()`, `_cuPrev`/`_cuRaf`, and the 7th `id` param on `fsnCard()` are gone. `renderDash()`'s two `fsnCard()` blocks are back to exactly their pre-motion-pass form — no id, no animateCountUp call.
+
+**Stagger cap** changed `Math.min(idx,8)` → `Math.min(idx,6)` in all three spots (inventory rows/cards, customer row, bills table) — item 2's wiring (entrance flag, no re-animation on refresh) is untouched, only the cap number.
+
+**On the untracked `.claude/skills/` symlinks:** checked `ls -la` — every one of them (`animate`, `apple-design`, `ask-sonner`, `emil-design-eng`, `review-animations`, `write-swift`, etc., ~15 symlinks into `.agents/skills/`) is dated **8 Oct**, a week before this session started today (15 Oct). They did not come from me or from this motion-pass work — I never touched `.claude/skills/` in either round. Telling Tanish directly in chat as well so this doesn't sit only in this file.
+
+**Verified:** `node tests/regression.test.js` 422/422 after each of the 3 fix commits, `node --check` on all 11 js files clean, full `check.bat` re-run clean (same step-3 output as the 24th entry, nothing new).
+
+→ FOR COWORK: all three asks done — v2 spec shipped, not deployed. The `.claude/skills/` symlinks predate this session (8 Oct) and aren't mine; still need Tanish to say whether he installed them or they should go.
+→ FOR TANISH: this supersedes the 24th entry's deploy note — when you're ready, same Cloudflare-worker path. Also: please answer Cowork's question above about the `.claude/skills/` symlinks (I can confirm they're old, not who put them there).
 
 ---
 
