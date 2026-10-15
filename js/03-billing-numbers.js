@@ -374,7 +374,7 @@ function renderBalanceTracker(){
   le.innerHTML=html;
 }
 
-function renderCustomers(){
+function renderCustomers(entrance){
   var q=(document.getElementById('cust-search').value||'').toLowerCase();
   var sortEl=document.getElementById('cust-sort');
   var sortBy=sortEl?sortEl.value:'purchases';
@@ -403,7 +403,7 @@ function renderCustomers(){
     listEl.innerHTML='<div class="empty"><span class="empty-icon">&#128101;</span>No customers found</div>';
     return;
   }
-  custs.forEach(function(c){
+  custs.forEach(function(c,idx){
     var f   = c._fin;
     var last= c.sales[c.sales.length-1];
     var wt  = c.sales.reduce(function(s,x){return s+x.items.reduce(function(a,i){return a+i.weight*i.qty;},0);},0);
@@ -411,8 +411,9 @@ function renderCustomers(){
     var riskColor = {low:'var(--success)',medium:'var(--warning)',high:'var(--danger)'}[f.riskLevel]||'var(--text3)';
     var riskIcon  = {low:'🟢',medium:'🟡',high:'🔴'}[f.riskLevel]||'⚪';
     var div=document.createElement('div');
-    div.className='cust-row-card'; // P3: press feedback (:active scale) — see index.html
-    div.style.cssText='background:var(--surface);border:0.5px solid '+(f.totalExposure>0?'rgba(168,49,42,0.25)':'var(--border2)')+';border-left:3px solid '+(f.riskLevel==='high'?'var(--danger)':f.riskLevel==='medium'?'var(--warning)':'var(--gold)')+';border-radius:var(--radius-lg);padding:13px 15px;margin-bottom:9px;cursor:pointer;box-shadow:var(--shadow);';
+    div.className='cust-row-card'+(entrance?' row-enter':''); // P3 press feedback + P4 entrance stagger — see index.html
+    if(entrance) div.style.setProperty('--i', Math.min(idx,8));
+    div.style.cssText+=';background:var(--surface);border:0.5px solid '+(f.totalExposure>0?'rgba(168,49,42,0.25)':'var(--border2)')+';border-left:3px solid '+(f.riskLevel==='high'?'var(--danger)':f.riskLevel==='medium'?'var(--warning)':'var(--gold)')+';border-radius:var(--radius-lg);padding:13px 15px;margin-bottom:9px;cursor:pointer;box-shadow:var(--shadow);';
     div.onclick=function(){showCustHistory(encodeURIComponent(cid));};
     // Store custId for edit button and girvi link
     var _custId = c.custId || null;
@@ -1082,7 +1083,7 @@ function saleItemCat(i){
   var p = i && i.pid ? (S.products||[]).find(function(x){ return x.id===i.pid; }) : null;
   return (p&&p.cat) || (i&&(i.cat||i.category)) || 'Other';
 }
-function renderReports(){
+function renderReports(entrance){
   // Populate GSTR-1 month buttons
   (function(){
     var btnEl = document.getElementById('gstr1-month-btns');
@@ -1228,11 +1229,13 @@ function renderReports(){
   // ── Sales in <month> (QA 30 Sep: #sales-hist had no renderer either) ──
   var shEl=document.getElementById('sales-hist');
   if(shEl) shEl.innerHTML=monthSales.slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);})
-    .map(function(s){
+    .map(function(s,idx){
+      // P4: entrance stagger, first render of this list only (see renderTab).
+      var rowCls=entrance?' class="row-enter" style="--i:'+Math.min(idx,8)+'"':'';
       var t=calcSaleTotals(s), q=0, w=0;
       (s.items||[]).forEach(function(i){ var n=i.qty||1; q+=n; w+=(parseFloat(i.weight)||0)*n; });
       var modes=salePayModes(s);
-      return '<tr><td style="font-weight:600">'+escHtml(s.invNo||'')+'</td><td>'+fmtDate(s.date)+'</td><td>'+escHtml(s.customer||'Walk-in')+'</td>'+
+      return '<tr'+rowCls+'><td style="font-weight:600">'+escHtml(s.invNo||'')+'</td><td>'+fmtDate(s.date)+'</td><td>'+escHtml(s.customer||'Walk-in')+'</td>'+
         '<td>'+q+'</td><td>'+fmtW(w)+'</td><td>'+escHtml(modes||'\u2014')+'</td>'+
         '<td style="font-weight:700;color:var(--gold-dark);">'+fmt(t.grand)+'</td>'+
         '<td style="color:'+(t.bal>0?'var(--danger)':'var(--success)')+'">'+(t.bal>0?fmt(t.bal):'\u2713')+'</td>'+

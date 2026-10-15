@@ -486,8 +486,10 @@ function fsnCard(label, val, sub, trend, extra, valColor){
 // Patch: add Category Intelligence and Week-over-Week sections
 (function patchReports(){
   var _orig = renderReports;
-  renderReports = function(){
-    _orig();
+  renderReports = function(entrance){
+    _orig(entrance); // P4: forward entrance flag so the first open of this
+                      // list still gets its stagger — this wrapper used to
+                      // drop whatever argument the caller passed.
     renderReportsIntelligence();
   };
 }());
@@ -626,8 +628,8 @@ function renderReportsIntelligence(){
   // Instead we fully replace the forEach loop behaviour via event delegation
   // The cleanest approach: patch the output after render
   var _origRenderCust = renderCustomers;
-  renderCustomers = function(){
-    _origRenderCust();
+  renderCustomers = function(entrance){
+    _origRenderCust(entrance); // P4: forward entrance flag, same fix as renderReports below
     // Inject tags into existing customer cards
     var listEl = document.getElementById('cust-list');
     if(!listEl) return;

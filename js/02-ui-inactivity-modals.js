@@ -92,7 +92,7 @@ function stockGV(){return S.products.filter(function(p){return p.metal==='gold'&
 function stockSV(){return S.products.filter(function(p){return p.metal==='silver'&&p.status!=='sold';}).reduce(function(s,p){return s+mktVal(p);},0);}
 
 // ─── TABS ─────────────────────────────────────────────────────────────────
-function renderTab(tab){
+function renderTab(tab, isEntrance){
   // F4: leaving the Sale tab abandons an order conversion, so the next,
   // unrelated sale can't be billed against that order.
   if(tab!=='sales') _pendingOrderConversion = null;
@@ -105,12 +105,12 @@ function renderTab(tab){
   if(tab==='orders')     showSkeleton('ord-list','4','card');
   if(tab==='customers')  showSkeleton('cust-list','4','list');
   if(tab==='dashboard')  renderDash();
-  else if(tab==='inventory'){loadRates();renderInv();}
+  else if(tab==='inventory'){loadRates();renderInv(isEntrance);}
   else if(tab==='sales'){initSaleDate();renderSaleItems();}
   else if(tab==='orders')renderOrders();
   else if(tab==='girvi')renderGirvi();
-  else if(tab==='customers')renderCustomers();
-  else if(tab==='reports')renderReports();
+  else if(tab==='customers')renderCustomers(isEntrance);
+  else if(tab==='reports')renderReports(isEntrance);
   else if(tab==='daybook')renderDayBook();
   else if(tab==='settings')renderSettings();
 }
@@ -148,7 +148,11 @@ function switchTab(tab){
   document.querySelectorAll('.dtab').forEach(function(el,i){
     el.classList.toggle('active',['dashboard','inventory','sales','orders','girvi','customers','reports','daybook','settings'][i]===tab);
   });
-  renderTab(tab);
+  // P4: entrance=true only for this first, synchronous render of the tab
+  // just switched into. The stale-reload below re-renders the SAME tab a
+  // moment later with fresh data — that's a refresh, not an entrance, so it
+  // omits the flag (falsy default) and the list rows don't re-animate.
+  renderTab(tab, true);
   // Restore scroll position after render
   setTimeout(function(){
     window.scrollTo(0, _tabScrollPos[tab] || 0);
@@ -286,7 +290,7 @@ function showSkeleton(elId, rows, type){
   el.innerHTML = html;
 }
 
-function renderInv(){
+function renderInv(entrance){
   var q=(document.getElementById('inv-search').value||'').toLowerCase();
   var m=UI.metal;
   var sf=document.getElementById('inv-status-filter').value;
@@ -316,7 +320,10 @@ function renderInv(){
     if(cardsElEmpty) cardsElEmpty.innerHTML='<div class="empty">'+invEmptyHtml+'</div>';
   } else {
     var trRows=[],cardRows=[];
-    pagedProds.forEach(function(p){
+    pagedProds.forEach(function(p,idx){
+      // P4: entrance stagger, first render of this list only (see renderTab).
+      var rowCls=entrance?' row-enter':'';
+      var rowStyle=entrance?' style="--i:'+Math.min(idx,8)+'"':'';
       var sold=p.status==='sold';
       var returned=p.status==='returned';
       var mv=mktVal(p);
@@ -341,7 +348,7 @@ function renderInv(){
           )+
           '<button class="btn btn-sm btn-danger" onclick="delProd(\''+safeId+'\')" title="Delete">&#128465;</button>';
 
-      trRows.push('<tr class="'+(sold?'sold-row':'')+'">'+
+      trRows.push('<tr class="'+(sold?'sold-row':'')+rowCls+'"'+rowStyle+'>'+
         '<td><div style="font-weight:600;font-size:13px">'+escHtml(p.name)+'</div>'+(p.notes?'<div style="font-size:11px;color:var(--text3)">'+escHtml(p.notes)+'</div>':'')+'<div style="font-size:10px;color:var(--text3)">'+escHtml(p.sku)+'</div></td>'+
         '<td style="font-size:11px;font-weight:600;color:var(--info)">'+(p.huid?escHtml(p.huid):'<span style="color:var(--text3)">&#8212;</span>')+'</td>'+
         '<td><span class="badge" style="'+pbg+'">'+escHtml(p.purity)+'</span></td>'+
@@ -353,7 +360,7 @@ function renderInv(){
         '<td><div style="display:flex;gap:5px;flex-wrap:wrap;">'+actionsHtml+'</div></td>'+
       '</tr>');
 
-      cardRows.push('<div class="inv-card'+(sold?' sold-row':'')+'">'+
+      cardRows.push('<div class="inv-card'+(sold?' sold-row':'')+rowCls+'"'+rowStyle+'>'+
         '<div class="inv-card-top">'+
           '<div style="min-width:0;">'+
             '<div class="inv-card-name">'+escHtml(p.name)+'</div>'+
