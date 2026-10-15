@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). 15 Oct (21st entry): Tanish said GO — both deploys done: auth-gateway v8 + store-proxy v10 (CORS allowlist) and sw.js v20 (Cloudflare), both byte/hash-verified live. Waiting on Cowork to test CORS + a real login next. Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; real phone pass for sw.js v20; check Sentry Replay masking settings; add jewelos.co to ALLOWED_ORIGINS the day it's attached.
+> Free — nothing in progress. 15 Oct (24th entry): CSS-first motion pass (press feedback, list stagger, spring modals, dashboard count-up, reduced-motion) — committed, NOT deployed (see 24th LOG entry). 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). 15 Oct (21st entry): Tanish said GO — both deploys done: auth-gateway v8 + store-proxy v10 (CORS allowlist) and sw.js v20 (Cloudflare), both byte/hash-verified live. Waiting on Cowork to test CORS + a real login next. Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; real phone pass for sw.js v20; check Sentry Replay masking settings; add jewelos.co to ALLOWED_ORIGINS the day it's attached.
 
 ---
 
@@ -83,6 +83,49 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-15 (twenty-fourth entry) · Claude Code (Sonnet) — CSS-first motion pass (5 items, 5 commits). Committed, NOT deployed
+
+🟢 CSS/client-only, no save/sync/numbering/money logic touched. index.html + js/02-ui-inactivity-modals.js, js/03-billing-numbers.js, js/06-inventory-stock.js.
+
+**1. Press feedback** — `.btn:active{transform:scale(.97)}` (80ms), same for `.bnav-btn`, plus a new `.cust-row-card` class on the Customers row div (the one list row that's a tap target as a whole — inventory/bills rows aren't, only the `.btn` actions inside them are, already covered).
+
+**2. List entrance stagger** — `renderTab(tab, isEntrance)` threads an explicit flag through to `renderInv`/`renderCustomers`/`renderReports`, true only from `switchTab`'s first synchronous render. The 15s auto-refresh, the stale-reload re-render, and every search/filter keystroke call the same functions with no second arg, so rows never re-stagger — verified directly: calling `renderInv()` with no arg after the entrance render produces rows with no `row-enter` class and no `--i` style at all. Found and fixed two pre-existing wrapper bugs along the way: `renderReports` and `renderCustomers` are each monkey-patched elsewhere in 06-inventory-stock.js to call `_orig()` with no arguments, silently dropping whatever was passed — both now forward it.
+
+**3. Spring modal/sheet open** — `.modal-bg.open .modal` and `.modal-overlay.open .gl-wrap` get their own 350ms `linear()` spring transition; close is untouched (falls back to the base rule's short ease-out once `.open` is removed). `@supports not (transition-timing-function:linear(0,1))` ships a cubic-bezier fallback. Verified in a real Chromium that `linear(...)` resolves correctly (not silently dropped to default "ease").
+
+**4. Dashboard count-up** — new `animateCountUp()` (ES5, rAF, 600ms ease-out-cubic) on the 7 dashboard summary numbers only (Today's Sales/Purchase/Profit, Inventory Value, Outstanding Payments, Pending Girvi, Pieces in Stock), via a new optional `id` param on `fsnCard()` — the wastage-report cards in 09-purchases.js that reuse `fsnCard` don't pass it, unaffected. Always ends on the exact same `fmt()`/integer string the app already computed; skips (shows final value immediately) on first render, no change, reduced-motion, or no `requestAnimationFrame` — that last one is why the node regression suite failed once before I added the guard (`clearing demo data leaves nothing behind: requestAnimationFrame is not defined`); 422/422 pass now.
+
+**5. Reduced-motion extended** — `.row-enter{animation-delay:0s!important}` (duration was already handled by the block's existing `*` rule, delay wasn't) and press-feedback transform off. Modal spring and count-up needed no new rule — the pre-existing modal carve-out and count-up's own JS check already cover them.
+
+**Verified, not just assumed:** `check.bat` green (syntax, regression 422/422, backup-check, roundtrip all PASS; no new AST/scope/handler/CSS-class violations — scanned step 3's output for any of my new identifiers, none flagged). Screenshots at 375px and 1440px (dashboard, inventory table + cards, customers, bills/reports, an open bottom sheet) via Playwright against a local static server with demo data loaded (bypassed login/PIN entirely client-side — no real account touched; the only console errors were CORS-blocked `store-proxy` calls from using localhost as the origin, i.e. the allowlist from the 21st entry correctly rejecting it, and a missing favicon — nothing from this pass). Reduced-motion emulated and re-checked by computed style: `animation-delay:0s`, row/button `transform:none`, modal `transition-property:opacity` only.
+
+**Not done, deliberately:** no deploy (CSS/JS committed to `main`, not pushed to Cloudflare or Netlify). No dependency added, `sw.js` untouched, nothing outside the five items.
+
+→ FOR COWORK: nothing — client-side only, no backend/DB touched.
+→ FOR TANISH: this is committed, not live yet — say when to deploy (same Cloudflare-worker path as the last two deploys, Netlify still paused on credits until 18 Oct). Once it's live, a real phone pass would help: open a sheet (Add Customer), scroll the Inventory/Customers/Reports lists on first open vs. a second look, tap a few buttons for the press feedback, and reload the Dashboard to watch the numbers count up.
+
+---
+
+### 2026-10-15 (twenty-third entry) · Cowork (Sonnet) — read-only Supabase advisor check + skill staleness check. No DB writes, no code
+
+Security advisors: 14 tables RLS-on/no-policy (INFO, expected: all access is via service_role edge functions). One WARN: `public.rls_auto_enable()` is SECURITY DEFINER with EXECUTE granted to PUBLIC/anon/authenticated. It is an event-trigger function (auto-enables RLS on new public tables), so it can't do anything useful when called via REST; low risk. Optional hardening: `revoke execute on function public.rls_auto_enable() from public, anon, authenticated;` — needs Tanish's go, event trigger `ensure_rls` runs as owner so should be unaffected. Performance advisors: 4 unindexed FKs (bill_items x2, bills, orders) — INFO, irrelevant at current size. Plan tier and backups: NOT readable via the MCP (org call denied). Tanish must check Dashboard → Database → Backups; free plan has no backups.
+Skills: `jewelos-health` already uses the bills-derived drift SQL (migration 005); `jewelos-client-queries` has no stale SQL. Nothing to fix.
+
+→ FOR CLAUDE CODE: nothing required. Optional: add the revoke above as migration 010 if Tanish approves.
+→ FOR TANISH: open Dashboard → Database → Backups and tell me the plan and whether daily backups exist. If none, upgrade to Pro before more shops go live.
+
+---
+
+### 2026-10-15 (twenty-second entry) · Cowork (Sonnet) — independent read-only check of the 21st entry's deploys: CONFIRMED LIVE
+
+Checked: edge functions are store-proxy v10 / auth-gateway v8 (razorpay-webhook untouched v2). Live `sw.js` on the Cloudflare Worker is `jewelos-v20`, manifest `start_url` is still `./`. From a real browser on the Worker origin, OPTIONS to both functions succeeds. From `https://example.com` (foreign origin), both are BLOCKED. No DB writes by me. `login_attempts` last row 14 Oct 13:44 UTC; `auth_store_history` still 0 rows, `auth_store.version` still 0.
+Not tested: preflights from the Netlify and Pages origins (cloud and device shells get 403 from the egress proxy), and a real login after v8. Do one real login to close that.
+
+→ FOR CLAUDE CODE: nothing. Still open: false "reset code sent" message in auth-gateway; add `jewelos.co` to the allowlist when the domain goes live.
+→ FOR TANISH: change your password now (it is still the one pasted in chat; this also fills `auth_store_history` for the first time). Then log in once on the Worker URL to prove login works on v8.
 
 ---
 
