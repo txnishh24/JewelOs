@@ -198,6 +198,16 @@
     transition-property:opacity!important;
     transform:none!important;
   }
+  /* P7 (motion pass, 15 Oct): the four new motion-pass additions collapse
+     the same way. `animation-duration` above already makes .row-enter's
+     own fade+rise effectively instant, but NOT its animation-delay — left
+     alone, rows would still pop in one after another over ~240ms, which is
+     exactly the staggered movement this setting exists to remove, so the
+     delay itself is zeroed too. Opacity fades stay (same principle as the
+     modal/sheet carve-out above: content shouldn't just blink into
+     existence), only the timing and the transform-driven parts go. */
+  .row-enter{animation-delay:0s!important;}
+  .btn:active,.bnav-btn:active,.cust-row-card:active{transform:none!important;}
 }
 
 /* ── RESET ───────────────────────────────────────── */
