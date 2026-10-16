@@ -458,7 +458,7 @@ function openGirviForm(editId, prefill){
     document.getElementById('gf-notes').value     = g.notes||'';
     GF_ITEM_TYPE = (GF_ITEMS[0]&&GF_ITEMS[0].type) || 'Ring'; // kept for legacy compat only
   } else {
-    title.innerHTML = prefill ? ('🪙 New Loan — '+escHtml(prefill.name||'')) : '🪙 New Girvi Entry';
+    title.innerHTML = prefill ? (svgIcon('gem')+' New Loan — '+escHtml(prefill.name||'')) : (svgIcon('gem')+' New Girvi Entry');
     GF_ITEM_TYPE = 'Ring'; // legacy
     GF_ITEMS = [{type:'Ring',metal:'gold',purity:'22K',grossWt:0,netWt:0,qty:1,desc:''}];
     if(prefill){
@@ -522,7 +522,7 @@ function renderWizardStep(){
   var nb=document.getElementById('gf-next-btn');
   if(nb){
     if(GF_STEP===GF_MAX_STEPS){
-      nb.textContent='🪙 '+(GF_EDIT_ID?'Update':'Create')+' Girvi';
+      nb.innerHTML=svgIcon('gem')+' '+(GF_EDIT_ID?'Update':'Create')+' Girvi';
       nb.style.background='linear-gradient(135deg,var(--gold-dark),var(--gold))';
     } else {
       nb.textContent='Next →';
@@ -811,7 +811,7 @@ function renderGirviCP(){
   var el = document.getElementById('girvi-cp');
   if(!el) return;
   el.innerHTML=
-    '<div class="girvi-cp-title">🪙 Girvi Portfolio</div>'+
+    '<div class="girvi-cp-title">'+svgIcon('gem')+' Girvi Portfolio</div>'+
     '<div class="girvi-kpi-row">'+
       '<div class="girvi-kpi"><div class="girvi-kpi-val">'+active.length+'</div><div class="girvi-kpi-lbl">Active</div></div>'+
       '<div class="girvi-kpi"><div class="girvi-kpi-val">\u20b9'+kFmt(totalOut)+'</div><div class="girvi-kpi-lbl">Lent Out</div></div>'+
@@ -1154,7 +1154,7 @@ function openGirviDetail(gid){
   var adjDiff       = (g.adjustedAmount!=null) ? (g.adjustedAmount - calcTotal) : 0;
   var adjHtml = canAct ?
     '<div style="background:var(--card2);border:1px solid var(--border2);border-radius:12px;padding:13px;margin-bottom:14px;">'+
-      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px;">✏️ Payable Amount</div>'+
+      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px;">'+svgIcon('edit')+' Payable Amount</div>'+
       '<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">'+
         '<div style="flex:1;">'+
           '<div style="font-size:10px;color:var(--text3);margin-bottom:3px;">System Calculated</div>'+
@@ -1182,7 +1182,7 @@ function openGirviDetail(gid){
         '<option value="Other">Other</option>'+
       '</select>'+
       '<div style="display:flex;gap:7px;">'+
-        '<button onclick="gdSaveAdjAmount(\''+jsAttrEsc(gid)+'\')" style="flex:1;padding:9px;border-radius:9px;border:none;background:var(--gold);color:#1a1200;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;">✅ Set Amount</button>'+
+        '<button onclick="gdSaveAdjAmount(\''+jsAttrEsc(gid)+'\')" style="flex:1;padding:9px;border-radius:9px;border:none;background:var(--gold);color:#1a1200;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;">'+svgIcon('save')+' Set Amount</button>'+
         (g.adjustedAmount!=null?'<button onclick="gdResetAdjAmount(\''+jsAttrEsc(gid)+'\')" style="padding:9px 13px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit;">↺ Reset</button>':'')+
       '</div>'+
       (g.amountAdjLog&&g.amountAdjLog.length?
@@ -1209,14 +1209,14 @@ function openGirviDetail(gid){
   }).join('');
   var notesHtml = canAct ?
     '<div style="margin-bottom:14px;">'+
-      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">📝 Notes</div>'+
+      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">'+svgIcon('doc')+' Notes</div>'+
       notesRows+
       '<div style="display:flex;gap:7px;margin-top:6px;">'+
         '<input id="gd-note-input" type="text" placeholder="Add a note…" style="flex:1;padding:9px 11px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-size:13px;font-family:inherit;" onkeydown="if(event.key===\'Enter\')gdAddNote(\''+jsAttrEsc(gid)+'\')">'+
         '<button onclick="gdAddNote(\''+jsAttrEsc(gid)+'\')" style="padding:9px 14px;border-radius:9px;border:none;background:var(--gold);color:#1a1200;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;">+</button>'+
       '</div>'+
     '</div>'
-  : (notesRows ? '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">📝 Notes</div>'+notesRows+'</div>' : '');
+  : (notesRows ? '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">'+svgIcon('doc')+' Notes</div>'+notesRows+'</div>' : '');
 
   // ── Feature 11: Full audit timeline ───────────────────────────────────
   var allEvents = [];
@@ -1281,7 +1281,7 @@ function openGirviDetail(gid){
   var html = statusBanner+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">'+
       '<div style="background:var(--card2);border-radius:11px;padding:11px 13px;">'+
-        '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:5px;">👤 Customer</div>'+
+        '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:5px;">'+svgIcon('user')+' Customer</div>'+
         '<div style="font-size:15px;font-weight:700;">'+escHtml(g.customer)+'</div>'+
         '<div style="font-size:12px;color:var(--text3);">'+svgIcon('phone')+' '+escHtml(g.phone)+'</div>'+
         (g.address?'<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+escHtml(g.address)+'</div>':'')+
@@ -1292,7 +1292,7 @@ function openGirviDetail(gid){
         if(_its.length===1){
           var it=_its[0];
           return '<div style="background:var(--card2);border-radius:11px;padding:11px 13px;">'+
-            '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:5px;">🪙 Item Pledged</div>'+
+            '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:5px;">'+svgIcon('gem')+' Item Pledged</div>'+
             '<div style="font-size:14px;font-weight:700;">'+escHtml(it.type||'Item')+(it.qty>1?' ×'+it.qty:'')+'</div>'+
             '<div style="font-size:12px;color:var(--text3);">'+(it.purity||'')+' '+(it.metal||'')+(it.weight||it.grossWt?' · '+(it.weight||it.grossWt)+'g':'')+'</div>'+
             (it.desc?'<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+escHtml(it.desc)+'</div>':'')+
@@ -1300,7 +1300,7 @@ function openGirviDetail(gid){
           '</div>';
         }
         return '<div style="background:var(--card2);border-radius:11px;padding:11px 13px;">'+
-          '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">🪙 '+_its.length+' Items · '+_twD.toFixed(2)+'g</div>'+
+          '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">'+svgIcon('gem')+' '+_its.length+' Items · '+_twD.toFixed(2)+'g</div>'+
           _its.map(function(it){
             return '<div style="font-size:12px;padding:3px 0;border-bottom:0.5px solid rgba(179,146,87,.1);">'+
               '<span style="font-weight:700;">'+escHtml(it.type||'Item')+(it.qty>1?' ×'+it.qty:'')+'</span>'+
@@ -1374,7 +1374,7 @@ function openGirviDetail(gid){
       var pics = (c && c.ornamentPhotos || []).filter(function(p){ return p.girviId===g.id; });
       if(!pics.length) return '';
       return '<div style="margin-bottom:14px;">'+
-        '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">📷 Ornament Photos</div>'+
+        '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">'+svgIcon('camera')+' Ornament Photos</div>'+
         '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">'+
           pics.map(function(p){
             // store-proxy accepts arbitrary JSON, so dataUrl can't be trusted
@@ -1438,7 +1438,7 @@ function openGirviDetail(gid){
       '</details>'
     :'<div style="text-align:center;padding:10px;font-size:13px;color:var(--text3);">🔒 This loan is '+status+'. No further actions.</div>');
 
-  document.getElementById('gd-title').innerHTML='🪢 '+escHtml(g.grvNo)+' &nbsp;'+girviStatusBadge(status);
+  document.getElementById('gd-title').innerHTML=svgIcon('gem')+' '+escHtml(g.grvNo)+' &nbsp;'+girviStatusBadge(status);
   document.getElementById('gd-body').innerHTML=html;
   document.getElementById('girvi-detail-modal').style.display='block';
 }

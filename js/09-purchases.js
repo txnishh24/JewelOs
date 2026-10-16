@@ -107,7 +107,7 @@ function renderPurchases(){
   // independently toggleable, but a first-time user shouldn't have to
   // look at 6 checkboxes before they can write their first bill.
   html += '<div class="card">'+
-    '<div class="card-title" style="cursor:pointer;" onclick="pbToggleSettings()">'+svgIcon('gear')+' Customize which fields show <span id="pb-settings-arrow" style="font-size:11px;color:var(--text3);margin-left:6px;">'+(pbUI.settingsOpen?'\u25b2 hide':'\u25bc show')+'</span></div>'+
+    '<div class="card-title" style="cursor:pointer;" onclick="pbToggleSettings()"><span>'+svgIcon('gear')+' Customize which fields show</span> <span id="pb-settings-arrow" style="font-size:11px;color:var(--text3);margin-left:6px;">'+(pbUI.settingsOpen?'\u25b2 hide':'\u25bc show')+'</span></div>'+
     '<div id="pb-settings-body" style="display:'+(pbUI.settingsOpen?'flex':'none')+';flex-wrap:wrap;gap:14px 20px;padding:4px 0;">'+
       pbToggle('gst','GST (CGST/SGST/IGST)')+
       pbToggle('goldRate','Gold Rate Snapshot')+
@@ -142,7 +142,7 @@ function renderPurchases(){
       '<select id="pb-status-filter" onchange="renderPurchaseList()" style="width:auto;padding:9px 28px 9px 10px;font-size:13px;">'+
         '<option value="all">All Status</option><option value="Paid">Paid</option><option value="Partial">Partial</option><option value="Unpaid">Unpaid</option>'+
       '</select>'+
-      '<button type="button" class="btn btn-sm pb-filters-toggle" onclick="pbToggleFilters()">&#128269; More filters</button>'+
+      '<button type="button" class="btn btn-sm pb-filters-toggle" onclick="pbToggleFilters()">'+svgIcon('search')+' More filters</button>'+
     '</div>'+
     '<div id="pb-filters-body" class="pb-filters-body" style="display:none;flex-wrap:wrap;gap:8px;margin:8px 0;">'+
       '<input type="date" id="pb-date-from" onchange="renderPurchaseList()" style="width:auto;font-size:12px;padding:7px 8px;"/>'+
@@ -277,7 +277,7 @@ function pbWastageReportHtml(){
     '</tbody></table></div>';
 
   return '<div class="card">'+
-    '<div class="card-title">'+svgIcon('chart')+' Wastage Report <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">from gross vs net weight on bills already entered</span></div>'+
+    '<div class="card-title"><span>'+svgIcon('chart')+' Wastage Report</span> <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">from gross vs net weight on bills already entered</span></div>'+
     '<div class="fin-snapshot" style="margin-bottom:10px;">'+
       fsnCard('Avg Supplier Wastage', avgSupplier!==null?avgSupplier.toFixed(2)+'%':'—', supplierRows.length+' bill(s)', null, '', 'var(--gold-dark)')+
       fsnCard('Avg Selling Wastage', avgCustomer!==null?avgCustomer.toFixed(2)+'%':'—', customerRows.length+' item(s)', null, '', '#22c55e')+

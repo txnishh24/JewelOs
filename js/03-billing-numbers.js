@@ -1161,7 +1161,7 @@ function renderReports(entrance){
     if(reportPanel){
       var plDiv=document.createElement('div');
       plDiv.className='card'; plDiv.id='rep-pl-card';
-      plDiv.innerHTML='<div class="card-title">'+svgIcon('doc')+' P&L Statement \u2014 <span id="rep-pl-label"></span></div><div id="rep-pl"></div>';
+      plDiv.innerHTML='<div class="card-title"><span>'+svgIcon('doc')+' P&L Statement — <span id="rep-pl-label"></span></span></div><div id="rep-pl"></div>';
       var rmEl=document.getElementById('rep-metrics');
       if(rmEl && rmEl.parentNode) rmEl.parentNode.insertBefore(plDiv, rmEl.nextSibling);
       plEl=document.getElementById('rep-pl');
@@ -1298,7 +1298,7 @@ function renderReports(entrance){
     var rp=document.getElementById('panel-reports');
     if(rp){
       var gd=document.createElement('div'); gd.className='card';
-      gd.innerHTML='<div class="card-title">'+svgIcon('chart')+' Girvi Portfolio</div><div id="rep-girvi"></div>';
+      gd.innerHTML='<div class="card-title"><span>'+svgIcon('chart')+' Girvi Portfolio</span></div><div id="rep-girvi"></div>';
       rp.appendChild(gd); girviRepEl=document.getElementById('rep-girvi');
     }
   }
@@ -1617,7 +1617,7 @@ function renderOrders(){
   var uwEl=document.getElementById('ord-urgent-wrap');
   if(uwEl) uwEl.innerHTML=urgent.length?
     '<div style="background:linear-gradient(135deg,var(--warning-bg),var(--surface));border:0.5px solid rgba(138,78,12,.3);border-radius:var(--radius-lg);padding:1rem 1.1rem;margin-bottom:.85rem;">'+
-      '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--warning);margin-bottom:10px;">&#9201; Due This Week ('+urgent.length+')</div>'+
+      '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--warning);margin-bottom:10px;">'+svgIcon('clock')+' Due This Week ('+urgent.length+')</div>'+
       urgent.map(function(o){
         var dl=Math.ceil((new Date(o.delivery)-new Date())/86400000);
         var adv=ordAdvance(o);

@@ -367,6 +367,7 @@ body{
   margin-bottom:var(--space-3);box-shadow:var(--shadow);
 }
 @media(min-width:768px){.card{padding:var(--space-4);}}
+.ic{vertical-align:-3px;flex-shrink:0;}
 .card-title{
   font-family:var(--font-display);
   font-size:var(--text-xl);font-weight:600;color:var(--ink);
@@ -1677,7 +1678,7 @@ tr:hover td{background:var(--bg2);}
 <div id="sub-banner"></div>
 
 <div id="demo-banner">
-  🎭 DEMO MODE — Sample data loaded. <button type="button" onclick="exitDemoMode()" style="color:#fde68a;cursor:pointer;text-decoration:underline;margin-left:8px;border:none;background:none;padding:0;font:inherit;">Exit &amp; create your account →</button>
+  <span data-icon="eye"></span> DEMO MODE — Sample data loaded. <button type="button" onclick="exitDemoMode()" style="color:#fde68a;cursor:pointer;text-decoration:underline;margin-left:8px;border:none;background:none;padding:0;font:inherit;">Exit &amp; create your account →</button>
 </div>
 
 <!-- ONBOARDING WIZARD -->
@@ -1685,12 +1686,12 @@ tr:hover td{background:var(--bg2);}
 <div id="digest-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.65);z-index:1100;overflow-y:auto;padding:1.5rem;">
   <div style="max-width:480px;margin:0 auto 80px;background:var(--card1);border-radius:18px;padding:1.4rem 1.3rem;box-shadow:0 8px 40px rgba(0,0,0,.3);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.1rem;">
-      <div style="font-size:17px;font-weight:700;">📊 Daily Business Digest</div>
+      <div style="font-size:17px;font-weight:700;"><span data-icon="chart"></span> Daily Business Digest</div>
       <button onclick="document.getElementById('digest-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;">✕</button>
     </div>
     <div id="digest-body"></div>
     <div style="display:flex;gap:8px;margin-top:14px;">
-      <button onclick="shareDigestWhatsApp()" class="btn-wa" style="flex:1;">📱 Share via WhatsApp</button>
+      <button onclick="shareDigestWhatsApp()" class="btn-wa" style="flex:1;"><span data-icon="chat"></span> Share via WhatsApp</button>
       <button onclick="document.getElementById('digest-modal').style.display='none'" class="btn" style="flex:1;">Close</button>
     </div>
   </div>
@@ -1700,12 +1701,12 @@ tr:hover td{background:var(--bg2);}
 <div id="wa-automation-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.65);z-index:1100;overflow-y:auto;padding:1.5rem;">
   <div style="max-width:500px;margin:0 auto 80px;background:var(--card1);border-radius:18px;padding:1.4rem 1.3rem;box-shadow:0 8px 40px rgba(0,0,0,.3);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
-      <div style="font-size:17px;font-weight:700;">📱 WhatsApp Reminders</div>
+      <div style="font-size:17px;font-weight:700;"><span data-icon="chat"></span> WhatsApp Reminders</div>
       <button onclick="document.getElementById('wa-automation-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;">✕</button>
     </div>
     <div style="font-size:12px;color:var(--text3);margin-bottom:1rem;">Automatic reminders — JewelOS tells you exactly who to message and with what text. One tap to send.</div>
     <div id="wa-rules-list"></div>
-    <div style="margin-top:14px;"><button onclick="runAllWaReminders()" class="btn-wa" style="width:100%;padding:12px;">📱 Run All Due Reminders Now</button></div>
+    <div style="margin-top:14px;"><button onclick="runAllWaReminders()" class="btn-wa" style="width:100%;padding:12px;"><span data-icon="chat"></span> Run All Due Reminders Now</button></div>
   </div>
 </div>
 
@@ -1715,7 +1716,7 @@ tr:hover td{background:var(--bg2);}
     <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--card1);border-bottom:1px solid var(--border);">
       <div style="font-size:15px;font-weight:700;color:var(--text1);">PDF Preview</div>
       <div style="display:flex;gap:8px;">
-        <button onclick="printPdfPreview()" class="btn-pdf">🖨️ Print / Save PDF</button>
+        <button onclick="printPdfPreview()" class="btn-pdf"><span data-icon="printer"></span> Print / Save PDF</button>
         <button onclick="document.getElementById('pdf-preview-modal').style.display='none'" style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;">✕</button>
       </div>
     </div>
@@ -1835,7 +1836,7 @@ tr:hover td{background:var(--bg2);}
   <div class="inact-icon">&#128274;</div>
   <div class="inact-txt">Session Locked</div>
   <div class="inact-sub">Tap anywhere or enter PIN to continue</div>
-  <button class="btn btn-gold" onclick="dismissInactivity()" style="padding:12px 32px;font-size:15px;">&#128272; Enter PIN to Unlock</button>
+  <button class="btn btn-gold" onclick="dismissInactivity()" style="padding:12px 32px;font-size:15px;"><span data-icon="unlock"></span> Enter PIN to Unlock</button>
 </div>
 
 <!-- PIN LOCK SCREEN -->
@@ -1871,7 +1872,7 @@ tr:hover td{background:var(--bg2);}
     <button onclick="window._forceOfflineBoot&&window._forceOfflineBoot()"
       style="background:rgba(201,163,78,.15);border:1px solid rgba(201,163,78,.4);color:var(--gold);
              padding:10px 22px;border-radius:24px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;">
-      📴 Continue Offline
+      <span data-icon="offline"></span> Continue Offline
     </button>
     <div style="font-size:11px;color:rgba(201,163,78,.5);margin-top:8px;">Network seems slow — your local data is safe</div>
   </div>
@@ -1941,7 +1942,7 @@ tr:hover td{background:var(--bg2);}
   <div id="onboarding-checklist" style="display:none;background:var(--gold-bg);border:1px solid rgba(179,146,87,0.35);border-radius:var(--radius-lg);margin-bottom:.85rem;overflow:hidden;">
     <details id="onboarding-details">
       <summary style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:.6rem .5rem .6rem 1rem;cursor:pointer;list-style:none;">
-        <span id="onboarding-summary-label" style="font-size:13px;font-weight:700;color:var(--gold-dark);flex:1;">👋 Setup 0/4 ›</span>
+        <span id="onboarding-summary-label" style="font-size:13px;font-weight:700;color:var(--gold-dark);flex:1;">Setup 0/4 ›</span>
         <button onclick="event.preventDefault();event.stopPropagation();dismissOnboarding();" aria-label="Dismiss setup checklist" style="min-width:44px;min-height:44px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex:none;">✕</button>
       </summary>
       <div style="padding:0 1rem 1rem;">
@@ -1954,7 +1955,7 @@ tr:hover td{background:var(--bg2);}
   <!-- 2. TODAY'S ACTIONS — what needs doing right now -->
   <div class="card" style="padding:.8rem 1rem;">
     <div class="section-hdr">
-      <div class="section-hdr-title">⚡ Today's Actions</div>
+      <div class="section-hdr-title"><span data-icon="zap"></span> Today's Actions</div>
     </div>
     <div class="action-strip" id="dash-actions"></div>
   </div>
@@ -1964,7 +1965,7 @@ tr:hover td{background:var(--bg2);}
 
   <!-- 4. RECENT ACTIVITY -->
   <div class="card">
-    <div class="card-title"><span data-icon="clock"></span> Recent Activity</div>
+    <div class="card-title"><span><span data-icon="clock"></span> Recent Activity</span></div>
     <div id="recent-sales"></div>
   </div>
 
@@ -1976,7 +1977,7 @@ tr:hover td{background:var(--bg2);}
     <div style="margin-top:12px;">
       <div style="margin-bottom:var(--space-3);">
         <div class="section-hdr">
-          <div class="section-hdr-title">🧠 Business Insights</div>
+          <div class="section-hdr-title"><span data-icon="trendUp"></span> Business Insights</div>
           <button type="button" class="section-hdr-action" onclick="renderDash()">Refresh</button>
         </div>
         <div class="insights-row" id="dash-insights"></div>
@@ -1986,29 +1987,29 @@ tr:hover td{background:var(--bg2);}
 
       <div class="two-col">
         <div class="card">
-          <div class="card-title"><span data-icon="star"></span> Gold by Purity <span style="font-size:12px;font-weight:400;color:var(--ink3);">available stock</span></div>
+          <div class="card-title"><span><span data-icon="star"></span> Gold by Purity</span> <span style="font-size:12px;font-weight:400;color:var(--ink3);">available stock</span></div>
           <div id="gold-breakdown"></div>
         </div>
         <div class="card">
-          <div class="card-title"><span data-icon="star"></span> Silver by Purity <span style="font-size:12px;font-weight:400;color:var(--ink3);">available stock</span></div>
+          <div class="card-title"><span><span data-icon="star"></span> Silver by Purity</span> <span style="font-size:12px;font-weight:400;color:var(--ink3);">available stock</span></div>
           <div id="silver-breakdown"></div>
         </div>
       </div>
 
       <div class="two-col">
         <div class="card">
-          <div class="card-title" style="color:var(--danger);">&#9201; Pending Balances (detail)</div>
+          <div class="card-title" style="color:var(--danger);"><span><span data-icon="clock"></span> Pending Balances (detail)</span></div>
           <div id="dash-pending-bal"></div>
         </div>
         <div class="card">
-          <div class="card-title"><span data-icon="clipboard"></span> Orders Due Soon</div>
+          <div class="card-title"><span><span data-icon="clipboard"></span> Orders Due Soon</span></div>
           <div id="dash-orders-due"></div>
         </div>
       </div>
 
       <div class="two-col">
         <div class="card">
-          <div class="card-title"><span data-icon="chart"></span> Top Categories</div>
+          <div class="card-title"><span><span data-icon="chart"></span> Top Categories</span></div>
           <div id="dash-top-cats"></div>
         </div>
         <div id="dash-more-girvi"></div>
@@ -2021,8 +2022,8 @@ tr:hover td{background:var(--bg2);}
 <!-- INVENTORY -->
 <div id="panel-inventory" class="panel">
   <div class="metal-tabs" style="margin-bottom:10px;">
-    <button class="mtab mtab-g active" id="invsub-tab-stock" onclick="switchInvSub('stock')">&#128230; Stock</button>
-    <button class="mtab" id="invsub-tab-purchases" onclick="switchInvSub('purchases')">&#129534; Purchases</button>
+    <button class="mtab mtab-g active" id="invsub-tab-stock" onclick="switchInvSub('stock')"><span data-icon="box"></span> Stock</button>
+    <button class="mtab" id="invsub-tab-purchases" onclick="switchInvSub('purchases')"><span data-icon="doc"></span> Purchases</button>
   </div>
   <div id="inv-sub-stock">
   <div class="rate-bar">
@@ -2042,14 +2043,14 @@ tr:hover td{background:var(--bg2);}
     </details>
   </div>
   <div class="metal-tabs">
-    <button class="mtab mtab-g" id="mtab-gold" onclick="setMetal('gold')">&#127775; Gold Items</button>
-    <button class="mtab" id="mtab-silver" onclick="setMetal('silver')">&#11088; Silver Items</button>
+    <button class="mtab mtab-g" id="mtab-gold" onclick="setMetal('gold')"><span data-icon="star"></span> Gold Items</button>
+    <button class="mtab" id="mtab-silver" onclick="setMetal('silver')"><span data-icon="star"></span> Silver Items</button>
   </div>
   <div class="card">
     <div class="card-title">
       <span id="add-form-title">Add Gold Product</span>
       <button class="btn btn-ink" onclick="toggleAdd()" id="add-btn">+ Add product</button>
-      <button class="btn btn-sm" onclick="openBarcodeLabels()" title="Print barcode labels for available stock" style="margin-left:6px;">&#127991; Labels</button>
+      <button class="btn btn-sm" onclick="openBarcodeLabels()" title="Print barcode labels for available stock" style="margin-left:6px;"><span data-icon="tag"></span> Labels</button>
     </div>
     <div id="add-form" class="add-product-form" style="display:none">
       <div class="form-grid">
@@ -2076,7 +2077,7 @@ tr:hover td{background:var(--bg2);}
         </div>
       </details>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-gold" onclick="addProduct()">&#9729; Save &amp; Sync</button>
+        <button class="btn btn-gold" onclick="addProduct()"><span data-icon="cloud"></span> Save &amp; Sync</button>
         <button class="btn" onclick="toggleAdd()">Cancel</button>
       </div>
     </div>
@@ -2107,7 +2108,7 @@ tr:hover td{background:var(--bg2);}
 <!-- SALES -->
 <div id="panel-sales" class="panel">
   <div class="card">
-    <div class="card-title" style="border-bottom:0.5px solid var(--border);padding-bottom:0.9rem;margin-bottom:1rem;">&#128179; New Sale / Invoice <span style="font-size:12px;font-weight:400;color:var(--ink3);margin-left:4px;">Enter customer and item details</span></div>
+    <div class="card-title" style="border-bottom:0.5px solid var(--border);padding-bottom:0.9rem;margin-bottom:1rem;"><span><span data-icon="cash"></span> New Sale / Invoice</span> <span style="font-size:12px;font-weight:400;color:var(--ink3);margin-left:4px;">Enter customer and item details</span></div>
 
     <!-- 2 columns at >=1280px, summary sticky on the right -- plain stacked
          flow below that (UI/UX audit, 15 Oct, Phase 3 item 6). Only wraps
@@ -2115,8 +2116,8 @@ tr:hover td{background:var(--bg2);}
     <div class="sale-layout"><div class="sale-form-col">
     <!-- BILL TYPE SELECTOR -->
     <div style="display:flex;gap:0;background:var(--bg2);border-radius:12px;padding:4px;margin-bottom:14px;border:1px solid var(--border);">
-      <button id="sform-btype-gst" onclick="setSaleFormBillType('gst')" style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,var(--gold-dark),var(--gold));color:#1a1200;transition:background .2s,color .2s;">&#128196; GST Bill</button>
-      <button id="sform-btype-memo" onclick="setSaleFormBillType('memo')" style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;background:transparent;color:var(--text2);transition:background .2s,color .2s;">&#128203; Memo Bill</button>
+      <button id="sform-btype-gst" onclick="setSaleFormBillType('gst')" style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,var(--gold-dark),var(--gold));color:#1a1200;transition:background .2s,color .2s;"><span data-icon="doc"></span> GST Bill</button>
+      <button id="sform-btype-memo" onclick="setSaleFormBillType('memo')" style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;background:transparent;color:var(--text2);transition:background .2s,color .2s;"><span data-icon="clipboard"></span> Memo Bill</button>
     </div>
 
     <div class="form-grid" style="margin-bottom:12px">
@@ -2131,10 +2132,10 @@ tr:hover td{background:var(--bg2);}
     <!-- SALE MODE TOGGLE -->
     <div class="mode-toggle-wrap">
       <button class="mode-btn active-stock" id="mode-btn-stock" onclick="setSaleMode('stock')">
-        &#128230; Stock Sale<br><span style="font-size:10px;font-weight:400;opacity:0.85;">Sell from inventory</span>
+        <span data-icon="box"></span> Stock Sale<br><span style="font-size:10px;font-weight:400;opacity:0.85;">Sell from inventory</span>
       </button>
       <button class="mode-btn" id="mode-btn-custom" onclick="setSaleMode('custom')">
-        &#128296; Custom / Handmade<br><span style="font-size:10px;font-weight:400;opacity:0.85;">Made-to-order billing</span>
+        <span data-icon="gear"></span> Custom / Handmade<br><span style="font-size:10px;font-weight:400;opacity:0.85;">Made-to-order billing</span>
       </button>
     </div>
     <!-- STOCK MODE -->
@@ -2165,7 +2166,7 @@ tr:hover td{background:var(--bg2);}
 
     <!-- PAYMENT SECTION (Tanishq-style) -->
     <div style="margin:14px 0 10px;background:var(--bg2);border-radius:var(--radius-lg);padding:14px 16px;border:1px solid var(--border);" id="payment-section">
-      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text2);margin-bottom:12px;">&#128176; Payment Details</div>
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text2);margin-bottom:12px;"><span data-icon="cash"></span> Payment Details</div>
 
       <!-- OLD GOLD EXCHANGE — collapsible, closed unless it already holds a
            non-zero value (UI/UX audit, 15 Oct). The mode-toggle buttons moved
@@ -2173,7 +2174,7 @@ tr:hover td{background:var(--bg2);}
            so <summary> only ever contains the plain title, never a nested
            button that would fight it over the click. -->
       <details id="sale-oldgold-details" style="background:linear-gradient(135deg,rgba(179,146,87,0.08),rgba(179,146,87,0.04));border:1px solid rgba(179,146,87,0.25);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;">
-        <summary style="cursor:pointer;list-style:none;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gold-dark);margin-bottom:10px;">&#9851; Old Gold / Exchange <span class="detail-arrow" style="font-weight:400;">&#9662;</span></summary>
+        <summary style="cursor:pointer;list-style:none;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gold-dark);margin-bottom:10px;"><span data-icon="refresh"></span> Old Gold / Exchange <span class="detail-arrow" style="font-weight:400;">&#9662;</span></summary>
 
         <!-- Mode toggle -->
         <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
@@ -2243,7 +2244,7 @@ tr:hover td{background:var(--bg2);}
       <!-- ADVANCE PREVIOUSLY PAID (from order) — collapsible, closed unless
            it already holds a non-zero value (UI/UX audit, 15 Oct). -->
       <details id="sale-advance-details" style="margin-bottom:10px;">
-        <summary style="cursor:pointer;list-style:none;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text2);margin-bottom:8px;">&#9989; Advance Already Paid <span class="detail-arrow" style="font-weight:400;">&#9662;</span></summary>
+        <summary style="cursor:pointer;list-style:none;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text2);margin-bottom:8px;"><span data-icon="cash"></span> Advance Already Paid <span class="detail-arrow" style="font-weight:400;">&#9662;</span></summary>
         <div class="form-grid" style="grid-template-columns:1fr 1fr;">
           <div class="fg">
             <label>Advance amount (&#8377;)</label>
@@ -2264,7 +2265,7 @@ tr:hover td{background:var(--bg2);}
 
       <!-- NOW PAYING — balance settlement -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text2);margin-bottom:8px;">&#128179; Paying Now</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text2);margin-bottom:8px;"><span data-icon="cash"></span> Paying Now</div>
         <div id="balance-due-row" style="display:none;margin-bottom:8px;padding:8px 10px;background:rgba(192,57,43,0.08);border-radius:6px;border-left:3px solid var(--danger);">
           <span style="font-size:12px;color:var(--danger);font-weight:700;">Balance Due: </span>
           <span id="s-bal-due-display" style="font-size:14px;font-weight:900;color:var(--danger);">&#8377;0</span>
@@ -2311,21 +2312,29 @@ tr:hover td{background:var(--bg2);}
          demoted to a small secondary link, away from Record so it can't be
          mistapped as a matching pair with it. -->
     <div style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <button class="btn btn-info" onclick="previewInvoice()">&#128196; Preview Bill</button>
+      <button class="btn btn-info" onclick="previewInvoice()"><span data-icon="doc"></span> Preview Bill</button>
       <button onclick="clearSale()" style="background:none;border:none;color:var(--text3);font-size:12px;text-decoration:underline;cursor:pointer;padding:10px 6px;min-height:44px;font-family:inherit;">Clear</button>
     </div>
     </div></div>
   </div>
 
-  <!-- Sticky Grand Total + Record bar — the total here is copied as rendered
-       text from #ss-total (mirrorSaleStickyTotal(), js/02-ui-inactivity-modals.js),
-       never recalculated independently (UI/UX audit, 15 Oct). -->
+  <!-- Sticky Grand Total + Record bar — every figure here is copied as
+       rendered text from #ss-total / #s-still-pending / the fully-cleared
+       state (mirrorSaleStickyTotal(), js/02-ui-inactivity-modals.js), never
+       recalculated independently (UI/UX audit, 15/16 Oct). Default: just
+       Grand Total, as before. Once old gold, a previous advance or a
+       payment amount is entered, switches to "To collect ₹X" (the same
+       Balance Due figure already shown in Paying Now / the sum box) as the
+       big number, with the Grand Total demoted to a small aside. -->
   <div class="sticky-action-bar" style="display:flex;align-items:center;gap:10px;">
     <div style="flex:1;min-width:0;">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Grand Total</div>
-      <div id="sale-sticky-total" style="font-size:19px;font-weight:800;color:var(--ink);">&#8377;0</div>
+      <div id="sale-sticky-label" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Grand Total</div>
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+        <div id="sale-sticky-total" style="font-size:19px;font-weight:800;color:var(--ink);">&#8377;0</div>
+        <div id="sale-sticky-sub" style="display:none;font-size:11px;font-weight:600;color:var(--text3);"></div>
+      </div>
     </div>
-    <button class="btn btn-gold" style="flex:0 0 auto;min-height:44px;padding:12px 20px;" onclick="recordSale()">&#9729; Record &amp; Sync Sale</button>
+    <button class="btn btn-gold" style="flex:0 0 auto;min-height:44px;padding:12px 20px;" onclick="recordSale()"><span data-icon="cloud"></span> Record &amp; Sync Sale</button>
   </div>
 </div>
 
@@ -2342,7 +2351,7 @@ tr:hover td{background:var(--bg2);}
   <!-- ADD ORDER CARD -->
   <div class="card">
     <div class="card-title">
-      &#128221; Custom Orders
+      <span><span data-icon="edit"></span> Custom Orders</span>
       <span style="font-size:11px;font-weight:400;color:var(--text3);">Production tracking</span>
     </div>
 
@@ -2413,7 +2422,7 @@ tr:hover td{background:var(--bg2);}
       </div>
 
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-gold" onclick="saveOrder()">&#9729; Save &amp; Sync Order</button>
+        <button class="btn btn-gold" onclick="saveOrder()"><span data-icon="cloud"></span> Save &amp; Sync Order</button>
         <button class="btn" onclick="toggleOrdForm()">Cancel</button>
       </div>
     </div>
@@ -2453,7 +2462,7 @@ tr:hover td{background:var(--bg2);}
   <div id="bal-tracker-banner" style="display:none;background:linear-gradient(135deg,#fdf0ee,#fde8e8);border:1px solid rgba(192,57,43,0.25);border-radius:var(--radius-lg);padding:1rem 1.1rem;margin-bottom:0.85rem;">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
       <div>
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--danger);margin-bottom:3px;">&#9201; Pending Balance Dues</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--danger);margin-bottom:3px;"><span data-icon="clock"></span> Pending Balance Dues</div>
         <div style="font-size:13px;color:var(--text2)" id="bal-summary-text"></div>
       </div>
       <div style="font-size:22px;font-weight:700;color:var(--danger)" id="bal-total-amt"></div>
@@ -2461,7 +2470,7 @@ tr:hover td{background:var(--bg2);}
     <div id="bal-due-list" style="margin-top:10px;"></div>
   </div>
   <div class="card">
-    <div class="card-title"><span data-icon="users"></span> Customer Records</div>
+    <div class="card-title"><span><span data-icon="users"></span> Customer Records</span></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
       <button onclick="showAddCustomerModal()" class="btn btn-gold" style="min-height:44px;flex:1 1 auto;">+ Add Customer</button>
       <select id="cust-sort" onchange="renderCustomers()" style="flex:1 1 150px;min-width:150px;min-height:44px;padding:9px 28px 9px 10px;font-size:12px;">
@@ -2481,7 +2490,7 @@ tr:hover td{background:var(--bg2);}
   <!-- MONTH SELECTOR -->
   <div class="card" style="padding:0.85rem 1.1rem;">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-      <div style="font-size:16px;font-weight:700;">&#128200; Monthly Report</div>
+      <div style="font-size:16px;font-weight:700;"><span data-icon="trendUp"></span> Monthly Report</div>
       <div style="display:flex;align-items:center;gap:8px;">
         <button class="btn btn-sm" onclick="changeMonth(-1)">&#8249;</button>
         <span id="month-label" style="font-size:14px;font-weight:600;min-width:120px;text-align:center;"></span>
@@ -2496,7 +2505,7 @@ tr:hover td{background:var(--bg2);}
        audit, 15 Oct: the summary above stays expanded, everything after it
        can be shrunk to tame a ~4,650px page). -->
   <details class="card" open style="border:1px solid rgba(179,146,87,0.3);">
-    <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">📋 GST Filing Export
+    <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);"><span><span data-icon="clipboard"></span> GST Filing Export</span>
       <span style="font-size:11px;font-weight:400;color:var(--text3);">GSTR-1 compatible CSV</span>
       <span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span>
     </summary>
@@ -2512,7 +2521,7 @@ tr:hover td{background:var(--bg2);}
 
   <!-- MONTHLY CHART -->
   <details class="card" open>
-    <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">&#128200; Revenue trend <span style="font-size:12px;color:var(--ink3);font-weight:400;" id="rep-chart-label"></span><span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary>
+    <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);"><span><span data-icon="trendUp"></span> Revenue trend</span> <span style="font-size:12px;color:var(--ink3);font-weight:400;" id="rep-chart-label"></span><span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary>
     <div id="rep-chart" style="display:flex;align-items:flex-end;gap:3px;height:90px;padding:0 4px;"></div>
     <div id="rep-chart-labels" style="display:flex;gap:3px;margin-top:4px;padding:0 4px;"></div>
   </details>
@@ -2529,11 +2538,11 @@ tr:hover td{background:var(--bg2);}
   <!-- TOP CUSTOMERS + AGING ROW -->
   <div class="two-col">
     <details class="card" open>
-      <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">&#127942; Top Customers<span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary>
+      <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);"><span><span data-icon="crown"></span> Top Customers</span><span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary>
       <div id="rep-top-custs"></div>
     </details>
     <details class="card" open>
-      <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">&#9201; Pending Aging<span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary>
+      <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);"><span><span data-icon="clock"></span> Pending Aging</span><span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary>
       <div id="rep-aging"></div>
     </details>
   </div>
@@ -2560,7 +2569,7 @@ tr:hover td{background:var(--bg2);}
   <!-- TODAY'S ACTIONS -->
   <div class="card" style="padding:.8rem 1rem;" id="girvi-today-card">
     <div class="section-hdr">
-      <div class="section-hdr-title">⚡ Today's Actions</div>
+      <div class="section-hdr-title"><span data-icon="zap"></span> Today's Actions</div>
       <button type="button" class="section-hdr-action" onclick="renderGirvi()">Refresh</button>
     </div>
     <div id="girvi-today-actions"></div>
@@ -2586,9 +2595,9 @@ tr:hover td{background:var(--bg2);}
       <option value="gold">Gold</option>
       <option value="silver">Silver</option>
     </select>
-    <button class="girvi-search-chip" id="girvi-chip-due7" onclick="toggleGirviChip('due7',this)">⏰ Due in 7d</button>
-    <button class="girvi-search-chip" id="girvi-chip-highval" onclick="toggleGirviChip('highval',this)">💰 ₹50K+</button>
-    <button class="girvi-search-chip" id="girvi-chip-bycust" onclick="toggleGirviViewMode(this)">👤 By Customer</button>
+    <button class="girvi-search-chip" id="girvi-chip-due7" onclick="toggleGirviChip('due7',this)"><span data-icon="clock"></span> Due in 7d</button>
+    <button class="girvi-search-chip" id="girvi-chip-highval" onclick="toggleGirviChip('highval',this)"><span data-icon="cash"></span> ₹50K+</button>
+    <button class="girvi-search-chip" id="girvi-chip-bycust" onclick="toggleGirviViewMode(this)"><span data-icon="user"></span> By Customer</button>
   </div>
 
   <!-- GIRVI CARDS LIST -->
@@ -2606,7 +2615,7 @@ tr:hover td{background:var(--bg2);}
          dots right below it can never render underneath it (UI/UX audit,
          15 Oct: "progress bar hidden under the header"). -->
     <div style="position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .6rem;background:linear-gradient(135deg,rgba(179,146,87,.1),rgba(179,146,87,.03));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(179,146,87,.2);">
-      <div style="font-size:16px;font-weight:700;color:var(--gold-dark);" id="girvi-modal-title">🪙 New Girvi</div>
+      <div style="font-size:16px;font-weight:700;color:var(--gold-dark);" id="girvi-modal-title"><span data-icon="gem"></span> New Girvi</div>
       <button onclick="closeGirviModal()" style="background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;padding:2px 6px;line-height:1;">✕</button>
     </div>
 
@@ -2682,7 +2691,7 @@ tr:hover td{background:var(--bg2);}
              style="display:none;" onchange="gfAddPhotos(this)"/>
       <button type="button" onclick="document.getElementById('gf-photo-input').click()"
               style="width:100%;padding:13px;border-radius:12px;border:1.5px dashed var(--gold-dark);background:rgba(179,146,87,.07);color:var(--gold-dark);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">
-        📷 Take / choose photo
+        <span data-icon="camera"></span> Take / choose photo
       </button>
       <div id="gf-photo-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;"></div>
       <div id="gf-photo-note" style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5;"></div>
@@ -2728,7 +2737,7 @@ tr:hover td{background:var(--bg2);}
       </label>
       <!-- Financer margin tracking — optional, additive (see girviMargin() in 04-orders-detail.js) -->
       <details style="margin-bottom:10px;">
-        <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;">💰 Funded by a Financer? (optional)</summary>
+        <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;"><span data-icon="cash"></span> Funded by a Financer? (optional)</summary>
         <div style="margin-top:8px;font-size:11px;color:var(--text3);margin-bottom:8px;">If this loan is funded by a financer, track their rate here to see your margin automatically.</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;">
           <div>
@@ -2816,7 +2825,7 @@ tr:hover td{background:var(--bg2);}
 <div id="girvi-edit-modal">
   <div class="ge-wrap">
     <div class="ge-header">
-      <h2 id="ge-modal-title">✏️ Edit Girvi</h2>
+      <h2 id="ge-modal-title"><span data-icon="edit"></span> Edit Girvi</h2>
       <button class="ge-close" onclick="closeGirviEditModal()">✕</button>
     </div>
     <div class="ge-tabs">
@@ -2872,7 +2881,7 @@ tr:hover td{background:var(--bg2);}
     </div>
 
     <div class="ge-save-bar">
-      <button class="btn btn-gold" style="flex:2;" onclick="saveGirviEdit()">💾 Save Changes</button>
+      <button class="btn btn-gold" style="flex:2;" onclick="saveGirviEdit()"><span data-icon="save"></span> Save Changes</button>
       <button class="btn" style="flex:1;" onclick="closeGirviEditModal()">Cancel</button>
     </div>
   </div>
@@ -2882,26 +2891,26 @@ tr:hover td{background:var(--bg2);}
 <div class="modal-overlay" id="girvi-ledger-modal">
   <div class="gl-wrap">
     <div class="gl-header">
-      <h2 id="gl-modal-title">💸 Payment Ledger</h2>
+      <h2 id="gl-modal-title"><span data-icon="cash"></span> Payment Ledger</h2>
       <button class="ge-close" onclick="closeGirviLedgerModal()">✕</button>
     </div>
     <div class="gl-summary" id="gl-summary"></div>
     <div class="gl-body">
       <div id="gl-entries"></div>
       <div class="gl-add-form">
-        <div class="gl-add-title">📥 Record New Transaction</div>
+        <div class="gl-add-title"><span data-icon="download"></span> Record New Transaction</div>
         <div class="gl-type-row" id="gl-type-row">
-          <button class="gl-type-btn active" onclick="glSetType('payment',this)">💰 Payment</button>
-          <button class="gl-type-btn" onclick="glSetType('interest',this)">📈 Interest</button>
-          <button class="gl-type-btn" onclick="glSetType('waiver',this)">🏷 Waiver</button>
-          <button class="gl-type-btn" onclick="glSetType('penalty',this)">⚠ Penalty</button>
-          <button class="gl-type-btn" onclick="glSetType('refund',this)">↩ Refund</button>
+          <button class="gl-type-btn active" onclick="glSetType('payment',this)"><span data-icon="cash"></span> Payment</button>
+          <button class="gl-type-btn" onclick="glSetType('interest',this)"><span data-icon="trendUp"></span> Interest</button>
+          <button class="gl-type-btn" onclick="glSetType('waiver',this)"><span data-icon="tag"></span> Waiver</button>
+          <button class="gl-type-btn" onclick="glSetType('penalty',this)"><span data-icon="alert"></span> Penalty</button>
+          <button class="gl-type-btn" onclick="glSetType('refund',this)"><span data-icon="refresh"></span> Refund</button>
         </div>
         <div class="ge-row"><div class="ge-fg"><label>Amount (₹)</label><input id="gl-amount" type="number" placeholder="0" inputmode="numeric" oninput="glUpdateBalance()"/></div><div class="ge-fg"><label>Mode</label><select id="gl-mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div></div>
         <div class="ge-row"><div class="ge-fg"><label>Date</label><input id="gl-date" type="date"/></div><div class="ge-fg"><label>Reference / UPI ID</label><input id="gl-ref" placeholder="Optional"/></div></div>
         <div style="margin-bottom:8px;" id="gl-balance-preview"></div>
         <div class="ge-fg" style="margin-bottom:10px;"><label>Note</label><input id="gl-note" placeholder="e.g. Interest cleared for Dec 2024"/></div>
-        <button class="btn btn-gold" style="width:100%;" onclick="submitLedgerEntry()">📥 Record Entry</button>
+        <button class="btn btn-gold" style="width:100%;" onclick="submitLedgerEntry()"><span data-icon="download"></span> Record Entry</button>
       </div>
     </div>
   </div>
@@ -2911,7 +2920,7 @@ tr:hover td{background:var(--bg2);}
 <div id="girvi-timeline-modal">
   <div class="gt-wrap">
     <div class="gt-header">
-      <h2 id="gt-modal-title">📋 Customer Timeline</h2>
+      <h2 id="gt-modal-title"><span data-icon="clipboard"></span> Customer Timeline</h2>
       <button class="ge-close" onclick="document.getElementById('girvi-timeline-modal').style.display='none'">✕</button>
     </div>
     <div class="gt-body" id="gt-body"></div>
@@ -2922,7 +2931,7 @@ tr:hover td{background:var(--bg2);}
 <div id="girvi-renewal-modal">
   <div class="grn-wrap">
     <div class="ge-header">
-      <h2 id="grn-modal-title">🔄 Renew Girvi</h2>
+      <h2 id="grn-modal-title"><span data-icon="refresh"></span> Renew Girvi</h2>
       <button class="ge-close" onclick="closeGirviRenewalModal()">✕</button>
     </div>
     <div style="padding:1rem 1.2rem 1.4rem;" id="grn-body"></div>
@@ -2933,13 +2942,13 @@ tr:hover td{background:var(--bg2);}
 <div id="girvi-receipt-modal">
   <div class="grr-wrap">
     <div class="ge-header">
-      <h2 id="grr-modal-title">🧾 Girvi Receipt</h2>
+      <h2 id="grr-modal-title"><span data-icon="doc"></span> Girvi Receipt</h2>
       <button class="ge-close" onclick="document.getElementById('girvi-receipt-modal').style.display='none'">✕</button>
     </div>
     <div style="padding:.8rem 1.2rem 1.4rem;" id="grr-body"></div>
     <div style="padding:.8rem 1.2rem 1.2rem;display:flex;gap:8px;flex-wrap:wrap;border-top:0.5px solid var(--border);">
-      <button class="btn btn-gold" style="flex:2;" onclick="printGirviReceipt()">🖨 Print Receipt</button>
-      <button class="btn btn-dark" style="flex:1;" onclick="shareGirviReceiptWA()">💬 WhatsApp</button>
+      <button class="btn btn-gold" style="flex:2;" onclick="printGirviReceipt()"><span data-icon="printer"></span> Print Receipt</button>
+      <button class="btn btn-dark" style="flex:1;" onclick="shareGirviReceiptWA()"><span data-icon="chat"></span> WhatsApp</button>
       <button class="btn" onclick="document.getElementById('girvi-receipt-modal').style.display='none'">Close</button>
     </div>
   </div>
@@ -3030,19 +3039,19 @@ tr:hover td{background:var(--bg2);}
 
   <div class="card" style="padding:.6rem 1rem .2rem;">
     <div class="settings-tabs">
-      <button class="settings-tab active" data-tab="profile" onclick="showSettingsTab('profile')">💎 Shop</button>
-      <button class="settings-tab" data-tab="automation" onclick="showSettingsTab('automation')">📱 Automation</button>
-      <button class="settings-tab" data-tab="analytics" onclick="showSettingsTab('analytics')">📊 Analytics</button>
-      <button class="settings-tab" data-tab="team" onclick="showSettingsTab('team')">👥 Team</button>
-      <button class="settings-tab" data-tab="audit" onclick="showSettingsTab('audit')">📋 Audit</button>
-      <button class="settings-tab" data-tab="data" onclick="showSettingsTab('data')">💾 Data</button>
-      <button class="settings-tab" data-tab="account" onclick="showSettingsTab('account')">👤 Account</button>
+      <button class="settings-tab active" data-tab="profile" onclick="showSettingsTab('profile')"><span data-icon="gem"></span> Shop</button>
+      <button class="settings-tab" data-tab="automation" onclick="showSettingsTab('automation')"><span data-icon="chat"></span> Automation</button>
+      <button class="settings-tab" data-tab="analytics" onclick="showSettingsTab('analytics')"><span data-icon="chart"></span> Analytics</button>
+      <button class="settings-tab" data-tab="team" onclick="showSettingsTab('team')"><span data-icon="users"></span> Team</button>
+      <button class="settings-tab" data-tab="audit" onclick="showSettingsTab('audit')"><span data-icon="clipboard"></span> Audit</button>
+      <button class="settings-tab" data-tab="data" onclick="showSettingsTab('data')"><span data-icon="save"></span> Data</button>
+      <button class="settings-tab" data-tab="account" onclick="showSettingsTab('account')"><span data-icon="user"></span> Account</button>
     </div>
   </div>
 
   <div id="stab-profile" class="stab-content">
     <div class="card">
-      <div class="card-title"><span data-icon="gem"></span> Shop Profile</div>
+      <div class="card-title"><span><span data-icon="gem"></span> Shop Profile</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
         <div><label for="set-shopname" style="display:block;font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Shop Name</label><input id="set-shopname" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;"></div>
         <div><label for="set-city" style="display:block;font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">City</label><input id="set-city" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;"></div>
@@ -3055,33 +3064,33 @@ tr:hover td{background:var(--bg2);}
 
   <div id="stab-automation" class="stab-content" style="display:none;">
     <div id="wa-how-it-works" style="background:rgba(37,211,102,0.08);border:1px solid rgba(37,211,102,0.3);border-radius:var(--radius-lg);padding:12px 15px;margin-bottom:12px;display:none;">
-      <div style="font-size:12px;font-weight:700;color:#25d366;margin-bottom:5px;">📱 How WhatsApp Reminders work</div>
+      <div style="font-size:12px;font-weight:700;color:#25d366;margin-bottom:5px;"><span data-icon="chat"></span> How WhatsApp Reminders work</div>
       <div style="font-size:12px;color:var(--text2);line-height:1.7;">
         JewelOS generates a pre-filled message and opens WhatsApp for you to send it.
         <strong>You tap Send in WhatsApp</strong> — one tap per customer.
       </div>
     </div>
     <div class="card">
-      <div class="card-title"><span data-icon="chat"></span> WhatsApp Reminders Rules</div>
+      <div class="card-title"><span><span data-icon="chat"></span> WhatsApp Reminders Rules</span></div>
       <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Configure reminders. One-tap send — never sends without your confirmation.</div>
       <div id="set-wa-rules"></div>
-      <button onclick="document.getElementById('wa-automation-modal').style.display='block';renderWaRules();" class="btn btn-gold" style="margin-top:10px;">⚙️ Manage Rules</button>
+      <button onclick="document.getElementById('wa-automation-modal').style.display='block';renderWaRules();" class="btn btn-gold" style="margin-top:10px;"><span data-icon="gear"></span> Manage Rules</button>
     </div>
     <div class="card">
-      <div class="card-title"><span data-icon="chart"></span> Daily Digest</div>
+      <div class="card-title"><span><span data-icon="chart"></span> Daily Digest</span></div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Daily summary: revenue, pending dues, overdue girvi, top actions.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button onclick="showDailyDigest()" class="btn btn-gold">📊 View Today's Digest</button>
-        <button onclick="scheduleDailyDigest()" class="btn" id="digest-schedule-btn">⏰ Schedule Daily Alert</button>
+        <button onclick="showDailyDigest()" class="btn btn-gold"><span data-icon="chart"></span> View Today's Digest</button>
+        <button onclick="scheduleDailyDigest()" class="btn" id="digest-schedule-btn"><span data-icon="clock"></span> Schedule Daily Alert</button>
       </div>
       <div style="font-size:11px;color:var(--text3);margin-top:8px;" id="digest-schedule-info"></div>
     </div>
     <div class="card">
-      <div class="card-title"><span data-icon="clipboard"></span> Message Templates</div>
+      <div class="card-title"><span><span data-icon="clipboard"></span> Message Templates</span></div>
       <div id="set-wa-templates"></div>
     </div>
     <div class="card" style="border:1px solid rgba(179,146,87,0.3);">
-      <div class="card-title"><span data-icon="mail"></span> Email Digest (Automated)
+      <div class="card-title"><span><span data-icon="mail"></span> Email Digest (Automated)</span>
         <span style="font-size:11px;font-weight:400;color:var(--text3);">Runs daily at 9am even when app is closed</span>
       </div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.7;">
@@ -3097,20 +3106,20 @@ tr:hover td{background:var(--bg2);}
   </div>
 
   <div id="stab-analytics" class="stab-content" style="display:none;">
-    <div class="card"><div class="card-title"><span data-icon="crown"></span> Customer Lifetime Value</div><div id="set-clv-list"></div></div>
-    <div class="card"><div class="card-title"><span data-icon="trendUp"></span> Profit Trends (6 months)</div><div id="set-profit-trend"></div></div>
-    <div class="card"><div class="card-title"><span data-icon="tag"></span> Category Growth</div><div id="set-cat-growth"></div></div>
-    <div class="card"><div class="card-title"><span data-icon="lock"></span> Capital Allocation</div><div id="set-capital-alloc"></div></div>
+    <div class="card"><div class="card-title"><span><span data-icon="crown"></span> Customer Lifetime Value</span></div><div id="set-clv-list"></div></div>
+    <div class="card"><div class="card-title"><span><span data-icon="trendUp"></span> Profit Trends (6 months)</span></div><div id="set-profit-trend"></div></div>
+    <div class="card"><div class="card-title"><span><span data-icon="tag"></span> Category Growth</span></div><div id="set-cat-growth"></div></div>
+    <div class="card"><div class="card-title"><span><span data-icon="lock"></span> Capital Allocation</span></div><div id="set-capital-alloc"></div></div>
   </div>
 
   <div id="stab-team" class="stab-content" style="display:none;">
     <div class="card" id="set-staff-card">
-      <div class="card-title"><span data-icon="users"></span> Team Members</div>
+      <div class="card-title"><span><span data-icon="users"></span> Team Members</span></div>
       <div id="set-staff-list" style="margin-bottom:12px;"></div>
       <button onclick="openInviteStaff()" class="btn btn-gold" id="set-invite-btn">+ Invite Staff Member</button>
     </div>
     <div class="card" id="set-invite-form" style="display:none;">
-      <div class="card-title"><span data-icon="mail"></span> Invite Staff</div>
+      <div class="card-title"><span><span data-icon="mail"></span> Invite Staff</span></div>
       <div style="display:grid;gap:8px;margin-bottom:12px;">
         <input id="inv-name" type="text" placeholder="Staff name" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;">
         <input id="inv-email" type="email" placeholder="Email address" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;">
@@ -3126,7 +3135,7 @@ tr:hover td{background:var(--bg2);}
       </div>
     </div>
     <div class="card">
-      <div class="card-title"><span data-icon="clipboard"></span> Activity Log</div>
+      <div class="card-title"><span><span data-icon="clipboard"></span> Activity Log</span></div>
       <div id="set-activity-log"></div>
     </div>
   </div>
@@ -3134,17 +3143,17 @@ tr:hover td{background:var(--bg2);}
 
   <div id="stab-data" class="stab-content" style="display:none;">
     <div class="card" style="border:1.5px solid var(--danger);">
-      <div class="card-title" style="color:var(--danger);">&#9888; Danger Zone</div>
+      <div class="card-title" style="color:var(--danger);"><span><span data-icon="alert"></span> Danger Zone</span></div>
       <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Load sample data to explore all features before entering real data, or wipe everything and start over.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button onclick="loadDemoData()" class="btn">&#127917; Load Demo Data</button>
+        <button onclick="loadDemoData()" class="btn"><span data-icon="eye"></span> Load Demo Data</button>
         <button onclick="clearDemoData()" class="btn" style="color:var(--danger);border-color:var(--danger);">Clear All Data</button>
       </div>
     </div>
     <!-- Supabase Setup Guide Card -- developer only (QA 30 Sep: table, function and
          migration names were shown to jewellers). Open the app with ?dev=1 to see it. -->
     <div class="card dev-only" style="border:1.5px solid var(--gold);margin-bottom:12px;">
-      <div class="card-title"><span data-icon="cloud"></span> Cloud Setup
+      <div class="card-title"><span><span data-icon="cloud"></span> Cloud Setup</span>
         <span id="cloud-status-badge" style="font-size:10px;padding:2px 8px;border-radius:100px;font-weight:600;margin-left:4px;">&#9898; Checking...</span>
       </div>
       <div id="cloud-status-line" style="font-size:11px;color:var(--text3);margin-bottom:8px;"></div>
@@ -3190,20 +3199,20 @@ tr:hover td{background:var(--bg2);}
 -- The browser only ever calls those three function URLs — never a
 -- Supabase table URL (/rest/v1/...) directly.</pre>
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
-          <button onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('sql-setup-pre').textContent).then(function(){toast('Setup notes copied!');})" class="btn btn-sm">&#128203; Copy Setup Notes</button>
+          <button onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('sql-setup-pre').textContent).then(function(){toast('Setup notes copied!');})" class="btn btn-sm"><span data-icon="clipboard"></span> Copy Setup Notes</button>
         </div>
       </div>
     </div>
     <div class="card">
-      <div class="card-title"><span data-icon="download"></span> Backup &amp; Export</div>
+      <div class="card-title"><span><span data-icon="download"></span> Backup &amp; Export</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
         <button onclick="exportFullBackup()" class="btn btn-gold">⬇ JSON Backup</button>
-        <button onclick="exportCSV()" class="btn">📊 Export CSV</button>
-        <button onclick="showPdfReport()" class="btn-pdf" style="padding:8px 14px;font-size:12px;">🖨️ PDF Report</button>
+        <button onclick="exportCSV()" class="btn"><span data-icon="chart"></span> Export CSV</button>
+        <button onclick="showPdfReport()" class="btn-pdf" style="padding:8px 14px;font-size:12px;"><span data-icon="printer"></span> PDF Report</button>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button onclick="importBackup()" class="btn">⬆ Restore Backup</button>
-        <button onclick="repairAndReload()" class="btn" style="color:var(--text3);">🔧 Repair Display</button>
+        <button onclick="repairAndReload()" class="btn" style="color:var(--text3);"><span data-icon="gear"></span> Repair Display</button>
       </div>
       <input type="file" id="backup-file-input" accept=".json" style="display:none;" onchange="processBackupFile(this)">
       <div style="font-size:11px;color:var(--text3);margin-top:10px;" id="set-last-backup"></div>
@@ -3212,7 +3221,7 @@ tr:hover td{background:var(--bg2);}
 
   <div id="stab-account" class="stab-content" style="display:none;">
     <div class="card">
-      <div class="card-title"><span data-icon="user"></span> Account</div>
+      <div class="card-title"><span><span data-icon="user"></span> Account</span></div>
       <div id="set-account-info" style="font-size:13px;color:var(--text2);margin-bottom:12px;"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button onclick="changePassword()" class="btn">Change Password</button>
@@ -3220,19 +3229,19 @@ tr:hover td{background:var(--bg2);}
       </div>
     </div>
     <div class="card">
-      <div class="card-title"><span data-icon="doc"></span> Legal</div>
+      <div class="card-title"><span><span data-icon="doc"></span> Legal</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button onclick="showLegalModal('privacy')" class="btn btn-sm">Privacy Policy</button>
         <button onclick="showLegalModal('terms')" class="btn btn-sm">Terms of Service</button>
       </div>
     </div>
     <div class="card dev-only">
-      <div class="card-title"><span data-icon="gear"></span> Developer Tools
+      <div class="card-title"><span><span data-icon="gear"></span> Developer Tools</span>
         <span style="font-size:11px;font-weight:400;color:var(--text3);">Owner only</span>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button onclick="cloudDiag()" class="btn btn-sm btn-gold">🔍 Cloud Diagnostics</button>
-        <button onclick="resetSaveLock()" class="btn btn-sm">🔒 Reset Save Lock</button>
+        <button onclick="cloudDiag()" class="btn btn-sm btn-gold"><span data-icon="search"></span> Cloud Diagnostics</button>
+        <button onclick="resetSaveLock()" class="btn btn-sm"><span data-icon="lock"></span> Reset Save Lock</button>
       </div>
     </div>
   </div>
@@ -3242,7 +3251,7 @@ tr:hover td{background:var(--bg2);}
   <div id="stab-audit" class="stab-content" style="display:none;">
     <div class="card">
       <div class="card-title" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;">
-        <span>&#128203; Audit &amp; Activity</span>
+        <span><span data-icon="clipboard"></span> Audit &amp; Activity</span>
         <div style="display:flex;gap:6px;">
           <button class="btn btn-sm btn-gold" id="audit-subtab-trail-btn" onclick="showAuditSubtab('trail')">Audit Trail</button>
           <button class="btn btn-sm" id="audit-subtab-activity-btn" onclick="showAuditSubtab('activity')">Activity Log</button>
@@ -3330,7 +3339,7 @@ tr:hover td{background:var(--bg2);}
 <!-- Login expired mid-work: sign in again in place, pending saves wait (js/05-auth-login.js saasRequireReauth). No Cancel: the only other way out is Sign out. -->
 <div id="reauth-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.85);z-index:10002;align-items:center;justify-content:center;padding:1.5rem;">
   <div style="background:var(--surface);border-radius:20px;width:100%;max-width:380px;padding:1.5rem;box-shadow:0 12px 60px rgba(0,0,0,.4);border:0.5px solid var(--border2);">
-    <div style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--ink);">&#128274; Your login has expired</div>
+    <div style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--ink);"><span data-icon="lock"></span> Your login has expired</div>
     <div id="reauth-msg" style="font-size:13px;color:var(--text2);margin-bottom:1rem;line-height:1.6;">Enter your password to continue. What you were saving is kept and saves as soon as you are back in &mdash; don't close the app until then.</div>
     <input type="password" id="reauth-password" autocomplete="current-password" placeholder="Password" onkeydown="if(event.key==='Enter')saasReauthSubmit()" style="width:100%;margin-bottom:.4rem;"/>
     <div id="reauth-err" style="color:#c0392b;font-size:13px;min-height:18px;margin-bottom:.8rem;"></div>
@@ -3355,21 +3364,21 @@ tr:hover td{background:var(--bg2);}
 <!-- Password modal (replaces window.prompt() for changePassword/forcePasswordReset — see js/05-auth-login.js) -->
 <div class="modal-bg" id="pwd-modal">
   <div class="modal" style="max-width:420px;">
-    <div class="modal-header"><h2 id="pwd-modal-title">&#128274; Change Password</h2><button class="modal-close" id="pwd-close-btn" onclick="closePwdModal()" aria-label="Close change password">&#10005;</button></div>
+    <div class="modal-header"><h2 id="pwd-modal-title"><span data-icon="lock"></span> Change Password</h2><button class="modal-close" id="pwd-close-btn" onclick="closePwdModal()" aria-label="Close change password">&#10005;</button></div>
     <div class="modal-body">
       <p id="pwd-modal-msg" style="margin:0 0 1rem;color:var(--text3);font-size:14px;line-height:1.5;"></p>
       <div class="fg" id="pwd-current-wrap" style="margin-bottom:.9rem;">
         <label>Current Password</label>
         <div style="position:relative;">
           <input type="password" id="pwd-current" autocomplete="current-password" style="width:100%;padding-right:2.4rem;"/>
-          <button type="button" onclick="togglePwdVis('pwd-current')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;">&#128065;</button>
+          <button type="button" onclick="togglePwdVis('pwd-current')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;"><span data-icon="eye"></span></button>
         </div>
       </div>
       <div class="fg" style="margin-bottom:.4rem;">
         <label>New Password (min 8 characters)</label>
         <div style="position:relative;">
           <input type="password" id="pwd-new" autocomplete="new-password" style="width:100%;padding-right:2.4rem;"/>
-          <button type="button" onclick="togglePwdVis('pwd-new')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;">&#128065;</button>
+          <button type="button" onclick="togglePwdVis('pwd-new')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;"><span data-icon="eye"></span></button>
         </div>
       </div>
       <div id="pwd-error" style="color:#c0392b;font-size:13px;margin-top:.5rem;min-height:18px;"></div>
@@ -3382,25 +3391,25 @@ tr:hover td{background:var(--bg2);}
 </div>
 <div class="modal-bg" id="invoice-modal">
   <div class="modal">
-    <div class="modal-header"><h2>&#128196; Bill Preview</h2><button class="modal-close" onclick="closeModal()" aria-label="Close bill preview">&#10005;</button></div>
+    <div class="modal-header"><h2><span data-icon="doc"></span> Bill Preview</h2><button class="modal-close" onclick="closeModal()" aria-label="Close bill preview">&#10005;</button></div>
     <div class="modal-body">
       <!-- Bill type toggle -->
       <div style="display:flex;gap:6px;margin-bottom:12px;background:var(--bg2);border-radius:12px;padding:4px;" class="no-print">
-        <button id="btype-gst" onclick="setBillType('gst')" style="flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,var(--gold-dark),var(--gold));color:#1a1200;transition:background .2s,color .2s;">&#128196; GST Tax Invoice</button>
-        <button id="btype-memo" onclick="setBillType('memo')" style="flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;background:transparent;color:var(--text2);transition:background .2s,color .2s;">&#128203; Memo / Cash Bill</button>
+        <button id="btype-gst" onclick="setBillType('gst')" style="flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,var(--gold-dark),var(--gold));color:#1a1200;transition:background .2s,color .2s;"><span data-icon="doc"></span> GST Tax Invoice</button>
+        <button id="btype-memo" onclick="setBillType('memo')" style="flex:1;padding:8px;border-radius:9px;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;background:transparent;color:var(--text2);transition:background .2s,color .2s;"><span data-icon="clipboard"></span> Memo / Cash Bill</button>
       </div>
       <div id="invoice-content"></div>
       <div style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap" class="no-print">
         <button class="btn btn-gold btn-full" onclick="downloadPDF()" id="pdf-btn">&#11015; Download PDF</button>
-        <button class="btn btn-success btn-full" onclick="shareWhatsApp()">&#128279; Share on WhatsApp</button>
-        <button class="btn btn-info btn-full" onclick="window.print()">&#128424; Print Bill</button>
+        <button class="btn btn-success btn-full" onclick="shareWhatsApp()"><span data-icon="chat"></span> Share on WhatsApp</button>
+        <button class="btn btn-info btn-full" onclick="window.print()"><span data-icon="printer"></span> Print Bill</button>
         <button class="btn btn-full" onclick="closeModal()">Close</button>
       </div>
       <!-- QA 1 Oct P2: these used to exist only inside the customer popup. -->
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap" class="no-print">
-        <button class="btn btn-sm" style="flex:1;background:var(--info);color:#fff;" onclick="invoiceBillAction(openEditBill)">&#9998; Edit</button>
-        <button class="btn btn-sm" style="flex:1;background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning);" onclick="invoiceBillAction(openRefundModal)">&#128260; Refund</button>
-        <button class="btn btn-sm btn-danger" style="flex:1;" onclick="invoiceBillAction(deleteSale)">&#128465; Delete</button>
+        <button class="btn btn-sm" style="flex:1;background:var(--info);color:#fff;" onclick="invoiceBillAction(openEditBill)"><span data-icon="edit"></span> Edit</button>
+        <button class="btn btn-sm" style="flex:1;background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning);" onclick="invoiceBillAction(openRefundModal)"><span data-icon="refresh"></span> Refund</button>
+        <button class="btn btn-sm btn-danger" style="flex:1;" onclick="invoiceBillAction(deleteSale)"><span data-icon="trash"></span> Delete</button>
       </div>
     </div>
   </div>
@@ -3463,7 +3472,7 @@ tr:hover td{background:var(--bg2);}
         <div class="fg"><label>Notes</label><input id="ep-notes" placeholder="Optional"/></div>
       </div>
       <div style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-gold" onclick="saveEditProd()">&#9729; Save Changes</button>
+        <button class="btn btn-gold" onclick="saveEditProd()"><span data-icon="cloud"></span> Save Changes</button>
         <button class="btn" onclick="closeEditModal()">Cancel</button>
       </div>
     </div>

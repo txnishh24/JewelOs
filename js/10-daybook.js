@@ -856,7 +856,7 @@ function _dbPaint(){
   if(!S.dayBook.opening && !(S.dayBook.closes||[]).length){
     body.innerHTML =
       '<div class="card">'+
-        '<div class="card-title">'+svgIcon('book')+' Set up your Day Book</div>'+
+        '<div class="card-title"><span>'+svgIcon('book')+' Set up your Day Book</span></div>'+
         '<div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Enter the cash you have in hand right now. Every day after this is tracked automatically from your sales, purchases, girvi and orders.</div>'+
         '<div class="ge-fg" style="margin-bottom:10px;"><label>Opening cash (₹)</label><input id="db-opening-amt" type="number" placeholder="0" inputmode="numeric"/></div>'+
         '<button class="btn btn-gold" style="width:100%;" onclick="dbSubmitOpening()">Start Day Book</button>'+
@@ -866,7 +866,7 @@ function _dbPaint(){
 
   var toggle = '<div style="display:flex;gap:6px;margin-bottom:10px;">'+
     '<button class="btn btn-sm'+(_dbViewMode==='day'?' btn-gold':'')+'" onclick="dbSetViewMode(\'day\')">Day</button>'+
-    '<button class="btn btn-sm'+(_dbViewMode==='month'?' btn-gold':'')+'" onclick="dbSetViewMode(\'month\')">📅 Month</button>'+
+    '<button class="btn btn-sm'+(_dbViewMode==='month'?' btn-gold':'')+'" onclick="dbSetViewMode(\'month\')">Month</button>'+
   '</div>';
   body.innerHTML = toggle + (_dbViewMode==='month' ? _dbPaintMonth() : _dbPaintDay());
 }
@@ -902,7 +902,7 @@ function _dbPaintDay(){
   if(v.closed){
     var diffTxt = v.diff===0 ? 'matched exactly' : (v.diff<0 ? 'short by '+fmt(-v.diff) : 'excess of '+fmt(v.diff));
     html += '<div class="card" style="border:1px solid rgba(179,146,87,0.3);">'+
-      '<div class="card-title">'+svgIcon('lock')+' Day closed</div>'+
+      '<div class="card-title"><span>'+svgIcon('lock')+' Day closed</span></div>'+
       '<div style="font-size:12px;color:var(--text2);">Counted '+fmt(v.counted)+' — '+diffTxt+'.</div>'+
       (dbDayKey(v.close.ts)===dbToday() ? '<button class="btn btn-sm" style="margin-top:8px;" onclick="dbOpenCorrectModal()">Correct today\'s count</button>' : '')+
     '</div>';
@@ -972,12 +972,12 @@ function _dbPaintDay(){
   if(!v.closed){
     html += '<div class="sticky-action-bar" style="display:flex;gap:8px;flex-wrap:wrap;">'+
       '<button class="btn btn-gold" style="min-height:44px;" onclick="dbOpenEntryModal()">+ Add Entry</button>'+
-      '<button class="btn" style="min-height:44px;" onclick="dbOpenCloseModal()">🔒 Close Day</button>'+
+      '<button class="btn" style="min-height:44px;" onclick="dbOpenCloseModal()">'+svgIcon('lock')+' Close Day</button>'+
     '</div>';
   }
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 20px;">'+
-    '<button class="btn" onclick="dbPrintDay()">🖨 Print</button>'+
-    '<button class="btn btn-dark" onclick="dbWhatsAppDay()">💬 WhatsApp</button>'+
+    '<button class="btn" onclick="dbPrintDay()">'+svgIcon('printer')+' Print</button>'+
+    '<button class="btn btn-dark" onclick="dbWhatsAppDay()">'+svgIcon('chat')+' WhatsApp</button>'+
   '</div>';
 
   return html;
@@ -1022,7 +1022,7 @@ function _dbPaintMonth(){
   var netCash = dbRound(totalIn - totalOut);
   var expenses = calcDayBookExpenses(year, month);
 
-  var html = '<div style="margin-bottom:10px;"><button class="girvi-search-chip'+(_dbByPerson?' active':'')+'" onclick="dbToggleByPerson(this)">👤 By Person</button></div>';
+  var html = '<div style="margin-bottom:10px;"><button class="girvi-search-chip'+(_dbByPerson?' active':'')+'" onclick="dbToggleByPerson(this)">'+svgIcon('user')+' By Person</button></div>';
 
   html += '<div class="card" style="padding:0.85rem 1.1rem;">'+
     '<div style="display:flex;align-items:center;justify-content:space-between;">'+

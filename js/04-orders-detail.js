@@ -123,7 +123,7 @@ function showOrderDetail(ordId){
       // parses as arithmetic on names that do not exist — so the button threw
       // a silent SyntaxError and no payment was ever recorded. jsAttrEsc is
       // the helper the rest of the app already uses for exactly this.
-      '<button class="btn btn-gold btn-full" onclick="addPaymentToOrder(\''+jsAttrEsc(ordId)+'\')">&#128179; Add Payment Entry</button>';
+      '<button class="btn btn-gold btn-full" onclick="addPaymentToOrder(\''+jsAttrEsc(ordId)+'\')">'+svgIcon('cash')+' Add Payment Entry</button>';
     payInner.appendChild(addPayBtn);
   }
   payDiv.appendChild(payInner);
@@ -169,7 +169,7 @@ function showOrderDetail(ordId){
   body.appendChild(sbWrap);
 
   var ab=document.createElement('div'); ab.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;';
-  var br=document.createElement('button'); br.className='btn btn-dark'; br.innerHTML='&#128196; Receipt';
+  var br=document.createElement('button'); br.className='btn btn-dark'; br.innerHTML=svgIcon('doc')+' Receipt';
   (function(oid){br.onclick=function(){generateOrderReceipt(oid);};})(o.id); ab.appendChild(br);
   if(o.status!=='delivered'&&o.status!=='cancelled'){
     var bc=document.createElement('button'); bc.className='btn btn-gold'; bc.innerHTML='&#10003; Deliver &amp; Create Bill';

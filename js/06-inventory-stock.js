@@ -188,7 +188,7 @@ function renderOnboarding(){
   checklist.style.display = 'block';
   var doneCount = steps.filter(function(s){ return s.done; }).length;
   var summaryEl = document.getElementById('onboarding-summary-label');
-  if(summaryEl) summaryEl.textContent = '👋 Setup '+doneCount+'/'+steps.length+' ›';
+  if(summaryEl) summaryEl.innerHTML = svgIcon('clipboard')+' Setup '+doneCount+'/'+steps.length+' ›';
 
   stepsEl.innerHTML = steps.map(function(s, i){
     return '<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:'+(s.done?'rgba(37,165,75,0.08)':'var(--surface)')+';border-radius:var(--radius);border:0.5px solid '+(s.done?'rgba(37,165,75,0.25)':'var(--border2)')+';">' +
@@ -462,7 +462,7 @@ function renderDash(){
   var gDeflt=girvi.filter(function(g){return g.status==='defaulted';}).length;
   var gTotalOut=girvi.filter(function(g){return g.status!=='closed';}).reduce(function(s,g){return s+girviOutstanding(g);},0);
   girviSlot.innerHTML='<div class="card" id="girvi-dash-card" style="cursor:pointer;" onclick="switchTab(\'girvi\')">'+
-    '<div class="card-title">'+svgIcon('chart')+' Girvi Portfolio <span style="font-size:11px;color:var(--text3);font-weight:400;">(tap to manage)</span></div>'+
+    '<div class="card-title"><span>'+svgIcon('chart')+' Girvi Portfolio</span> <span style="font-size:11px;color:var(--text3);font-weight:400;">(tap to manage)</span></div>'+
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">'+
     '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;">'+gActive+'</div><div style="font-size:10px;color:var(--text3);">Active</div></div>'+
     '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;color:var(--warning);">'+gOverdue+'</div><div style="font-size:10px;color:var(--text3);">Overdue</div></div>'+
@@ -601,7 +601,7 @@ function renderReportsIntelligence(){
   var weekProfs=[];
   for(var j=6;j>=0;j--) weekProfs.push(calcWeekProfit(j));
   var maxWR=Math.max.apply(null,weekRevs)||1;
-  wowCard.innerHTML='<div class="card-title">'+svgIcon('trendUp')+' Week-over-Week Performance</div>'+
+  wowCard.innerHTML='<div class="card-title"><span>'+svgIcon('trendUp')+' Week-over-Week Performance</span></div>'+
     '<div style="overflow-x:auto;"><table style="width:100%;font-size:12px;border-collapse:collapse;">'+
     '<thead><tr>'+
     weekLabels.map(function(l,i){return '<th style="padding:6px 4px;color:var(--text3);font-weight:600;text-align:right;'+(i===6?'color:var(--gold-dark);':'')+'">'+l+'</th>';}).join('')+
@@ -621,7 +621,7 @@ function renderReportsIntelligence(){
   var catCard = document.createElement('div');
   catCard.id='rep-intel-cat'; catCard.className='card';
   var catPerf = calcCategoryPerf(repYear, repMonth); // QA 3 Oct M8: match the month this page is actually showing
-  catCard.innerHTML='<div class="card-title">'+svgIcon('tag')+' Category Intelligence — This Month</div>'+
+  catCard.innerHTML='<div class="card-title"><span>'+svgIcon('tag')+' Category Intelligence — This Month</span></div>'+
     (catPerf.length?
       '<div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Revenue</th><th>Units</th><th>Profit</th><th>Trend</th></tr></thead><tbody>'+
       catPerf.map(function(c){
@@ -689,7 +689,7 @@ function renderOrdersPipeline(){
   pipeDiv.id = 'orders-pipeline';
   pipeDiv.className = 'card';
   pipeDiv.style.marginBottom = '.9rem';
-  pipeDiv.innerHTML='<div class="card-title">'+svgIcon('box')+' Order Pipeline</div>'+
+  pipeDiv.innerHTML='<div class="card-title"><span>'+svgIcon('box')+' Order Pipeline</span></div>'+
     '<div class="pipeline">'+
     stages.map(function(s){
       return '<div class="pipe-stage" onclick="filterOrdersByStatus(\''+jsAttrEsc(s)+'\')" style="'+(counts[s]>0?'':'opacity:0.4;')+'">'+

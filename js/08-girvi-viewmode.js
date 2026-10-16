@@ -1410,11 +1410,11 @@ function showV18Changelog(){
   var features = [
     { icon:"&#127959;", title:"GST Engine", desc:"HSN codes, CGST/SGST/IGST auto-split on Tax Invoices" },
     { icon:"&#128260;", title:"Refund & Credit Notes", desc:"Issue partial or full refunds with reason tracking" },
-    { icon:"&#127991;", title:"Barcode Label Printing", desc:"Print A4 label sheets — click Labels in Inventory" },
+    { icon:"&#127991;", title:"Barcode Label Printing", desc:"Print A4 label sheets — click Labels in Stock" },
     { icon:"&#128203;", title:"Audit Log", desc:"Every action logged — Settings &#8594; Audit" },
     { icon:"&#128178;", title:"Compound Interest Fix", desc:"Girvi penalty on outstanding balance + risk scoring" },
     { icon:"&#9729;",   title:"Cloud Sync Fixed", desc:"Per-shop keys, upsert fallback, offline recovery" },
-    { icon:"&#128196;", title:"Inventory Pagination", desc:"50 items per page for large catalogues" },
+    { icon:"&#128196;", title:"Stock Pagination", desc:"50 items per page for large catalogues" },
   ];
 
   var rows = features.map(function(f){
@@ -1489,7 +1489,7 @@ function cloudDiag(silent){
     var d = document.createElement("div");
     d.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;";
     d.innerHTML = "<div style=\"background:#1a1a1a;color:#e2e8f0;border-radius:14px;padding:20px;max-width:540px;width:100%;font-family:monospace;font-size:12px;line-height:1.7;max-height:80vh;overflow-y:auto;\">"
-      + "<div style=\"font-size:14px;font-weight:700;color:#f9a825;margin-bottom:12px;\">&#128269; Cloud Diagnostics</div>"
+      + "<div style=\"font-size:14px;font-weight:700;color:#f9a825;margin-bottom:12px;\">"+svgIcon('search')+" Cloud Diagnostics</div>"
       + "<pre style=\"white-space:pre-wrap;margin:0;\">" + escHtml(log.join("\n")) + "</pre>"
       + "<div style=\"margin-top:14px;display:flex;gap:8px;\">"
         + "<button onclick=\"this.closest('.diag-wrap').remove()\" style=\"padding:8px 18px;background:#7c3aed;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;\">Close</button>"

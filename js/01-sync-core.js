@@ -1297,7 +1297,7 @@ function openEditBill(saleId){
   reasonRow.innerHTML=
     '<div class="fg" style="margin-bottom:10px;"><label>Reason for edit (optional)</label><input id="eb-reason" placeholder="e.g. Weight correction, customer request..."/></div>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
-      '<button class="btn btn-gold" onclick="saveEditBill()">&#9729; Save Changes</button>'+
+      '<button class="btn btn-gold" onclick="saveEditBill()">'+svgIcon('cloud')+' Save Changes</button>'+
       '<button class="btn" onclick="closeEditBillModal()">Cancel</button>'+
     '</div>';
   body.appendChild(reasonRow);
@@ -1519,7 +1519,13 @@ var ICONS={
   star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
   code:'<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
   edit:'<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
-  user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'
+  user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  eye:'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  offline:'<line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>',
+  search:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+  save:'<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  camera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  zap:'<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'
 };
 // px omitted defaults to 18 -- matches the body text icons sit next to.
 // vertical-align nudges it onto the text baseline without a wrapping flex container.
@@ -2129,7 +2135,7 @@ function openRefundModal(saleId) {
     (itemsHtml ? '<div style="display:grid;gap:9px;margin-top:12px;">'+itemsHtml+'</div>' : '')+
     '<div style="display:flex;gap:9px;margin-top:16px;">'+
       '<button onclick="closeRefundModal()" class="btn" style="flex:1;">Cancel</button>'+
-      '<button onclick="_submitRefund(\''+jsAttrEsc(saleId)+'\')" class="btn-danger" style="flex:2;padding:12px;border-radius:9px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--danger);color:#fff;">&#128260; Issue Refund</button>'+
+      '<button onclick="_submitRefund(\''+jsAttrEsc(saleId)+'\')" class="btn-danger" style="flex:2;padding:12px;border-radius:9px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--danger);color:#fff;">'+svgIcon('refresh')+' Issue Refund</button>'+
     '</div>';
 }
 

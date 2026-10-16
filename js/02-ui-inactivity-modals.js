@@ -1329,12 +1329,43 @@ function syncSaleCollapsibles(){
   var notesEl=document.getElementById('s-notes');
   openIfNonZero('sale-notes-details', !!(notesEl && notesEl.value && notesEl.value.trim()));
 }
-// Sticky bottom bar's Grand Total is a copy of #ss-total's already-rendered
-// text -- never a second computation of the total (UI/UX audit, 15 Oct: "read
-// from the SAME value the current summary renders; NEVER recalculate it").
+// Sticky bottom bar mirrors already-rendered text -- never a second
+// computation of any money figure (UI/UX audit, 15/16 Oct: "read from the
+// SAME value the current summary renders; NEVER recalculate it"). Default
+// is Grand Total alone, same as before. Once #still-pending-row or
+// #fully-cleared-row shows a deduction is active (old gold, a previous
+// advance, or a payment amount -- the exact same condition updateSum()
+// already evaluated to pick between those two rows), switches to "To
+// collect" as the big number -- "Still pending"'s own figure, which is
+// literally the Balance Due figure also shown in Paying Now and the sum
+// box's payment-summary-row, just read here instead of recomputed. The
+// "nothing deducted" case needs no special handling: #s-still-pending
+// already equals #ss-total exactly when nothing has been collected, so
+// comparing the two rendered strings is enough to detect "a deduction is
+// active" without reading or summing a single input field ourselves.
 function mirrorSaleStickyTotal(){
-  var src=document.getElementById('ss-total'), dst=document.getElementById('sale-sticky-total');
-  if(src && dst) dst.textContent = src.textContent;
+  var grandEl=document.getElementById('ss-total');
+  var labelEl=document.getElementById('sale-sticky-label');
+  var bigEl=document.getElementById('sale-sticky-total');
+  var subEl=document.getElementById('sale-sticky-sub');
+  if(!grandEl || !bigEl) return;
+  var grandText = grandEl.textContent;
+  var clearedRow = document.getElementById('fully-cleared-row');
+  var stillRow   = document.getElementById('still-pending-row');
+  var stillAmt   = document.getElementById('s-still-pending');
+  var fullyCleared = !!(clearedRow && clearedRow.style.display==='block');
+  var stillText = stillAmt ? stillAmt.textContent : '';
+  var hasDeduction = fullyCleared ||
+    !!(stillRow && stillRow.style.display==='block' && stillText && stillText!==grandText);
+  if(hasDeduction){
+    if(labelEl) labelEl.textContent='To Collect';
+    bigEl.textContent = fullyCleared ? fmt(0) : stillText;
+    if(subEl){ subEl.style.display='inline'; subEl.textContent='Total '+grandText; }
+  } else {
+    if(labelEl) labelEl.textContent='Grand Total';
+    bigEl.textContent = grandText;
+    if(subEl){ subEl.style.display='none'; subEl.textContent=''; }
+  }
 }
 (function patchUpdateSumForCollapsibles(){
   var _origUpdateSum = updateSum;
