@@ -1161,7 +1161,7 @@ function renderReports(entrance){
     if(reportPanel){
       var plDiv=document.createElement('div');
       plDiv.className='card'; plDiv.id='rep-pl-card';
-      plDiv.innerHTML='<div class="card-title">\ud83d\udcc4 P&L Statement \u2014 <span id="rep-pl-label"></span></div><div id="rep-pl"></div>';
+      plDiv.innerHTML='<div class="card-title">'+svgIcon('doc')+' P&L Statement \u2014 <span id="rep-pl-label"></span></div><div id="rep-pl"></div>';
       var rmEl=document.getElementById('rep-metrics');
       if(rmEl && rmEl.parentNode) rmEl.parentNode.insertBefore(plDiv, rmEl.nextSibling);
       plEl=document.getElementById('rep-pl');
@@ -1241,7 +1241,7 @@ function renderReports(entrance){
         '<td style="color:'+(t.bal>0?'var(--danger)':'var(--success)')+'">'+(t.bal>0?fmt(t.bal):'\u2713')+'</td>'+
         '<td><button class="btn btn-sm" onclick="showSaleInvoice(\''+jsAttrEsc(s.id)+'\')">View</button></td></tr>';
     }).join('')
-    ||'<tr><td colspan="9"><div class="empty">No sales this month — naya bill banane ke liye Record Sale par jao</div></td></tr>';
+    ||'<tr><td colspan="9"><div class="empty">No sales this month — naya bill banane ke liye Sale par jao</div></td></tr>';
 
   // ── Top customers this month ──
   var custMap3={};
@@ -1298,7 +1298,7 @@ function renderReports(entrance){
     var rp=document.getElementById('panel-reports');
     if(rp){
       var gd=document.createElement('div'); gd.className='card';
-      gd.innerHTML='<div class="card-title">\ud83e\udea9 Girvi Portfolio</div><div id="rep-girvi"></div>';
+      gd.innerHTML='<div class="card-title">'+svgIcon('chart')+' Girvi Portfolio</div><div id="rep-girvi"></div>';
       rp.appendChild(gd); girviRepEl=document.getElementById('rep-girvi');
     }
   }

@@ -856,7 +856,7 @@ function _dbPaint(){
   if(!S.dayBook.opening && !(S.dayBook.closes||[]).length){
     body.innerHTML =
       '<div class="card">'+
-        '<div class="card-title">📖 Set up your Day Book</div>'+
+        '<div class="card-title">'+svgIcon('book')+' Set up your Day Book</div>'+
         '<div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Enter the cash you have in hand right now. Every day after this is tracked automatically from your sales, purchases, girvi and orders.</div>'+
         '<div class="ge-fg" style="margin-bottom:10px;"><label>Opening cash (₹)</label><input id="db-opening-amt" type="number" placeholder="0" inputmode="numeric"/></div>'+
         '<button class="btn btn-gold" style="width:100%;" onclick="dbSubmitOpening()">Start Day Book</button>'+
@@ -902,7 +902,7 @@ function _dbPaintDay(){
   if(v.closed){
     var diffTxt = v.diff===0 ? 'matched exactly' : (v.diff<0 ? 'short by '+fmt(-v.diff) : 'excess of '+fmt(v.diff));
     html += '<div class="card" style="border:1px solid rgba(179,146,87,0.3);">'+
-      '<div class="card-title">🔒 Day closed</div>'+
+      '<div class="card-title">'+svgIcon('lock')+' Day closed</div>'+
       '<div style="font-size:12px;color:var(--text2);">Counted '+fmt(v.counted)+' — '+diffTxt+'.</div>'+
       (dbDayKey(v.close.ts)===dbToday() ? '<button class="btn btn-sm" style="margin-top:8px;" onclick="dbOpenCorrectModal()">Correct today\'s count</button>' : '')+
     '</div>';
@@ -970,7 +970,7 @@ function _dbPaintDay(){
   // Add Entry / Close Day stay reachable while scrolling a long day
   // (UI/UX audit, 15 Oct) — sticky just above the bottom nav on mobile.
   if(!v.closed){
-    html += '<div class="db-sticky-actions" style="display:flex;gap:8px;flex-wrap:wrap;">'+
+    html += '<div class="sticky-action-bar" style="display:flex;gap:8px;flex-wrap:wrap;">'+
       '<button class="btn btn-gold" style="min-height:44px;" onclick="dbOpenEntryModal()">+ Add Entry</button>'+
       '<button class="btn" style="min-height:44px;" onclick="dbOpenCloseModal()">🔒 Close Day</button>'+
     '</div>';

@@ -155,7 +155,7 @@ function renderGirviByCustomer(search, filter, metalFilter){
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;padding:14px 16px 0;">'+
         '<div>'+
           '<div style="font-weight:700;font-size:15px;">👤 '+escHtml(grp.customer||'Unknown')+'</div>'+
-          (grp.phone?'<div style="font-size:12px;color:var(--text3);margin-top:2px;">📞 '+escHtml(grp.phone)+'</div>':'')+
+          (grp.phone?'<div style="font-size:12px;color:var(--text3);margin-top:2px;">'+svgIcon('phone')+' '+escHtml(grp.phone)+'</div>':'')+
         '</div>'+
         '<div style="text-align:right;">'+
           '<div style="font-size:11px;color:var(--text3);">'+grp.activeCount+' active &bull; '+grp.closedCount+' closed &bull; '+grp.totalItems+' items</div>'+
@@ -169,7 +169,7 @@ function renderGirviByCustomer(search, filter, metalFilter){
       '<div style="padding:0 16px;">'+entriesHtml+'</div>'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin:8px 16px 14px;gap:8px;">'+
         (custIdAttr?'<button onclick="event.stopPropagation();addGirviLoanForCustomer(\''+jsAttrEsc(custIdAttr)+'\')" style="font-size:11px;padding:5px 14px;border-radius:20px;border:1px solid var(--gold-dark);background:rgba(179,146,87,.1);color:var(--gold-dark);cursor:pointer;font-family:inherit;font-weight:700;transition:background .15s;" onmouseover="this.style.background=\'rgba(179,146,87,.2)\'" onmouseout="this.style.background=\'rgba(179,146,87,.1)\'">+ Add Loan</button>':'<span></span>')+
-        (custIdAttr?'<button onclick="event.stopPropagation();showCustomerEditModal(\''+jsAttrEsc(custIdAttr)+'\')" style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--border2);background:var(--card2);color:var(--text2);cursor:pointer;font-family:inherit;transition:opacity .15s;" onmouseover="this.style.opacity=\'.8\'" onmouseout="this.style.opacity=\'1\'">✏️ Edit Customer</button>':'')+
+        (custIdAttr?'<button onclick="event.stopPropagation();showCustomerEditModal(\''+jsAttrEsc(custIdAttr)+'\')" style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--border2);background:var(--card2);color:var(--text2);cursor:pointer;font-family:inherit;transition:opacity .15s;" onmouseover="this.style.opacity=\'.8\'" onmouseout="this.style.opacity=\'1\'">'+svgIcon('edit')+' Edit Customer</button>':'')+
       '</div>'+
     '</div>';
   }).join('');
@@ -697,12 +697,15 @@ function openGirviLedger(gid){
   if(fb) fb.classList.add('active');
   glRenderSummary(g);
   glRenderEntries(g);
-  document.getElementById('girvi-ledger-modal').style.display='block';
+  // .modal-overlay/.open, same as Adjust Stock and Day Book's 4 modals --
+  // was style.display='block' on an id that no longer has its own display
+  // rule, which is why .gl-wrap's fade-in never fired (UI/UX audit, 15 Oct).
+  document.getElementById('girvi-ledger-modal').classList.add('open');
   setTimeout(function(){var a=document.getElementById('gl-amount');if(a)a.focus();},150);
 }
 
 function closeGirviLedgerModal(){
-  document.getElementById('girvi-ledger-modal').style.display='none';
+  document.getElementById('girvi-ledger-modal').classList.remove('open');
   _glGirviId=null;
 }
 
@@ -1259,11 +1262,26 @@ document.addEventListener('change',function(e){
 });
 
 // ── GIRVI v20 MODAL BACKDROP CLOSE ──────────────────────────────────
+// Escape closes the Girvi detail modal, same as a real dialog (UI/UX audit,
+// 15 Oct) -- only while it's actually open, so Escape elsewhere (closing a
+// dropdown, clearing a search box) is untouched.
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape') return;
+  var gd=document.getElementById('girvi-detail-modal');
+  if(gd && gd.style.display==='block') closeGirviDetail();
+});
+
 ['girvi-edit-modal','girvi-ledger-modal','girvi-timeline-modal','girvi-renewal-modal','girvi-receipt-modal'].forEach(function(id){
   var el=document.getElementById(id);
   if(!el) return;
   el.addEventListener('click',function(e){
-    if(e.target===el) el.style.display='none';
+    if(e.target!==el) return;
+    // girvi-ledger-modal is now .modal-overlay-based (UI/UX audit, 15 Oct) --
+    // style.display would still visually close it, but would leave .open
+    // stuck on, so the next openGirviLedger() call's classList.add('open')
+    // would be a no-op while a leftover inline display:none kept it hidden.
+    if(id==='girvi-ledger-modal') el.classList.remove('open');
+    else el.style.display='none';
   });
 });
 

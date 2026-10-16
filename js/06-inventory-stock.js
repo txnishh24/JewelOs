@@ -268,7 +268,7 @@ function renderDash(){
   var snapEl2 = document.getElementById('dash-business-snapshot');
   if(snapEl2){
     snapEl2.innerHTML =
-      fsnCard('Inventory Value', fmt(tgv+tsv), 'gold + silver stock', null, '', 'var(--gold-dark)')+
+      fsnCard('Stock Value', fmt(tgv+tsv), 'gold + silver stock', null, '', 'var(--gold-dark)')+
       fsnCard('Outstanding Payments', fmt(totalPendingBal), getSalesDueSoon(30).length+' overdue 30d+', null, '', totalPendingBal>0?'var(--danger)':'var(--success)')+
       fsnCard('Pending Girvi', fmt(activeGirviTotal), activeGirviList.length+' active loan(s)', null, '', 'var(--warning)')+
       fsnCard('Pieces in Stock', stockPieces, stockCatCount+' categor'+(stockCatCount===1?'y':'ies'), null, '', 'var(--gold-dark)');
@@ -462,7 +462,7 @@ function renderDash(){
   var gDeflt=girvi.filter(function(g){return g.status==='defaulted';}).length;
   var gTotalOut=girvi.filter(function(g){return g.status!=='closed';}).reduce(function(s,g){return s+girviOutstanding(g);},0);
   girviSlot.innerHTML='<div class="card" id="girvi-dash-card" style="cursor:pointer;" onclick="switchTab(\'girvi\')">'+
-    '<div class="card-title">\ud83e\udea9 Girvi Portfolio <span style="font-size:11px;color:var(--text3);font-weight:400;">(tap to manage)</span></div>'+
+    '<div class="card-title">'+svgIcon('chart')+' Girvi Portfolio <span style="font-size:11px;color:var(--text3);font-weight:400;">(tap to manage)</span></div>'+
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">'+
     '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;">'+gActive+'</div><div style="font-size:10px;color:var(--text3);">Active</div></div>'+
     '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;color:var(--warning);">'+gOverdue+'</div><div style="font-size:10px;color:var(--text3);">Overdue</div></div>'+
@@ -500,6 +500,12 @@ function fsnCard(label, val, sub, trend, extra, valColor){
   };
 }());
 
+// Shared <summary> markup for every collapsible Reports card built in JS
+// below, matching the static ones in index.html (UI/UX audit, 15 Oct).
+function reportCardSummary(titleHtml){
+  return '<summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">'+titleHtml+'<span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary>';
+}
+
 function renderReportsIntelligence(){
   var panel = document.getElementById('panel-reports');
   if(!panel) return;
@@ -512,7 +518,10 @@ function renderReportsIntelligence(){
   var monthSales = filterSalesByMonth(repYear, repMonth);
 
   // ── 1. METAL-WISE SALES BREAKDOWN (visual bars) ───────────────────
-  var metalCard = document.createElement('div');
+  // <details> instead of <div> -- collapsible, like every other Reports
+  // section (UI/UX audit, 15 Oct), same reportCardSummary() helper below.
+  var metalCard = document.createElement('details');
+  metalCard.open = true;
   metalCard.id = 'rep-intel-metal'; metalCard.className = 'card';
   var metalData = {};
   monthSales.forEach(function(s){
@@ -543,12 +552,13 @@ function renderReportsIntelligence(){
       '<div style="font-size:11px;color:var(--text3);margin-top:3px;">'+pct+'% of revenue</div>'+
     '</div>';
   }).join('');
-  metalCard.innerHTML = '<div class="card-title">\u2694\uFE0F Metal-wise Revenue</div>'+
+  metalCard.innerHTML = reportCardSummary('\u2694\uFE0F Metal-wise Revenue')+
     (metalRows || '<div class="empty">No sales this month</div>');
   panel.appendChild(metalCard);
 
   // ── 2. CATEGORY-WISE VISUAL BAR CHART ────────────────────────────
-  var catBarCard = document.createElement('div');
+  var catBarCard = document.createElement('details');
+  catBarCard.open = true;
   catBarCard.id = 'rep-intel-catbar'; catBarCard.className = 'card';
   var catData = {};
   monthSales.forEach(function(s){
@@ -577,12 +587,13 @@ function renderReportsIntelligence(){
       '</div>'+
     '</div>';
   }).join('');
-  catBarCard.innerHTML = '<div class="card-title">\uD83C\uDFF7\uFE0F Category-wise Revenue</div>'+
+  catBarCard.innerHTML = reportCardSummary('\uD83C\uDFF7\uFE0F Category-wise Revenue')+
     (catRows || '<div class="empty">No sales this month</div>');
   panel.appendChild(catBarCard);
 
   // ── 3. WEEK-OVER-WEEK ─────────────────────────────────────────────
-  var wowCard = document.createElement('div');
+  var wowCard = document.createElement('details');
+  wowCard.open = true;
   wowCard.id='rep-intel-wow'; wowCard.className='card';
   var weekLabels=['6w ago','5w ago','4w ago','3w ago','2w ago','Last wk','This wk'];
   var weekRevs=[];
@@ -590,7 +601,7 @@ function renderReportsIntelligence(){
   var weekProfs=[];
   for(var j=6;j>=0;j--) weekProfs.push(calcWeekProfit(j));
   var maxWR=Math.max.apply(null,weekRevs)||1;
-  wowCard.innerHTML='<div class="card-title">\uD83D\uDCC5 Week-over-Week Performance</div>'+
+  wowCard.innerHTML='<div class="card-title">'+svgIcon('trendUp')+' Week-over-Week Performance</div>'+
     '<div style="overflow-x:auto;"><table style="width:100%;font-size:12px;border-collapse:collapse;">'+
     '<thead><tr>'+
     weekLabels.map(function(l,i){return '<th style="padding:6px 4px;color:var(--text3);font-weight:600;text-align:right;'+(i===6?'color:var(--gold-dark);':'')+'">'+l+'</th>';}).join('')+
@@ -610,7 +621,7 @@ function renderReportsIntelligence(){
   var catCard = document.createElement('div');
   catCard.id='rep-intel-cat'; catCard.className='card';
   var catPerf = calcCategoryPerf(repYear, repMonth); // QA 3 Oct M8: match the month this page is actually showing
-  catCard.innerHTML='<div class="card-title">\uD83C\uDFF7\uFE0F Category Intelligence — This Month</div>'+
+  catCard.innerHTML='<div class="card-title">'+svgIcon('tag')+' Category Intelligence — This Month</div>'+
     (catPerf.length?
       '<div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Revenue</th><th>Units</th><th>Profit</th><th>Trend</th></tr></thead><tbody>'+
       catPerf.map(function(c){
@@ -678,7 +689,7 @@ function renderOrdersPipeline(){
   pipeDiv.id = 'orders-pipeline';
   pipeDiv.className = 'card';
   pipeDiv.style.marginBottom = '.9rem';
-  pipeDiv.innerHTML='<div class="card-title">🏭 Order Pipeline</div>'+
+  pipeDiv.innerHTML='<div class="card-title">'+svgIcon('box')+' Order Pipeline</div>'+
     '<div class="pipeline">'+
     stages.map(function(s){
       return '<div class="pipe-stage" onclick="filterOrdersByStatus(\''+jsAttrEsc(s)+'\')" style="'+(counts[s]>0?'':'opacity:0.4;')+'">'+

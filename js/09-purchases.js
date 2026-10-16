@@ -104,7 +104,7 @@ function renderPurchases(){
   // independently toggleable, but a first-time user shouldn't have to
   // look at 6 checkboxes before they can write their first bill.
   html += '<div class="card">'+
-    '<div class="card-title" style="cursor:pointer;" onclick="pbToggleSettings()">\u2699\ufe0f Customize which fields show <span id="pb-settings-arrow" style="font-size:11px;color:var(--text3);margin-left:6px;">'+(pbUI.settingsOpen?'\u25b2 hide':'\u25bc show')+'</span></div>'+
+    '<div class="card-title" style="cursor:pointer;" onclick="pbToggleSettings()">'+svgIcon('gear')+' Customize which fields show <span id="pb-settings-arrow" style="font-size:11px;color:var(--text3);margin-left:6px;">'+(pbUI.settingsOpen?'\u25b2 hide':'\u25bc show')+'</span></div>'+
     '<div id="pb-settings-body" style="display:'+(pbUI.settingsOpen?'flex':'none')+';flex-wrap:wrap;gap:14px 20px;padding:4px 0;">'+
       pbToggle('gst','GST (CGST/SGST/IGST)')+
       pbToggle('goldRate','Gold Rate Snapshot')+
@@ -150,7 +150,7 @@ function renderPurchases(){
       '<button class="btn btn-sm" onclick="pbPrintList()">\ud83d\udda8\ufe0f Print</button>'+
       '<button class="btn btn-sm" onclick="pbExportCsv()">\ud83d\udcc4 Excel/CSV Export</button>'+
     '</div>'+
-    '<div class="tbl-wrap"><table id="pb-table">'+
+    '<div class="tbl-wrap" id="pb-table-wrap"><table id="pb-table">'+
       '<thead><tr>'+
         pbTh('billNo','Bill #')+pbTh('date','Date')+pbTh('supplier','Supplier')+
         '<th>Invoice #</th><th>Type</th>'+pbTh('grossWt','Gross Wt','right')+pbTh('wastagePct','Wastage','right')+pbTh('totalAmount','Total','right')+
@@ -159,6 +159,11 @@ function renderPurchases(){
       '<tbody id="pb-body"></tbody>'+
     '</table>'+
     '<div id="pb-pagination" style="padding:6px 0;"></div></div>'+
+    // Stacked cards under 600px -- same data and actions as the table,
+    // swapped by breakpoint, same approach as the Stock list's #inv-cards
+    // (UI/UX audit, 15 Oct: the table wrapped "PB-/00009" and "2026-/09-21"
+    // and hid the amount at phone widths).
+    '<div id="pb-cards"></div>'+
     '<div id="pb-footer" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:13px;color:var(--text2);"></div>'+
     '</div>';
 
@@ -187,10 +192,31 @@ function pbSupplierLedgerHtml(){
       '<td class="num" style="'+(r.pending>0?'color:var(--danger,#c0392b);font-weight:700;':'')+'">'+fmt(r.pending)+'</td>'+
     '</tr>';
   }).join('');
+  // Same data as the table, laid out as cards instead of columns, shown
+  // only under 600px via CSS (UI/UX audit, 15 Oct). pbSupplierLedgerHtml()
+  // builds this whole section fresh on every call (no separate update
+  // function to hook, unlike renderPurchaseList()'s #pb-body/#pb-cards
+  // pair), so both the table and its card alternative are just two branches
+  // of the same string built here.
+  var cards = rows.map(function(r){
+    return '<div class="inv-card">'+
+      '<div class="inv-card-top">'+
+        '<div class="inv-card-name">'+escHtml(r.name)+'</div>'+
+      '</div>'+
+      '<div class="inv-card-rows">'+
+        '<div><span class="lbl">Bills</span>'+r.bills+'</div>'+
+        '<div><span class="lbl">Total</span>'+fmt(r.total)+'</div>'+
+        '<div><span class="lbl">Paid</span>'+fmt(r.paid)+'</div>'+
+        '<div><span class="lbl">Outstanding</span><span style="'+(r.pending>0?'color:var(--danger,#c0392b);font-weight:700;':'')+'">'+fmt(r.pending)+'</span></div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
   return '<div class="card">'+
     '<div class="card-title">Supplier Ledger <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">What you owe each supplier, across all their bills</span></div>'+
-    '<div class="tbl-wrap"><table><thead><tr><th>Supplier</th><th style="text-align:right;">Bills</th><th style="text-align:right;">Total</th><th style="text-align:right;">Paid</th><th style="text-align:right;">Outstanding</th></tr></thead>'+
-    '<tbody>'+body+'</tbody></table></div></div>';
+    '<div class="tbl-wrap" id="pbsl-table-wrap"><table><thead><tr><th>Supplier</th><th style="text-align:right;">Bills</th><th style="text-align:right;">Total</th><th style="text-align:right;">Paid</th><th style="text-align:right;">Outstanding</th></tr></thead>'+
+    '<tbody>'+body+'</tbody></table></div>'+
+    '<div id="pbsl-cards">'+cards+'</div>'+
+    '</div>';
 }
 
 // ── WASTAGE REPORT ───────────────────────────────────────────────────
@@ -248,7 +274,7 @@ function pbWastageReportHtml(){
     '</tbody></table></div>';
 
   return '<div class="card">'+
-    '<div class="card-title">\u2696\ufe0f Wastage Report <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">from gross vs net weight on bills already entered</span></div>'+
+    '<div class="card-title">'+svgIcon('chart')+' Wastage Report <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">from gross vs net weight on bills already entered</span></div>'+
     '<div class="fin-snapshot" style="margin-bottom:10px;">'+
       fsnCard('Avg Supplier Wastage', avgSupplier!==null?avgSupplier.toFixed(2)+'%':'—', supplierRows.length+' bill(s)', null, '', 'var(--gold-dark)')+
       fsnCard('Avg Selling Wastage', avgCustomer!==null?avgCustomer.toFixed(2)+'%':'—', customerRows.length+' item(s)', null, '', '#22c55e')+
@@ -1337,9 +1363,11 @@ function renderPurchaseList(){
   var pageRows = all.slice(start, start + PB_PAGE_SIZE);
 
   var body = document.getElementById('pb-body');
+  var cards = document.getElementById('pb-cards');
   if(!body) return;
   if(!pageRows.length){
     body.innerHTML = '<tr><td colspan="12"><div class="empty"><span class="empty-icon">&#128230;</span>No purchase bills yet — pehla purchase bill banao</div></td></tr>';
+    if(cards) cards.innerHTML = '<div class="empty"><span class="empty-icon">&#128230;</span>No purchase bills yet — pehla purchase bill banao</div>';
   } else {
     body.innerHTML = pageRows.map(function(b){
       var statusColor = b.paymentStatus === 'Paid' ? 'var(--success)' : (b.paymentStatus === 'Partial' ? 'var(--warning)' : 'var(--danger,#c0392b)');
@@ -1364,6 +1392,35 @@ function renderPurchaseList(){
           '<button class="btn btn-sm" onclick="deletePurchase(\''+jsAttrEsc(b.id)+'\')" title="Delete">\ud83d\uddd1\ufe0f</button>'+
         '</td>'+
       '</tr>';
+    }).join('');
+    // Same data/actions as the table above, laid out as cards instead of
+    // columns (UI/UX audit, 15 Oct) -- shown only under 600px via CSS.
+    if(cards) cards.innerHTML = pageRows.map(function(b){
+      var statusColor = b.paymentStatus === 'Paid' ? 'var(--success)' : (b.paymentStatus === 'Partial' ? 'var(--warning)' : 'var(--danger,#c0392b)');
+      var wastage = (b.wastagePct===null||b.wastagePct===undefined)?'—':(parseFloat(b.wastagePct).toFixed(2)+'%');
+      return '<div class="inv-card">'+
+        '<div class="inv-card-top">'+
+          '<div><div class="inv-card-name">'+escHtml(b.billNo)+'</div>'+
+            '<div class="inv-card-sub">'+escHtml(b.date)+' &bull; '+escHtml(b.supplier)+'</div></div>'+
+          '<span style="color:'+statusColor+';font-weight:700;font-size:12px;">'+b.paymentStatus+'</span>'+
+        '</div>'+
+        '<div class="inv-card-rows">'+
+          '<div><span class="lbl">Invoice #</span>'+escHtml(b.supplierInvoiceNo||'-')+'</div>'+
+          '<div><span class="lbl">Type</span>'+escHtml(b.purchaseType)+'</div>'+
+          '<div><span class="lbl">Gross Wt</span>'+fmtW(b.grossWt)+'</div>'+
+          '<div><span class="lbl">Wastage</span>'+wastage+'</div>'+
+          '<div><span class="lbl">Total</span>'+fmt(b.totalAmount)+'</div>'+
+          '<div><span class="lbl">Paid</span>'+fmt(b.amountPaid)+'</div>'+
+          '<div><span class="lbl">Pending</span>'+fmt(b.pendingAmount)+'</div>'+
+        '</div>'+
+        '<div class="inv-card-actions">'+
+          '<button class="btn btn-sm" onclick="pbToggleForm(\''+jsAttrEsc(b.id)+'\')" title="Edit">\u270f\ufe0f</button> '+
+          '<button class="btn btn-sm" onclick="pbOpenPaymentModal(\''+jsAttrEsc(b.id)+'\')" title="Record supplier payment">\u20b9</button> '+
+          '<button class="btn btn-sm" onclick="pbOpenHistoryModal(\''+jsAttrEsc(b.id)+'\')" title="Bill history">\ud83d\udd52</button> '+
+          '<button class="btn btn-sm" onclick="pbPrintBill(\''+jsAttrEsc(b.id)+'\')" title="Print">\ud83d\uddb6\ufe0f</button> '+
+          '<button class="btn btn-sm" onclick="deletePurchase(\''+jsAttrEsc(b.id)+'\')" title="Delete">\ud83d\uddd1\ufe0f</button>'+
+        '</div>'+
+      '</div>';
     }).join('');
   }
 

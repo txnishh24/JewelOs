@@ -432,7 +432,7 @@ function openGirviForm(editId, prefill){
     var g=(S.girvi||[]).find(function(x){return x.id===editId;});
     if(!g) return;
     if(g.status==='closed'){toast('Closed entries cannot be edited');return;}
-    title.innerHTML = '✏️ Edit '+escHtml(g.grvNo);
+    title.innerHTML = svgIcon('edit')+' Edit '+escHtml(g.grvNo);
     document.getElementById('gf-cust').value      = g.customer||'';
     document.getElementById('gf-phone').value     = g.phone||'';
     document.getElementById('gf-risk').value      = g.risk||'medium';
@@ -879,8 +879,8 @@ function renderGirviTodayActions(){
         '<div class="girvi-action-name">'+escHtml(g.customer)+'</div>'+
         '<div class="girvi-action-sub">'+g.grvNo+' &bull; '+a.type+' &bull; '+escHtml(g.item.desc||g.item.metal||'')+'</div>'+
         '<div class="girvi-action-btns" onclick="event.stopPropagation();">'+
-          '<button class="girvi-action-btn gab-call" onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')">📞 Call</button>'+
-          '<button class="girvi-action-btn gab-wa"   onclick="girviWhatsApp(\''+jsAttrEsc(g.id)+'\')">💬 WA</button>'+
+          '<button class="girvi-action-btn gab-call" onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')">'+svgIcon('phone')+' Call</button>'+
+          '<button class="girvi-action-btn gab-wa"   onclick="girviWhatsApp(\''+jsAttrEsc(g.id)+'\')">'+svgIcon('chat')+' WA</button>'+
           '<button class="girvi-action-btn gab-pay"  onclick="openGirviPayment(\''+jsAttrEsc(g.id)+'\')">₹ Pay</button>'+
         '</div>'+
       '</div>'+
@@ -1283,7 +1283,7 @@ function openGirviDetail(gid){
       '<div style="background:var(--card2);border-radius:11px;padding:11px 13px;">'+
         '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:5px;">👤 Customer</div>'+
         '<div style="font-size:15px;font-weight:700;">'+escHtml(g.customer)+'</div>'+
-        '<div style="font-size:12px;color:var(--text3);">📞 '+escHtml(g.phone)+'</div>'+
+        '<div style="font-size:12px;color:var(--text3);">'+svgIcon('phone')+' '+escHtml(g.phone)+'</div>'+
         (g.address?'<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+escHtml(g.address)+'</div>':'')+
       '</div>'+
       (function(){
@@ -1360,7 +1360,7 @@ function openGirviDetail(gid){
     // Payment history
     (payRows?
       '<div style="margin-bottom:14px;">'+
-        '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:6px;">💸 Payment History — Paid: ₹'+Math.round(totalPaid).toLocaleString('en-IN')+'</div>'+
+        '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:6px;">'+svgIcon('cash')+' Payment History — Paid: ₹'+Math.round(totalPaid).toLocaleString('en-IN')+'</div>'+
         payRows+
       '</div>'
     :'<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">No payments yet.</div>')+
@@ -1394,39 +1394,48 @@ function openGirviDetail(gid){
       '</div>';
     }())+
     '<div style="margin-bottom:14px;">'+
-      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">📋 Audit Trail</div>'+
+      '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">'+svgIcon('clipboard')+' Audit Trail</div>'+
       '<div class="gd-timeline">'+timelineRows+'</div>'+
     '</div>'+
-    // Actions
+    // Actions — Add Payment is the one thing a jeweller does constantly
+    // (collecting interest), so it alone stays in a sticky bar; everything
+    // else collapses under "More actions" (UI/UX audit, 15 Oct). Ledger /
+    // Timeline / Receipt used to be bolted on by an override in
+    // 08-girvi-viewmode.js that re-opened this modal and appended a second
+    // action block — which is where the duplicate Edit, WhatsApp and Renew
+    // buttons came from. Merged in here so each action appears exactly once.
     (canAct?
-      '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px;">'+
-        '<button onclick="openGirviPayment(\''+jsAttrEsc(gid)+'\')" style="padding:12px;border-radius:11px;border:none;background:var(--gold);color:#1a1200;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">💸 Add Payment</button>'+
-        '<button onclick="girviWhatsApp(\''+jsAttrEsc(gid)+'\')" style="padding:12px;border-radius:11px;border:none;background:#25d36622;color:#25d366;border:1px solid #25d36640;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">📱 WhatsApp</button>'+
+      '<div class="gd-sticky-pay">'+
+        '<button onclick="openGirviPayment(\''+jsAttrEsc(gid)+'\')" style="width:100%;padding:13px;min-height:44px;border-radius:11px;border:none;background:var(--gold);color:#1a1200;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">'+svgIcon('cash')+' Add Payment</button>'+
       '</div>'+
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;">'+
-        '<button onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--success);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📞 Call</button>'+
-        '<button onclick="openGirviEditModal(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">✏ Edit</button>'+
-        '<button onclick="openGirviRenewalModal(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(26,74,138,.3);background:var(--info-soft);color:var(--info);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔄 Renew</button>'+
-      '</div>'+
-      // Ledger / Timeline / Receipt used to be bolted on by an override in
-      // 08-girvi-viewmode.js that re-opened this modal and appended a second
-      // action block — which is where the duplicate Edit, WhatsApp and Renew
-      // buttons came from. Merged in here so each action appears exactly once.
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:7px;">'+
-        '<button onclick="openGirviLedger(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(28,96,64,.3);background:rgba(28,96,64,.08);color:var(--success);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">📒 Ledger</button>'+
-        '<button onclick="openGirviTimeline(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(138,78,12,.3);background:rgba(138,78,12,.08);color:var(--warning);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">📋 Timeline</button>'+
-        '<button onclick="openGirviReceiptModal(\''+jsAttrEsc(gid)+'\',\'creation\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🧾 Receipt</button>'+
-      '</div>'+
-      '<div style="margin-top:7px;">'+
-        '<button onclick="closeGirviManual(\''+jsAttrEsc(gid)+'\')" style="width:100%;padding:10px 4px;border-radius:10px;border:1px solid rgba(28,96,64,.3);background:var(--success-soft);color:var(--success);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">🔓 Release Item</button>'+
-      '</div>'+
-      // Mark Default is a high-consequence, rare action (declares the loan
-      // defaulted) — kept apart from Release Item and styled as a plain
-      // secondary link so it can't be mistapped as the matching other half
-      // of a button pair (UI/UX audit, 15 Oct).
-      '<div style="text-align:center;margin-top:10px;">'+
-        '<button onclick="markGirviDefault(\''+jsAttrEsc(gid)+'\')" style="padding:10px 12px;min-height:var(--tap);border:none;background:none;color:var(--danger);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:underline;">🔴 Mark as Defaulted</button>'+
-      '</div>'
+      '<details>'+
+        '<summary style="cursor:pointer;list-style:none;text-align:center;font-size:12px;font-weight:700;color:var(--text3);padding:8px 0;">More actions <span class="detail-arrow" style="font-weight:400;">&#9662;</span></summary>'+
+        '<div style="margin-top:4px;">'+
+          '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;">'+
+            '<button onclick="girviWhatsApp(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid #25d36640;background:#25d36622;color:#25d366;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">'+svgIcon('chat')+' WhatsApp</button>'+
+            '<button onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--success);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">'+svgIcon('phone')+' Call</button>'+
+            '<button onclick="openGirviEditModal(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">'+svgIcon('edit')+' Edit</button>'+
+          '</div>'+
+          '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:7px;">'+
+            '<button onclick="openGirviRenewalModal(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(26,74,138,.3);background:var(--info-soft);color:var(--info);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">'+svgIcon('refresh')+' Renew</button>'+
+            '<button onclick="openGirviLedger(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(28,96,64,.3);background:rgba(28,96,64,.08);color:var(--success);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">'+svgIcon('book')+' Ledger</button>'+
+            '<button onclick="openGirviTimeline(\''+jsAttrEsc(gid)+'\')" style="padding:10px 4px;border-radius:10px;border:1px solid rgba(138,78,12,.3);background:rgba(138,78,12,.08);color:var(--warning);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">'+svgIcon('clipboard')+' Timeline</button>'+
+          '</div>'+
+          '<div style="margin-top:7px;">'+
+            '<button onclick="openGirviReceiptModal(\''+jsAttrEsc(gid)+'\',\'creation\')" style="width:100%;padding:10px 4px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">'+svgIcon('doc')+' Receipt</button>'+
+          '</div>'+
+          '<div style="margin-top:7px;">'+
+            '<button onclick="closeGirviManual(\''+jsAttrEsc(gid)+'\')" style="width:100%;padding:10px 4px;border-radius:10px;border:1px solid rgba(28,96,64,.3);background:var(--success-soft);color:var(--success);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">'+svgIcon('unlock')+' Release Item</button>'+
+          '</div>'+
+          // Mark Default is a high-consequence, rare action (declares the loan
+          // defaulted) — kept apart from Release Item and styled as a plain
+          // secondary link so it can't be mistapped as the matching other half
+          // of a button pair (UI/UX audit, 15 Oct).
+          '<div style="text-align:center;margin-top:10px;">'+
+            '<button onclick="markGirviDefault(\''+jsAttrEsc(gid)+'\')" style="padding:10px 12px;min-height:var(--tap);border:none;background:none;color:var(--danger);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:underline;">'+svgIcon('alert')+' Mark as Defaulted</button>'+
+          '</div>'+
+        '</div>'+
+      '</details>'
     :'<div style="text-align:center;padding:10px;font-size:13px;color:var(--text3);">🔒 This loan is '+status+'. No further actions.</div>');
 
   document.getElementById('gd-title').innerHTML='🪢 '+escHtml(g.grvNo)+' &nbsp;'+girviStatusBadge(status);

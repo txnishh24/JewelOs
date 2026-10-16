@@ -323,6 +323,18 @@ body{
 
 /* ── MAIN ────────────────────────────────────────── */
 .main{padding:1.2rem 1rem 5.5rem;max-width:1040px;margin:0 auto;}
+/* Widen the content column on genuinely large screens (UI/UX audit, 15 Oct,
+   Phase 3 item 6) -- 1040px looked cramped with the extra room a 1440px
+   viewport actually has. */
+@media(min-width:1280px){.main{max-width:1280px;}}
+/* Sale screen: 2 columns with a sticky summary on the right at the same
+   breakpoint (UI/UX audit, 15 Oct, Phase 3 item 6). Mobile/tablet keep the
+   plain stacked flow -- these rules only apply >=1280px. */
+@media(min-width:1280px){
+  .sale-layout{display:flex;gap:28px;align-items:flex-start;}
+  .sale-form-col{flex:1;min-width:0;}
+  .sale-summary-col{flex:0 0 340px;width:340px;position:sticky;top:16px;}
+}
 @media(min-width:800px){.main{padding:1.4rem 1.6rem 2rem;}}
 @media(min-width:640px){.main{margin-left:var(--rail-w);margin-right:0;}}
 @media print{.main{margin-left:0;}}
@@ -508,6 +520,9 @@ body{
    breakpoint up. Focus is ink, not gold — gold stays for the sparse moments
    (primary actions, totals), not every field a shop owner taps. */
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+/* Add Product only -- single column under 420px (UI/UX audit, 15 Oct).
+   Scoped to this one form, not the global .form-grid every other form uses. */
+@media(max-width:420px){.add-product-form .form-grid{grid-template-columns:1fr;}}
 .fg{display:flex;flex-direction:column;gap:4px;}
 .fg label{font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
 input,select,textarea{
@@ -578,6 +593,15 @@ tr:last-child td{border-bottom:none;}
 @media(max-width:639px){
   #inv-table-wrap{display:none;}
   #inv-cards{display:block;}
+}
+/* Purchase History and Supplier Ledger, same table/cards swap as Stock's
+   inventory list above, reusing its .inv-card markup -- under 600px their
+   tables wrapped "PB-/00009" and "2026-/09-21" and hid the amount
+   (UI/UX audit, 15 Oct). Tables stay on desktop. */
+#pb-cards,#pbsl-cards{display:none;}
+@media(max-width:599px){
+  #pb-table-wrap,#pbsl-table-wrap{display:none;}
+  #pb-cards,#pbsl-cards{display:block;}
 }
 .inv-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;margin-bottom:10px;}
 .inv-card.sold-row{opacity:.5;}
@@ -722,11 +746,17 @@ tr:last-child td{border-bottom:none;}
 html.dev .dev-only{display:block!important;}
 @media(max-width:639px){.bnav{display:block;}.dtabs{display:none;}}
 
-/* Day Book's Add Entry/Close Day bar — sticky above the (fixed) bottom nav on
-   mobile, above the real page bottom on desktop where there's no bnav
-   (UI/UX audit, 15 Oct). */
-.db-sticky-actions{position:sticky;bottom:0;z-index:150;background:var(--ivory);padding:8px 0;margin-bottom:12px;}
-@media(max-width:639px){.db-sticky-actions{bottom:var(--nav-h);}}
+/* Shared by Day Book's Add Entry/Close Day bar and the Sale screen's total+
+   Record bar — sticky above the (fixed) bottom nav on mobile, above the real
+   page bottom on desktop where there's no bnav (UI/UX audit, 15 Oct). */
+.sticky-action-bar{position:sticky;bottom:0;z-index:150;background:var(--ivory);padding:8px 0;margin-bottom:12px;}
+@media(max-width:639px){.sticky-action-bar{bottom:var(--nav-h);}}
+/* Girvi detail modal's Add Payment bar -- a separate class from the one
+   above because this sits inside a full-screen modal overlay (the app's own
+   bottom nav isn't visible behind it), so it never needs the mobile nav-height
+   offset, and its background matches the modal's own --bg, not the page's
+   --ivory (UI/UX audit, 15 Oct). */
+.gd-sticky-pay{position:sticky;bottom:0;z-index:2;background:var(--bg);padding:8px 0;margin:8px 0;}
 
 /* ── MORE MENU (mobile bnav overflow) ────────────────────────────────── */
 .more-menu-item{display:flex;align-items:center;gap:12px;width:100%;min-height:var(--tap);padding:10px 14px;border:none;background:none;font-size:15px;font-weight:500;color:var(--ink);cursor:pointer;font-family:inherit;text-align:left;border-radius:var(--radius);transition:background var(--t1);}
@@ -1064,7 +1094,16 @@ html.dev .dev-only{display:block!important;}
 .ge-audit-dot.defaulted{background:var(--danger);}
 
 /* ── Payment Ledger Modal ── */
-#girvi-ledger-modal{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:960;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+/* #girvi-ledger-modal used to have its own display:none/block ID rule here,
+   a duplicate of .modal-overlay below minus the fade -- it was never
+   migrated onto .modal-overlay (the div kept its old id-only markup), which
+   is why .gl-wrap's fade-in below could never actually fire: nothing ever
+   added the .open class its CSS depends on (UI/UX audit, 15 Oct; investigated
+   per the audit's request before fixing -- confirmed in a real browser's
+   CSS cascade, not just the test iframe that first reported it). Removed in
+   favor of the real fix: the div now carries class="modal-overlay" and
+   openGirviLedger()/closeGirviLedgerModal() toggle .open, same as every
+   other .modal-overlay modal in this file (Adjust Stock, Day Book's 4). */
 .modal-overlay{display:block;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.82);z-index:960;overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;visibility:hidden;pointer-events:none;transition:opacity var(--t2-out),visibility 0s linear .2s;}
 .modal-overlay.open{opacity:1;visibility:visible;pointer-events:auto;transition:opacity var(--t2-out),visibility 0s linear 0s;}
 .gl-wrap{max-width:500px;margin:16px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);transform:scale(.96);opacity:0;transition:transform 150ms var(--ease-out),opacity 150ms var(--ease-out);}
@@ -1252,12 +1291,24 @@ html.dev .dev-only{display:block!important;}
   display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:1.1rem;
 }
 @media(min-width:640px){.fin-snapshot{grid-template-columns:repeat(4,1fr);}}
+/* #dash-today-strip only has 3 cards (Today's Sales/Purchase/Profit) -- the
+   shared 4-col rule above left an empty 4th slot at >=640px (UI/UX audit,
+   15 Oct, Phase 3 item 6). #dash-business-snapshot genuinely has 4 and keeps
+   the shared rule untouched. */
+@media(min-width:640px){#dash-today-strip.fin-snapshot{grid-template-columns:repeat(3,1fr);}}
 .fin-snap-card{
   background:var(--card1);border-radius:12px;border:0.5px solid var(--border2);
   padding:12px 14px;
 }
-#dash-more summary::-webkit-details-marker{display:none;}
-#dash-more[open] summary span:last-child{transform:rotate(180deg);display:inline-block;}
+/* Applies to every <details>/<summary> in the app (onboarding checklist,
+   rate editor, Sale screen's collapsible sections, etc., not just
+   #dash-more) -- fixes the native disclosure triangle doubling up with our
+   own text arrow, and spins that arrow on open (UI/UX audit, 15 Oct). */
+summary::-webkit-details-marker{display:none;}
+/* Only the dedicated arrow span rotates, never any other trailing summary
+   content (e.g. the rate editor's "22K ₹... · Silver ₹..." summary text,
+   which is also a span but not an arrow). */
+details[open]>summary .detail-arrow{transform:rotate(180deg);display:inline-block;}
 .fsn-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:4px;}
 .fsn-val{font-size:20px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;}
 .fsn-sub{font-size:10px;color:var(--text3);margin-top:4px;}
@@ -1845,21 +1896,23 @@ tr:hover td{background:var(--bg2);}
   <div class="topbar-actions">
     <div class="topbar-btns">
       <div class="sync-dot" id="sync-dot" role="status" aria-label="Sync status"></div>
-      <button class="hdr-btn" onclick="forceSync()" title="Force sync" aria-label="Sync">&#9729;<span class="hdr-lbl"> Sync</span></button>
+      <button class="hdr-btn" onclick="forceSync()" title="Force sync" aria-label="Sync"><span data-icon="cloud"></span><span class="hdr-lbl"> Sync</span></button>
 
-      <button class="hdr-btn" onclick="switchTab('settings')" title="Settings & account" aria-label="Settings">&#9881;<span class="hdr-lbl"> Settings</span></button>
+      <button class="hdr-btn" onclick="switchTab('settings')" title="Settings & account" aria-label="Settings"><span data-icon="gear"></span><span class="hdr-lbl"> Settings</span></button>
       <span id="sync-label"></span>
     </div>
     <nav class="dtabs" id="dtabs">
       <button class="dtab active" onclick="switchTab('dashboard')">Dashboard</button>
-      <button class="dtab" onclick="switchTab('inventory')">Inventory</button>
-      <button class="dtab" onclick="switchTab('sales')">Record Sale</button>
+      <!-- "Stock"/"Sale", not "Inventory"/"Record Sale" -- one name per concept,
+           matching the bottom nav's names (UI/UX audit, 15 Oct, Phase 3 item 7). -->
+      <button class="dtab" onclick="switchTab('inventory')">Stock</button>
+      <button class="dtab" onclick="switchTab('sales')">Sale</button>
       <button class="dtab" onclick="switchTab('orders')">Orders</button>
-      <button class="dtab" onclick="switchTab('girvi')" id="dtab-girvi">&#129309; Girvi</button>
+      <button class="dtab" onclick="switchTab('girvi')" id="dtab-girvi"><span data-icon="lock"></span> Girvi</button>
       <button class="dtab" onclick="switchTab('customers')">Customers</button>
       <button class="dtab" onclick="switchTab('reports')">Reports</button>
       <button class="dtab" onclick="switchTab('daybook')">Day Book</button>
-      <button class="dtab" onclick="switchTab('settings')">&#9881;</button>
+      <button class="dtab" onclick="switchTab('settings')"><span data-icon="gear"></span> Settings</button>
     </nav>
   </div>
 </header>
@@ -1907,14 +1960,14 @@ tr:hover td{background:var(--bg2);}
 
   <!-- 4. RECENT ACTIVITY -->
   <div class="card">
-    <div class="card-title">&#128717; Recent Activity</div>
+    <div class="card-title"><span data-icon="clock"></span> Recent Activity</div>
     <div id="recent-sales"></div>
   </div>
 
   <!-- 5. EVERYTHING ELSE — still here, just not competing for attention on open -->
   <details class="card" id="dash-more" style="padding:.8rem 1rem;">
     <summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--ink3);list-style:none;display:flex;justify-content:space-between;align-items:center;">
-      <span>More details &amp; reports</span><span style="font-weight:400;">▾</span>
+      <span>More details &amp; reports</span><span class="detail-arrow" style="font-weight:400;">▾</span>
     </summary>
     <div style="margin-top:12px;">
       <div style="margin-bottom:var(--space-3);">
@@ -1929,11 +1982,11 @@ tr:hover td{background:var(--bg2);}
 
       <div class="two-col">
         <div class="card">
-          <div class="card-title">&#127775; Gold by Purity <span style="font-size:12px;font-weight:400;color:var(--ink3);">available stock</span></div>
+          <div class="card-title"><span data-icon="star"></span> Gold by Purity <span style="font-size:12px;font-weight:400;color:var(--ink3);">available stock</span></div>
           <div id="gold-breakdown"></div>
         </div>
         <div class="card">
-          <div class="card-title">&#11088; Silver by Purity <span style="font-size:12px;font-weight:400;color:var(--ink3);">available stock</span></div>
+          <div class="card-title"><span data-icon="star"></span> Silver by Purity <span style="font-size:12px;font-weight:400;color:var(--ink3);">available stock</span></div>
           <div id="silver-breakdown"></div>
         </div>
       </div>
@@ -1944,14 +1997,14 @@ tr:hover td{background:var(--bg2);}
           <div id="dash-pending-bal"></div>
         </div>
         <div class="card">
-          <div class="card-title">&#128221; Orders Due Soon</div>
+          <div class="card-title"><span data-icon="clipboard"></span> Orders Due Soon</div>
           <div id="dash-orders-due"></div>
         </div>
       </div>
 
       <div class="two-col">
         <div class="card">
-          <div class="card-title">&#128200; Top Categories</div>
+          <div class="card-title"><span data-icon="chart"></span> Top Categories</div>
           <div id="dash-top-cats"></div>
         </div>
         <div id="dash-more-girvi"></div>
@@ -1994,23 +2047,30 @@ tr:hover td{background:var(--bg2);}
       <button class="btn btn-ink" onclick="toggleAdd()" id="add-btn">+ Add product</button>
       <button class="btn btn-sm" onclick="openBarcodeLabels()" title="Print barcode labels for available stock" style="margin-left:6px;">&#127991; Labels</button>
     </div>
-    <div id="add-form" style="display:none">
+    <div id="add-form" class="add-product-form" style="display:none">
       <div class="form-grid">
         <div class="fg"><label>Product name</label><input id="f-name" placeholder="e.g. Necklace, Ring..."/></div>
         <div class="fg"><label>Category</label><select id="f-cat"><option>Rings</option><option>Necklaces / Haar</option><option>Earrings</option><option>Jhumkas</option><option>Bangles</option><option>Kankanalu</option><option>Bracelets</option><option>Anklets / Payal</option><option>Pendants</option><option>Chains</option><option>Mangalsutras</option><option>Maang Tikka</option><option>Nose Ring / Nath</option><option>Armlet / Bajuband</option><option>Waist Belt / Kamarbandh</option><option>Jadau</option><option>Other</option></select></div>
         <div class="fg"><label>Purity</label><select id="f-purity"></select></div>
         <div class="fg"><label>HUID Number</label><input id="f-huid" placeholder="e.g. AB1234" maxlength="20" style="text-transform:uppercase"/></div>
-        <div class="fg"><label>Hallmark Centre <span style="font-size:10px;color:var(--text3)">(optional)</span></label><input id="f-hallmark" placeholder="e.g. BIS centre name / code"/></div>
         <div class="fg"><label>SKU / Item Code</label><input id="f-sku" placeholder="Auto if empty"/></div>
         <div class="fg"><label>Gross Weight (g)</label><div class="isuf"><input id="f-wt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
-        <div class="fg"><label>Net Weight (g) <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-netwt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
-        <div class="fg"><label>Stone Weight (g) <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-stonewt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
         <div class="fg"><label>Purchase Rate ₹/g <span style="font-size:10px;color:var(--text3)">(cost price)</span></label><div class="isuf"><input id="f-costrate" type="number" inputmode="decimal" placeholder="Rate you paid"/><span class="suf">₹/g</span></div></div>
         <div class="fg"><label>Making Charge ₹/g <span style="font-size:10px;color:var(--text3)">(per gram MC)</span></label><div class="isuf"><input id="f-mcrate" type="number" inputmode="decimal" placeholder="0"/><span class="suf">₹/g</span></div></div>
-        <div class="fg"><label>Wastage / VA % <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-wastage" type="number" inputmode="decimal" placeholder="0" step="0.1"/><span class="suf">%</span></div></div>
-        <div class="fg"><label>Photo / Product URL</label><input id="f-photo" placeholder="Paste image link" type="url"/></div>
-        <div class="fg"><label>Notes</label><input id="f-notes" placeholder="Optional"/></div>
       </div>
+      <!-- Optional fields collapse behind "More details" -- single column
+           and this split both apply only under 420px (UI/UX audit, 15 Oct). -->
+      <details style="margin-top:4px;">
+        <summary style="cursor:pointer;list-style:none;font-size:12px;font-weight:600;color:var(--text3);padding:6px 0;">More details <span class="detail-arrow" style="font-weight:400;">&#9662;</span></summary>
+        <div class="form-grid" style="margin-top:6px;">
+          <div class="fg"><label>Hallmark Centre <span style="font-size:10px;color:var(--text3)">(optional)</span></label><input id="f-hallmark" placeholder="e.g. BIS centre name / code"/></div>
+          <div class="fg"><label>Net Weight (g) <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-netwt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
+          <div class="fg"><label>Stone Weight (g) <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-stonewt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
+          <div class="fg"><label>Wastage / VA % <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-wastage" type="number" inputmode="decimal" placeholder="0" step="0.1"/><span class="suf">%</span></div></div>
+          <div class="fg"><label>Photo / Product URL</label><input id="f-photo" placeholder="Paste image link" type="url"/></div>
+          <div class="fg"><label>Notes</label><input id="f-notes" placeholder="Optional"/></div>
+        </div>
+      </details>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-gold" onclick="addProduct()">&#9729; Save &amp; Sync</button>
         <button class="btn" onclick="toggleAdd()">Cancel</button>
@@ -2045,6 +2105,10 @@ tr:hover td{background:var(--bg2);}
   <div class="card">
     <div class="card-title" style="border-bottom:0.5px solid var(--border);padding-bottom:0.9rem;margin-bottom:1rem;">&#128179; New Sale / Invoice <span style="font-size:12px;font-weight:400;color:var(--ink3);margin-left:4px;">Enter customer and item details</span></div>
 
+    <!-- 2 columns at >=1280px, summary sticky on the right -- plain stacked
+         flow below that (UI/UX audit, 15 Oct, Phase 3 item 6). Only wraps
+         existing markup; no id or onclick target moved or changed. -->
+    <div class="sale-layout"><div class="sale-form-col">
     <!-- BILL TYPE SELECTOR -->
     <div style="display:flex;gap:0;background:var(--bg2);border-radius:12px;padding:4px;margin-bottom:14px;border:1px solid var(--border);">
       <button id="sform-btype-gst" onclick="setSaleFormBillType('gst')" style="flex:1;padding:9px 12px;border-radius:9px;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,var(--gold-dark),var(--gold));color:#1a1200;transition:background .2s,color .2s;">&#128196; GST Bill</button>
@@ -2082,23 +2146,33 @@ tr:hover td{background:var(--bg2);}
       <button class="btn btn-info" onclick="addCustomSI()" style="margin-top:8px;width:100%;">+ Add Another Item</button>
     </div>
     <div class="divider"></div>
-    <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;">Charges &amp; Adjustments</div>
-    <div class="form-grid">
-      <div class="fg"><label>Extra making (&#8377;)</label><input id="s-making" type="number" inputmode="decimal" value="0" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/></div>
-      <div class="fg"><label>Extra diamond (&#8377;)</label><input id="s-diamond" type="number" inputmode="decimal" value="0" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/></div>
-      <div class="fg" id="s-gst-wrap"><label>GST %</label><input id="s-gst" type="number" inputmode="decimal" value="0" placeholder="e.g. 3" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/></div>
-      <div class="fg"><label>Discount (&#8377;)</label><input id="s-disc" type="number" inputmode="decimal" value="0" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/></div>
-    </div>
+    <!-- Collapsible, closed unless it already holds a non-zero value (UI/UX
+         audit, 15 Oct) — opened by syncSaleCollapsibles(), never force-closed
+         while the user has it open themselves (see that function). -->
+    <details id="sale-charges-details">
+      <summary style="cursor:pointer;list-style:none;font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;">Charges &amp; Adjustments <span class="detail-arrow" style="font-weight:400;">&#9662;</span></summary>
+      <div class="form-grid">
+        <div class="fg"><label>Extra making (&#8377;)</label><input id="s-making" type="number" inputmode="decimal" value="0" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/></div>
+        <div class="fg"><label>Extra diamond (&#8377;)</label><input id="s-diamond" type="number" inputmode="decimal" value="0" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/></div>
+        <div class="fg" id="s-gst-wrap"><label>GST %</label><input id="s-gst" type="number" inputmode="decimal" value="0" placeholder="e.g. 3" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/></div>
+        <div class="fg"><label>Discount (&#8377;)</label><input id="s-disc" type="number" inputmode="decimal" value="0" oninput="updateSum()" onfocus="zeroFieldFocus(this)" onblur="zeroFieldBlur(this)"/></div>
+      </div>
+    </details>
 
     <!-- PAYMENT SECTION (Tanishq-style) -->
     <div style="margin:14px 0 10px;background:var(--bg2);border-radius:var(--radius-lg);padding:14px 16px;border:1px solid var(--border);" id="payment-section">
       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text2);margin-bottom:12px;">&#128176; Payment Details</div>
 
-      <!-- OLD GOLD EXCHANGE -->
-      <div style="background:linear-gradient(135deg,rgba(179,146,87,0.08),rgba(179,146,87,0.04));border:1px solid rgba(179,146,87,0.25);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;">
-        <!-- Old Gold header + mode toggle -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gold-dark);">&#9851; Old Gold / Exchange</div>
+      <!-- OLD GOLD EXCHANGE — collapsible, closed unless it already holds a
+           non-zero value (UI/UX audit, 15 Oct). The mode-toggle buttons moved
+           inside the expandable body (they're only meaningful once expanded)
+           so <summary> only ever contains the plain title, never a nested
+           button that would fight it over the click. -->
+      <details id="sale-oldgold-details" style="background:linear-gradient(135deg,rgba(179,146,87,0.08),rgba(179,146,87,0.04));border:1px solid rgba(179,146,87,0.25);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;">
+        <summary style="cursor:pointer;list-style:none;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--gold-dark);margin-bottom:10px;">&#9851; Old Gold / Exchange <span class="detail-arrow" style="font-weight:400;">&#9662;</span></summary>
+
+        <!-- Mode toggle -->
+        <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
           <div style="display:flex;gap:0;border:1px solid rgba(179,146,87,0.35);border-radius:6px;overflow:hidden;">
             <button id="og-mode-direct" onclick="setOgMode('direct')"
               style="padding:4px 12px;min-height:var(--tap);font-size:11px;font-weight:700;border:none;cursor:pointer;background:var(--gold);color:#1a1814;font-family:inherit;">
@@ -2160,11 +2234,12 @@ tr:hover td{background:var(--bg2);}
           </div>
           <div id="s-oldgold-display" style="font-size:12px;color:var(--text3);margin-top:4px;display:none;"></div>
         </div>
-      </div>
+      </details>
 
-      <!-- ADVANCE PREVIOUSLY PAID (from order) -->
-      <div style="margin-bottom:10px;">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text2);margin-bottom:8px;">&#9989; Advance Already Paid</div>
+      <!-- ADVANCE PREVIOUSLY PAID (from order) — collapsible, closed unless
+           it already holds a non-zero value (UI/UX audit, 15 Oct). -->
+      <details id="sale-advance-details" style="margin-bottom:10px;">
+        <summary style="cursor:pointer;list-style:none;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text2);margin-bottom:8px;">&#9989; Advance Already Paid <span class="detail-arrow" style="font-weight:400;">&#9662;</span></summary>
         <div class="form-grid" style="grid-template-columns:1fr 1fr;">
           <div class="fg">
             <label>Advance amount (&#8377;)</label>
@@ -2181,7 +2256,7 @@ tr:hover td{background:var(--bg2);}
             </select>
           </div>
         </div>
-      </div>
+      </details>
 
       <!-- NOW PAYING — balance settlement -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:10px;">
@@ -2206,13 +2281,16 @@ tr:hover td{background:var(--bg2);}
         </div>
       </div>
 
-      <!-- Notes -->
-      <div class="fg">
-        <label>Notes / Occasion</label>
-        <input id="s-notes" placeholder="e.g. Anniversary, Birthday gift..."/>
-      </div>
+      <!-- Notes — collapsible, closed unless it already holds text (UI/UX audit, 15 Oct). -->
+      <details id="sale-notes-details">
+        <summary style="cursor:pointer;list-style:none;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text2);margin-bottom:8px;">Notes / Occasion <span class="detail-arrow" style="font-weight:400;">&#9662;</span></summary>
+        <div class="fg">
+          <input id="s-notes" placeholder="e.g. Anniversary, Birthday gift..."/>
+        </div>
+      </details>
     </div>
 
+    </div><div class="sale-summary-col">
     <div class="sum-box">
       <div class="sum-row"><span>Gold value</span><span id="ss-gv">&#8377;0</span></div>
       <div class="sum-row"><span>Making charges</span><span id="ss-mc">&#8377;0</span></div>
@@ -2225,11 +2303,25 @@ tr:hover td{background:var(--bg2);}
         <!-- dynamically filled by updateSum() -->
       </div>
     </div>
-    <div style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-gold btn-full" onclick="recordSale()">&#9729; Record &amp; Sync Sale</button>
+    <!-- Record moved into the sticky bar below (UI/UX audit, 15 Oct); Clear
+         demoted to a small secondary link, away from Record so it can't be
+         mistapped as a matching pair with it. -->
+    <div style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       <button class="btn btn-info" onclick="previewInvoice()">&#128196; Preview Bill</button>
-      <button class="btn btn-full" onclick="clearSale()">Clear</button>
+      <button onclick="clearSale()" style="background:none;border:none;color:var(--text3);font-size:12px;text-decoration:underline;cursor:pointer;padding:10px 6px;min-height:44px;font-family:inherit;">Clear</button>
     </div>
+    </div></div>
+  </div>
+
+  <!-- Sticky Grand Total + Record bar — the total here is copied as rendered
+       text from #ss-total (mirrorSaleStickyTotal(), js/02-ui-inactivity-modals.js),
+       never recalculated independently (UI/UX audit, 15 Oct). -->
+  <div class="sticky-action-bar" style="display:flex;align-items:center;gap:10px;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Grand Total</div>
+      <div id="sale-sticky-total" style="font-size:19px;font-weight:800;color:var(--ink);">&#8377;0</div>
+    </div>
+    <button class="btn btn-gold" style="flex:0 0 auto;min-height:44px;padding:12px 20px;" onclick="recordSale()">&#9729; Record &amp; Sync Sale</button>
   </div>
 </div>
 
@@ -2365,7 +2457,7 @@ tr:hover td{background:var(--bg2);}
     <div id="bal-due-list" style="margin-top:10px;"></div>
   </div>
   <div class="card">
-    <div class="card-title">&#128101; Customer Records</div>
+    <div class="card-title"><span data-icon="users"></span> Customer Records</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
       <button onclick="showAddCustomerModal()" class="btn btn-gold" style="min-height:44px;flex:1 1 auto;">+ Add Customer</button>
       <select id="cust-sort" onchange="renderCustomers()" style="flex:1 1 150px;min-width:150px;min-height:44px;padding:9px 28px 9px 10px;font-size:12px;">
@@ -2396,11 +2488,14 @@ tr:hover td{background:var(--bg2);}
   </div>
   <div class="metrics" id="rep-metrics"></div>
 
-  <!-- GSTR-1 EXPORT CARD -->
-  <div class="card" style="border:1px solid rgba(179,146,87,0.3);">
-    <div class="card-title">📋 GST Filing Export
+  <!-- GSTR-1 EXPORT CARD — collapsible, like every section below (UI/UX
+       audit, 15 Oct: the summary above stays expanded, everything after it
+       can be shrunk to tame a ~4,650px page). -->
+  <details class="card" open style="border:1px solid rgba(179,146,87,0.3);">
+    <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">📋 GST Filing Export
       <span style="font-size:11px;font-weight:400;color:var(--text3);">GSTR-1 compatible CSV</span>
-    </div>
+      <span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span>
+    </summary>
     <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.6;">
       Export your GST sales as a GSTR-1 B2C/B2B summary CSV. Upload directly to the GST portal or share with your CA.
       Includes: Invoice No, Date, Customer GSTIN, Taxable Value, IGST/CGST/SGST split, HSN 7113.
@@ -2409,35 +2504,34 @@ tr:hover td{background:var(--bg2);}
     <div style="margin-top:10px;">
       <button onclick="exportGSTR1()" class="btn btn-gold">⬇ Export All GST Sales (GSTR-1)</button>
     </div>
-  </div>
+  </details>
 
   <!-- MONTHLY CHART -->
-  <div class="card">
-    <div class="card-title">&#128200; Revenue trend <span style="font-size:12px;color:var(--ink3);font-weight:400;" id="rep-chart-label"></span></div>
+  <details class="card" open>
+    <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">&#128200; Revenue trend <span style="font-size:12px;color:var(--ink3);font-weight:400;" id="rep-chart-label"></span><span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary>
     <div id="rep-chart" style="display:flex;align-items:flex-end;gap:3px;height:90px;padding:0 4px;"></div>
     <div id="rep-chart-labels" style="display:flex;gap:3px;margin-top:4px;padding:0 4px;"></div>
-  </div>
+  </details>
   <div class="two-col">
-    <div class="card"><div class="card-title">Top products <span style="font-size:11px;color:var(--text3);font-weight:400;" id="rep-top-label"></span></div><div class="tbl-wrap"><table><thead><tr><th>Product</th><th>Units</th><th>Wt sold</th><th>Revenue</th></tr></thead><tbody id="top-prods"></tbody></table></div></div>
-    <div class="card"><div class="card-title">By category</div><div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Units</th><th>Total wt</th></tr></thead><tbody id="cat-perf"></tbody></table></div></div>
+    <details class="card" open><summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">Top products <span style="font-size:11px;color:var(--text3);font-weight:400;" id="rep-top-label"></span><span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary><div class="tbl-wrap"><table><thead><tr><th>Product</th><th>Units</th><th>Wt sold</th><th>Revenue</th></tr></thead><tbody id="top-prods"></tbody></table></div></details>
+    <details class="card" open><summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">By category<span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary><div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Units</th><th>Total wt</th></tr></thead><tbody id="cat-perf"></tbody></table></div></details>
   </div>
-  <div class="card">
-    <div class="card-title">Sales in <span id="rep-hist-label"></span>
-      <button class="btn btn-sm" onclick="exportMonthCSV()">&#11015; Export CSV</button>
-    </div>
+  <details class="card" open>
+    <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">Sales in <span id="rep-hist-label"></span><span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary>
+    <button class="btn btn-sm" onclick="exportMonthCSV()" style="margin-bottom:8px;">&#11015; Export CSV</button>
     <div class="tbl-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Items</th><th>Wt</th><th>Payment</th><th>Total</th><th>Balance</th><th></th></tr></thead><tbody id="sales-hist"></tbody></table></div>
-  </div>
+  </details>
 
   <!-- TOP CUSTOMERS + AGING ROW -->
   <div class="two-col">
-    <div class="card">
-      <div class="card-title">&#127942; Top Customers</div>
+    <details class="card" open>
+      <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">&#127942; Top Customers<span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary>
       <div id="rep-top-custs"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">&#9201; Pending Aging</div>
+    </details>
+    <details class="card" open>
+      <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">&#9201; Pending Aging<span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary>
       <div id="rep-aging"></div>
-    </div>
+    </details>
   </div>
 
 </div>
@@ -2703,7 +2797,8 @@ tr:hover td{background:var(--bg2);}
 <!-- ── GIRVI DETAIL MODAL (Premium) ───────────────────────────────────── -->
 <div id="girvi-detail-modal" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.82);z-index:901;overflow-y:auto;-webkit-overflow-scrolling:touch;">
   <div style="max-width:500px;margin:20px auto 80px;background:var(--bg);border-radius:20px;box-shadow:0 12px 60px rgba(0,0,0,.5);">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .8rem;background:linear-gradient(135deg,rgba(179,146,87,.12),rgba(179,146,87,.04));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(179,146,87,.2);">
+    <!-- Sticky so title/✕ stay reachable on a long loan (UI/UX audit, 15 Oct). -->
+    <div style="position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:1.1rem 1.3rem .8rem;background:linear-gradient(135deg,rgba(179,146,87,.12),rgba(179,146,87,.04));border-radius:20px 20px 0 0;border-bottom:1px solid rgba(179,146,87,.2);">
       <div style="font-size:16px;font-weight:700;" id="gd-title">Girvi Detail</div>
       <button onclick="closeGirviDetail()" style="background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;padding:2px 6px;line-height:1;">✕</button>
     </div>
@@ -2780,7 +2875,7 @@ tr:hover td{background:var(--bg2);}
 </div>
 
 <!-- ════════════════════════════════ GIRVI LEDGER MODAL (v20) ═══════ -->
-<div id="girvi-ledger-modal">
+<div class="modal-overlay" id="girvi-ledger-modal">
   <div class="gl-wrap">
     <div class="gl-header">
       <h2 id="gl-modal-title">💸 Payment Ledger</h2>
@@ -2943,7 +3038,7 @@ tr:hover td{background:var(--bg2);}
 
   <div id="stab-profile" class="stab-content">
     <div class="card">
-      <div class="card-title">💎 Shop Profile</div>
+      <div class="card-title"><span data-icon="gem"></span> Shop Profile</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
         <div><label for="set-shopname" style="display:block;font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Shop Name</label><input id="set-shopname" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;"></div>
         <div><label for="set-city" style="display:block;font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">City</label><input id="set-city" type="text" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;"></div>
@@ -2963,13 +3058,13 @@ tr:hover td{background:var(--bg2);}
       </div>
     </div>
     <div class="card">
-      <div class="card-title">📱 WhatsApp Reminders Rules</div>
+      <div class="card-title"><span data-icon="chat"></span> WhatsApp Reminders Rules</div>
       <div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Configure reminders. One-tap send — never sends without your confirmation.</div>
       <div id="set-wa-rules"></div>
       <button onclick="document.getElementById('wa-automation-modal').style.display='block';renderWaRules();" class="btn btn-gold" style="margin-top:10px;">⚙️ Manage Rules</button>
     </div>
     <div class="card">
-      <div class="card-title">📊 Daily Digest</div>
+      <div class="card-title"><span data-icon="chart"></span> Daily Digest</div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Daily summary: revenue, pending dues, overdue girvi, top actions.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button onclick="showDailyDigest()" class="btn btn-gold">📊 View Today's Digest</button>
@@ -2978,11 +3073,11 @@ tr:hover td{background:var(--bg2);}
       <div style="font-size:11px;color:var(--text3);margin-top:8px;" id="digest-schedule-info"></div>
     </div>
     <div class="card">
-      <div class="card-title">📋 Message Templates</div>
+      <div class="card-title"><span data-icon="clipboard"></span> Message Templates</div>
       <div id="set-wa-templates"></div>
     </div>
     <div class="card" style="border:1px solid rgba(179,146,87,0.3);">
-      <div class="card-title">📧 Email Digest (Automated)
+      <div class="card-title"><span data-icon="mail"></span> Email Digest (Automated)
         <span style="font-size:11px;font-weight:400;color:var(--text3);">Runs daily at 9am even when app is closed</span>
       </div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.7;">
@@ -2998,20 +3093,20 @@ tr:hover td{background:var(--bg2);}
   </div>
 
   <div id="stab-analytics" class="stab-content" style="display:none;">
-    <div class="card"><div class="card-title">👑 Customer Lifetime Value</div><div id="set-clv-list"></div></div>
-    <div class="card"><div class="card-title">📈 Profit Trends (6 months)</div><div id="set-profit-trend"></div></div>
-    <div class="card"><div class="card-title">🏷️ Category Growth</div><div id="set-cat-growth"></div></div>
-    <div class="card"><div class="card-title">🔒 Capital Allocation</div><div id="set-capital-alloc"></div></div>
+    <div class="card"><div class="card-title"><span data-icon="crown"></span> Customer Lifetime Value</div><div id="set-clv-list"></div></div>
+    <div class="card"><div class="card-title"><span data-icon="trendUp"></span> Profit Trends (6 months)</div><div id="set-profit-trend"></div></div>
+    <div class="card"><div class="card-title"><span data-icon="tag"></span> Category Growth</div><div id="set-cat-growth"></div></div>
+    <div class="card"><div class="card-title"><span data-icon="lock"></span> Capital Allocation</div><div id="set-capital-alloc"></div></div>
   </div>
 
   <div id="stab-team" class="stab-content" style="display:none;">
     <div class="card" id="set-staff-card">
-      <div class="card-title">👥 Team Members</div>
+      <div class="card-title"><span data-icon="users"></span> Team Members</div>
       <div id="set-staff-list" style="margin-bottom:12px;"></div>
       <button onclick="openInviteStaff()" class="btn btn-gold" id="set-invite-btn">+ Invite Staff Member</button>
     </div>
     <div class="card" id="set-invite-form" style="display:none;">
-      <div class="card-title">📧 Invite Staff</div>
+      <div class="card-title"><span data-icon="mail"></span> Invite Staff</div>
       <div style="display:grid;gap:8px;margin-bottom:12px;">
         <input id="inv-name" type="text" placeholder="Staff name" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;">
         <input id="inv-email" type="email" placeholder="Email address" style="padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;">
@@ -3027,7 +3122,7 @@ tr:hover td{background:var(--bg2);}
       </div>
     </div>
     <div class="card">
-      <div class="card-title">📋 Activity Log</div>
+      <div class="card-title"><span data-icon="clipboard"></span> Activity Log</div>
       <div id="set-activity-log"></div>
     </div>
   </div>
@@ -3045,7 +3140,7 @@ tr:hover td{background:var(--bg2);}
     <!-- Supabase Setup Guide Card -- developer only (QA 30 Sep: table, function and
          migration names were shown to jewellers). Open the app with ?dev=1 to see it. -->
     <div class="card dev-only" style="border:1.5px solid var(--gold);margin-bottom:12px;">
-      <div class="card-title">&#9729; Cloud Setup
+      <div class="card-title"><span data-icon="cloud"></span> Cloud Setup
         <span id="cloud-status-badge" style="font-size:10px;padding:2px 8px;border-radius:100px;font-weight:600;margin-left:4px;">&#9898; Checking...</span>
       </div>
       <div id="cloud-status-line" style="font-size:11px;color:var(--text3);margin-bottom:8px;"></div>
@@ -3096,7 +3191,7 @@ tr:hover td{background:var(--bg2);}
       </div>
     </div>
     <div class="card">
-      <div class="card-title">💾 Backup &amp; Export</div>
+      <div class="card-title"><span data-icon="download"></span> Backup &amp; Export</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
         <button onclick="exportFullBackup()" class="btn btn-gold">⬇ JSON Backup</button>
         <button onclick="exportCSV()" class="btn">📊 Export CSV</button>
@@ -3113,7 +3208,7 @@ tr:hover td{background:var(--bg2);}
 
   <div id="stab-account" class="stab-content" style="display:none;">
     <div class="card">
-      <div class="card-title">👤 Account</div>
+      <div class="card-title"><span data-icon="user"></span> Account</div>
       <div id="set-account-info" style="font-size:13px;color:var(--text2);margin-bottom:12px;"></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button onclick="changePassword()" class="btn">Change Password</button>
@@ -3121,14 +3216,14 @@ tr:hover td{background:var(--bg2);}
       </div>
     </div>
     <div class="card">
-      <div class="card-title">📄 Legal</div>
+      <div class="card-title"><span data-icon="doc"></span> Legal</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button onclick="showLegalModal('privacy')" class="btn btn-sm">Privacy Policy</button>
         <button onclick="showLegalModal('terms')" class="btn btn-sm">Terms of Service</button>
       </div>
     </div>
     <div class="card dev-only">
-      <div class="card-title">🔧 Developer Tools
+      <div class="card-title"><span data-icon="gear"></span> Developer Tools
         <span style="font-size:11px;font-weight:400;color:var(--text3);">Owner only</span>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -3179,11 +3274,11 @@ tr:hover td{background:var(--bg2);}
 </main>
 <nav class="bnav">
   <div class="bnav-inner">
-    <button class="bnav-btn active" onclick="switchTab('dashboard')" id="bn-dashboard"><span class="bnav-icon">&#128202;</span><span class="bnav-label">Home</span></button>
-    <button class="bnav-btn" onclick="switchTab('inventory')" id="bn-inventory"><span class="bnav-icon">&#128230;</span><span class="bnav-label">Stock</span></button>
-    <button class="bnav-btn" onclick="switchTab('sales')" id="bn-sales"><span class="bnav-icon">&#128179;</span><span class="bnav-label">Sale</span></button>
-    <button class="bnav-btn" onclick="switchTab('daybook')" id="bn-daybook"><span class="bnav-icon">&#128214;</span><span class="bnav-label">Day Book</span></button>
-    <button class="bnav-btn" onclick="openMoreMenu()" id="bn-more"><span class="bnav-icon">&#8942;</span><span class="bnav-label">More</span></button>
+    <button class="bnav-btn active" onclick="switchTab('dashboard')" id="bn-dashboard"><span class="bnav-icon" data-icon="home"></span><span class="bnav-label">Home</span></button>
+    <button class="bnav-btn" onclick="switchTab('inventory')" id="bn-inventory"><span class="bnav-icon" data-icon="box"></span><span class="bnav-label">Stock</span></button>
+    <button class="bnav-btn" onclick="switchTab('sales')" id="bn-sales"><span class="bnav-icon" data-icon="cash"></span><span class="bnav-label">Sale</span></button>
+    <button class="bnav-btn" onclick="switchTab('daybook')" id="bn-daybook"><span class="bnav-icon" data-icon="book"></span><span class="bnav-label">Day Book</span></button>
+    <button class="bnav-btn" onclick="openMoreMenu()" id="bn-more"><span class="bnav-icon" data-icon="dots"></span><span class="bnav-label">More</span></button>
   </div>
 </nav>
 <!-- More menu (mobile bottom nav only — desktop .dtabs already shows every
@@ -3195,11 +3290,11 @@ tr:hover td{background:var(--bg2);}
   <div class="modal" style="max-width:420px;">
     <div class="modal-header"><h2>More</h2><button class="modal-close" onclick="closeMoreMenu()" aria-label="Close more menu">&#10005;</button></div>
     <div class="modal-body" style="padding:.5rem;">
-      <button class="more-menu-item" onclick="switchTab('girvi');closeMoreMenu();" id="bn-girvi"><span class="bnav-icon">&#129309;</span><span>Girvi</span></button>
-      <button class="more-menu-item" onclick="switchTab('orders');closeMoreMenu();" id="bn-orders"><span class="bnav-icon">&#128221;</span><span>Orders</span></button>
-      <button class="more-menu-item" onclick="switchTab('customers');closeMoreMenu();" id="bn-customers"><span class="bnav-icon">&#128101;</span><span>Customers</span></button>
-      <button class="more-menu-item" onclick="switchTab('reports');closeMoreMenu();" id="bn-reports"><span class="bnav-icon">&#128200;</span><span>Reports</span></button>
-      <button class="more-menu-item" onclick="switchTab('settings');closeMoreMenu();" id="bn-settings"><span class="bnav-icon">&#9881;</span><span>Settings</span></button>
+      <button class="more-menu-item" onclick="switchTab('girvi');closeMoreMenu();" id="bn-girvi"><span class="bnav-icon" data-icon="lock"></span><span>Girvi</span></button>
+      <button class="more-menu-item" onclick="switchTab('orders');closeMoreMenu();" id="bn-orders"><span class="bnav-icon" data-icon="clipboard"></span><span>Orders</span></button>
+      <button class="more-menu-item" onclick="switchTab('customers');closeMoreMenu();" id="bn-customers"><span class="bnav-icon" data-icon="users"></span><span>Customers</span></button>
+      <button class="more-menu-item" onclick="switchTab('reports');closeMoreMenu();" id="bn-reports"><span class="bnav-icon" data-icon="chart"></span><span>Reports</span></button>
+      <button class="more-menu-item" onclick="switchTab('settings');closeMoreMenu();" id="bn-settings"><span class="bnav-icon" data-icon="gear"></span><span>Settings</span></button>
     </div>
   </div>
 </div>
@@ -3210,10 +3305,10 @@ tr:hover td{background:var(--bg2);}
   <div class="modal" style="max-width:380px;">
     <div class="modal-header"><h2>Product actions</h2><button class="modal-close" onclick="closeProdActionMenu()" aria-label="Close actions menu">&#10005;</button></div>
     <div class="modal-body" style="padding:.5rem;">
-      <button class="more-menu-item" onclick="prodActionRun('edit')">&#9998;<span>&nbsp;Edit</span></button>
-      <button class="more-menu-item" onclick="prodActionRun('history')">&#128337;<span>&nbsp;Movement History</span></button>
+      <button class="more-menu-item" onclick="prodActionRun('edit')"><span data-icon="edit"></span><span>&nbsp;Edit</span></button>
+      <button class="more-menu-item" onclick="prodActionRun('history')"><span data-icon="clock"></span><span>&nbsp;Movement History</span></button>
       <button class="more-menu-item" onclick="prodActionRun('adjust')">&#177;<span>&nbsp;Adjust Stock</span></button>
-      <button class="more-menu-item" onclick="prodActionRun('delete')" style="color:var(--danger);">&#128465;<span>&nbsp;Delete</span></button>
+      <button class="more-menu-item" onclick="prodActionRun('delete')" style="color:var(--danger);"><span data-icon="trash"></span><span>&nbsp;Delete</span></button>
     </div>
   </div>
 </div>
@@ -3421,3 +3516,6 @@ tr:hover td{background:var(--bg2);}
   <script src="js/08-girvi-viewmode.js"></script>
   <script src="js/09-purchases.js"></script>
   <script src="js/10-daybook.js"></script>
+  <!-- Paints every static [data-icon] span above (nav, header) now that
+       svgIcon() exists -- UI/UX audit, 15 Oct, Phase 3 item 5. -->
+  <script>paintStaticIcons();</script>

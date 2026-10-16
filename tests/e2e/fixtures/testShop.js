@@ -77,7 +77,11 @@ async function login(page) {
   await page.locator('#auth-email').fill(shop.email);
   await page.locator('#auth-password').fill(shop.password);
   await page.locator('.auth-btn').filter({ hasText: /sign in/i }).click();
-  await page.getByRole('button', { name: /sign out/i }).waitFor({ timeout: 15000 });
+  // Sign Out moved off the dashboard into Settings -> Account (UI/UX audit,
+  // 15 Oct, Phase 1) -- it's no longer visible right after login, so wait on
+  // the shop name in the header instead, same signal auth.spec.js's own
+  // "reaches the dashboard" test already checks for.
+  await page.getByText(shop.name).first().waitFor({ timeout: 15000 });
   await dismissNetlifyBadge(page);
   await dismissV18Modal(page);
   await confirmRatesOnce(page);
@@ -128,4 +132,13 @@ async function goToTab(page, key) {
   await page.locator(TAB_ID[key]).click();
 }
 
-module.exports = { shop, runId, dismissNetlifyBadge, dismissV18Modal, login, goToTab, TAB_ID };
+// Sign Out lives in Settings -> Account now, not the dashboard header
+// (UI/UX audit, 15 Oct, Phase 1) -- specs that need to actually click it
+// (not just confirm "still logged in", which goes through shop.name
+// instead, see auth.spec.js/session-restore.spec.js) go here first.
+async function goToAccountSettings(page) {
+  await goToTab(page, 'settings');
+  await page.locator('[data-tab="account"]').click();
+}
+
+module.exports = { shop, runId, dismissNetlifyBadge, dismissV18Modal, login, goToTab, goToAccountSettings, TAB_ID };

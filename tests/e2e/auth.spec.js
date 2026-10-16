@@ -50,13 +50,16 @@ test.describe('auth', () => {
     await page.locator('#auth-password').fill(shop.password);
     await page.locator('.auth-btn').filter({ hasText: /sign in/i }).click();
 
-    await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText(shop.name)).toBeVisible();
+    // Sign Out moved off the dashboard into Settings -> Account (UI/UX
+    // audit, 15 Oct, Phase 1) -- the shop name appearing in the header is
+    // the dashboard-reached signal now.
+    await expect(page.getByText(shop.name)).toBeVisible({ timeout: 15000 });
   });
 
   test('logs out back to the login form', async ({ page }) => {
-    const { login } = require('./fixtures/testShop');
+    const { login, goToAccountSettings } = require('./fixtures/testShop');
     await login(page);
+    await goToAccountSettings(page);
 
     await page.getByRole('button', { name: /sign out/i }).first().click();
     // saasLogout() routes through the app's own safeConfirm modal, not a
@@ -87,8 +90,12 @@ test.describe('auth', () => {
     // first-time PIN setup.
     await page.evaluate((pin) => window._doSetPin(pin), shop.pin);
 
-    const signOutBtn = page.getByRole('button', { name: /sign out/i }).first();
-    await expect(signOutBtn).toBeVisible();
+    // Sign Out moved into Settings -> Account (UI/UX audit, 15 Oct, Phase
+    // 1) -- it's no longer chrome visible on every tab, so the shop name in
+    // the header is the "whole app is up, not just one tab" signal this
+    // test actually needs (see the comment above on what this test checks).
+    const appChrome = page.getByText(shop.name).first();
+    await expect(appChrome).toBeVisible();
 
     // Jump past the real 5-minute inactivity window (INACTIVITY_MS,
     // js/01-sync-core.js) in one step instead of actually waiting.
@@ -103,7 +110,7 @@ test.describe('auth', () => {
     await expect(page.getByText('Owner Access Only')).toBeVisible();
     // Blocks the whole app, not any one tab — no tab was ever opened here,
     // and the app chrome behind the lock is gone.
-    await expect(signOutBtn).not.toBeVisible();
+    await expect(appChrome).not.toBeVisible();
 
     // Done manipulating time — resume real time so the pad's own short
     // (80ms) verify delay just plays out normally like any other click.
@@ -116,13 +123,13 @@ test.describe('auth', () => {
     }
     await expect(page.getByText('Incorrect PIN. Try again.')).toBeVisible({ timeout: 5000 });
     await expect(pinScreen).toBeVisible();
-    await expect(signOutBtn).not.toBeVisible();
+    await expect(appChrome).not.toBeVisible();
 
     // Pad resets itself after a wrong attempt — re-enter the real PIN.
     for (const d of shop.pin) {
       await pinPad.getByText(d, { exact: true }).click();
     }
     await expect(pinScreen).not.toBeVisible({ timeout: 5000 });
-    await expect(signOutBtn).toBeVisible();
+    await expect(appChrome).toBeVisible();
   });
 });

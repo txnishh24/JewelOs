@@ -759,6 +759,10 @@ function renderSaleItems(){
     // SKU input with autocomplete
     var skuFg=document.createElement('div');
     skuFg.className='fg';
+    // Full-width on its own row instead of sharing .form-grid's 2 columns with
+    // Quantity -- at 360-390px that halving cut the SKU box down to ~133px
+    // and clipped its own placeholder text (UI/UX audit, 15 Oct).
+    skuFg.style.gridColumn='1 / -1';
     skuFg.innerHTML='<label>SKU / Item Code</label>';
     var skuInput=document.createElement('input');
     skuInput.id='si-sku-'+i;
@@ -1290,6 +1294,43 @@ function updateSum(){
   }
   row.innerHTML=html;
 }
+
+// Sale screen's 4 collapsible sections (UI/UX audit, 15 Oct) open themselves
+// the moment any field inside them is non-zero/non-empty, including when a
+// value arrives programmatically (e.g. converting an order to a sale sets
+// s-prev-advance/s-notes/s-making -- see js/04-orders-detail.js). Hooking
+// this onto updateSum() rather than each individual field means every path
+// that can populate these fields is covered without hunting down each one,
+// since updateSum() already runs after all of them. Never force-closes a
+// section the user opened themselves while its value is still 0 -- that
+// would be the collapsible fighting the user mid-interaction.
+function syncSaleCollapsibles(){
+  function openIfNonZero(detailsId, isNonZero){
+    var el=document.getElementById(detailsId);
+    if(el && isNonZero) el.open=true;
+  }
+  function num(id){ var el=document.getElementById(id); return el?(parseFloat(el.value)||0):0; }
+  openIfNonZero('sale-charges-details', num('s-making')>0 || num('s-diamond')>0 || num('s-gst')>0 || num('s-disc')>0);
+  openIfNonZero('sale-oldgold-details', num('s-oldgold-direct')>0 || num('s-oldgold-wt')>0 || num('s-oldgold-val')>0);
+  openIfNonZero('sale-advance-details', num('s-prev-advance')>0);
+  var notesEl=document.getElementById('s-notes');
+  openIfNonZero('sale-notes-details', !!(notesEl && notesEl.value && notesEl.value.trim()));
+}
+// Sticky bottom bar's Grand Total is a copy of #ss-total's already-rendered
+// text -- never a second computation of the total (UI/UX audit, 15 Oct: "read
+// from the SAME value the current summary renders; NEVER recalculate it").
+function mirrorSaleStickyTotal(){
+  var src=document.getElementById('ss-total'), dst=document.getElementById('sale-sticky-total');
+  if(src && dst) dst.textContent = src.textContent;
+}
+(function patchUpdateSumForCollapsibles(){
+  var _origUpdateSum = updateSum;
+  updateSum = function(){
+    _origUpdateSum.apply(this, arguments);
+    syncSaleCollapsibles();
+    mirrorSaleStickyTotal();
+  };
+}());
 
 function buildSaleObj(){
   var saleItems;
@@ -2002,6 +2043,11 @@ function clearSale(){
   var bdR=document.getElementById('balance-due-row');if(bdR)bdR.style.display='none';
   var spR=document.getElementById('still-pending-row');if(spR)spR.style.display='none';
   var scR=document.getElementById('fully-cleared-row');if(scR)scR.style.display='none';
+  // A cleared form has nothing non-zero left in any of these, so they
+  // collapse back shut (UI/UX audit, 15 Oct).
+  ['sale-charges-details','sale-oldgold-details','sale-advance-details','sale-notes-details'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.open=false;
+  });
   setOgMode('direct');
   if(typeof initSplitPayments==='function') initSplitPayments();
   setSaleMode('stock');
