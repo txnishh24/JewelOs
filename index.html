@@ -222,10 +222,6 @@ body{
   -webkit-font-smoothing:antialiased;
 }
 .serif,h1,h2,h3{font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif;}
-/* Money/weight/count figures always render in Inter, never the serif display font —
-   Cormorant's old-style digits make 0 look like "o" and 1 look like "I" on amounts.
-   Headings stay serif; this only overrides the value classes that showed numerals in it. */
-.metric-value,.gl-entry-amt,.ged-val,.gl-sum-val{font-family:var(--font-body);font-variant-numeric:tabular-nums;}
 
 /* ── TOPBAR ──────────────────────────────────────── */
 .topbar{
@@ -1160,6 +1156,14 @@ html.dev .dev-only{display:block!important;}
 .ged-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ged-accent,var(--gold));}
 .ged-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:4px;}
 .ged-val{font-family:var(--font-display);font-size:var(--text-xl);font-weight:700;color:var(--ink);line-height:1.1;font-variant-numeric:tabular-nums;}
+/* Money/weight/count figures always render in Inter, never the serif display font —
+   Cormorant's old-style digits make 0 look like "o" and 1 look like "I" on amounts.
+   Headings stay serif; this only overrides the value classes that showed numerals in it.
+   Must come AFTER .metric-value/.gl-sum-val/.gl-entry-amt/.ged-val above (same
+   specificity, source order decides) — a prior placement near the top of the
+   stylesheet lost to all four and never actually applied (found in browser testing,
+   16 Oct). */
+.metric-value,.gl-entry-amt,.ged-val,.gl-sum-val{font-family:var(--font-body);font-variant-numeric:tabular-nums;}
 .ged-sub{font-size:10px;color:var(--text3);margin-top:4px;}
 
 /* ── Advanced Search Bar (Girvi) ── */

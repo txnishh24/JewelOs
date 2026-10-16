@@ -2938,6 +2938,12 @@ test('QA P1 item 11: order profit estimate is not the whole quote when no estima
   assert(a.orderProfitEst({ quote:100000, items:[{ metal:'gold', purity:'22K', orderWt:5, qty:1, making:0 }] }) === 100000 - 5*r, 'order weight used when no estimate');
 });
 
+test('an order status not in ORD_STATUS falls back to "new" instead of throwing (16 Oct, loadDemoData seeded "making")', function(){
+  assert(app.ordStatusOf({ status:'making' }) === app.ORD_STATUS['new'], 'unknown status falls back to new');
+  assert(app.ordStatusOf({}) === app.ORD_STATUS['new'], 'missing status falls back to new');
+  assert(app.ordStatusOf({ status:'progress' }) === app.ORD_STATUS['progress'], 'a real status is still looked up normally, not forced to new');
+});
+
 test('QA P1 items 12-13: developer cards are hidden by default; no "Free forever" or phantom WhatsApp setup', function(){
   var html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
   // Icon markup changed from a raw emoji to svgIcon('cloud'/'gear') (UI/UX

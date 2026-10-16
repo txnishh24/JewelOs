@@ -118,6 +118,10 @@ function renderTab(tab, isEntrance){
 var _tabScrollPos = {};
 
 function switchTab(tab){
+  // The product actions sheet is tab-agnostic chrome, not part of any one
+  // screen -- close it on every tab switch so it can't follow you to a tab
+  // where its remembered _prodActionId no longer makes sense (16 Oct).
+  closeProdActionMenu();
   // ── Staff role enforcement ───────────────────────────────────────────
   // staff: can only access dashboard, sales, inventory
   // manager/owner: full access
@@ -204,6 +208,15 @@ function prodActionRun(action){
   else if(action==='adjust') openAdjustStockModal(id);
   else if(action==='delete') delProd(id);
 }
+// Escape closes the product actions sheet, same as the Girvi detail modal
+// (08-girvi-viewmode.js) -- found open across tab switches in browser
+// testing, 16 Oct: nothing was closing it on Escape or on switchTab/
+// switchInvSub, so it stayed open over whatever screen came next.
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape') return;
+  var m=document.getElementById('prod-action-modal');
+  if(m && m.classList.contains('open')) closeProdActionMenu();
+});
 
 // ─── RATES ────────────────────────────────────────────────────────────────
 function loadRates(){

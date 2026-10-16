@@ -23,6 +23,9 @@ function pbToggleSettings(){
 
 // ── SUB-TAB SWITCH (Inventory ⇄ Purchases) ──────────────────────────────
 function switchInvSub(which){
+  // Same tab-agnostic chrome as switchTab() (02-ui-inactivity-modals.js) --
+  // close it so it can't follow across the Stock/Purchases sub-tab too (16 Oct).
+  closeProdActionMenu();
   // Purchases plan gate removed — every shop has purchase bills.
   var stockEl = document.getElementById('inv-sub-stock');
   var purchEl = document.getElementById('inv-sub-purchases');

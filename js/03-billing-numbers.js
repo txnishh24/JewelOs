@@ -1593,6 +1593,11 @@ var ORD_STATUS = {
   'delivered': { label:'Delivered',  icon:'\uD83D\uDCE6', cls:'ord-st-dlv'  },
   'cancelled': { label:'Cancelled',  icon:'\u2716',    cls:'ord-st-cxl'  }
 };
+// An order with no status, or a status that isn't one of the 5 keys above
+// (e.g. stale/foreign data), falls back to 'new' instead of throwing on
+// ORD_STATUS[...].cls \u2014 found via loadDemoData() seeding status:'making',
+// which was never a real key, 16 Oct.
+function ordStatusOf(o){ return ORD_STATUS[o.status] || ORD_STATUS['new']; }
 
 function renderOrders(){
   if(!S.orders)S.orders=[];
@@ -1651,7 +1656,7 @@ function renderOrders(){
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'+
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+
           '<span style="font-weight:700;font-size:13px;color:var(--info);">'+o.ordNo+'</span>'+
-          '<span class="ord-status '+ORD_STATUS[o.status||'new'].cls+'">'+ORD_STATUS[o.status||'new'].icon+' '+ORD_STATUS[o.status||'new'].label+'</span>'+
+          '<span class="ord-status '+ordStatusOf(o).cls+'">'+ordStatusOf(o).icon+' '+ordStatusOf(o).label+'</span>'+
           priHtml+
         '</div>'+
         '<span style="font-size:11px;color:var(--text3);">'+fmtDate(o.createdAt)+'</span>'+
