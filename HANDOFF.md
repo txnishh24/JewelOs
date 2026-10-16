@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 16 Oct (32nd entry): 3 bugs found by Tanish's browser test of 43fc399 fixed — numeral font losing a CSS specificity tie, the product actions sheet not closing on Escape/tab-switch, and a pre-existing demo-data crash in Orders (see 32nd LOG entry). 16 Oct (31st entry): Phases 2 (Sale screen) and 3 (all 7 medium items) of the 15 Oct UI/UX audit committed in one pass — presentation-only, see 31st LOG entry for the full list, the checkpoint-skip note, and the phone-test screens. 16 Oct (30th entry): Phase 1 of the same audit committed (see 30th LOG entry). 15 Oct (28th entry): wrote out Cowork's testing role for batch54 — the live-account/real-session checks my own verification couldn't cover (see 28th LOG entry). 15 Oct (27th entry): motion pass (v2, through 1a5386b) deployed to the Cloudflare Worker, byte-verified live (see 27th LOG entry). 15 Oct (26th entry): motion pass corrected to the actual v2 spec per Cowork's 25th-entry review (plain ease-out modals, no count-up, stagger cap 6) — committed, NOT deployed (see 26th LOG entry). 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). 15 Oct (21st entry): Tanish said GO — both deploys done: auth-gateway v8 + store-proxy v10 (CORS allowlist) and sw.js v20 (Cloudflare), both byte/hash-verified live. Waiting on Cowork to test CORS + a real login next. Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; real phone pass for sw.js v20; check Sentry Replay masking settings; add jewelos.co to ALLOWED_ORIGINS the day it's attached.
+> Free — nothing in progress. 16 Oct (33rd entry): batch55 (the 15 Oct UI/UX audit, commits 18d2719/43fc399/efb6423) deployed to the Cloudflare Worker per Tanish's GO, byte-verified live (see 33rd LOG entry). 16 Oct (32nd entry): 3 bugs found by Tanish's browser test of 43fc399 fixed — numeral font losing a CSS specificity tie, the product actions sheet not closing on Escape/tab-switch, and a pre-existing demo-data crash in Orders (see 32nd LOG entry). 16 Oct (31st entry): Phases 2 (Sale screen) and 3 (all 7 medium items) of the 15 Oct UI/UX audit committed in one pass — presentation-only, see 31st LOG entry for the full list, the checkpoint-skip note, and the phone-test screens. 16 Oct (30th entry): Phase 1 of the same audit committed (see 30th LOG entry). 15 Oct (28th entry): wrote out Cowork's testing role for batch54 — the live-account/real-session checks my own verification couldn't cover (see 28th LOG entry). 15 Oct (27th entry): motion pass (v2, through 1a5386b) deployed to the Cloudflare Worker, byte-verified live (see 27th LOG entry). 15 Oct (26th entry): motion pass corrected to the actual v2 spec per Cowork's 25th-entry review (plain ease-out modals, no count-up, stagger cap 6) — committed, NOT deployed (see 26th LOG entry). 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). 15 Oct (21st entry): Tanish said GO — both deploys done: auth-gateway v8 + store-proxy v10 (CORS allowlist) and sw.js v20 (Cloudflare), both byte/hash-verified live. Waiting on Cowork to test CORS + a real login next. Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; real phone pass for sw.js v20; check Sentry Replay masking settings; add jewelos.co to ALLOWED_ORIGINS the day it's attached.
 
 ---
 
@@ -83,6 +83,35 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-16 (thirty-third entry) · Claude Code (Sonnet) — batch55 (15 Oct UI/UX audit) deployed to Cloudflare Worker per Tanish's GO. Byte-verified live
+
+🟢 Deploy only — no new code beyond the 30th/31st/32nd entries' commits (`18d2719`, `43fc399`, `efb6423`). No database login, no Supabase write.
+
+**Pre-flight:** `git status` clean except untracked `_to_delete/` (not touched) — stopped and checked before anything else, per the instructions. `check.bat` on `efb6423`: syntax OK all 11 files, regression suite **423/423**, backup-check and roundtrip both **PASS**, AST/scope checks identical to the known baseline.
+
+**Changelog:** wrote `docs/CHANGES-batch55.md` — base is batch54 (motion pass v2, already live), covers all three phases of the audit plus the 3 bugfixes, same format as prior batch changelogs.
+
+**Deploy:** `node build-cf-deploy-stage.js batch55` staged 17 files + the changelog (18 total) into `cf-deploy-stage/`. `npx wrangler deploy --dry-run` — clean, no bindings, no errors. `npx wrangler deploy` — **Success, 10 files uploaded** (index.html + the 8 changed js/*.js + CHANGELOG.md; the other 7 staged files — manifest.json, icons, sw.js, and the 2 untouched js files — were already current on the Worker and not re-uploaded). Version ID `27f64b82-5694-43d1-9b1f-f21541fdc908`.
+
+**Byte-verify (real, from the live origin, not assumed):** fetched every changed file from `https://jewelos.jewelos-e2e.workers.dev` and diffed against `efb6423` by SHA-256.
+- `index.html` — **IDENTICAL** (238,580 bytes). One gotcha: `/index.html` itself 307-redirects to `/` (normal Workers Assets behavior for a default-index file) and returns 0 bytes at that literal path — fetching `/` (following the redirect) is what gives the real file; noting this so a future verify pass doesn't misread the redirect as "file missing."
+- `js/01-sync-core.js` — IDENTICAL
+- `js/02-ui-inactivity-modals.js` — IDENTICAL
+- `js/03-billing-numbers.js` — IDENTICAL
+- `js/06-inventory-stock.js` — IDENTICAL
+- `js/07-settings-plans.js` — IDENTICAL
+- `js/08-girvi-viewmode.js` — IDENTICAL
+- `js/09-purchases.js` — IDENTICAL
+- `js/10-daybook.js` — IDENTICAL
+
+All 9 byte-exact against the repo. `sw.js` (jewelos-v20, network-first) was intentionally not touched — see `docs/CHANGES-batch55.md`'s "sw.js" section for why that's safe here.
+
+**Not verified, said plainly:** no login, no real phone pass — this entry only confirms the bytes served match what's committed, not that any screen looks or behaves right. The full phone-test checklist from the 31st/32nd entries (Sale screen, Girvi detail modal + Ledger, phone cards, Add Product, Reports, icons, 1440px, and the two just-fixed bugs) is still open.
+
+→ FOR COWORK: nothing blocking. FYI only — batch55 is live on the Cloudflare Worker, byte-verified against `efb6423`. Netlify still untouched/paused. If you get a real-session view before Tanish's own phone pass, the HANDOFF list above (31st/32nd entries) is what still needs eyes.
 
 ---
 
