@@ -86,6 +86,38 @@ or re-add tier UI.
 
 ---
 
+### 2026-10-17 (forty-third entry) · Cowork (Sonnet) — Tanish said "yes backup": task for Claude Code, free interim backup of `public.store` (Supabase is on Free, no backups)
+
+Tanish approved building a stopgap backup until he upgrades to Pro (his plan: Pro at first paying shop or 3 shops, whichever is first). Cowork cannot build or run it: the cloud and device shells get 403 on supabase.co, and the key must never go through chat. Nothing was changed or read from the database for this.
+
+Spec (small, Sonnet is enough, no production writes, read-only):
+- `tools/backup-store.js` (plain Node, no new dependencies). Reads `public.store` (all rows, all shops) over the Supabase REST API using a key from an environment variable (`SUPABASE_SERVICE_KEY`) that Tanish sets himself on his own machine. The key must never be committed, logged, printed or put in a file in the repo. Check `.gitignore` covers the output folder.
+- Writes one dated file per run, e.g. `store-YYYY-MM-DD-HHMM.json`, to a folder OUTSIDE the repo that Tanish names (default `%USERPROFILE%\jewelos-backups`). Keeps the newest 30, never deletes anything else. Deleting old backups is prune-only inside that folder; if that is a problem, just print which files are over 30 and let Tanish remove them.
+- After writing: re-read the file, confirm JSON parses, row count equals the count returned by the API, and every shop id is present. Exit non-zero and print a clear line on any failure. Print only shop ids and counts, no customer data.
+- A `restore` note in the script header (how to put one row back with SQL). Do not build an automatic restore.
+- Run schedule: Windows Task Scheduler daily, plus a manual run before every deploy and every migration. Write the 3-step Task Scheduler instructions in plain words for Tanish (he has no coding background).
+- Also add "run backup first" as a line in the deploy checklist if one exists.
+- Test with a fake local server or mocked fetch only. Do NOT run it against production yourself without Tanish's go.
+
+→ FOR CLAUDE CODE: build the above, ES5 rule does not apply (it is a dev tool, not the PWA), add a short test, log your entry. Do not touch the database.
+→ FOR TANISH: when Claude Code says it is ready, you set `SUPABASE_SERVICE_KEY` yourself (Supabase Dashboard → Project Settings → API; never paste it in chat). The service key is powerful, so keep it only on your own computer. Upgrade to Pro at the first paying shop or at 3 shops.
+
+### 2026-10-17 (forty-second entry) · Cowork (Sonnet) — Supabase plan confirmed by Tanish: FREE (no backups)
+
+Tanish confirmed in chat on 17 Oct that the Supabase org "Sri Sai jewellers" is on the **Free** plan. Free has no scheduled backups and no point-in-time recovery. Every shop's data lives in one `public.store` row each, with no restore point other than any manual exports. I could not read this myself: the Supabase MCP has no plan/backup endpoint, and the dashboard in the browser pane is signed out (I did not sign in). Nothing was changed.
+
+→ FOR CLAUDE CODE: no code change needed. If you want an interim safety net before an upgrade, a scheduled export of `public.store` is yours to propose; no production change without Tanish's go.
+→ FOR TANISH: upgrade the org to Pro (Billing → Change plan) before any more shops go live, then confirm Database → Backups shows daily backups. Until then, a bad write or a bad migration cannot be undone.
+
+### 2026-10-17 (forty-first entry) · Cowork (Sonnet) — independent live check of batch57 Sentry Replay masking: CONFIRMED
+
+From the live Worker origin (logged-out, read-only): Sentry client loaded, Replay integration present, runtime options `maskAllText:true`, `maskAllInputs:true`, `blockAllMedia:true`; sample rates 0.1 session / 1.0 on error. Diff of 89b3824 is just that config. Not checked: a real recorded replay in the Sentry dashboard (needs dashboard access). That closes the 14 Oct "masking unconfirmed" item at config level.
+
+→ FOR CLAUDE CODE: nothing.
+→ FOR TANISH: optional: open one replay in the Sentry dashboard after your next real session and confirm text shows as blocks.
+
+---
+
 ### 2026-10-17 (thirty-seventh entry) · Claude Code (Sonnet) — Netlify credits reset; decided to stay on Cloudflare, no code or deploy change
 
 🟢 Decision only — no code, no deploy.
