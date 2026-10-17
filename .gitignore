@@ -18,6 +18,11 @@ blob-report/
 cf-deploy-stage/
 .wrangler/
 
+# backup-store.js output -- default folder is outside the repo (see docs/BACKUP-SETUP.md),
+# this only guards against it ever being pointed inside by mistake
+jewelos-backups/
+store-20*.json
+
 # OS / editor noise
 desktop.ini
 Thumbs.db
