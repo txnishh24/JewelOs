@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 16 Oct (35th entry): batch56 pushed to origin and deployed to the Cloudflare Worker on Tanish's explicit go-ahead (skipping the phone-test-first step the task brief originally called for — his call, made in chat) — byte-verified live (see 35th LOG entry). 16 Oct (34th entry): batch56, final polish pass on the 15 Oct UI/UX audit — sticky Sale bar "To Collect", remaining emoji→svgIcon() (incl. a widespread pre-existing `.card-title` icon/text split bug found and fixed along the way), Stock/Sale naming stragglers, Day Book card alignment (see 34th LOG entry). 16 Oct (33rd entry): batch55 (the 15 Oct UI/UX audit, commits 18d2719/43fc399/efb6423) deployed to the Cloudflare Worker per Tanish's GO, byte-verified live (see 33rd LOG entry). 16 Oct (32nd entry): 3 bugs found by Tanish's browser test of 43fc399 fixed — numeral font losing a CSS specificity tie, the product actions sheet not closing on Escape/tab-switch, and a pre-existing demo-data crash in Orders (see 32nd LOG entry). 16 Oct (31st entry): Phases 2 (Sale screen) and 3 (all 7 medium items) of the 15 Oct UI/UX audit committed in one pass — presentation-only, see 31st LOG entry for the full list, the checkpoint-skip note, and the phone-test screens. 16 Oct (30th entry): Phase 1 of the same audit committed (see 30th LOG entry). 15 Oct (28th entry): wrote out Cowork's testing role for batch54 — the live-account/real-session checks my own verification couldn't cover (see 28th LOG entry). 15 Oct (27th entry): motion pass (v2, through 1a5386b) deployed to the Cloudflare Worker, byte-verified live (see 27th LOG entry). 15 Oct (26th entry): motion pass corrected to the actual v2 spec per Cowork's 25th-entry review (plain ease-out modals, no count-up, stagger cap 6) — committed, NOT deployed (see 26th LOG entry). 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). 15 Oct (21st entry): Tanish said GO — both deploys done: auth-gateway v8 + store-proxy v10 (CORS allowlist) and sw.js v20 (Cloudflare), both byte/hash-verified live. Waiting on Cowork to test CORS + a real login next. Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; real phone pass for sw.js v20; check Sentry Replay masking settings; add jewelos.co to ALLOWED_ORIGINS the day it's attached.
+> Free — nothing in progress. 17 Oct (37th entry): Netlify credits reset; decided to stay on Cloudflare, no code/deploy change — posted to Tanish in `#all-jewelos` Slack (see 37th LOG entry). 16 Oct (35th entry): batch56 pushed to origin and deployed to the Cloudflare Worker on Tanish's explicit go-ahead (skipping the phone-test-first step the task brief originally called for — his call, made in chat) — byte-verified live (see 35th LOG entry). 16 Oct (34th entry): batch56, final polish pass on the 15 Oct UI/UX audit — sticky Sale bar "To Collect", remaining emoji→svgIcon() (incl. a widespread pre-existing `.card-title` icon/text split bug found and fixed along the way), Stock/Sale naming stragglers, Day Book card alignment (see 34th LOG entry). 16 Oct (33rd entry): batch55 (the 15 Oct UI/UX audit, commits 18d2719/43fc399/efb6423) deployed to the Cloudflare Worker per Tanish's GO, byte-verified live (see 33rd LOG entry). 16 Oct (32nd entry): 3 bugs found by Tanish's browser test of 43fc399 fixed — numeral font losing a CSS specificity tie, the product actions sheet not closing on Escape/tab-switch, and a pre-existing demo-data crash in Orders (see 32nd LOG entry). 16 Oct (31st entry): Phases 2 (Sale screen) and 3 (all 7 medium items) of the 15 Oct UI/UX audit committed in one pass — presentation-only, see 31st LOG entry for the full list, the checkpoint-skip note, and the phone-test screens. 16 Oct (30th entry): Phase 1 of the same audit committed (see 30th LOG entry). 15 Oct (28th entry): wrote out Cowork's testing role for batch54 — the live-account/real-session checks my own verification couldn't cover (see 28th LOG entry). 15 Oct (27th entry): motion pass (v2, through 1a5386b) deployed to the Cloudflare Worker, byte-verified live (see 27th LOG entry). 15 Oct (26th entry): motion pass corrected to the actual v2 spec per Cowork's 25th-entry review (plain ease-out modals, no count-up, stagger cap 6) — committed, NOT deployed (see 26th LOG entry). 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). 15 Oct (21st entry): Tanish said GO — both deploys done: auth-gateway v8 + store-proxy v10 (CORS allowlist) and sw.js v20 (Cloudflare), both byte/hash-verified live. Waiting on Cowork to test CORS + a real login next. Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; real phone pass for sw.js v20; check Sentry Replay masking settings; add jewelos.co to ALLOWED_ORIGINS the day it's attached.
 
 ---
 
@@ -83,6 +83,46 @@ outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUn
 Supabase. There is no in-app payment and none planned. Enforcement shipped 9 Sep
 (`paidUntil`), and the in-app upgrade path was removed the same day. Do not re-open this
 or re-add tier UI.
+
+---
+
+### 2026-10-17 (thirty-seventh entry) · Claude Code (Sonnet) — Netlify credits reset; decided to stay on Cloudflare, no code or deploy change
+
+🟢 Decision only — no code, no deploy.
+
+Tanish reported Netlify's production-deploy credits are back (reset was expected 18 Oct).
+Weighed whether to migrate the client host back from the Cloudflare Worker
+(`jewelos.jewelos-e2e.workers.dev`) to Netlify production (`heartfelt-queijadas-eeb356
+.netlify.app`). Couldn't independently confirm the reset either way: the Netlify MCP
+exposes no billing/credits API (same gap found 15 Oct), this project deploys via manual
+zip upload rather than a git-linked build so there's no API "test deploy" to run, and
+Claude-in-Chrome wasn't connected this session to read the dashboard banner directly.
+
+**Decision: stay on Cloudflare.** No technical reason to move back — Cloudflare has been
+live and byte-verified since batch53 straight through batch56, with zero issues. Netlify's
+free-tier credit exhaustion (what forced the move on 8 Oct) is a real recurrence risk on
+the same plan, and migrating back would mean a catch-up zip deploy for batches 51–56 plus
+re-verification, for no functional gain. Netlify stays a cold fallback only, not
+production.
+
+Posted this decision to `#all-jewelos` on Slack for visibility/override.
+
+→ FOR COWORK: nothing — FYI only. Client host is still the Cloudflare Worker; Netlify
+hasn't been touched and wasn't redeployed.
+→ FOR TANISH: said so in Slack already — flag if you want Netlify back for a
+non-technical reason (cost you're already paying for, DNS, dashboard familiarity).
+Otherwise nothing further needed here.
+
+---
+
+### 2026-10-17 (thirty-sixth entry) · Cowork (Sonnet) — Sale-screen money check on batch56, local browser run (Chromium 390px, sample state, login bypassed client-side, no network, no real account, no production)
+
+PASS: 10g @22K ₹7,200 = ₹72,000 item total. +extra making 500 +extra diamond 300 −discount 100 = Grand Total ₹72,700 (correct). Paying 20,000 → pending/sticky ₹52,700 (correct). +Advance 5,000 → ₹47,700 (correct). Pay exactly the remainder → ₹0, "settled". Sticky bar mirrors Still-pending exactly each time; label switches to "To collect ₹X · Total ₹Y". Overpay shows ₹0 pending; save-time guard `saleOverpaidBy` blocks it (code read, not exercised).
+NOT TESTED (needs server/real session): Record & Sync save (offline here: "no offline invoice numbers"), GST-bill path (needs shop GST config; setBillType('gst') reverts to memo without it), Stock Sale mode, Edit Bill, split payments across modes, invoice print.
+FINDINGS (low): (1) First-launch "What's new v18.1" modal still says "Run SQL setup in Settings → Data → Cloud Setup before sharing with staff" — internal dev text shown to shop owners. (2) Settings → Data → Cloud Setup shows migration SQL and architecture notes to every owner. (3) Customer-phone placeholder "98765 43210" still looks like a real number. (4) Sale card title wraps to two lines and wastes ~60px at 390px.
+
+→ FOR CLAUDE CODE: optional polish: reword/remove the v18.1 setup notice for non-owner-dev users, hide the Cloud Setup SQL block outside a dev flag, set the phone placeholder to "Mobile number". Nothing money-related found.
+→ FOR TANISH: Sale math on the new screen is correct. Still do one real Record & Sync sale on your phone (that path I can't run).
 
 ---
 
