@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Free — nothing in progress. 17 Oct (37th entry): Netlify credits reset; decided to stay on Cloudflare, no code/deploy change — posted to Tanish in `#all-jewelos` Slack (see 37th LOG entry). 16 Oct (35th entry): batch56 pushed to origin and deployed to the Cloudflare Worker on Tanish's explicit go-ahead (skipping the phone-test-first step the task brief originally called for — his call, made in chat) — byte-verified live (see 35th LOG entry). 16 Oct (34th entry): batch56, final polish pass on the 15 Oct UI/UX audit — sticky Sale bar "To Collect", remaining emoji→svgIcon() (incl. a widespread pre-existing `.card-title` icon/text split bug found and fixed along the way), Stock/Sale naming stragglers, Day Book card alignment (see 34th LOG entry). 16 Oct (33rd entry): batch55 (the 15 Oct UI/UX audit, commits 18d2719/43fc399/efb6423) deployed to the Cloudflare Worker per Tanish's GO, byte-verified live (see 33rd LOG entry). 16 Oct (32nd entry): 3 bugs found by Tanish's browser test of 43fc399 fixed — numeral font losing a CSS specificity tie, the product actions sheet not closing on Escape/tab-switch, and a pre-existing demo-data crash in Orders (see 32nd LOG entry). 16 Oct (31st entry): Phases 2 (Sale screen) and 3 (all 7 medium items) of the 15 Oct UI/UX audit committed in one pass — presentation-only, see 31st LOG entry for the full list, the checkpoint-skip note, and the phone-test screens. 16 Oct (30th entry): Phase 1 of the same audit committed (see 30th LOG entry). 15 Oct (28th entry): wrote out Cowork's testing role for batch54 — the live-account/real-session checks my own verification couldn't cover (see 28th LOG entry). 15 Oct (27th entry): motion pass (v2, through 1a5386b) deployed to the Cloudflare Worker, byte-verified live (see 27th LOG entry). 15 Oct (26th entry): motion pass corrected to the actual v2 spec per Cowork's 25th-entry review (plain ease-out modals, no count-up, stagger cap 6) — committed, NOT deployed (see 26th LOG entry). 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). 15 Oct (21st entry): Tanish said GO — both deploys done: auth-gateway v8 + store-proxy v10 (CORS allowlist) and sw.js v20 (Cloudflare), both byte/hash-verified live. Waiting on Cowork to test CORS + a real login next. Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; real phone pass for sw.js v20; check Sentry Replay masking settings; add jewelos.co to ALLOWED_ORIGINS the day it's attached.
+> Free — nothing in progress. 17 Oct (38th entry): Sentry Session Replay masking made explicit in `index.html`'s `Sentry.init` call (`maskAllText`/`maskAllInputs`/`blockAllMedia`) — committed, NOT deployed, NOT verified live in a browser (see 38th LOG entry). 17 Oct (37th entry): Netlify credits reset; decided to stay on Cloudflare, no code/deploy change — posted to Tanish in `#all-jewelos` Slack (see 37th LOG entry). 16 Oct (35th entry): batch56 pushed to origin and deployed to the Cloudflare Worker on Tanish's explicit go-ahead (skipping the phone-test-first step the task brief originally called for — his call, made in chat) — byte-verified live (see 35th LOG entry). 16 Oct (34th entry): batch56, final polish pass on the 15 Oct UI/UX audit — sticky Sale bar "To Collect", remaining emoji→svgIcon() (incl. a widespread pre-existing `.card-title` icon/text split bug found and fixed along the way), Stock/Sale naming stragglers, Day Book card alignment (see 34th LOG entry). 16 Oct (33rd entry): batch55 (the 15 Oct UI/UX audit, commits 18d2719/43fc399/efb6423) deployed to the Cloudflare Worker per Tanish's GO, byte-verified live (see 33rd LOG entry). 16 Oct (32nd entry): 3 bugs found by Tanish's browser test of 43fc399 fixed — numeral font losing a CSS specificity tie, the product actions sheet not closing on Escape/tab-switch, and a pre-existing demo-data crash in Orders (see 32nd LOG entry). 16 Oct (31st entry): Phases 2 (Sale screen) and 3 (all 7 medium items) of the 15 Oct UI/UX audit committed in one pass — presentation-only, see 31st LOG entry for the full list, the checkpoint-skip note, and the phone-test screens. 16 Oct (30th entry): Phase 1 of the same audit committed (see 30th LOG entry). 15 Oct (28th entry): wrote out Cowork's testing role for batch54 — the live-account/real-session checks my own verification couldn't cover (see 28th LOG entry). 15 Oct (27th entry): motion pass (v2, through 1a5386b) deployed to the Cloudflare Worker, byte-verified live (see 27th LOG entry). 15 Oct (26th entry): motion pass corrected to the actual v2 spec per Cowork's 25th-entry review (plain ease-out modals, no count-up, stagger cap 6) — committed, NOT deployed (see 26th LOG entry). 13 Oct: Phase 5 (all 3 deploy steps) live AND confirmed by Cowork (15th entry, real login succeeded). 13 Oct (16th entry): found + fixed a real offline-cache race in `sw.js` while testing the airplane-mode item; fix committed, NOT yet deployed to Cloudflare. 14 Oct (17th entry): outside-in read-only recon of the live site found one real fix worth doing — `auth-gateway`'s CORS allows any origin (see 17th LOG entry). 14 Oct (18th entry): redid that recon with REA itself once reconnected — cross-validated the CORS/route findings, plus found Sentry Session Replay is live in prod with no visible masking config (see 18th LOG entry). 14 Oct (19th entry): Tanish authorized and gave real login credentials for a full authenticated walkthrough — all 9 main screens confirmed working end-to-end, no bugs found, no data mutated (see 19th LOG entry). 14 Oct (20th entry): fixed the open-CORS bug in BOTH auth-gateway and store-proxy (store-proxy had the same bug, not just the one named) — committed, NOT deployed, waiting on Tanish to say go (see 20th LOG entry). 15 Oct (21st entry): Tanish said GO — both deploys done: auth-gateway v8 + store-proxy v10 (CORS allowlist) and sw.js v20 (Cloudflare), both byte/hash-verified live. Waiting on Cowork to test CORS + a real login next. Open: Tanish changes his password (pasted in chat twice now — 13 Oct and 14 Oct); Sale-form UI fixes not started; real phone pass for sw.js v20; check Sentry Replay masking settings; add jewelos.co to ALLOWED_ORIGINS the day it's attached.
 
 ---
 
@@ -112,6 +112,43 @@ hasn't been touched and wasn't redeployed.
 → FOR TANISH: said so in Slack already — flag if you want Netlify back for a
 non-technical reason (cost you're already paying for, DNS, dashboard familiarity).
 Otherwise nothing further needed here.
+
+---
+
+### 2026-10-17 (thirty-eighth entry) · Claude Code (Sonnet) — Sentry Session Replay masking made explicit (the item flagged 14 Oct, 18th entry)
+
+🟡 Code change to prod error-monitoring config, not yet verified live.
+
+The 14 Oct recon (18th entry) found Session Replay live in prod with no masking config
+visible in the client-shipped `Sentry.init` call, while JewelOS screens show real
+customer names, bill amounts, and jewellery weights. Checked how masking is actually
+configured: not a Sentry dashboard toggle — it's SDK options on the `Replay` integration,
+set in `index.html`'s own `Sentry.init({...})` (loader-script pattern, lines 6-24).
+
+No explicit `integrations` array existed, so the SDK was running on its built-in replay
+defaults (`maskAllText: true`, `blockAllMedia: true` as of current SDK versions) — likely
+already safe, but implicit and one SDK-version change away from silently not being.
+
+**Fix:** added an explicit `integrations: [Sentry.replayIntegration({ maskAllText: true,
+maskAllInputs: true, blockAllMedia: true })]` to the init call, so masking is a decision
+in the code, not an assumption about SDK defaults. `check.bat` clean (447 assertions,
+backup-check/roundtrip clean) — this only touches `index.html`'s inline script, no
+`js/*.js` logic.
+
+**NOT verified live:** couldn't open a real replay recording to confirm it actually
+renders masked — Claude-in-Chrome wasn't connected this session and REA wasn't used for
+this. There's also a real risk worth flagging: `Sentry.replayIntegration` is only global
+if the loader bundle includes Replay, which it must already (Replay is live per the 18th
+entry's finding) — but that inference hasn't been checked against an actual recorded
+session. **Committed locally, NOT pushed, NOT deployed.**
+
+→ FOR COWORK: if you have live-browser access, open the app, trigger a Replay-recorded
+session (any screen with a customer name/amount/weight visible), and confirm the replay
+actually shows masked content, not real data — that's the one thing this entry couldn't
+verify.
+→ FOR TANISH: this is a privacy hardening fix for the Session Replay gap flagged 14 Oct.
+Low risk (one inline-script config object, no app logic touched), but wants a real
+verification pass before you treat it as resolved — say go when you want it pushed/deployed.
 
 ---
 
