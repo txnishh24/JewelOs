@@ -14,10 +14,16 @@ tests. **This is now the only folder that matters.** Open it in Claude Code.
 > on the same account; that one is the decoy, not this URL). See `HANDOFF.md` for anything
 > more recent than this.
 
-## Before you deploy: double-click `check.bat`
+## Before you deploy: run the backup, then double-click `check.bat`
 
-Ten seconds. It checks every file for typos, runs the regression tests, and sweeps for
-things the code refers to that were never created. You don't need a terminal.
+**Run the Supabase backup first:** `node tools/backup-store.js` (see
+`docs/BACKUP-SETUP.md` to set it up once, and to have it also run automatically every
+day — Supabase Free keeps no backups of its own). Takes a few seconds, read-only,
+never touches production data.
+
+Then `check.bat`. Ten seconds. It checks every file for typos, runs the regression
+tests, and sweeps for things the code refers to that were never created. You don't
+need a terminal.
 
 **38 tests passing** as of assembly.
 
