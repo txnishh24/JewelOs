@@ -2944,6 +2944,12 @@ test('an order status not in ORD_STATUS falls back to "new" instead of throwing 
   assert(app.ordStatusOf({ status:'progress' }) === app.ORD_STATUS['progress'], 'a real status is still looked up normally, not forced to new');
 });
 
+test('ordStatusOf also takes a bare status string, not just an order object (18 Oct, queue item 4: updateOrdStatus\'s newStatus is a string)', function(){
+  assert(app.ordStatusOf('ready') === app.ORD_STATUS['ready'], 'a real status string is still looked up normally');
+  assert(app.ordStatusOf('bogus') === app.ORD_STATUS['new'], 'an unrecognized status string falls back to new, not a throw');
+  assert(app.ordStatusOf(undefined) === app.ORD_STATUS['new'], 'no status at all falls back to new');
+});
+
 test('QA P1 items 12-13: developer cards are hidden by default; no "Free forever" or phantom WhatsApp setup', function(){
   var html = require('fs').readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
   // Icon markup changed from a raw emoji to svgIcon('cloud'/'gear') (UI/UX

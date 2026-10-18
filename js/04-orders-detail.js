@@ -17,7 +17,7 @@ function showOrderDetail(ordId){
         (o.phone?'<div style="font-size:13px;color:var(--text3);">&#128222; '+escHtml(o.phone)+'</div>':'')+
         (o.addr?'<div style="font-size:12px;color:var(--text3);">'+escHtml(o.addr)+'</div>':'')+
       '</div>'+
-      '<span class="ord-status '+ORD_STATUS[o.status||'new'].cls+'" style="font-size:13px;padding:5px 14px;">'+ORD_STATUS[o.status||'new'].icon+' '+ORD_STATUS[o.status||'new'].label+'</span>'+
+      '<span class="ord-status '+ordStatusOf(o).cls+'" style="font-size:13px;padding:5px 14px;">'+ordStatusOf(o).icon+' '+ordStatusOf(o).label+'</span>'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">'+
       '<div style="font-size:12px;color:var(--text3);">&#128197; Delivery: <strong style="color:'+(dl<0?'var(--danger)':dl<=3?'var(--warning)':'var(--ink)')+';">'+fmtDate(o.delivery)+(dl<0?' ('+Math.abs(dl)+'d overdue)':dl===0?' (Today)':' (in '+dl+'d)')+'</strong></div>'+
@@ -239,11 +239,16 @@ function reversePayment(ordId, txnId){
 function updateOrdStatus(ordId, newStatus){
   var o=S.orders.find(function(x){return x.id===ordId;});if(!o)return;
   if(_orderLocked(ordId)){ toast('Please wait — a save is already in progress'); return; }
+  // The one caller (the status buttons above) always passes a real
+  // ORD_STATUS key, but this function is global and reachable directly
+  // (console, a stale cached button from an older build) — ordStatusOf()
+  // guards every lookup below so an unrecognized newStatus can't throw.
+  var ns=ordStatusOf(newStatus);
   var _snap=_orderSnapshot(ordId);
   _orderLock(ordId);
   o.status=newStatus;
   if(!o.statusHistory)o.statusHistory=[];
-  o.statusHistory.push({status:newStatus,date:new Date().toISOString(),note:ORD_STATUS[newStatus].label});
+  o.statusHistory.push({status:newStatus,date:new Date().toISOString(),note:ns.label});
   // Auto-prompt WhatsApp when order is ready
   if(newStatus==='ready'){
     var shopName=(SAAS&&SAAS.shop&&SAAS.shop.name)||'hamari dukaan';
@@ -260,7 +265,7 @@ function updateOrdStatus(ordId, newStatus){
     _orderCommit(ordId, {snapshot:_snap}, function(err){
       if(!err){
         renderOrders();
-        toast(ORD_STATUS[newStatus].icon+' '+ORD_STATUS[newStatus].label);
+        toast(ns.icon+' '+ns.label);
         showOrderDetail(ordId);
         if(phone){
           safeConfirm('Order ready! Notify customer?','Send WhatsApp to '+o.customer+'?',function(){
@@ -272,7 +277,7 @@ function updateOrdStatus(ordId, newStatus){
     return;
   }
   _orderCommit(ordId, {snapshot:_snap}, function(err){
-    if(!err){renderOrders();toast(ORD_STATUS[newStatus].icon+' '+ORD_STATUS[newStatus].label);showOrderDetail(ordId);}
+    if(!err){renderOrders();toast(ns.icon+' '+ns.label);showOrderDetail(ordId);}
   });
 }
 
@@ -454,7 +459,7 @@ function generateOrderReceipt(ordId){
     '@media print{body{font-size:12px;}.page{padding:16px 20px;}}'+
     '</style></head><body><div class="page">'+
     '<div class="hdr"><div><div class="sn">'+escHtml((SAAS&&SAAS.shop&&SAAS.shop.name)||'JewelOS')+'</div><div class="st">Order Receipt — Not a Tax Invoice</div></div>'+
-    '<div class="ord-badge"><div class="ord-no">'+o.ordNo+'</div><div class="ord-date">'+fmtDate(o.createdAt)+' · '+ORD_STATUS[o.status||'new'].label+'</div></div></div>'+
+    '<div class="ord-badge"><div class="ord-no">'+o.ordNo+'</div><div class="ord-date">'+fmtDate(o.createdAt)+' · '+ordStatusOf(o).label+'</div></div></div>'+
     '<div class="info-row">'+
       '<div class="ibox"><div class="ilbl">Customer</div><div class="iname">'+escHtml(o.customer)+'</div>'+(o.phone?'<div class="idet">'+escHtml(o.phone)+'</div>':'')+(o.addr?'<div class="idet">'+escHtml(o.addr)+'</div>':'')+'</div>'+
       '<div class="ibox"><div class="ilbl">Delivery</div><div class="iname">'+fmtDate(o.delivery)+'</div>'+(o.notes?'<div class="idet">'+escHtml(o.notes)+'</div>':'')+'</div>'+

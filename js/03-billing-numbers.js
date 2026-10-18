@@ -1596,8 +1596,16 @@ var ORD_STATUS = {
 // An order with no status, or a status that isn't one of the 5 keys above
 // (e.g. stale/foreign data), falls back to 'new' instead of throwing on
 // ORD_STATUS[...].cls \u2014 found via loadDemoData() seeding status:'making',
-// which was never a real key, 16 Oct.
-function ordStatusOf(o){ return ORD_STATUS[o.status] || ORD_STATUS['new']; }
+// which was never a real key, 16 Oct. Takes either an order object (reads
+// o.status) or a bare status string, so every direct ORD_STATUS[key] lookup
+// in the codebase \u2014 not just ones that happen to have an order object in
+// scope \u2014 can route through the same one guarded place (18 Oct, queue item
+// 4: js/04-orders-detail.js had several unguarded ORD_STATUS[...] lookups
+// left over from before this helper existed).
+function ordStatusOf(o){
+  var key = (o && typeof o === 'object') ? o.status : o;
+  return ORD_STATUS[key] || ORD_STATUS['new'];
+}
 
 function renderOrders(){
   if(!S.orders)S.orders=[];
