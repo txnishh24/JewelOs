@@ -2117,7 +2117,7 @@ tr:hover td{background:var(--bg2);}
 <!-- SALES -->
 <div id="panel-sales" class="panel">
   <div class="card">
-    <div class="card-title" style="border-bottom:0.5px solid var(--border);padding-bottom:0.9rem;margin-bottom:1rem;"><span><span data-icon="cash"></span> New Sale / Invoice</span> <span style="font-size:12px;font-weight:400;color:var(--ink3);margin-left:4px;">Enter customer and item details</span></div>
+    <div class="card-title" style="border-bottom:0.5px solid var(--border);padding-bottom:0.9rem;margin-bottom:1rem;"><span><span data-icon="cash"></span> New Sale</span> <span style="font-size:12px;font-weight:400;color:var(--ink3);margin-left:4px;">customer &amp; items</span></div>
 
     <!-- 2 columns at >=1280px, summary sticky on the right -- plain stacked
          flow below that (UI/UX audit, 15 Oct, Phase 3 item 6). Only wraps
@@ -2133,7 +2133,7 @@ tr:hover td{background:var(--bg2);}
       <div class="fg"><label>Invoice No.</label><input id="s-invno" placeholder="Assigned on save"/></div>
       <div class="fg"><label>Date</label><input id="s-date" type="date"/></div>
       <div class="fg"><label>Customer name *</label><input id="s-cust" placeholder="Customer name" oninput="custAutocomplete()"/></div>
-      <div class="fg"><label>Customer phone</label><input id="s-phone" type="tel" inputmode="tel" placeholder="98765 43210"/></div>
+      <div class="fg"><label>Customer phone</label><input id="s-phone" type="tel" inputmode="tel" placeholder="Mobile number"/></div>
       <div class="fg"><label>Customer address</label><input id="s-addr" placeholder="Optional"/></div>
       <!-- payment mode moved to Paying Now section -->
     </div>
@@ -2369,7 +2369,7 @@ tr:hover td{background:var(--bg2);}
       <div class="ord-section-label">Customer Details</div>
       <div class="form-grid">
         <div class="fg"><label>Customer Name *</label><input id="of-cust" placeholder="Full name" oninput="ordCustAuto()"/></div>
-        <div class="fg"><label>Phone *</label><input id="of-phone" type="tel" inputmode="tel" placeholder="98765 43210"/></div>
+        <div class="fg"><label>Phone *</label><input id="of-phone" type="tel" inputmode="tel" placeholder="Mobile number"/></div>
         <div class="fg"><label>Address</label><input id="of-addr" placeholder="Optional"/></div>
       </div>
       <div id="of-cust-sug" class="ac-panel" style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-top:-6px;margin-bottom:10px;overflow-y:auto;"></div>
