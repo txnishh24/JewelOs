@@ -2262,6 +2262,24 @@ function buildInvoiceHTML(sale, billType){
       '<td class="ir bold">'+fmt(lineTotal)+'</td>'+
     '</tr>';
   }).join('');
+  // Bill-level "Extra making/diamond" (sale.making/sale.diamond, New Sale's
+  // s-making/s-diamond) is already inside t.mc/t.dc and the Grand Total but
+  // belongs to no item, so without its own row the item Amounts never add up
+  // to the total. Same column/GST maths as an item row.
+  var exMk = parseFloat(sale.making)||0, exDc = parseFloat(sale.diamond)||0;
+  if(exMk>0 || exDc>0){
+    var exTaxable = (exMk + exDc) * discFactor;
+    var exGst = isGST ? Math.round(exTaxable * gstRate / 100 * 100) / 100 : 0;
+    rows += '<tr>'+
+      '<td class="il"><div class="in">Extra charges</div><div class="im">Bill-level making / diamond</div></td>'+
+      '<td class="ir">&mdash;</td><td class="ir">&mdash;</td>'+
+      '<td class="ir">'+(exMk>0?fmt(exMk):'&mdash;')+'</td>'+
+      '<td class="ir">'+(exDc>0?fmt(exDc):'&mdash;')+'</td>'+
+      (isGST ? '<td class="ir" style="font-size:11px;">'+[exMk>0?'9983':'', exDc>0?'7103':''].filter(Boolean).join(' / ')+'</td>' : '')+
+      (isGST ? '<td class="ir">'+(exGst>0?fmt(exGst):'&mdash;')+'</td>' : '')+
+      '<td class="ir bold">'+fmt(exTaxable + exGst)+'</td>'+
+    '</tr>';
+  }
 
   var amtWords = numberToWords(Math.round(t.grand));
 

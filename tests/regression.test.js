@@ -4246,6 +4246,18 @@ test('QA 1 Oct P0-2: a sale refuses "Paying now" above what is due after old gol
   assert(a.saleOverpaidBy(s) === 1000, 'old gold + advance count toward the bill');
 });
 
+// _applyEditBillForm() collects split-payment rows with
+// querySelectorAll('#eb-splits-wrap input[id^="ebsp-amt-"]'), and the harness's
+// document.querySelectorAll always returns []. This serves the ebsp-amt-* keys of
+// a test's `vals` as those rows, in key order (= on-screen order).
+function fakeEbSplitRows(a, vals){
+  a.document.querySelectorAll = function(sel){
+    if(String(sel).indexOf('ebsp-amt-') === -1) return [];
+    return Object.keys(vals).filter(function(k){ return /^ebsp-amt-/.test(k); })
+      .map(function(k){ var e = a.document.getElementById(k); e.id = k; return e; });
+  };
+}
+
 test('QA 1 Oct P0-2: Edit Bill refuses payments above the bill and leaves the bill untouched', function(){
   var a = loadApp();
   a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
@@ -4256,10 +4268,11 @@ test('QA 1 Oct P0-2: Edit Bill refuses payments above the bill and leaves the bi
   var vals = { 'ebsp-amt-0':'25000', 'ebsp-mode-0':'Cash', 'eb-disc':'0', 'eb-gst':'0', 'eb-advance':'0', 'eb-oldgold':'0' };
   var _o = a.document.getElementById;
   a.document.getElementById = function(id){
-    if(/^ebsp-amt-/.test(id) && !vals[id]) return null; // ends the split-row loop
+    if(/^ebsp-amt-/.test(id) && !vals[id]) return null; // only the rows listed in vals exist
     if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
     return _o(id);
   };
+  fakeEbSplitRows(a, vals);
   var saved = false; a.saveToCloud = function(){ saved = true; };
   a.saveEditBill();
   var s = a.S.sales[0];
@@ -4306,6 +4319,7 @@ test('C1: an edited bill re-locks to the NEW total, not the stale pre-edit one (
     if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
     return _o(id);
   };
+  fakeEbSplitRows(a, vals);
   var saved = false; a.saveToCloud = function(){ saved = true; };
   a.saveEditBill();
   var s = a.S.sales[0];
@@ -4329,6 +4343,7 @@ test('C1: an edited bill re-locks to the NEW total, not the stale pre-edit one (
     if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
     return _o(id);
   };
+  fakeEbSplitRows(a, vals);
   var saved = false; a.saveToCloud = function(){ saved = true; };
   a.saveEditBill();
   var s = a.S.sales[0];
@@ -4358,6 +4373,7 @@ test('QA M3: the Edit Bill live preview shows the SAME grand total and balance S
     if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
     return _o(id);
   };
+  fakeEbSplitRows(a, vals);
   // Real math: gv=6000*18=108000, mc=500*20(gross)*1=10000, dc=2000(custom, no
   // qty) -> grand=120000; collected = 5000 (this split row, i.e. sale.advance
   // after the edit) + 3000 (extraPayments) = 8000 -> bal=112000. The bug's
@@ -4502,6 +4518,7 @@ test('QA M3 follow-up: Edit Bill pre-fills a 0 payment row (not prevAdvance/oldG
     if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
     return _o(id);
   };
+  fakeEbSplitRows(a, vals);
   var saved = false; a.saveToCloud = function(){ saved = true; };
   a.saveEditBill();
   var s = a.S.sales[0];
@@ -4510,6 +4527,127 @@ test('QA M3 follow-up: Edit Bill pre-fills a 0 payment row (not prevAdvance/oldG
   assert(s.splitPayments.length === 0, 'the pre-filled 0 row must not become a real splitPayments entry; got ' + JSON.stringify(s.splitPayments));
   var lines = a.dbAutoLines('2026-09-05').filter(function(l){ return l.srcId === 's1'; });
   assert(lines.length === 0, 'resaving an exchange-style sale unchanged must not create a phantom Day Book line; got ' + JSON.stringify(lines));
+});
+
+test('Edit Bill: removing a split-payment row from the middle still saves AND previews every row after it', function(){
+  var a = loadApp();
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
+    payStatus:'full', billType:'memo', gst:0, discount:0, making:0, diamond:0,
+    items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
+    nowPaying:{amount:10000, mode:'Cash'}, splitPayments:[{amount:4000, mode:'Cash'},{amount:1000, mode:'Card'},{amount:5000, mode:'UPI'}] }];
+  a._editBillId = 's1';
+  // Three rows were on screen (ids 0,1,2); the middle one was removed with
+  // removeEditPayRow(1), which leaves ids 0 and 2 -- a gap at 1. Row 2 was
+  // then retyped to 6000. ebsp-mode-1 is a decoy: a lookup by position
+  // instead of by the row's own id suffix would pick up 'Card'.
+  var vals = { 'ebsp-amt-0':'4000', 'ebsp-mode-0':'Cash', 'ebsp-mode-1':'Card', 'ebsp-amt-2':'6000', 'ebsp-mode-2':'UPI',
+    'eb-disc':'0', 'eb-gst':'0', 'eb-advance':'0', 'eb-oldgold':'0', 'ei-wt-0':'1', 'ei-rate-0':'10000', 'ei-mk-0':'0', 'ei-dc-0':'0' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(/^ebsp-amt-/.test(id) && !vals[id]) return null; // the removed row 1 is gone from the DOM
+    if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+    return _o(id);
+  };
+  fakeEbSplitRows(a, vals);
+  a.calcEditTotal();
+  var html = a.document.getElementById('eb-total-display').innerHTML;
+  assert(html.indexOf('Paid (UPI)') !== -1 && html.indexOf(a.fmt(6000)) !== -1, 'preview must still list the row after the gap (UPI 6000), got: ' + html);
+  assert(html.indexOf('var(--ok-bg)') !== -1, 'preview balance must be 0 (4000+6000 covers the 10000 bill), got: ' + html);
+  assert(html.indexOf('Card') === -1, 'the removed row\'s mode must not appear, got: ' + html);
+  var saved = false; a.saveToCloud = function(){ saved = true; };
+  a.saveEditBill();
+  var s = a.S.sales[0];
+  assert(saved, 'a balanced edit must save');
+  assert(JSON.stringify(s.splitPayments) === JSON.stringify([{amount:4000,mode:'Cash'},{amount:6000,mode:'UPI'}]),
+    'the bug dropped every row after the gap; got ' + JSON.stringify(s.splitPayments));
+  assert(s.advance === 10000 && s.nowPaying.amount === 10000, 'collected must be 10000; got advance ' + s.advance + ', nowPaying ' + s.nowPaying.amount);
+  assert(s.payStatus === 'full' && s.payment === 'Cash+UPI', 'expected full / Cash+UPI, got ' + s.payStatus + ' / ' + s.payment);
+});
+
+test('Edit Bill refuses to open, and to save, a bill with ANY refund against it (full, partial, or refunds with no status)', function(){
+  var variants = [
+    { refundStatus:'full',    refunds:[{ id:'r1', amount:10000, mode:'Cash', date:'2026-09-06T00:00:00.000Z', items:[] }] },
+    { refundStatus:'partial', refunds:[{ id:'r1', amount:2000,  mode:'Cash', date:'2026-09-06T00:00:00.000Z', items:[] }] },
+    { refunds:[{ id:'r1', amount:2000, mode:'Cash', date:'2026-09-06T00:00:00.000Z', items:[] }] }
+  ];
+  variants.forEach(function(v){
+    var a = loadApp();
+    var sale = { id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
+      payStatus:'full', billType:'memo', gst:0, discount:0, making:0, diamond:0,
+      items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
+      nowPaying:{amount:10000, mode:'Cash'}, splitPayments:[{amount:10000, mode:'Cash'}] };
+    Object.keys(v).forEach(function(k){ sale[k] = v[k]; });
+    a.S.sales = [sale];
+    var msg = ''; a.toast = function(m){ msg = m; };
+    a.openEditBill('s1');
+    assert(a._editBillId === null, JSON.stringify(v) + ': the edit modal must not open; _editBillId=' + a._editBillId);
+    assert(/refund/i.test(msg), JSON.stringify(v) + ': expected a refund toast, got ' + JSON.stringify(msg));
+    // A refund that lands while the modal is already open: save must refuse too.
+    a._editBillId = 's1';
+    var vals = { 'eb-disc':'5000', 'eb-gst':'0', 'eb-advance':'0', 'eb-oldgold':'0', 'ebsp-amt-0':'5000', 'ebsp-mode-0':'Cash' };
+    var _o = a.document.getElementById;
+    a.document.getElementById = function(id){
+      if(/^ebsp-amt-/.test(id) && !vals[id]) return null;
+      if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+      return _o(id);
+    };
+    fakeEbSplitRows(a, vals);
+    var saved = false; a.saveToCloud = function(){ saved = true; };
+    a.saveEditBill();
+    var s = a.S.sales[0];
+    assert(!saved, JSON.stringify(v) + ': a refunded bill must not be saved');
+    assert(s.lockedGrand === 10000 && s.discount === 0 && !s.editHistory, JSON.stringify(v) + ': bill must be untouched, got ' + JSON.stringify(s));
+  });
+  // Control: a bill with no refund still opens.
+  var b = loadApp();
+  b.S.sales = [{ id:'s2', invNo:'INV-002', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
+    payStatus:'full', billType:'memo', gst:0, discount:0, making:0, diamond:0,
+    items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }] }];
+  b.openEditBill('s2');
+  assert(b._editBillId === 's2', 'a bill with no refund must still open for editing; _editBillId=' + b._editBillId);
+});
+
+test('Edit Bill: bill-level extra making/diamond round-trips, and the printed invoice\'s rows add up to its Grand Total', function(){
+  var a = loadApp();
+  // Created in New Sale with Extra making 500 + Extra diamond 1500 (s-making/s-diamond):
+  // (10000 + 500 + 1500) x 1.03 = 12360.
+  a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:12360, advance:12360,
+    payStatus:'full', billType:'gst', gst:3, discount:0, making:500, diamond:1500,
+    items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
+    nowPaying:{amount:12360, mode:'Cash'}, splitPayments:[{amount:12360, mode:'Cash'}] }];
+  a._editBillId = 's1';
+  // Edited to Extra making 1000 + Extra diamond 2000: (10000 + 3000) x 1.03 = 13390.
+  var vals = { 'eb-making':'1000', 'eb-diamond':'2000', 'eb-disc':'0', 'eb-gst':'3', 'eb-advance':'0', 'eb-oldgold':'0',
+    'ebsp-amt-0':'13390', 'ebsp-mode-0':'Cash', 'ei-wt-0':'1', 'ei-rate-0':'10000', 'ei-mk-0':'0', 'ei-dc-0':'0' };
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(/^ebsp-amt-/.test(id) && !vals[id]) return null;
+    if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
+    return _o(id);
+  };
+  fakeEbSplitRows(a, vals);
+  a.calcEditTotal();
+  var prev = a.document.getElementById('eb-total-display').innerHTML;
+  assert(prev.indexOf(a.fmt(13390)) !== -1, 'preview Grand Total must pick up the edited extra charges (13390), got: ' + prev);
+  var saved = false; a.saveToCloud = function(){ saved = true; };
+  a.saveEditBill();
+  var s = a.S.sales[0];
+  assert(saved, 'a balanced edit must save');
+  assert(s.making === 1000 && s.diamond === 2000, 'bill-level making/diamond must be written back; got ' + s.making + '/' + s.diamond);
+  assert(s.lockedGrand === 13390 && a.calcSaleTotals(s).bal === 0, 'expected lockedGrand 13390, bal 0; got ' + s.lockedGrand + ', ' + a.calcSaleTotals(s).bal);
+  assert(s.editHistory[0].snapshot.making === 500 && s.editHistory[0].snapshot.diamond === 1500, 'the pre-edit extra charges must be in the version snapshot; got ' + JSON.stringify(s.editHistory[0].snapshot));
+
+  var bd = a.calcSaleGSTBreakdown(s);
+  assert(bd.makingValue === 1000 && bd.stoneValue === 2000 && bd.total === 390, 'HSN breakdown must include the bill-level charges; got ' + JSON.stringify(bd));
+  var html = a.buildInvoiceHTML(s, 'gst');
+  assert(html.indexOf('Extra charges') !== -1, 'invoice must print a row for the bill-level charges');
+  // Item row 10000 + 3% = 10300; extra row 3000 + 3% = 3090; 10300 + 3090 = 13390 = Grand Total.
+  assert(html.indexOf(a.fmt(10300)) !== -1 && html.indexOf(a.fmt(3090)) !== -1, 'expected row amounts 10300 and 3090 on the invoice');
+  assert(10300 + 3090 === s.lockedGrand && html.indexOf(a.fmt(13390)) !== -1, 'rows must add up to the printed Grand Total 13390');
+
+  var plain = a.buildInvoiceHTML({ id:'s2', invNo:'INV-002', customer:'C', date:'2026-09-05', lockedGrand:10300, gst:3, discount:0, billType:'gst',
+    items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }] }, 'gst');
+  assert(plain.indexOf('Extra charges') === -1, 'a bill with no extra charges must not print the row');
 });
 
 test('QA 1 Oct #3: opening the Girvi Pay dialog leaves the sale form payment rows alone', function(){
@@ -5922,6 +6060,7 @@ test('QA 3 Oct H4: editing a bill is logged in the central audit trail', functio
     if(vals.hasOwnProperty(id)){ var e = _o(id); e.value = vals[id]; return e; }
     return _o(id);
   };
+  fakeEbSplitRows(a, vals);
   a.saveToCloud = function(cb){ cb(null); };
   a.saveEditBill();
   var entry = a.S.auditLog && a.S.auditLog[0];

@@ -1197,9 +1197,23 @@ function _editBillExistingSplits(sale){
   return [{amount:sale.advance||0, mode:sale.payment||'Cash'}];
 }
 
+// Any refund -- partial too, not just full -- locks the bill against Edit.
+// A refund is money already paid out, capped against the lockedGrand of that
+// moment (openRefundModal/_submitRefund), and calcSaleTotals() knows nothing
+// about sale.refunds. Editing items/charges afterwards re-locks a new grand
+// the refunds were never measured against (a ₹10,000 bill partly refunded
+// ₹6,000 then edited down to ₹5,000 is over-refunded, still marked
+// 'partial'), and calcRefundAdj() re-reads the CURRENT items and GST % for
+// past refunds, so an edit would silently rewrite already-reported refund
+// cost/GST. Further partial refunds stay open; that's the correction path.
+function _saleHasRefund(sale){
+  return !!sale.refundStatus || (sale.refunds||[]).length > 0;
+}
+
 function openEditBill(saleId){
   var sale = S.sales.find(function(x){return x.id===saleId;});
   if(!sale) return;
+  if(_saleHasRefund(sale)){toast('Bill has a refund against it — it can no longer be edited');return;}
   _editBillId = saleId;
 
   var ver = (sale.editHistory ? sale.editHistory.length+1 : 1);
@@ -1216,6 +1230,8 @@ function openEditBill(saleId){
     '<div class="fg"><label>Customer</label><input id="eb-cust" value="'+escHtml(sale.customer||'')+'"/></div>'+
     '<div class="fg"><label>Phone</label><input id="eb-phone" value="'+escHtml(sale.phone||'')+'"/></div>'+
     '<div class="fg"><label>Notes / Occasion</label><input id="eb-notes" value="'+escHtml(sale.notes||'')+'"/></div>'+
+    '<div class="fg"><label>Extra making (₹)</label><input id="eb-making" type="number" value="'+(parseFloat(sale.making)||0)+'" oninput="calcEditTotal()"/></div>'+
+    '<div class="fg"><label>Extra diamond (₹)</label><input id="eb-diamond" type="number" value="'+(parseFloat(sale.diamond)||0)+'" oninput="calcEditTotal()"/></div>'+
     '<div class="fg"><label>Discount (₹)</label><input id="eb-disc" type="number" value="'+(sale.discount||0)+'" oninput="calcEditTotal()"/></div>'+
     '<div class="fg"><label>GST %</label><input id="eb-gst" type="number" value="'+(sale.gst||0)+'" oninput="calcEditTotal()"/></div>';
   body.appendChild(nb);
@@ -1322,14 +1338,21 @@ function _applyEditBillForm(sale){
   });
   sale.discount=parseFloat((document.getElementById('eb-disc')||{value:0}).value)||0;
   sale.gst=parseFloat((document.getElementById('eb-gst')||{value:0}).value)||0;
-  // Collect split payments from edit rows
+  // Bill-level "Extra making/diamond" from New Sale (s-making/s-diamond) --
+  // used to have no field here at all, so it was frozen at its creation value.
+  sale.making=parseFloat((document.getElementById('eb-making')||{value:sale.making||0}).value)||0;
+  sale.diamond=parseFloat((document.getElementById('eb-diamond')||{value:sale.diamond||0}).value)||0;
+  // Collect split payments from whatever rows are actually on screen.
+  // removeEditPayRow() leaves a gap in the ebsp-amt-N ids (0,2 after removing
+  // 1), and the old `while(getElementById('ebsp-amt-'+si))` stopped at that
+  // gap, silently dropping every row after it from both save and preview.
   var savedSplits=[], splitAdv=0;
-  var si=0;
-  while(document.getElementById('ebsp-amt-'+si)){
-    var samt=parseFloat(document.getElementById('ebsp-amt-'+si).value)||0;
-    var smode=(document.getElementById('ebsp-mode-'+si)||{value:'Cash'}).value;
+  var amtEls=document.querySelectorAll('#eb-splits-wrap input[id^="ebsp-amt-"]');
+  for(var si=0; si<amtEls.length; si++){
+    var sid=amtEls[si].id.slice('ebsp-amt-'.length);
+    var samt=parseFloat(amtEls[si].value)||0;
+    var smode=(document.getElementById('ebsp-mode-'+sid)||{value:'Cash'}).value;
     if(samt>0){savedSplits.push({amount:samt,mode:smode});splitAdv+=samt;}
-    si++;
   }
   var prevAdv=parseFloat((document.getElementById('eb-advance')||{value:0}).value)||0;
   var og=parseFloat((document.getElementById('eb-oldgold')||{value:0}).value)||0;
@@ -1396,6 +1419,9 @@ function calcEditTotal(){
 function saveEditBill(){
   var sale = S.sales.find(function(x){return x.id===_editBillId;});
   if(!sale) return;
+  // Re-checked here, not just in openEditBill(): a refund can land (another
+  // device, background sync) while this modal is already open.
+  if(_saleHasRefund(sale)){toast('Bill has a refund against it — it can no longer be edited');return;}
   var _beforeEdit = JSON.stringify(sale); // restored if the edit is refused below
   // Save version snapshot before editing
   if(!sale.editHistory) sale.editHistory=[];
@@ -1404,7 +1430,7 @@ function saveEditBill(){
     at: new Date().toISOString(),
     grand: sale.lockedGrand||sale.advance||0,
     reason: (document.getElementById('eb-reason')||{value:''}).value||'Edited',
-    snapshot: JSON.parse(JSON.stringify({items:sale.items,advance:sale.advance,discount:sale.discount,gst:sale.gst}))
+    snapshot: JSON.parse(JSON.stringify({items:sale.items,advance:sale.advance,discount:sale.discount,gst:sale.gst,making:sale.making||0,diamond:sale.diamond||0}))
   });
   sale.customer=(document.getElementById('eb-cust')||{value:sale.customer}).value||sale.customer;
   sale.phone=(document.getElementById('eb-phone')||{value:sale.phone||''}).value||sale.phone||'';
