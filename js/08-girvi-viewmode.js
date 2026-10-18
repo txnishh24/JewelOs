@@ -1559,7 +1559,30 @@ function cloudDiag(silent){
     log.push("auth-gateway   : UNREACHABLE — " + err.message);
   });
 
-  return Promise.all([storeCheck, authCheck]).then(function(){
+  // Password-reset email provider: not account-specific, so this costs
+  // nothing security-wise (request-password-reset already reveals the
+  // same "is a key set" fact for free to anyone who tries any email) —
+  // it just surfaces the one failure mode the reset flow's own generic
+  // response is designed to hide from end users: a dead/sandboxed email
+  // pipeline that silently "succeeds" for every real customer.
+  var emailCheck = fetch(SB_FUNCTIONS + "/auth-gateway/email-status", {
+    method: "POST",
+    headers: {'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY},
+    body: "{}"
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    if(!res || !res.configured){
+      log.push("Reset-email    : NOT CONFIGURED — password reset is refused with HTTP 503, not silently failing.");
+    } else if(res.sandbox){
+      log.push("Reset-email    : Resend sandbox sender (" + res.fromAddress + ") — will silently fail to deliver to real customers until a real domain is verified.");
+    } else {
+      log.push("Reset-email    : configured (from: " + res.fromAddress + ")");
+    }
+  })
+  .catch(function(){ log.push("Reset-email    : could not check (auth-gateway unreachable — see above)"); });
+
+  return Promise.all([storeCheck, authCheck, emailCheck]).then(function(){
     log.push("");
     // Derive this from the checks that just ran. It used to consult only the
     // store-proxy result, so it announced "Authentication: Healthy" two lines

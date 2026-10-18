@@ -407,6 +407,31 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     eq(r.status, 200, 'status is still the generic OK');
     eq(db.password_reset_tokens.filter(function (t) { return t.email === 'bounce@shop.in'; }).length, 0, 'tokens left behind');
   });
+  // email-status is cloudDiag()'s operator-only signal for the exact gap the
+  // test above locks in: a real send failure never reaches the end user by
+  // design, so this is the only place that failure is visible at all. It's
+  // account-independent on purpose (same info request-password-reset's own
+  // 503 already leaks for free when the key is unset) -- never give this
+  // route a body field that could turn it into a second enumeration path.
+  await test('email-status reports configured, non-sandbox when a real provider is set', async function () {
+    var r = await call(auth, 'email-status', {});
+    eq(r.status, 200, 'status');
+    eq(r.body.configured, true, 'configured');
+    eq(r.body.sandbox, false, 'sandbox');
+    eq(r.body.fromAddress, 'noreply@jewelos.test', 'fromAddress');
+  });
+  await test('email-status reports not configured with no RESEND_API_KEY, same fact the 503 already gives away', async function () {
+    var auth2 = load(AG, makeDb(), { RESEND_API_KEY: undefined });
+    var r = await call(auth2, 'email-status', {});
+    eq(r.status, 200, 'status');
+    eq(r.body.configured, false, 'configured');
+  });
+  await test('email-status flags the Resend sandbox default, which cannot deliver to real customers', async function () {
+    var auth2 = load(AG, makeDb(), { RESEND_FROM_EMAIL: 'onboarding@resend.dev' });
+    var r = await call(auth2, 'email-status', {});
+    eq(r.body.sandbox, true, 'sandbox');
+    eq(r.body.fromAddress, 'onboarding@resend.dev', 'fromAddress');
+  });
 
   // ---- auth-gateway: no markup in names and shop details (finding 2)
   await test('update-shop refuses < or > in shop details — including from a manager — and changes nothing', async function () {

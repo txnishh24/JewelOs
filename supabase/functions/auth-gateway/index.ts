@@ -35,6 +35,7 @@
 //   /auth-gateway/remove-staff           { sessionToken, staffUserId }
 //   /auth-gateway/request-password-reset { email }
 //   /auth-gateway/reset-password         { email, code, newPassword }
+//   /auth-gateway/email-status           {} -- operator diagnostics, no account data (see below)
 //
 // auth_store (the `users`/`shops` blobs) is written through mutateBlob(), a
 // compare-and-swap helper backed by the auth_store_cas_write() RPC
@@ -776,6 +777,26 @@ Deno.serve(async (req) => {
       };
       return { next: fresh, res: json({ ok: true, deviceToken }, 200, origin) };
     });
+  }
+
+  // ── EMAIL PROVIDER STATUS (operator diagnostics, no account data) ──
+  // Not account-specific and carries no new information: whether
+  // RESEND_API_KEY is set is already revealed, for free, to anyone who
+  // calls request-password-reset with ANY email (that route 503s before
+  // its own rate limit check when the key is unset) — this route just
+  // makes that existing signal explicit, plus whether the from-address
+  // is still on Resend's sandbox default, which can't deliver outside
+  // the account owner's own inbox until a real domain verifies. Read by
+  // cloudDiag() (js/08-girvi-viewmode.js) so a dead reset-email pipeline
+  // shows up to the operator instead of only a silent per-user failure
+  // the generic reset-request response is deliberately designed to hide
+  // (see request-password-reset above and its GENERIC_OK comment).
+  if (route === "email-status") {
+    return json({
+      configured: !!RESEND_API_KEY,
+      fromAddress: RESEND_FROM_EMAIL,
+      sandbox: RESEND_FROM_EMAIL === "onboarding@resend.dev",
+    }, 200, origin);
   }
 
   return json({ error: "unknown route" }, 404, origin);
