@@ -237,7 +237,37 @@ No Supabase Edge Function touched — only the Cloudflare Worker. `sw.js` untouc
 first, same reasoning as batch55-58).
 
 → FOR COWORK: batch59 is live — `index.html` only, CSS values only (60 font-size token swaps +
-one gradient color). Nothing on your side needed for the deploy itself.
+one gradient color), nothing needed on your side for the deploy itself. But you have the live
+account/real-session access this Claude Code session doesn't, so please run the real-screen
+check that's been open since the 55th entry: log in for real and look at the screens below —
+every one of them renders at least one of the 60 changed labels (10px/9.5px → 12px via
+`var(--text-xs)`), and none of this was seen on an authenticated screen before deploy, only the
+pre-login Sign In/Create Account forms.
+
+- **Dashboard/Home** — the rate card: "Today's Market Rate" title, the 24K/22K/18K/14K per-gram
+  labels (`.rate-bar-title`, `.rate-item label`).
+- **Sale screen** — item-entry form labels (Category, Purity, Units, Product, etc. via `.fg
+  label` and table headers), the "(optional)" hints next to Hallmark/Net Wt/Stone Wt/Wastage
+  fields, and the bottom nav bar labels (`.bnav-btn` — Sale/Stock/Girvi/Orders/Reports).
+- **Inventory/Stock** — Add Product form (same `.fg label` fields) and the stock table's column
+  headers.
+- **Girvi** — a Girvi card's id/date/principal line (`.girvi-card-id/-date/-principal`), the
+  detail view's timeline date stamps (`.gd-tl-date`), and the ledger entry badge/time
+  (`.gl-entry-badge`, `.gl-entry-time`).
+- **Orders** — the priority badges (VIP/Urgent — `.priority-vip`/`.priority-urgent`) and the
+  pipeline stage tabs (`.pipe-stage`) — these are the tightest-padded elements changed, worth a
+  specific look for clipping or overflow now that the text is ~20% bigger.
+- **Settings** — the Girvi financer-rate-type dropdown, `.ge-fg label` fields, and the
+  role badge (`.role-badge`) next to your name in the topbar.
+- **Demo-mode banner contrast** — Settings → Load Demo Data, then look at the purple banner
+  across the top. It was 4.0:1 white-on-purple (failed WCAG AA); now a darker gradient stop,
+  should read clearly.
+
+What to flag back: anything clipped, overflowing its container, or just looking cramped —
+especially badges/pills, since those have the least spare padding. Everything else (normal
+labels, table cells) should just look like slightly bigger, more readable text with no layout
+change otherwise. Also note: an independent Opus review of the diff/deploy itself (not the
+on-screen rendering) is running now — see the next LOG entry once it lands.
 → FOR TANISH: it's live. Still needs the real-screen check the 55th entry flagged — the
 authenticated screens (Sale, Inventory, Girvi, Day Book) where most of the 60 fixes render
 were never seen on a real logged-in screen, only the pre-login Sign In/Create Account forms.
