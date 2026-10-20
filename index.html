@@ -269,7 +269,7 @@ body{
   font-size:var(--text-xl);font-weight:600;color:var(--on-ink);letter-spacing:.02em;line-height:1.15;
 }
 .logo-name span{font-style:normal;color:var(--gold);}
-.logo-sub{font-size:10px;color:var(--on-ink-muted);letter-spacing:.12em;text-transform:uppercase;margin-top:1px;}
+.logo-sub{font-size:var(--text-xs);color:var(--on-ink-muted);letter-spacing:.12em;text-transform:uppercase;margin-top:1px;}
 
 .topbar-btns{display:flex;align-items:center;gap:5px;}
 .hdr-btn{
@@ -359,7 +359,7 @@ body{
   background:var(--ma,linear-gradient(90deg,var(--gold-dark),var(--gold)));
 }
 
-.metric-label{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px;font-weight:600;}
+.metric-label{font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px;font-weight:600;}
 .metric-value{
   font-family:var(--font-display);
   font-size:var(--text-2xl);font-weight:600;color:var(--ink);line-height:1.1;
@@ -391,7 +391,7 @@ body{
 .sbox{border-radius:var(--radius-lg);padding:1.1rem 1.25rem;border:0.5px solid var(--border2);}
 .sbox-g{background:var(--gold-bg);border-color:rgba(179,146,87,.3);}
 .sbox-s{background:var(--silver-bg);border-color:rgba(74,96,112,.22);}
-.sbox-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--gold-dark);margin-bottom:4px;}
+.sbox-title{font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--gold-dark);margin-bottom:4px;}
 .sbox-wt{font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;font-weight:600;color:var(--gold-dark);}
 .sbox-s .sbox-title{color:var(--silver-dark);}
 .sbox-s .sbox-wt{color:var(--silver-dark);}
@@ -405,10 +405,10 @@ body{
   border-radius:var(--radius-lg);padding:.9rem 1.25rem;margin-bottom:.9rem;
   border:0.5px solid rgba(179,146,87,.2);
 }
-.rate-bar-title{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:8px;font-weight:700;}
+.rate-bar-title{font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.12em;margin-bottom:8px;font-weight:700;}
 .rate-inputs{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;}
 .rate-item{display:flex;flex-direction:column;gap:3px;}
-.rate-item label{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;}
+.rate-item label{font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;}
 .rate-iw{display:flex;align-items:center;gap:4px;}
 .rate-iw input{
   width:82px;padding:5px 8px;background:rgba(255,255,255,.08);
@@ -530,7 +530,7 @@ body{
    Scoped to this one form, not the global .form-grid every other form uses. */
 @media(max-width:420px){.add-product-form .form-grid{grid-template-columns:1fr;}}
 .fg{display:flex;flex-direction:column;gap:4px;}
-.fg label{font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
+.fg label{font-size:var(--text-xs);color:var(--text3);font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
 input,select,textarea{
   width:100%;min-height:48px;padding:9px 12px;background:var(--surface);
   border:1px solid var(--border2);border-radius:var(--radius);
@@ -584,7 +584,7 @@ select{
 .tbl-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);touch-action:pan-x pan-y;}
 table{width:100%;border-collapse:collapse;font-size:var(--text-base);min-width:520px;}
 th{
-  text-align:left;font-size:10px;font-weight:700;color:var(--text3);
+  text-align:left;font-size:var(--text-xs);font-weight:700;color:var(--text3);
   text-transform:uppercase;letter-spacing:.07em;
   padding:var(--space-2) var(--space-3);background:var(--bg2);
   border-bottom:1px solid var(--border2);white-space:nowrap;
@@ -652,9 +652,9 @@ tr:last-child td{border-bottom:none;}
 /* ── SALE ITEM CARDS ─────────────────────────────── */
 .sale-card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px;}
 .custom-item-card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
-.item-num{font-size:10px;font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.08em;}
+.item-num{font-size:var(--text-xs);font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.08em;}
 .deduct-box{background:rgba(179,146,87,.05);border:0.5px dashed rgba(179,146,87,.32);border-radius:var(--radius);padding:10px 12px;margin-top:10px;}
-.deduct-title{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:8px;}
+.deduct-title{font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:8px;}
 .wt-calc-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:12px;color:var(--ink3);padding:7px 0;border-top:0.5px dashed rgba(179,146,87,.28);margin-top:7px;}
 .wt-calc-net{font-weight:700;font-size:14px;color:var(--gold-dark);}
 
@@ -742,7 +742,7 @@ tr:last-child td{border-bottom:none;}
    below this comment used to live in); now 5 (4 destinations + More), so each
    gets ~78px on a 375px phone -- plenty of room, and min-height guarantees the
    44px tap target regardless of how the icon+label content measures. */
-.bnav-btn{flex:1;min-width:0;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:9px 4px 7px;background:transparent;border:none;color:var(--on-ink-muted);font-family:inherit;cursor:pointer;transition:color var(--t1),transform 80ms var(--ease);font-size:10px;font-weight:600;letter-spacing:.04em;}
+.bnav-btn{flex:1;min-width:0;min-height:var(--tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:9px 4px 7px;background:transparent;border:none;color:var(--on-ink-muted);font-family:inherit;cursor:pointer;transition:color var(--t1),transform 80ms var(--ease);font-size:var(--text-xs);font-weight:600;letter-spacing:.04em;}
 .bnav-btn.active{color:var(--gold);}
 .bnav-btn:active{transform:scale(.97);}
 .bnav-icon{font-size:20px;line-height:1;}
@@ -863,7 +863,7 @@ html.dev .dev-only{display:block!important;}
 #pin-screen.hidden{display:none;}
 .pin-logo{font-size:54px;margin-bottom:10px;filter:drop-shadow(0 0 16px rgba(201,163,78,.4));}
 .pin-shop-name{font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;font-weight:600;color:#e8d49a;letter-spacing:.06em;margin-bottom:4px;text-align:center;}
-.pin-tagline{font-size:10px;color:#5a5244;text-transform:uppercase;letter-spacing:.18em;margin-bottom:36px;}
+.pin-tagline{font-size:var(--text-xs);color:#5a5244;text-transform:uppercase;letter-spacing:.18em;margin-bottom:36px;}
 .pin-label{font-size:12px;color:#9a8e7c;margin-bottom:18px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;min-height:18px;text-align:center;}
 .pin-dots{display:flex;gap:18px;margin-bottom:32px;}
 .pin-dot{width:18px;height:18px;border-radius:50%;border:1.5px solid rgba(201,163,78,.28);background:transparent;transition:background .15s,border-color .15s,box-shadow .15s;}
@@ -882,7 +882,7 @@ html.dev .dev-only{display:block!important;}
    field style instead of a second, parallel one. Everything else in this
    block (labels, section headers) is Girvi's own look and stays for Phase 4. */
 #girvi-modal label{
-  font-size:10px;
+  font-size:var(--text-xs);
   font-weight:700;
   color:var(--gold-dark);
   text-transform:uppercase;
@@ -891,7 +891,7 @@ html.dev .dev-only{display:block!important;}
   margin-bottom:4px;
 }
 #girvi-modal .gf-section-label{
-  font-size:10px;color:var(--gold-dark);font-weight:700;
+  font-size:var(--text-xs);color:var(--gold-dark);font-weight:700;
   text-transform:uppercase;letter-spacing:.08em;
   margin-bottom:10px;padding-bottom:6px;
   border-bottom:1px solid rgba(179,146,87,.25);
@@ -947,8 +947,8 @@ html.dev .dev-only{display:block!important;}
 .ord-ledger-row:last-child{border-bottom:none;}
 .ledger-amt{font-weight:600;color:var(--success);}
 .ledger-bal{color:var(--danger);font-weight:700;}
-.priority-urgent{background:var(--warning-bg);color:var(--warning);border:0.5px solid var(--warning);border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;}
-.priority-vip{background:#f3e8ff;color:#6f3fa0;border:0.5px solid #c084fc;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;}
+.priority-urgent{background:var(--warning-bg);color:var(--warning);border:0.5px solid var(--warning);border-radius:6px;padding:2px 8px;font-size:var(--text-xs);font-weight:700;}
+.priority-vip{background:#f3e8ff;color:#6f3fa0;border:0.5px solid #c084fc;border-radius:6px;padding:2px 8px;font-size:var(--text-xs);font-weight:700;}
 .priority-normal{display:none;}
 @media print{
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
@@ -1031,7 +1031,7 @@ html.dev .dev-only{display:block!important;}
   .auth-btn{padding:15px;font-size:15px;}
   #saas-auth-screen{padding-left:1rem;padding-right:1rem;gap:.75rem;}
   #saas-auth-screen > div:last-child{
-    font-size:10px;line-height:1.8;padding:0 .5rem;
+    font-size:var(--text-xs);line-height:1.8;padding:0 .5rem;
   }
 }
 /* ── Shop onboarding ── */
@@ -1044,10 +1044,10 @@ html.dev .dev-only{display:block!important;}
 
 /* ── Top bar user info ── */
 .topbar-shop{font-size:12px;color:var(--text3);font-weight:500;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.topbar-user{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;}
+.topbar-user{font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;}
 
 /* ── Role badge ── */
-.role-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:var(--radius-pill);background:var(--success-soft);color:var(--success);}
+.role-badge{font-size:var(--text-xs);font-weight:700;padding:2px 7px;border-radius:var(--radius-pill);background:var(--success-soft);color:var(--success);}
 .role-badge.staff{background:var(--warning-soft);color:var(--warning);}
 
 /* ── Activity log ── */
@@ -1074,12 +1074,12 @@ html.dev .dev-only{display:block!important;}
 .ge-tab.active{background:var(--surface);color:var(--gold-dark);box-shadow:var(--shadow);}
 .ge-tab-panel{display:none;padding:1rem 1.2rem 1.4rem;}
 .ge-tab-panel.active{display:block;}
-.ge-section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin:1rem 0 .5rem;padding-bottom:4px;border-bottom:0.5px solid var(--border);}
+.ge-section{font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin:1rem 0 .5rem;padding-bottom:4px;border-bottom:0.5px solid var(--border);}
 .ge-row{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px;}
 .ge-row.tri{grid-template-columns:1fr 1fr 1fr;}
 .ge-row.full{grid-template-columns:1fr;}
 .ge-fg{display:flex;flex-direction:column;gap:4px;}
-.ge-fg label{font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
+.ge-fg label{font-size:var(--text-xs);color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
 .ge-fg input,.ge-fg select,.ge-fg textarea{
   padding:9px 11px;background:var(--card1);border:1.5px solid rgba(179,146,87,.35);
   border-radius:10px;font-size:13px;color:var(--ink);font-family:inherit;
@@ -1128,11 +1128,11 @@ html.dev .dev-only{display:block!important;}
 .gl-entry-amt.credit{color:var(--success);}
 .gl-entry-amt.debit{color:var(--danger);}
 .gl-entry-meta{font-size:var(--text-xs);color:var(--text3);margin-top:2px;}
-.db-party-tag{display:inline-block;margin-left:4px;padding:0 6px;border-radius:var(--radius-pill);background:var(--gold-bg);color:var(--gold-dark);font-size:10px;font-weight:600;}
-.gl-entry-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:var(--radius-pill);text-transform:uppercase;letter-spacing:.04em;margin-top:4px;}
+.db-party-tag{display:inline-block;margin-left:4px;padding:0 6px;border-radius:var(--radius-pill);background:var(--gold-bg);color:var(--gold-dark);font-size:var(--text-xs);font-weight:600;}
+.gl-entry-badge{display:inline-block;font-size:var(--text-xs);font-weight:700;padding:2px 8px;border-radius:var(--radius-pill);text-transform:uppercase;letter-spacing:.04em;margin-top:4px;}
 .gl-entry-right{text-align:right;font-variant-numeric:tabular-nums;}
 .gl-entry-date{font-size:12px;font-weight:600;color:var(--ink3);}
-.gl-entry-time{font-size:10px;color:var(--text3);}
+.gl-entry-time{font-size:var(--text-xs);color:var(--text3);}
 .gl-add-form{background:var(--gold-bg);border:0.5px solid rgba(179,146,87,.25);border-radius:12px;padding:14px;margin-top:12px;}
 .gl-add-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gold-dark);margin-bottom:10px;}
 .gl-type-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
@@ -1174,7 +1174,7 @@ html.dev .dev-only{display:block!important;}
    stylesheet lost to all four and never actually applied (found in browser testing,
    16 Oct). */
 .metric-value,.gl-entry-amt,.ged-val,.gl-sum-val{font-family:var(--font-body);font-variant-numeric:tabular-nums;}
-.ged-sub{font-size:10px;color:var(--text3);margin-top:4px;}
+.ged-sub{font-size:var(--text-xs);color:var(--text3);margin-top:4px;}
 
 /* ── Advanced Search Bar (Girvi) ── */
 .girvi-adv-search{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:.8rem;background:var(--surface);border:0.5px solid var(--border2);border-radius:12px;padding:10px 12px;}
@@ -1211,7 +1211,7 @@ html.dev .dev-only{display:block!important;}
 .girvi-overdue-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--danger);margin-bottom:8px;}
 .girvi-overdue-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:12px;border-bottom:0.5px solid rgba(168,49,42,.1);}
 .girvi-overdue-row:last-child{border-bottom:none;}
-.girvi-auction-stage{display:inline-block;padding:2px 9px;border-radius:100px;font-size:10px;font-weight:700;}
+.girvi-auction-stage{display:inline-block;padding:2px 9px;border-radius:100px;font-size:var(--text-xs);font-weight:700;}
 .stage-warn{background:rgba(138,78,12,.12);color:var(--warning);}
 .stage-crit{background:rgba(168,49,42,.12);color:var(--danger);}
 .stage-auction{background:rgba(127,29,29,.15);color:#7f1d1d;}
@@ -1244,7 +1244,7 @@ html.dev .dev-only{display:block!important;}
 /* ── Girvi Card Edit Button (injected into action bar) ── */
 .girvi-card-badge-edit{
   display:inline-flex;align-items:center;gap:3px;
-  font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;
+  font-size:var(--text-xs);font-weight:700;padding:2px 8px;border-radius:100px;
   background:rgba(26,74,138,.08);color:var(--info);border:0.5px solid rgba(26,74,138,.2);
   cursor:pointer;font-family:inherit;transition:background .13s;
 }
@@ -1293,7 +1293,7 @@ html.dev .dev-only{display:block!important;}
 .insight-text{font-size:12px;line-height:1.5;color:var(--text2);}
 .insight-text strong{color:var(--text1);font-size:13px;}
 .insight-badge{
-  display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;
+  display:inline-block;font-size:var(--text-xs);font-weight:700;padding:2px 8px;
   border-radius:100px;margin-left:4px;vertical-align:middle;
 }
 .ib-up{background:var(--success-soft);color:var(--success);}
@@ -1325,7 +1325,7 @@ summary::-webkit-details-marker{display:none;}
 details[open]>summary .detail-arrow{transform:rotate(180deg);display:inline-block;}
 .fsn-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text3);margin-bottom:4px;}
 .fsn-val{font-size:20px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;}
-.fsn-sub{font-size:10px;color:var(--text3);margin-top:4px;}
+.fsn-sub{font-size:var(--text-xs);color:var(--text3);margin-top:4px;}
 .fsn-trend{font-size:11px;font-weight:700;margin-top:3px;}
 .trend-up{color:var(--success);}.trend-down{color:var(--danger);}.trend-flat{color:#94a3b8;}
 
@@ -1342,7 +1342,7 @@ details[open]>summary .detail-arrow{transform:rotate(180deg);display:inline-bloc
 /* Dead stock / fast movers */
 .inv-intel-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--border);font-size:12px;}
 .inv-intel-row:last-child{border-bottom:none;}
-.inv-days-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:100px;flex-shrink:0;}
+.inv-days-badge{font-size:var(--text-xs);font-weight:700;padding:2px 8px;border-radius:100px;flex-shrink:0;}
 
 /* Section header with action */
 .section-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;}
@@ -1358,7 +1358,7 @@ details[open]>summary .detail-arrow{transform:rotate(180deg);display:inline-bloc
 
 /* Order pipeline */
 .pipeline{display:flex;gap:0;margin-bottom:1rem;overflow-x:auto;}
-.pipe-stage{flex:1;min-width:60px;text-align:center;padding:8px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);transition:color .15s,border-bottom-color .15s;white-space:nowrap;}
+.pipe-stage{flex:1;min-width:60px;text-align:center;padding:8px 4px;font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;border-bottom:3px solid transparent;color:var(--text3);transition:color .15s,border-bottom-color .15s;white-space:nowrap;}
 .pipe-stage.active{color:var(--gold);border-bottom-color:var(--gold);}
 .pipe-stage .pipe-count{display:block;font-size:20px;font-weight:800;color:var(--text1);margin-bottom:2px;}
 
@@ -1369,7 +1369,7 @@ details[open]>summary .detail-arrow{transform:rotate(180deg);display:inline-bloc
 /* Demo mode banner */
 #demo-banner{
   position:fixed;top:0;left:0;right:0;z-index:1300;
-  background:linear-gradient(90deg,#7c3aed,#a855f7);
+  background:linear-gradient(90deg,#7c3aed,#9333ea);
   color:#fff;text-align:center;padding:7px 16px;font-size:12px;
   font-weight:700;letter-spacing:.04em;display:none;
 }
@@ -1448,7 +1448,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 
 /* Daily digest card */
 .digest-section{margin-bottom:10px;}
-.digest-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:5px;}
+.digest-section-title{font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:5px;}
 .digest-row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;}
 .digest-row strong{color:var(--text1);}
 
@@ -1509,7 +1509,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 .girvi-action-sub{font-size:11px;color:var(--text3);margin-top:1px;}
 .girvi-action-right{text-align:right;flex-shrink:0;margin-left:8px;}
 .girvi-action-amt{font-size:16px;font-weight:800;}
-.girvi-action-days{font-size:10px;color:var(--text3);}
+.girvi-action-days{font-size:var(--text-xs);color:var(--text3);}
 .girvi-action-btns{display:flex;gap:5px;margin-top:5px;}
 .girvi-action-btn{
   padding:4px 10px;border-radius:100px;border:none;
@@ -1531,8 +1531,8 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 .girvi-card:active{transform:scale(.99);}
 .girvi-card-top{padding:12px 14px 8px;}
 .girvi-card-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
-.girvi-card-id{font-size:10px;font-weight:700;color:var(--gold);letter-spacing:.06em;}
-.girvi-card-date{font-size:10px;color:var(--text3);}
+.girvi-card-id{font-size:var(--text-xs);font-weight:700;color:var(--gold);letter-spacing:.06em;}
+.girvi-card-date{font-size:var(--text-xs);color:var(--text3);}
 .girvi-card-body{display:flex;justify-content:space-between;align-items:flex-end;gap:8px;}
 .girvi-card-left{flex:1;min-width:0;}
 .girvi-card-name{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -1548,10 +1548,10 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 .girvi-card-outstanding.amber{color:var(--warning);font-weight:800;}
 .girvi-card-outstanding.green{color:var(--success);font-weight:800;}
 .girvi-card-outstanding.normal{color:var(--gold-dark);}
-.girvi-card-principal{font-size:10px;color:var(--text3);margin-top:2px;}
+.girvi-card-principal{font-size:var(--text-xs);color:var(--text3);margin-top:2px;}
 .girvi-card-interest{font-size:11px;color:var(--warning);font-weight:600;margin-top:1px;}
 .girvi-card-days{
-  display:inline-block;font-size:10px;font-weight:700;
+  display:inline-block;font-size:var(--text-xs);font-weight:700;
   padding:2px 8px;border-radius:100px;margin-top:3px;
 }
 .days-overdue{background:var(--danger-soft);color:var(--danger);}
@@ -1577,7 +1577,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 .gca{
   display:flex;flex-direction:column;align-items:center;
   justify-content:center;padding:9px 4px;gap:2px;
-  font-size:10px;font-weight:700;color:var(--text3);
+  font-size:var(--text-xs);font-weight:700;color:var(--text3);
   cursor:pointer;border:none;background:none;font-family:inherit;
   transition:background .12s;
 }
@@ -1620,7 +1620,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
 .gd-tl-item{position:relative;margin-bottom:12px;}
 .gd-tl-dot{position:absolute;left:-17px;top:4px;width:9px;height:9px;border-radius:50%;border:2px solid var(--card1);}
 .gd-tl-text{font-size:12px;color:var(--text2);}
-.gd-tl-date{font-size:10px;color:var(--text3);}
+.gd-tl-date{font-size:var(--text-xs);color:var(--text3);}
 
 /* Hinglish WA message box */
 .wa-msg-box{
@@ -1629,7 +1629,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   border:0.5px solid rgba(37,211,102,.2);margin-bottom:10px;
   font-family:'Segoe UI',sans-serif;
 }
-.wa-msg-header{font-size:10px;font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+.wa-msg-header{font-size:var(--text-xs);font-weight:700;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
 
 /* ── Pagination ─────────────────────────────────────────────────── */
 .pg-bar { display:flex; align-items:center; gap:5px; padding:8px 0; flex-wrap:wrap; }
@@ -1777,7 +1777,7 @@ tr:hover td{background:var(--bg2);}
       <button class="auth-btn" onclick="saasSignup()">Start Your Shop</button>
       <div class="auth-err" id="auth-signup-err"></div>
       <div class="auth-link" style="font-size:11px;color:var(--text3);">No card needed to sign up</div>
-      <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:8px;line-height:1.6;">
+      <div style="font-size:var(--text-xs);color:var(--text3);text-align:center;margin-top:8px;line-height:1.6;">
         By creating an account you agree to our
         <button type="button" onclick="showLegalModal('terms')" style="color:var(--gold);cursor:pointer;text-decoration:underline;border:none;background:none;padding:0;font:inherit;">Terms of Service</button>
         and
@@ -1802,7 +1802,7 @@ tr:hover td{background:var(--bg2);}
       <div class="auth-link"><button type="button" onclick="cancelForgotPassword()">← Back to sign in</button></div>
     </div>
   </div>
-  <div style="text-align:center;padding:12px 0;font-size:10px;color:var(--text3);">
+  <div style="text-align:center;padding:12px 0;font-size:var(--text-xs);color:var(--text3);">
     <div style="margin-bottom:6px;">Your shop data is private, encrypted, and always yours to export.</div>
     <button type="button" onclick="showLegalModal('privacy')" style="color:var(--text3);cursor:pointer;text-decoration:underline;margin:0 8px;border:none;background:none;padding:0;font:inherit;">Privacy Policy</button>
     <button type="button" onclick="showLegalModal('terms')" style="color:var(--text3);cursor:pointer;text-decoration:underline;margin:0 8px;border:none;background:none;padding:0;font:inherit;">Terms of Service</button>
@@ -2069,18 +2069,18 @@ tr:hover td{background:var(--bg2);}
         <div class="fg"><label>HUID Number</label><input id="f-huid" placeholder="e.g. AB1234" maxlength="20" style="text-transform:uppercase"/></div>
         <div class="fg"><label>SKU / Item Code</label><input id="f-sku" placeholder="Auto if empty"/></div>
         <div class="fg"><label>Gross Weight (g)</label><div class="isuf"><input id="f-wt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
-        <div class="fg"><label>Purchase Rate ₹/g <span style="font-size:10px;color:var(--text3)">(cost price)</span></label><div class="isuf"><input id="f-costrate" type="number" inputmode="decimal" placeholder="Rate you paid"/><span class="suf">₹/g</span></div></div>
-        <div class="fg"><label>Making Charge ₹/g <span style="font-size:10px;color:var(--text3)">(per gram MC)</span></label><div class="isuf"><input id="f-mcrate" type="number" inputmode="decimal" placeholder="0"/><span class="suf">₹/g</span></div></div>
+        <div class="fg"><label>Purchase Rate ₹/g <span style="font-size:var(--text-xs);color:var(--text3)">(cost price)</span></label><div class="isuf"><input id="f-costrate" type="number" inputmode="decimal" placeholder="Rate you paid"/><span class="suf">₹/g</span></div></div>
+        <div class="fg"><label>Making Charge ₹/g <span style="font-size:var(--text-xs);color:var(--text3)">(per gram MC)</span></label><div class="isuf"><input id="f-mcrate" type="number" inputmode="decimal" placeholder="0"/><span class="suf">₹/g</span></div></div>
       </div>
       <!-- Optional fields collapse behind "More details" -- single column
            and this split both apply only under 420px (UI/UX audit, 15 Oct). -->
       <details style="margin-top:4px;">
         <summary style="cursor:pointer;list-style:none;font-size:12px;font-weight:600;color:var(--text3);padding:6px 0;">More details <span class="detail-arrow" style="font-weight:400;">&#9662;</span></summary>
         <div class="form-grid" style="margin-top:6px;">
-          <div class="fg"><label>Hallmark Centre <span style="font-size:10px;color:var(--text3)">(optional)</span></label><input id="f-hallmark" placeholder="e.g. BIS centre name / code"/></div>
-          <div class="fg"><label>Net Weight (g) <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-netwt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
-          <div class="fg"><label>Stone Weight (g) <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-stonewt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
-          <div class="fg"><label>Wastage / VA % <span style="font-size:10px;color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-wastage" type="number" inputmode="decimal" placeholder="0" step="0.1"/><span class="suf">%</span></div></div>
+          <div class="fg"><label>Hallmark Centre <span style="font-size:var(--text-xs);color:var(--text3)">(optional)</span></label><input id="f-hallmark" placeholder="e.g. BIS centre name / code"/></div>
+          <div class="fg"><label>Net Weight (g) <span style="font-size:var(--text-xs);color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-netwt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
+          <div class="fg"><label>Stone Weight (g) <span style="font-size:var(--text-xs);color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-stonewt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div></div>
+          <div class="fg"><label>Wastage / VA % <span style="font-size:var(--text-xs);color:var(--text3)">(optional)</span></label><div class="isuf"><input id="f-wastage" type="number" inputmode="decimal" placeholder="0" step="0.1"/><span class="suf">%</span></div></div>
           <div class="fg"><label>Photo / Product URL</label><input id="f-photo" placeholder="Paste image link" type="url"/></div>
           <div class="fg"><label>Notes</label><input id="f-notes" placeholder="Optional"/></div>
         </div>
@@ -2141,10 +2141,10 @@ tr:hover td{background:var(--bg2);}
     <!-- SALE MODE TOGGLE -->
     <div class="mode-toggle-wrap">
       <button class="mode-btn active-stock" id="mode-btn-stock" onclick="setSaleMode('stock')">
-        <span data-icon="box"></span> Stock Sale<br><span style="font-size:10px;font-weight:400;opacity:0.85;">Sell from inventory</span>
+        <span data-icon="box"></span> Stock Sale<br><span style="font-size:var(--text-xs);font-weight:400;opacity:0.85;">Sell from inventory</span>
       </button>
       <button class="mode-btn" id="mode-btn-custom" onclick="setSaleMode('custom')">
-        <span data-icon="gear"></span> Custom / Handmade<br><span style="font-size:10px;font-weight:400;opacity:0.85;">Made-to-order billing</span>
+        <span data-icon="gear"></span> Custom / Handmade<br><span style="font-size:var(--text-xs);font-weight:400;opacity:0.85;">Made-to-order billing</span>
       </button>
     </div>
     <!-- STOCK MODE -->
@@ -2337,7 +2337,7 @@ tr:hover td{background:var(--bg2);}
        big number, with the Grand Total demoted to a small aside. -->
   <div class="sticky-action-bar" style="display:flex;align-items:center;gap:10px;">
     <div style="flex:1;min-width:0;">
-      <div id="sale-sticky-label" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Grand Total</div>
+      <div id="sale-sticky-label" style="font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);">Grand Total</div>
       <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
         <div id="sale-sticky-total" style="font-size:19px;font-weight:800;color:var(--ink);">&#8377;0</div>
         <div id="sale-sticky-sub" style="display:none;font-size:11px;font-weight:600;color:var(--text3);"></div>
@@ -2387,7 +2387,7 @@ tr:hover td{background:var(--bg2);}
       <div class="form-grid">
         <div class="fg"><label>Rough Quotation (&#8377;)</label><input id="of-quote" type="number" inputmode="decimal" placeholder="Approx total" oninput="calcOrdEst()"/></div>
         <div class="fg"><label>Delivery Date *</label><input id="of-delivery" type="date"/></div>
-        <div class="fg"><label>Final Rate (&#8377;) <span style="font-size:10px;color:var(--text3);">optional</span></label><input id="of-finalrate" type="number" inputmode="decimal" placeholder="Confirm later"/></div>
+        <div class="fg"><label>Final Rate (&#8377;) <span style="font-size:var(--text-xs);color:var(--text3);">optional</span></label><input id="of-finalrate" type="number" inputmode="decimal" placeholder="Confirm later"/></div>
         <div class="fg"><label>Gold Deposited (g)</label><div class="isuf"><input id="of-golddeposit" type="number" inputmode="decimal" placeholder="0.00" step="0.01" oninput="calcOrdEst()"/><span class="suf">g</span></div></div>
         <div class="fg"><label>Deposited Gold Purity</label>
           <select id="of-goldpurity" onchange="calcOrdEst()">
@@ -2759,7 +2759,7 @@ tr:hover td{background:var(--bg2);}
             <div style="display:flex;gap:4px;">
               <input id="gf-financer-rate" type="number" step="0.1" placeholder="e.g. 1"
                 style="flex:1 1 auto;min-width:0;padding:9px;border-radius:10px;border:1px solid var(--border2);background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">
-              <select id="gf-financer-ratetype" style="flex:0 0 74px;width:74px;padding:7px 4px;border-radius:10px;border:1px solid var(--border2);background:var(--card1);color:var(--ink);font-size:10px;font-family:inherit;outline:none;">
+              <select id="gf-financer-ratetype" style="flex:0 0 74px;width:74px;padding:7px 4px;border-radius:10px;border:1px solid var(--border2);background:var(--card1);color:var(--ink);font-size:var(--text-xs);font-family:inherit;outline:none;">
                 <option value="monthly">%/mo</option>
                 <option value="yearly">%/yr</option>
               </select>
@@ -3163,7 +3163,7 @@ tr:hover td{background:var(--bg2);}
          migration names were shown to jewellers). Open the app with ?dev=1 to see it. -->
     <div class="card dev-only" style="border:1.5px solid var(--gold);margin-bottom:12px;">
       <div class="card-title"><span><span data-icon="cloud"></span> Cloud Setup</span>
-        <span id="cloud-status-badge" style="font-size:10px;padding:2px 8px;border-radius:100px;font-weight:600;margin-left:4px;">&#9898; Checking...</span>
+        <span id="cloud-status-badge" style="font-size:var(--text-xs);padding:2px 8px;border-radius:100px;font-weight:600;margin-left:4px;">&#9898; Checking...</span>
       </div>
       <div id="cloud-status-line" style="font-size:11px;color:var(--text3);margin-bottom:8px;"></div>
       <div class="card-title" style="font-size:12px;font-weight:500;margin-top:4px;">SQL Setup
@@ -3460,23 +3460,23 @@ tr:hover td{background:var(--bg2);}
         <div class="fg"><label>Purity</label><select id="ep-purity"></select></div>
         <div class="fg"><label>HUID Number</label><input id="ep-huid" placeholder="e.g. AB1234" style="text-transform:uppercase"/></div>
         <div class="fg"><label>SKU / Item Code</label><input id="ep-sku"/></div>
-        <div class="fg"><label>Gross Weight (g) <span style="font-size:10px;color:var(--text3)">(one piece)</span></label>
+        <div class="fg"><label>Gross Weight (g) <span style="font-size:var(--text-xs);color:var(--text3)">(one piece)</span></label>
           <div class="isuf"><input id="ep-wt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div>
           <div id="ep-wt-hint" style="font-size:11px;color:var(--text3);margin-top:3px;"></div>
         </div>
         <div class="fg"><label>Net Weight (g)</label>
           <div class="isuf"><input id="ep-netwt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div>
         </div>
-        <div class="fg"><label>Stone Weight (g) <span style="font-size:10px;color:var(--text3)">(optional)</span></label>
+        <div class="fg"><label>Stone Weight (g) <span style="font-size:var(--text-xs);color:var(--text3)">(optional)</span></label>
           <div class="isuf"><input id="ep-stonewt" type="number" inputmode="decimal" placeholder="0.00" step="0.01"/><span class="suf">g</span></div>
         </div>
-        <div class="fg"><label>Making Charge ₹/g <span style="font-size:10px;color:var(--text3)">(per gram MC)</span></label>
+        <div class="fg"><label>Making Charge ₹/g <span style="font-size:var(--text-xs);color:var(--text3)">(per gram MC)</span></label>
           <div class="isuf"><input id="ep-mcrate" type="number" inputmode="decimal" placeholder="0"/><span class="suf">₹/g</span></div>
         </div>
-        <div class="fg"><label>Wastage / VA % <span style="font-size:10px;color:var(--text3)">(optional)</span></label>
+        <div class="fg"><label>Wastage / VA % <span style="font-size:var(--text-xs);color:var(--text3)">(optional)</span></label>
           <div class="isuf"><input id="ep-wastage" type="number" inputmode="decimal" placeholder="0" step="0.1"/><span class="suf">%</span></div>
         </div>
-        <div class="fg"><label>Hallmark Centre <span style="font-size:10px;color:var(--text3)">(optional)</span></label><input id="ep-hallmark" placeholder="e.g. BIS centre name / code"/></div>
+        <div class="fg"><label>Hallmark Centre <span style="font-size:var(--text-xs);color:var(--text3)">(optional)</span></label><input id="ep-hallmark" placeholder="e.g. BIS centre name / code"/></div>
         <div class="fg"><label>Photo / Product URL</label><input id="ep-photo" type="url" placeholder="Paste image link"/></div>
         <div class="fg"><label>Notes</label><input id="ep-notes" placeholder="Optional"/></div>
       </div>
