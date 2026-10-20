@@ -76,7 +76,7 @@ making it the largest in the repo) **and Tanish's explicit sign-off** — this w
 exception made once, on 20 Sep 2026, not a standing permission.
 
 Backend: Supabase project `uluzuwomwqsqxtejgzmf`, all access through Edge Functions
-(`store-proxy` v8 session-token auth, `auth-gateway` v6, `razorpay-webhook`). No direct
+(`store-proxy` v10 session-token auth, `auth-gateway` v9, `razorpay-webhook`). No direct
 PostgREST calls remain. Each shop is stored as **one JSON blob** — that single fact is
 why per-module permissions and stock reservation cannot be fixed incrementally.
 
