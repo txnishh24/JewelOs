@@ -4665,6 +4665,37 @@ test('QA 1 Oct #3: opening the Girvi Pay dialog leaves the sale form payment row
   assert(a.splitRows.length === 1, 'sale form payment rows were wiped: ' + JSON.stringify(a.splitRows));
 });
 
+test('JEWELOS-2 (Sentry, 1 Oct): a stale split-payment row handler after a row is removed does not crash, and still updates the row it belongs to', function(){
+  var a = loadApp();
+  a.initSplitPayments();
+  a.addSplitRow(); // splitRows now has 2 rows
+  var made = [], orig = a.document.createElement;
+  a.document.createElement = function(t){ var el = orig(t); made.push(el); return el; };
+  a.renderSplitRows();
+  var amountInputs = made.filter(function(el){ return typeof el.oninput === 'function'; });
+  assert(amountInputs.length === 2, 'expected 2 rendered amount inputs, got ' + amountInputs.length);
+  var row0Input = amountInputs[0], row1Input = amountInputs[1];
+  var survivingRow = a.splitRows[1]; // the row row1Input's handler closes over
+
+  a.removeSplitRow(0); // old code: splice shifts the surviving row to index 0;
+                        // row1Input's handler still had index 1 captured, and
+                        // splitRows[1] on the now length-1 array was undefined.
+  assert(a.splitRows.length === 1, 'expected 1 row left after removal, got ' + a.splitRows.length);
+
+  var threw = false;
+  try{ row1Input.value = '999'; row1Input.oninput(); }catch(e){ threw = true; }
+  assert(!threw, 'a stale split-row input (JEWELOS-2) must not crash the sale form');
+  assert(survivingRow.amount === 999, 'the surviving row should still pick up a late edit after shifting position, got ' + JSON.stringify(a.splitRows));
+
+  // The REMOVED row's own stale input must also be harmless: it no longer
+  // belongs to any row in splitRows, so writing to it must not resurrect it
+  // or otherwise change the (now single) remaining row.
+  var removedThrew = false;
+  try{ row0Input.value = '42'; row0Input.oninput(); }catch(e){ removedThrew = true; }
+  assert(!removedThrew, 'the removed row\'s own stale input must not crash either');
+  assert(a.splitRows.length === 1 && a.splitRows[0].amount === 999, 'the removed row\'s stale input must not affect the surviving row: ' + JSON.stringify(a.splitRows));
+});
+
 test('QA 1 Oct P1-4: a GST bill defaults to 3% (typed value kept); Memo goes back to 0', function(){
   var a = loadApp();
   a.SAAS.shop = a.SAAS.shop || {}; a.SAAS.shop.gstin = '27AAPFU0939F1ZV';

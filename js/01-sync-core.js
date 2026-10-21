@@ -1084,6 +1084,14 @@ function getItemRate(i){
 // ═══════════════════════════════════════════════════════════════════════
 // SPLIT PAYMENT SYSTEM
 // ═══════════════════════════════════════════════════════════════════════
+// Row handlers (renderSplitRows, below) close over the row OBJECT, not an
+// index -- a stale handler from a removed/replaced row writes to an orphaned
+// object nothing reads, instead of crashing or writing into the wrong slot
+// (JEWELOS-2, Sentry 1 Oct). That safety only holds if this array is always
+// REPLACED alongside a re-render (as initSplitPayments does) -- never
+// reassign `splitRows = ...` anywhere else without immediately calling
+// renderSplitRows(), or a leftover rendered row's stale event would silently
+// write into the new array instead of a safely-orphaned old object.
 var splitRows = [{amount:0, mode:'Cash'}];
 
 function initSplitPayments(){
@@ -1119,21 +1127,33 @@ function renderSplitRows(){
     ai.type='text'; ai.setAttribute('inputmode','decimal');
     ai.placeholder='0'; ai.value=row.amount>0?row.amount:'';
     ai.style.cssText='font-size:15px;font-weight:700;';
-    (function(idx){ai.oninput=function(){splitRows[idx].amount=parseFloat(this.value)||0;syncSplitToLegacy();updateSum();};})(i);
+    // JEWELOS-2 (Sentry, 1 Oct): these handlers used to close over `i`, the index
+    // captured at render time. If this row was removed (removeSplitRow splices
+    // splitRows and re-renders) between a keystroke firing and this handler
+    // running, `i` pointed past the now-shorter array and `splitRows[i].amount=`
+    // threw -- crashing the sale form before Save could ever run. Closing over
+    // the row OBJECT itself instead of its index means a stale handler just
+    // writes to an object nothing reads anymore (harmless) instead of indexing
+    // past the end of a shrunk array (a crash).
+    ai.oninput=function(){ row.amount=parseFloat(this.value)||0;syncSplitToLegacy();updateSum(); };
     af.appendChild(ai); div.appendChild(af);
     // Mode select
     var mf = document.createElement('div'); mf.className = 'fg';
     mf.innerHTML = '<label>Mode</label>';
     var ms = document.createElement('select');
     MODES.forEach(function(m){var o=document.createElement('option');o.value=m;o.textContent=m;if(m===row.mode)o.selected=true;ms.appendChild(o);});
-    (function(idx){ms.onchange=function(){splitRows[idx].mode=this.value;syncSplitToLegacy();};})(i);
+    ms.onchange=function(){ row.mode=this.value;syncSplitToLegacy(); };
     mf.appendChild(ms); div.appendChild(mf);
     // Remove button
     var rb = document.createElement('div');
     rb.style.cssText='padding-bottom:4px;display:flex;align-items:flex-end;';
     if(splitRows.length>1){
       var btn=document.createElement('button');btn.className='btn btn-sm btn-danger';btn.innerHTML='&#10005;';
-      (function(idx){btn.onclick=function(){removeSplitRow(idx);};})(i);
+      // Looked up by object identity, not the captured `i`, for the same reason
+      // as above -- removeSplitRow(i) itself is safe either way (it bounds-checks
+      // via splice), but a double-click queuing two stale clicks must not remove
+      // the wrong (shifted) row out from under the user.
+      btn.onclick=function(){ var idx=splitRows.indexOf(row); if(idx>=0) removeSplitRow(idx); };
       rb.appendChild(btn);
     }
     div.appendChild(rb);
