@@ -941,6 +941,26 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     eq((await sp(changed.body.sessionToken, 'GET')).status, 200, 'the returned token works on store-proxy right away');
   });
 
+  // ---- CORS allowlist (14 Oct lockdown + 21 Oct localhost carve-out), both functions
+  await test('CORS: listed origins and any localhost/127.0.0.1 port are reflected; look-alikes get the default', async function () {
+    var DEFAULT = 'https://jewelos.jewelos-e2e.workers.dev';
+    var cases = [
+      ['https://heartfelt-queijadas-eeb356.netlify.app', true], ['https://jewelos-test.pages.dev', true],
+      ['http://localhost:4173', true], ['http://localhost', true], ['http://127.0.0.1:8766', true],
+      ['http://localhost.evil.com', false], ['http://localhost:4173.evil.com', false], ['http://localhost:80@evil.com', false],
+      ['http://evil.com/?http://localhost', false], ['http://evil.localhost', false], ['https://localhost:4173', false],
+      ['http://localhost:4173/', false],['http://127.0.0.2:4173', false], ['null', false],
+    ];
+    var fns = [['auth-gateway', auth], ['store-proxy', proxy]];
+    for (var f = 0; f < fns.length; f++) {
+      for (var i = 0; i < cases.length; i++) {
+        var req = new Request('http://fake/functions/v1/x/', { method: 'OPTIONS', headers: { origin: cases[i][0] } });
+        var got = (await fns[f][1](req)).headers.get('access-control-allow-origin');
+        eq(got, cases[i][1] ? cases[i][0] : DEFAULT, fns[f][0] + ' ' + JSON.stringify(cases[i][0]));
+      }
+    }
+  });
+
   // ---- unchanged routes still work
   await test('login / change-password / update-shop still work, using the FRESH token change-password returns', async function () {
     var t = (await call(auth, 'login', { email: 'owner@shop.in', password: 'newpass-123' })).body.sessionToken;

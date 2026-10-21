@@ -104,8 +104,13 @@ const ALLOWED_ORIGINS = [
   "https://heartfelt-queijadas-eeb356.netlify.app",
   "https://jewelos-test.pages.dev",
 ];
+// Local dev (`npx serve`, Playwright on any port) — 21 Oct. Only a page
+// already running on this same machine can send these origins, so this does
+// not reopen the 14 Oct hole. Anchored on both ends: "http://localhost.evil.com"
+// and "http://localhost:80@evil.com" do not match. Plain http only, port optional.
+const LOCAL_DEV_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?$/;
 function corsHeaders(origin: string | null) {
-  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowOrigin = origin && (ALLOWED_ORIGINS.includes(origin) || LOCAL_DEV_ORIGIN.test(origin)) ? origin : ALLOWED_ORIGINS[0];
   return {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
