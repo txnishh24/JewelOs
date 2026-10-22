@@ -395,7 +395,7 @@ function renderDash(){
           return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:0.5px solid var(--border);font-size:13px;">'+
             '<div><span style="font-weight:600;">'+escHtml(x.name)+'</span>'+(x.phone?'<div style="font-size:11px;color:var(--text3);">'+escHtml(x.phone)+'</div>':'')+'</div>'+
             '<div style="text-align:right;"><div style="font-weight:700;color:var(--danger);">'+fmt(x.bal)+'</div>'+
-            '<div style="font-size:10px;color:'+ac+';">'+x.oldestDays+'d old</div></div></div>';
+            '<div style="font-size:var(--text-xs);color:'+ac+';">'+x.oldestDays+'d old</div></div></div>';
         }).join('')+
         (pending.length>5?'<div style="font-size:12px;color:var(--text3);padding:4px 0;">+'+(pending.length-5)+' more</div>':'');
     } else {
@@ -415,7 +415,7 @@ function renderDash(){
         return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;">'+
           '<div><div style="font-weight:600;">'+escHtml(o.customer)+'</div>'+
           '<div style="font-size:11px;color:var(--text3);">'+escHtml(o.items&&o.items.length?o.items[0].desc:(o.desc||''))+'</div>'+
-          (profEst>0?'<div style="font-size:10px;color:var(--success);">Est profit: '+fmt(Math.round(profEst))+'</div>':'')+
+          (profEst>0?'<div style="font-size:var(--text-xs);color:var(--success);">Est profit: '+fmt(Math.round(profEst))+'</div>':'')+
           '</div>'+
           '<div style="text-align:right;"><div style="font-weight:700;color:'+risk.color+';">'+risk.label+'</div>'+
           '<div style="font-size:11px;color:var(--text3);">'+fmtDate(o.delivery)+'</div></div></div>';
@@ -433,7 +433,7 @@ function renderDash(){
       var maxRev=catPerf[0].rev||1;
       tcEl.innerHTML=catPerf.slice(0,5).map(function(c){
         var trendHtml = c.prevRev>0
-          ? '<span class="'+(c.trend>=0?'trend-up':'trend-down')+'" style="font-size:10px;">'+(c.trend>=0?'▲':'▼')+Math.abs(Math.round(c.trend))+'%</span>'
+          ? '<span class="'+(c.trend>=0?'trend-up':'trend-down')+'" style="font-size:var(--text-xs);">'+(c.trend>=0?'▲':'▼')+Math.abs(Math.round(c.trend))+'%</span>'
           : '';
         return '<div style="margin-bottom:9px;">'+
           '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">'+
@@ -443,7 +443,7 @@ function renderDash(){
           '<div style="background:var(--bg3);border-radius:4px;height:5px;overflow:hidden;">'+
             '<div style="height:100%;width:'+Math.round(c.rev/maxRev*100)+'%;background:var(--gold);border-radius:4px;"></div>'+
           '</div>'+
-          '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'+c.units+' sold &bull; profit: '+fmt(Math.round(c.profit))+'</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">'+c.units+' sold &bull; profit: '+fmt(Math.round(c.profit))+'</div>'+
         '</div>';
       }).join('');
     } else {
@@ -464,10 +464,10 @@ function renderDash(){
   girviSlot.innerHTML='<div class="card" id="girvi-dash-card" style="cursor:pointer;" onclick="switchTab(\'girvi\')">'+
     '<div class="card-title"><span>'+svgIcon('chart')+' Girvi Portfolio</span> <span style="font-size:11px;color:var(--text3);font-weight:400;">(tap to manage)</span></div>'+
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">'+
-    '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;">'+gActive+'</div><div style="font-size:10px;color:var(--text3);">Active</div></div>'+
-    '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;color:var(--warning);">'+gOverdue+'</div><div style="font-size:10px;color:var(--text3);">Overdue</div></div>'+
-    '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;color:var(--danger);">'+gDeflt+'</div><div style="font-size:10px;color:var(--text3);">Defaulted</div></div>'+
-    '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:15px;font-weight:800;color:var(--gold);">\u20b9'+Math.round(gTotalOut/1000).toLocaleString('en-IN')+'K</div><div style="font-size:10px;color:var(--text3);">Outstanding</div></div>'+
+    '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;">'+gActive+'</div><div style="font-size:var(--text-xs);color:var(--text3);">Active</div></div>'+
+    '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;color:var(--warning);">'+gOverdue+'</div><div style="font-size:var(--text-xs);color:var(--text3);">Overdue</div></div>'+
+    '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:18px;font-weight:800;color:var(--danger);">'+gDeflt+'</div><div style="font-size:var(--text-xs);color:var(--text3);">Defaulted</div></div>'+
+    '<div style="text-align:center;background:var(--card2);border-radius:10px;padding:9px 4px;"><div style="font-size:15px;font-weight:800;color:var(--gold);">\u20b9'+Math.round(gTotalOut/1000).toLocaleString('en-IN')+'K</div><div style="font-size:var(--text-xs);color:var(--text3);">Outstanding</div></div>'+
     '</div></div>';
 }
 
@@ -614,7 +614,7 @@ function renderReportsIntelligence(){
       var h=Math.max(4,Math.round(v/maxWR*50));
       return '<div style="flex:1;height:'+h+'px;background:'+(i===6?'var(--gold)':'var(--bg3)')+';border-radius:3px 3px 0 0;transition:height .3s;"></div>';
     }).join('')+'</div>'+
-    '<div style="display:flex;gap:3px;padding:3px 4px;">'+weekLabels.map(function(l,i){return '<div style="flex:1;text-align:center;font-size:9px;color:'+(i===6?'var(--gold-dark)':'var(--text3)')+';">'+l.replace(' ago','')+'</div>';}).join('')+'</div>';
+    '<div style="display:flex;gap:3px;padding:3px 4px;">'+weekLabels.map(function(l,i){return '<div style="flex:1;text-align:center;font-size:var(--text-xs);color:'+(i===6?'var(--gold-dark)':'var(--text3)')+';">'+l.replace(' ago','')+'</div>';}).join('')+'</div>';
   panel.appendChild(wowCard);
 
   // ── 4. CATEGORY INTELLIGENCE TABLE ───────────────────────────────
@@ -800,7 +800,7 @@ function showSettingsTab(tab){
       logEl.innerHTML=log.length
         ?log.map(function(l){
           return '<div class="log-row"><div><span style="font-size:11px;color:var(--text3);">'+escHtml(l.type)+'</span><br><span style="font-size:12px;">'+escHtml(l.note)+'</span></div>'+
-            '<div style="font-size:10px;color:var(--text3);text-align:right;min-width:70px;">'+fmtDate(l.ts)+'<br>'+escHtml(l.user)+'</div></div>';
+            '<div style="font-size:var(--text-xs);color:var(--text3);text-align:right;min-width:70px;">'+fmtDate(l.ts)+'<br>'+escHtml(l.user)+'</div></div>';
         }).join('')
         :'<div style="font-size:12px;color:var(--text3);">No activity yet.</div>';
     }
@@ -1108,7 +1108,7 @@ function renderWaRules(){
         '<summary style="cursor:pointer;font-size:11px;color:var(--gold-dark);font-weight:700;">\u270f\ufe0f Edit message wording</summary>'+
         '<div style="margin-top:8px;">'+
           '<textarea id="wa-tpl-'+r.id+'" rows="7" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;padding:10px;border-radius:10px;border:1px solid var(--border2);background:var(--card1);color:var(--ink);resize:vertical;">'+escHtml(r.messageTemplate||'')+'</textarea>'+
-          '<div style="font-size:10px;color:var(--text3);margin:5px 0 8px;">Available: {customer_name} {shop_name} {amount} {due_date} {girvi_number} {invoice_number} {order_number} {items} {item_desc} \u2014 write in your own words, these get swapped in automatically.</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);margin:5px 0 8px;">Available: {customer_name} {shop_name} {amount} {due_date} {girvi_number} {invoice_number} {order_number} {items} {item_desc} \u2014 write in your own words, these get swapped in automatically.</div>'+
           '<div style="display:flex;gap:6px;flex-wrap:wrap;">'+
             '<button onclick="saveWaRuleTemplate(\''+jsAttrEsc(r.id)+'\')" style="padding:6px 14px;border-radius:8px;border:none;background:var(--gold);color:#1a1200;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Save</button>'+
             '<button onclick="previewWaRuleTemplate(\''+jsAttrEsc(r.id)+'\')" style="padding:6px 14px;border-radius:8px;border:1px solid var(--border2);background:var(--card2);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit;">Preview</button>'+
@@ -1249,8 +1249,8 @@ function renderSettingsAutomation(){
         '<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">'+
           '<span>'+r.icon+'</span>'+
           '<span style="font-size:12px;font-weight:700;">'+escHtml(r.name)+'</span>'+
-          (edited?'<span style="font-size:9px;font-weight:700;color:var(--gold-dark);background:var(--gold-bg);padding:2px 7px;border-radius:100px;letter-spacing:.04em;">YOUR WORDING</span>':'')+
-          (r.enabled?'':'<span style="font-size:9px;font-weight:700;color:var(--text3);background:var(--bg2);padding:2px 7px;border-radius:100px;letter-spacing:.04em;">OFF</span>')+
+          (edited?'<span style="font-size:var(--text-xs);font-weight:700;color:var(--gold-dark);background:var(--gold-bg);padding:2px 7px;border-radius:100px;letter-spacing:.04em;">YOUR WORDING</span>':'')+
+          (r.enabled?'':'<span style="font-size:var(--text-xs);font-weight:700;color:var(--text3);background:var(--bg2);padding:2px 7px;border-radius:100px;letter-spacing:.04em;">OFF</span>')+
           '<button onclick="editWaTemplate(\''+jsAttrEsc(r.id)+'\')" style="margin-left:auto;flex:none;padding:5px 13px;border-radius:8px;border:1px solid var(--border-gold);background:var(--card1);color:var(--gold-dark);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">✏️ Edit</button>'+
         '</div>'+
         '<div style="font-size:11px;color:var(--text3);line-height:1.5;">'+escHtml(short)+'</div>'+
@@ -1427,15 +1427,15 @@ function renderSettingsAnalytics(){
           '<div style="flex-shrink:0;width:22px;text-align:center;font-weight:800;font-size:12px;color:var(--text3);">'+(i+1)+'</div>'+
           '<div style="flex:1;min-width:0;">'+
             '<div style="font-weight:600;font-size:13px;">'+escHtml(c.name)+' '+tagHtml+'</div>'+
-            '<div style="font-size:10px;color:var(--text3);">'+plural(c.orders,'order')+' &bull; '+fmt(Math.round(c.avgOrder))+'/order'+(c.projected?' &bull; every '+Math.round(c.intervalDays)+'d on average':'')+'</div>'+
+            '<div style="font-size:var(--text-xs);color:var(--text3);">'+plural(c.orders,'order')+' &bull; '+fmt(Math.round(c.avgOrder))+'/order'+(c.projected?' &bull; every '+Math.round(c.intervalDays)+'d on average':'')+'</div>'+
             '<div class="clv-bar-track" style="margin-top:4px;">'+
               '<div class="clv-bar-fill" style="width:'+Math.round(c.projectedLTV/maxCLV*100)+'%;background:var(--gold);"></div>'+
             '</div>'+
           '</div>'+
           '<div style="text-align:right;flex-shrink:0;margin-left:10px;">'+
             '<div style="font-weight:700;font-size:14px;color:var(--gold-dark);">'+fmt(Math.round(c.projectedLTV))+'</div>'+
-            '<div style="font-size:9px;color:var(--text3);">'+(c.projected?'24-mo CLV':'spent so far')+'</div>'+
-            (c.pending>0?'<div style="font-size:10px;color:var(--danger);">Due: '+fmt(c.pending)+'</div>':'')+
+            '<div style="font-size:var(--text-xs);color:var(--text3);">'+(c.projected?'24-mo CLV':'spent so far')+'</div>'+
+            (c.pending>0?'<div style="font-size:var(--text-xs);color:var(--danger);">Due: '+fmt(c.pending)+'</div>':'')+
           '</div>'+
         '</div>';
       }).join('');
@@ -1465,7 +1465,7 @@ function renderSettingsAnalytics(){
         var hR=Math.max(4,Math.round(m.revenue/maxR*70));
         var hP=m.revenue>0?Math.max(2,Math.round(Math.max(0,m.profit)/maxR*70)):0;
         return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">'+
-          '<div style="font-size:9px;color:var(--text3);">'+(m.revenue>0?Math.round(m.margin)+'%':'')+'</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);">'+(m.revenue>0?Math.round(m.margin)+'%':'')+'</div>'+
           '<div style="width:100%;position:relative;height:56px;display:flex;align-items:flex-end;gap:1px;">'+
             '<div style="flex:1;height:'+hR+'px;background:var(--bg3);border-radius:2px 2px 0 0;"></div>'+
             '<div style="flex:1;height:'+hP+'px;background:var(--success);border-radius:2px 2px 0 0;opacity:.85;"></div>'+
@@ -1473,7 +1473,7 @@ function renderSettingsAnalytics(){
       }).join('')+
       '</div>'+
       '<div style="display:flex;gap:4px;">'+months.map(function(m){
-        return '<div style="flex:1;text-align:center;font-size:10px;color:var(--text3);">'+m.label+'</div>';
+        return '<div style="flex:1;text-align:center;font-size:var(--text-xs);color:var(--text3);">'+m.label+'</div>';
       }).join('')+'</div>'+
       '<div style="display:flex;gap:12px;font-size:11px;color:var(--text3);margin-top:8px;">'+
         '<span><span style="display:inline-block;width:10px;height:10px;background:var(--bg3);border-radius:2px;margin-right:3px;"></span>Revenue</span>'+

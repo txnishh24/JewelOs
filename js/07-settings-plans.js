@@ -198,41 +198,41 @@ function gfRenderItemCard(idx){
   }).join('');
   return '<div id="gf-item-card-'+idx+'" style="background:var(--card1);border:1.5px solid rgba(179,146,87,.22);border-radius:13px;padding:12px;margin-bottom:10px;">'+
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;">'+
-      '<span style="font-size:10px;font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.07em;">Item '+(idx+1)+'</span>'+
+      '<span style="font-size:var(--text-xs);font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.07em;">Item '+(idx+1)+'</span>'+
       (GF_ITEMS.length>1?'<button onclick="gfRemoveItem('+idx+')" style="padding:2px 10px;border-radius:var(--radius-pill);border:1px solid rgba(168,49,42,.3);background:var(--danger-soft);color:var(--danger);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">&#10005; Remove</button>':'')+
     '</div>'+
     '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px;">'+typePills+'</div>'+
     '<div style="margin-bottom:8px;">'+
-      '<div style="font-size:10px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Description</div>'+
+      '<div style="font-size:var(--text-xs);color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Description</div>'+
       '<input type="text" placeholder="e.g. Ladies 22K gold chain with pendant" value="'+escHtml(item.desc||'')+'" '+
         'data-idx="'+idx+'" oninput="GF_ITEMS[parseInt(this.dataset.idx)].desc=this.value;" '+
         'style="width:100%;box-sizing:border-box;padding:8px 11px;border-radius:9px;border:1.5px solid rgba(179,146,87,.3);background:var(--bg);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'+
       '<div>'+
-        '<div style="font-size:10px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Metal</div>'+
+        '<div style="font-size:var(--text-xs);color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Metal</div>'+
         '<select data-idx="'+idx+'" onchange="gfSetItemMetal(parseInt(this.dataset.idx),this.value)" style="width:100%;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(179,146,87,.3);background:var(--bg);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">'+metOpts+'</select>'+
       '</div>'+
       '<div>'+
-        '<div style="font-size:10px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Purity</div>'+
+        '<div style="font-size:var(--text-xs);color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Purity</div>'+
         '<select data-idx="'+idx+'" onchange="GF_ITEMS[parseInt(this.dataset.idx)].purity=this.value;gfUpdateSummary();" style="width:100%;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(179,146,87,.3);background:var(--bg);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">'+purOpts+'</select>'+
       '</div>'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'+
       '<div>'+
-        '<div style="font-size:10px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Gross Wt (g)</div>'+
+        '<div style="font-size:var(--text-xs);color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Gross Wt (g)</div>'+
         '<input type="number" step="0.01" min="0" placeholder="0.00" inputmode="decimal" value="'+(item.grossWt||'')+'" '+
           'data-idx="'+idx+'" oninput="GF_ITEMS[parseInt(this.dataset.idx)].grossWt=parseFloat(this.value)||0;gfUpdateSummary();" '+
           'style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(179,146,87,.3);background:var(--bg);color:var(--ink);font-size:15px;font-family:inherit;font-weight:700;outline:none;">'+
       '</div>'+
       '<div>'+
-        '<div style="font-size:10px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Net Wt (g)</div>'+
+        '<div style="font-size:var(--text-xs);color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Net Wt (g)</div>'+
         '<input type="number" step="0.01" min="0" placeholder="0.00" inputmode="decimal" value="'+(item.netWt||'')+'" '+
           'data-idx="'+idx+'" oninput="GF_ITEMS[parseInt(this.dataset.idx)].netWt=parseFloat(this.value)||0;" '+
           'style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(179,146,87,.3);background:var(--bg);color:var(--ink);font-size:14px;font-family:inherit;font-weight:600;outline:none;">'+
       '</div>'+
       '<div>'+
-        '<div style="font-size:10px;color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Pieces</div>'+
+        '<div style="font-size:var(--text-xs);color:var(--gold-dark);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Pieces</div>'+
         '<input type="number" min="1" value="'+(item.qty||1)+'" '+
           'data-idx="'+idx+'" oninput="GF_ITEMS[parseInt(this.dataset.idx)].qty=parseInt(this.value)||1;gfUpdateSummary();" '+
           'style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:9px;border:1.5px solid rgba(179,146,87,.3);background:var(--bg);color:var(--ink);font-size:15px;font-family:inherit;font-weight:700;outline:none;">'+
@@ -1019,7 +1019,7 @@ function girviLoanCardHTML(g){
                   ' &bull; '+(it.purity||'')+' '+(it.metal||'')+(_cw?' &bull; '+_cw+'g':'')+' &bull; Mkt: &#8377;'+
                   Math.round(getRate(it.metal||'gold',it.purity||'22K')*_cw).toLocaleString('en-IN')+'</div>';
               }
-              return '<div class="girvi-card-item"><span style="background:rgba(179,146,87,.15);color:var(--gold-dark);font-weight:700;font-size:10px;padding:1px 6px;border-radius:8px;margin-right:4px;">'+_ci.length+' items</span>'+
+              return '<div class="girvi-card-item"><span style="background:rgba(179,146,87,.15);color:var(--gold-dark);font-weight:700;font-size:var(--text-xs);padding:1px 6px;border-radius:8px;margin-right:4px;">'+_ci.length+' items</span>'+
                 _cw.toFixed(2)+'g &bull; '+_ci.map(function(it){return it.type||'Item';}).join(', ')+'</div>';
             })()+
           '</div>'+
@@ -1027,8 +1027,8 @@ function girviLoanCardHTML(g){
             '<div class="girvi-card-outstanding '+outColor+'">\u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</div>'+
             '<div class="girvi-card-principal">₹'+Math.round(g.principal).toLocaleString('en-IN')+' @ '+g.interestRate+'%'+(g.rateType==='yearly'?'/yr':'/mo')+'</div>'+
             (interest>0?'<div class="girvi-card-interest">+\u20b9'+Math.round(interest).toLocaleString('en-IN')+' interest</div>':'')+
-            (penalty>0?'<div style="font-size:10px;color:var(--danger);font-weight:700;">+\u20b9'+Math.round(penalty).toLocaleString('en-IN')+' penalty</div>':'')+
-            '<div style="font-size:10px;color:'+ltvL.color+';margin-top:2px;">'+ltvL.icon+' LTV '+(ltv*100).toFixed(0)+'%</div>'+
+            (penalty>0?'<div style="font-size:var(--text-xs);color:var(--danger);font-weight:700;">+\u20b9'+Math.round(penalty).toLocaleString('en-IN')+' penalty</div>':'')+
+            '<div style="font-size:var(--text-xs);color:'+ltvL.color+';margin-top:2px;">'+ltvL.icon+' LTV '+(ltv*100).toFixed(0)+'%</div>'+
           '</div>'+
         '</div>'+
       '</div>'+
@@ -1157,12 +1157,12 @@ function openGirviDetail(gid){
       '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px;">'+svgIcon('edit')+' Payable Amount</div>'+
       '<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">'+
         '<div style="flex:1;">'+
-          '<div style="font-size:10px;color:var(--text3);margin-bottom:3px;">System Calculated</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);margin-bottom:3px;">System Calculated</div>'+
           '<div style="font-size:16px;font-weight:800;color:var(--text2);">₹'+Math.round(calcTotal).toLocaleString('en-IN')+'</div>'+
         '</div>'+
         '<div style="font-size:18px;color:var(--text3);">→</div>'+
         '<div style="flex:1;">'+
-          '<div style="font-size:10px;color:var(--text3);margin-bottom:3px;">Owner Adjusted</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);margin-bottom:3px;">Owner Adjusted</div>'+
           '<input id="gd-adj-amount" type="number" step="100" value="'+(g.adjustedAmount!=null?Math.round(g.adjustedAmount):'')+'"'+
             ' placeholder="'+Math.round(calcTotal)+'"'+
             ' oninput="gdPreviewAdj('+Math.round(calcTotal)+')"'+
@@ -1204,7 +1204,7 @@ function openGirviDetail(gid){
   var notesRows = (g.notesList||[]).slice().reverse().map(function(n){
     return '<div style="padding:8px 10px;border-radius:8px;background:rgba(0,0,0,.025);margin-bottom:6px;">'+
       '<div style="font-size:13px;color:var(--text1);">'+escHtml(n.text)+'</div>'+
-      '<div style="font-size:10px;color:var(--text3);margin-top:3px;">'+fmtDate(n.ts)+' '+fmtTime(n.ts)+(n.user?' · '+escHtml(n.user):'')+'</div>'+
+      '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:3px;">'+fmtDate(n.ts)+' '+fmtTime(n.ts)+(n.user?' · '+escHtml(n.user):'')+'</div>'+
     '</div>';
   }).join('');
   var notesHtml = canAct ?
@@ -1231,7 +1231,7 @@ function openGirviDetail(gid){
   var timelineRows = allEvents.slice(0,12).map(function(l){
     return '<div class="gd-tl-item">'+
       '<div class="gd-tl-dot" style="background:'+(l.type==='payment'?'var(--success)':l.type==='closed'?'var(--text3)':l.type==='defaulted'?'var(--danger)':l.type==='note'?'var(--info)':l.type==='adjustment'?'var(--warning)':'var(--gold)')+'"></div>'+
-      '<div class="gd-tl-text">'+(icons[l.type]||'📋')+' '+escHtml(l.note||'')+(l.user?' <span style="color:var(--text3);font-size:10px;">· '+escHtml(l.user)+'</span>':'')+'</div>'+
+      '<div class="gd-tl-text">'+(icons[l.type]||'📋')+' '+escHtml(l.note||'')+(l.user?' <span style="color:var(--text3);font-size:var(--text-xs);">· '+escHtml(l.user)+'</span>':'')+'</div>'+
       '<div class="gd-tl-date">'+fmtDate(l.ts)+(girviIsDateOnly(l.ts)?'':' '+fmtTime(l.ts))+'</div>'+
     '</div>';
   }).join('');
@@ -1281,7 +1281,7 @@ function openGirviDetail(gid){
   var html = statusBanner+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">'+
       '<div style="background:var(--card2);border-radius:11px;padding:11px 13px;">'+
-        '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:5px;">'+svgIcon('user')+' Customer</div>'+
+        '<div style="font-size:var(--text-xs);color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:5px;">'+svgIcon('user')+' Customer</div>'+
         '<div style="font-size:15px;font-weight:700;">'+escHtml(g.customer)+'</div>'+
         '<div style="font-size:12px;color:var(--text3);">'+svgIcon('phone')+' '+escHtml(g.phone)+'</div>'+
         (g.address?'<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+escHtml(g.address)+'</div>':'')+
@@ -1292,7 +1292,7 @@ function openGirviDetail(gid){
         if(_its.length===1){
           var it=_its[0];
           return '<div style="background:var(--card2);border-radius:11px;padding:11px 13px;">'+
-            '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:5px;">'+svgIcon('gem')+' Item Pledged</div>'+
+            '<div style="font-size:var(--text-xs);color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:5px;">'+svgIcon('gem')+' Item Pledged</div>'+
             '<div style="font-size:14px;font-weight:700;">'+escHtml(it.type||'Item')+(it.qty>1?' ×'+it.qty:'')+'</div>'+
             '<div style="font-size:12px;color:var(--text3);">'+(it.purity||'')+' '+(it.metal||'')+(it.weight||it.grossWt?' · '+(it.weight||it.grossWt)+'g':'')+'</div>'+
             (it.desc?'<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+escHtml(it.desc)+'</div>':'')+
@@ -1300,7 +1300,7 @@ function openGirviDetail(gid){
           '</div>';
         }
         return '<div style="background:var(--card2);border-radius:11px;padding:11px 13px;">'+
-          '<div style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">'+svgIcon('gem')+' '+_its.length+' Items · '+_twD.toFixed(2)+'g</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">'+svgIcon('gem')+' '+_its.length+' Items · '+_twD.toFixed(2)+'g</div>'+
           _its.map(function(it){
             return '<div style="font-size:12px;padding:3px 0;border-bottom:0.5px solid rgba(179,146,87,.1);">'+
               '<span style="font-weight:700;">'+escHtml(it.type||'Item')+(it.qty>1?' ×'+it.qty:'')+'</span>'+
@@ -1315,15 +1315,15 @@ function openGirviDetail(gid){
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">'+
         '<div style="text-align:center;">'+
           '<div style="font-size:18px;font-weight:800;color:var(--gold);">₹'+Math.round(_ledger.principal).toLocaleString('en-IN')+'</div>'+
-          '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;">Loan Balance</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;">Loan Balance</div>'+
         '</div>'+
         '<div style="text-align:center;">'+
           '<div style="font-size:18px;font-weight:800;color:var(--warning);">₹'+Math.round(interest).toLocaleString('en-IN')+'</div>'+
-          '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;">Interest</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;">Interest</div>'+
         '</div>'+
         '<div style="text-align:center;">'+
           '<div style="font-size:18px;font-weight:800;color:'+(status==='closed'?'var(--success)':penalty>0?'var(--danger)':'var(--gold)')+';">₹'+Math.round(displayAmt).toLocaleString('en-IN')+(g.adjustedAmount!=null?'*':'')+'</div>'+
-          '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;">'+(status==='closed'?'Closed':'Payable')+(g.adjustedAmount!=null?' (adj)':'')+'</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;">'+(status==='closed'?'Closed':'Payable')+(g.adjustedAmount!=null?' (adj)':'')+'</div>'+
         '</div>'+
       '</div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--text2);margin-bottom:6px;">'+
@@ -1344,9 +1344,9 @@ function openGirviDetail(gid){
       return '<div style="background:var(--card2);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;margin-bottom:14px;">'+
         '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px;">\ud83e\udd1d Financer: '+escHtml(g.financerName)+' ('+g.financerRate+'% '+(g.financerRateType==='yearly'?'p.a.':'p.m.')+')</div>'+
         '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
-          '<div style="flex:1;min-width:100px;"><div style="font-size:10px;color:var(--text3);">Customer gives us</div><div style="font-weight:800;color:var(--gold);">\u20b9'+Math.round(m.customerInterest).toLocaleString('en-IN')+'</div></div>'+
-          '<div style="flex:1;min-width:100px;"><div style="font-size:10px;color:var(--text3);">We pay financer</div><div style="font-weight:800;color:var(--text2);">\u20b9'+Math.round(m.financerInterest).toLocaleString('en-IN')+'</div></div>'+
-          '<div style="flex:1;min-width:100px;"><div style="font-size:10px;color:var(--text3);">Our margin</div><div style="font-weight:800;color:'+marginColor+';">\u20b9'+Math.round(m.margin).toLocaleString('en-IN')+'</div></div>'+
+          '<div style="flex:1;min-width:100px;"><div style="font-size:var(--text-xs);color:var(--text3);">Customer gives us</div><div style="font-weight:800;color:var(--gold);">\u20b9'+Math.round(m.customerInterest).toLocaleString('en-IN')+'</div></div>'+
+          '<div style="flex:1;min-width:100px;"><div style="font-size:var(--text-xs);color:var(--text3);">We pay financer</div><div style="font-weight:800;color:var(--text2);">\u20b9'+Math.round(m.financerInterest).toLocaleString('en-IN')+'</div></div>'+
+          '<div style="flex:1;min-width:100px;"><div style="font-size:var(--text-xs);color:var(--text3);">Our margin</div><div style="font-weight:800;color:'+marginColor+';">\u20b9'+Math.round(m.margin).toLocaleString('en-IN')+'</div></div>'+
         '</div>'+
       '</div>';
     })() : '')+

@@ -825,8 +825,8 @@ function _dbPaintByPerson(fromKey, toKey){
         '<div style="text-align:right;font-size:11px;color:var(--text3);">'+grp.entries.length+' entr'+(grp.entries.length===1?'y':'ies')+'</div>'+
       '</div>'+
       '<div style="display:flex;gap:16px;flex-wrap:wrap;padding:8px 0;border-top:0.5px solid rgba(179,146,87,.14);border-bottom:0.5px solid rgba(179,146,87,.14);margin-bottom:6px;">'+
-        '<div><div style="font-size:10px;color:var(--text3);">Paid out</div><div style="font-weight:700;color:var(--danger);">'+fmt(grp.totalOut)+'</div></div>'+
-        '<div><div style="font-size:10px;color:var(--text3);">Received</div><div style="font-weight:700;color:var(--success);">'+fmt(grp.totalIn)+'</div></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);">Paid out</div><div style="font-weight:700;color:var(--danger);">'+fmt(grp.totalOut)+'</div></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);">Received</div><div style="font-weight:700;color:var(--success);">'+fmt(grp.totalIn)+'</div></div>'+
       '</div>'+
       entriesHtml+
     '</div>';
@@ -1059,7 +1059,7 @@ function _dbPaintMonth(){
             '<div style="flex:1;height:'+hIn+'px;background:var(--gold-dark);border-radius:2px 2px 0 0;"></div>'+
             '<div style="flex:1;height:'+hOut+'px;background:var(--danger);border-radius:2px 2px 0 0;opacity:.85;"></div>'+
           '</div>'+
-          '<div style="font-size:9px;color:var(--text3);margin-top:3px;">'+dayNum+'</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:3px;">'+dayNum+'</div>'+
         '</div>';
       }).join('')+
       '</div>'

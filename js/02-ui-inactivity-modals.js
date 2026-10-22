@@ -386,7 +386,7 @@ function renderInv(entrance){
           '<button class="btn btn-sm" onclick="openProdActionMenu(\''+safeId+'\')" title="More actions" aria-label="More actions" style="background:var(--surf2);border:1px solid var(--border2);color:var(--text2);min-width:44px;min-height:44px;font-size:16px;">&#8942;</button>';
 
       trRows.push('<tr class="'+(sold?'sold-row':'')+rowCls+'"'+rowStyle+'>'+
-        '<td><div style="font-weight:600;font-size:13px">'+escHtml(p.name)+'</div>'+(p.notes?'<div style="font-size:11px;color:var(--text3)">'+escHtml(p.notes)+'</div>':'')+'<div style="font-size:10px;color:var(--text3)">'+escHtml(p.sku)+'</div></td>'+
+        '<td><div style="font-weight:600;font-size:13px">'+escHtml(p.name)+'</div>'+(p.notes?'<div style="font-size:11px;color:var(--text3)">'+escHtml(p.notes)+'</div>':'')+'<div style="font-size:var(--text-xs);color:var(--text3)">'+escHtml(p.sku)+'</div></td>'+
         '<td style="font-size:11px;font-weight:600;color:var(--info)">'+(p.huid?escHtml(p.huid):'<span style="color:var(--text3)">&#8212;</span>')+'</td>'+
         '<td><span class="badge" style="'+pbg+'">'+escHtml(p.purity)+'</span></td>'+
         '<td class="num" style="font-weight:700;color:'+(isG?'var(--gold-dark)':'var(--silver-dark)')+'">'+fmtW(p.weight)+'</td>'+
@@ -864,7 +864,7 @@ function renderSaleItems(){
       dbox.style.cssText='background:rgba(179,146,87,0.05);border:0.5px dashed rgba(179,146,87,0.35);border-radius:var(--radius);padding:9px 11px;margin-bottom:9px;';
 
       var dtitle=document.createElement('div');
-      dtitle.style.cssText='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);margin-bottom:8px;';
+      dtitle.style.cssText='font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);margin-bottom:8px;';
       dtitle.innerHTML='&#11015; Weight Deductions &nbsp;<span style="font-weight:400;font-style:italic;">(enter weight to subtract from gross)</span>';
       dbox.appendChild(dtitle);
 
@@ -2294,7 +2294,7 @@ function buildInvoiceHTML(sale, billType){
 
   // ── GST info block on invoice ────────────────────────────────────────
   var gstInfoBlock = (_taxInvoice && shopGSTIN) ?
-    '<div style="font-size:10px;color:#6c757d;margin-top:4px;">'+
+    '<div style="font-size:var(--text-xs);color:#6c757d;margin-top:4px;">'+
     'GSTIN: <strong style="color:#141618;">'+shopGSTIN+'</strong></div>' : '';
 
   // ── GST compliance note for memo ────────────────────────────────────
@@ -2306,13 +2306,13 @@ function buildInvoiceHTML(sale, billType){
       '<div class="tr2"><span class="tc">Taxable Value</span><span class="tv">'+taxableVal+'</span></div>';
     // HSN summary rows
     if(gstBD.metalValue > 0){
-      gstTotalsBlock += '<div class="tr2" style="font-size:10px;color:#888;"><span class="tc">&nbsp;&nbsp;HSN '+gstBD.metalHSN+' (Metal '+gstBD.metalGSTRate+'%)</span><span class="tv">'+fmt(gstBD.metalValue)+'</span></div>';
+      gstTotalsBlock += '<div class="tr2" style="font-size:var(--text-xs);color:#888;"><span class="tc">&nbsp;&nbsp;HSN '+gstBD.metalHSN+' (Metal '+gstBD.metalGSTRate+'%)</span><span class="tv">'+fmt(gstBD.metalValue)+'</span></div>';
     }
     if(gstBD.makingValue > 0){
-      gstTotalsBlock += '<div class="tr2" style="font-size:10px;color:#888;"><span class="tc">&nbsp;&nbsp;HSN '+gstBD.makingHSN+' (Making '+gstBD.makingGSTRate+'%)</span><span class="tv">'+fmt(gstBD.makingValue)+'</span></div>';
+      gstTotalsBlock += '<div class="tr2" style="font-size:var(--text-xs);color:#888;"><span class="tc">&nbsp;&nbsp;HSN '+gstBD.makingHSN+' (Making '+gstBD.makingGSTRate+'%)</span><span class="tv">'+fmt(gstBD.makingValue)+'</span></div>';
     }
     if(gstBD.stoneValue > 0){
-      gstTotalsBlock += '<div class="tr2" style="font-size:10px;color:#888;"><span class="tc">&nbsp;&nbsp;HSN '+gstBD.stoneHSN+' (Stones '+gstBD.stoneGSTRate+'%)</span><span class="tv">'+fmt(gstBD.stoneValue)+'</span></div>';
+      gstTotalsBlock += '<div class="tr2" style="font-size:var(--text-xs);color:#888;"><span class="tc">&nbsp;&nbsp;HSN '+gstBD.stoneHSN+' (Stones '+gstBD.stoneGSTRate+'%)</span><span class="tv">'+fmt(gstBD.stoneValue)+'</span></div>';
     }
     // Tax split
     if(gstBD.isInterState){
@@ -2347,7 +2347,7 @@ function buildInvoiceHTML(sale, billType){
     '.pg{position:relative;z-index:1;}'+
     '.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:20px;border-bottom:2px solid #212529;margin-bottom:20px;}'+
     '.sn{font-family:\'Cormorant Garamond\',serif;font-size:28px;font-weight:600;color:#141618;letter-spacing:.04em;line-height:1;}'+
-    '.st{font-size:10px;color:#6c757d;letter-spacing:.12em;text-transform:uppercase;margin-top:5px;}'+
+    '.st{font-size:var(--text-xs);color:#6c757d;letter-spacing:.12em;text-transform:uppercase;margin-top:5px;}'+
     '.ibox{text-align:right;}'+
     '.ino{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px;color:'+invoiceColor+';}'+
     '.inv{font-family:\'Cormorant Garamond\',serif;font-size:22px;font-weight:600;color:#141618;letter-spacing:.04em;}'+
@@ -2372,7 +2372,7 @@ function buildInvoiceHTML(sale, billType){
     '.iw{font-size:11px;margin-top:4px;}'+
     '.wt-g{color:#6c757d;}.wt-d{color:#c0392b;}.wt-n{color:#059669;font-weight:500;}'+
     '.ir{text-align:right;padding:11px 12px;vertical-align:middle;color:#495057;}'+
-    '.bold{font-weight:600;color:#141618;}small{font-size:9px;color:#adb5bd;display:block;}'+
+    '.bold{font-weight:600;color:#141618;}small{font-size:var(--text-xs);color:#adb5bd;display:block;}'+
     '.tw{display:flex;justify-content:flex-end;margin-bottom:18px;}'+
     '.tb{width:310px;}'+
     '.tr2{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;border-bottom:1px solid #f1f3f5;color:#495057;}'+
@@ -2393,15 +2393,15 @@ function buildInvoiceHTML(sale, billType){
     '.sigrow{display:flex;justify-content:space-between;margin:22px 0 18px;align-items:flex-end;}'+
     '.sigb{text-align:center;width:150px;}'+
     '.sigl{height:1px;background:#dee2e6;margin-bottom:5px;}'+
-    '.sigk{font-size:10px;color:#6c757d;text-transform:uppercase;letter-spacing:.1em;font-weight:600;}'+
+    '.sigk{font-size:var(--text-xs);color:#6c757d;text-transform:uppercase;letter-spacing:.1em;font-weight:600;}'+
     '.sigc{font-size:12px;color:#adb5bd;font-style:italic;}'+
     '.terms{border-top:1px solid #dee2e6;padding-top:12px;margin-top:4px;}'+
-    '.tt{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#adb5bd;margin-bottom:5px;}'+
-    '.tx{font-size:10px;color:#adb5bd;line-height:1.7;}'+
+    '.tt{font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#adb5bd;margin-bottom:5px;}'+
+    '.tx{font-size:var(--text-xs);color:#adb5bd;line-height:1.7;}'+
     '.ftr{text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid #dee2e6;}'+
     '.ft{font-family:\'Cormorant Garamond\',serif;font-size:15px;color:#495057;font-weight:500;}'+
-    '.fp{font-size:10px;color:#adb5bd;margin-top:4px;letter-spacing:.04em;}'+
-    '.seal{display:inline-block;border:1px solid #dee2e6;border-radius:4px;padding:3px 10px;font-size:9px;color:#adb5bd;margin-top:8px;letter-spacing:.1em;text-transform:uppercase;}'+
+    '.fp{font-size:var(--text-xs);color:#adb5bd;margin-top:4px;letter-spacing:.04em;}'+
+    '.seal{display:inline-block;border:1px solid #dee2e6;border-radius:4px;padding:3px 10px;font-size:var(--text-xs);color:#adb5bd;margin-top:8px;letter-spacing:.1em;text-transform:uppercase;}'+
     '@media print{body{font-size:12px;}.page{padding:18px 22px;}.wm{display:none;}}'+
     '</style></head><body>'+
     '<div class="wm">'+shopName+'</div>'+

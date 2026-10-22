@@ -72,9 +72,9 @@ function showOrderDetail(ordId){
   var paySum=document.createElement('div');
   paySum.style.cssText='display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;';
   paySum.innerHTML=
-    '<div style="text-align:center;"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">Quoted</div><div style="font-family:Georgia,serif;font-size:18px;font-weight:600;color:var(--ink);">'+fmt(o.quote||0)+'</div></div>'+
-    '<div style="text-align:center;"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">Advance Paid</div><div style="font-family:Georgia,serif;font-size:18px;font-weight:600;color:var(--success);">'+fmt(adv)+'</div></div>'+
-    '<div style="text-align:center;"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">Balance</div><div style="font-family:Georgia,serif;font-size:18px;font-weight:600;color:'+(bal>0?'var(--danger)':'var(--success)')+';">'+(bal>0?fmt(bal):'Settled')+'</div></div>';
+    '<div style="text-align:center;"><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">Quoted</div><div style="font-family:Georgia,serif;font-size:18px;font-weight:600;color:var(--ink);">'+fmt(o.quote||0)+'</div></div>'+
+    '<div style="text-align:center;"><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">Advance Paid</div><div style="font-family:Georgia,serif;font-size:18px;font-weight:600;color:var(--success);">'+fmt(adv)+'</div></div>'+
+    '<div style="text-align:center;"><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;">Balance</div><div style="font-family:Georgia,serif;font-size:18px;font-weight:600;color:'+(bal>0?'var(--danger)':'var(--success)')+';">'+(bal>0?fmt(bal):'Settled')+'</div></div>';
   payInner.appendChild(paySum);
 
   // Ledger entries
@@ -437,24 +437,24 @@ function generateOrderReceipt(ordId){
     '.page{max-width:680px;margin:0 auto;padding:28px 32px;}'+
     '.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #1a1814;margin-bottom:18px;}'+
     '.sn{font-size:26px;font-weight:700;color:#1a1814;letter-spacing:.04em;}.sn em{font-style:italic;color:#c9a34e;}'+
-    '.st{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.1em;margin-top:4px;}'+
+    '.st{font-size:var(--text-xs);color:#888;text-transform:uppercase;letter-spacing:.1em;margin-top:4px;}'+
     '.ord-badge{background:#f8f3ea;border:1px solid #c9a34e;border-radius:8px;padding:10px 14px;text-align:right;}'+
     '.ord-no{font-size:20px;font-weight:700;color:#1a1814;letter-spacing:.06em;}'+
     '.ord-date{font-size:11px;color:#888;margin-top:3px;}'+
     '.info-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;}'+
     '.ibox{background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:12px;}'+
-    '.ilbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#888;margin-bottom:5px;}'+
+    '.ilbl{font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#888;margin-bottom:5px;}'+
     '.iname{font-size:15px;font-weight:700;color:#1a1814;}'+
     '.idet{font-size:12px;color:#555;margin-top:2px;}'+
     'table{width:100%;border-collapse:collapse;margin-bottom:16px;}'+
-    'thead tr{background:#1a1814;}thead th{padding:8px 10px;text-align:left;font-size:10px;font-weight:700;color:#c9a34e;text-transform:uppercase;letter-spacing:.08em;}'+
+    'thead tr{background:#1a1814;}thead th{padding:8px 10px;text-align:left;font-size:var(--text-xs);font-weight:700;color:#c9a34e;text-transform:uppercase;letter-spacing:.08em;}'+
     'thead th:not(:first-child){text-align:center;}'+
-    '.section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#888;margin-bottom:8px;}'+
+    '.section-title{font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#888;margin-bottom:8px;}'+
     '.pay-section{background:#f8f3ea;border:1px solid rgba(201,163,78,.3);border-radius:8px;padding:12px 14px;margin-bottom:16px;}'+
     '.pay-total{display:flex;justify-content:space-between;padding-top:8px;margin-top:8px;border-top:1px solid rgba(201,163,78,.3);font-size:15px;font-weight:700;}'+
     '.status-chip{display:inline-block;padding:3px 12px;border-radius:100px;font-size:11px;font-weight:700;background:#e8f5ee;color:#1c6040;border:1px solid rgba(28,96,64,.25);}'+
     '.sig{display:flex;justify-content:space-between;margin-top:24px;}'+
-    '.sigb{width:140px;text-align:center;}.sigl{height:1px;background:#ccc;margin-bottom:5px;}.sigk{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.1em;}'+
+    '.sigb{width:140px;text-align:center;}.sigl{height:1px;background:#ccc;margin-bottom:5px;}.sigk{font-size:var(--text-xs);color:#888;text-transform:uppercase;letter-spacing:.1em;}'+
     '.footer{text-align:center;margin-top:20px;padding-top:14px;border-top:1px solid #e0e0e0;font-size:11px;color:#888;}'+
     '@media print{body{font-size:12px;}.page{padding:16px 20px;}}'+
     '</style></head><body><div class="page">'+
@@ -1576,7 +1576,7 @@ function girviStatusBadge(s){
     closed:   {bg:'var(--card2)',        fg:'var(--text3)',   label:'Closed'}
   };
   var v=m[s]||m['active'];
-  return '<span style="background:'+v.bg+';color:'+v.fg+';font-size:10px;font-weight:700;padding:3px 9px;border-radius:var(--radius-pill);text-transform:uppercase;letter-spacing:.05em;">'+v.label+'</span>';
+  return '<span style="background:'+v.bg+';color:'+v.fg+';font-size:var(--text-xs);font-weight:700;padding:3px 9px;border-radius:var(--radius-pill);text-transform:uppercase;letter-spacing:.05em;">'+v.label+'</span>';
 }
 function girviRiskBadge(r){
   // Pre-redesign this concatenated a hex alpha suffix ('#22c55e'+'22') onto the
@@ -1588,7 +1588,7 @@ function girviRiskBadge(r){
     medium:{bg:'var(--warning-soft)',fg:'var(--warning)'},
     high:{bg:'var(--danger-soft)',fg:'var(--danger)'}
   },c=m[r]||m['medium'];
-  return '<span style="background:'+c.bg+';color:'+c.fg+';font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--radius-pill);">'+(r?r.charAt(0).toUpperCase()+r.slice(1):'Med')+'</span>';
+  return '<span style="background:'+c.bg+';color:'+c.fg+';font-size:var(--text-xs);font-weight:600;padding:2px 7px;border-radius:var(--radius-pill);">'+(r?r.charAt(0).toUpperCase()+r.slice(1):'Med')+'</span>';
 }
 
 // Patch normaliseData

@@ -537,19 +537,19 @@ function showCustHistory(encKey){
     var totalPending=custSales.reduce(function(s,x){return s+calcSaleTotals(x).bal;},0);
     var paidAmt=totalSpent-totalPending;
     sumDiv.innerHTML=
-      '<div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Lifetime Value</div><div style="font-weight:700;color:var(--gold-dark);font-size:17px;">'+fmt(totalSpent)+'</div></div>'+
-      '<div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Purchases</div><div style="font-weight:700;font-size:17px;">'+custSales.length+'</div></div>'+
-      '<div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Total Wt</div><div style="font-weight:700;font-size:17px;">'+fmtW(totalWt)+'</div></div>'+
-      (paidAmt>0?'<div><div style="font-size:10px;color:var(--success);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;">Paid</div><div style="font-weight:700;color:var(--success);font-size:15px;">'+fmt(paidAmt)+'</div></div>':'')+
+      '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Lifetime Value</div><div style="font-weight:700;color:var(--gold-dark);font-size:17px;">'+fmt(totalSpent)+'</div></div>'+
+      '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Purchases</div><div style="font-weight:700;font-size:17px;">'+custSales.length+'</div></div>'+
+      '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Total Wt</div><div style="font-weight:700;font-size:17px;">'+fmtW(totalWt)+'</div></div>'+
+      (paidAmt>0?'<div><div style="font-size:var(--text-xs);color:var(--success);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;">Paid</div><div style="font-weight:700;color:var(--success);font-size:15px;">'+fmt(paidAmt)+'</div></div>':'')+
       (totalBal>0
-        ?'<div><div style="font-size:10px;color:var(--danger);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;">Balance due</div><div style="font-weight:700;color:var(--danger);font-size:17px;">'+fmt(totalBal)+'</div></div>'
-        :'<div><div style="font-size:10px;color:var(--success);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;">Status</div><div style="font-weight:700;color:var(--success);font-size:15px;">&#10003; All Cleared</div></div>'
+        ?'<div><div style="font-size:var(--text-xs);color:var(--danger);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;">Balance due</div><div style="font-weight:700;color:var(--danger);font-size:17px;">'+fmt(totalBal)+'</div></div>'
+        :'<div><div style="font-size:var(--text-xs);color:var(--success);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;">Status</div><div style="font-weight:700;color:var(--success);font-size:15px;">&#10003; All Cleared</div></div>'
       )+
-      (first.phone?'<div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Phone</div><div style="font-weight:600;font-size:14px;">'+escHtml(first.phone)+'</div></div>':'');
+      (first.phone?'<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Phone</div><div style="font-weight:600;font-size:14px;">'+escHtml(first.phone)+'</div></div>':'');
   } else {
     sumDiv.innerHTML=
-      '<div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Account Type</div><div style="font-weight:700;font-size:15px;">🪙 Girvi (Pawn) Only</div></div>'+
-      (first.phone?'<div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Phone</div><div style="font-weight:600;font-size:14px;">'+escHtml(first.phone)+'</div></div>':'');
+      '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Account Type</div><div style="font-weight:700;font-size:15px;">🪙 Girvi (Pawn) Only</div></div>'+
+      (first.phone?'<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Phone</div><div style="font-weight:600;font-size:14px;">'+escHtml(first.phone)+'</div></div>':'');
   }
   body.appendChild(sumDiv);
 
@@ -571,8 +571,8 @@ function showCustHistory(encKey){
         '<div style="font-size:12px;color:var(--text3);">'+fmtDate(s.date)+' at '+fmtTime(s.createdAt||s.date)+'</div>'+
         '<div style="font-size:12px;color:var(--text3);">'+escHtml(salePayModes(s))+'</div>'+
         (s.paidAt?'<div style="font-size:11px;color:var(--success);margin-top:2px;">&#10003; Paid on '+fmtDate(s.paidAt)+'</div>':'')+
-        (s.refundStatus==='full'?'<div style="font-size:10px;font-weight:700;color:#fff;background:var(--danger);border-radius:4px;padding:1px 7px;margin-top:3px;display:inline-block;">&#128260; REFUNDED</div>':'')+
-        (s.refundStatus==='partial'?'<div style="font-size:10px;font-weight:700;color:#fff;background:var(--warning);border-radius:4px;padding:1px 7px;margin-top:3px;display:inline-block;">&#128260; PART REFUND</div>':'')+
+        (s.refundStatus==='full'?'<div style="font-size:var(--text-xs);font-weight:700;color:#fff;background:var(--danger);border-radius:4px;padding:1px 7px;margin-top:3px;display:inline-block;">&#128260; REFUNDED</div>':'')+
+        (s.refundStatus==='partial'?'<div style="font-size:var(--text-xs);font-weight:700;color:#fff;background:var(--warning);border-radius:4px;padding:1px 7px;margin-top:3px;display:inline-block;">&#128260; PART REFUND</div>':'')+
       '</div>'+
       '<div style="text-align:right;">'+
         '<div style="font-weight:700;font-size:15px;color:var(--gold-dark);">'+fmt(t.grand)+'</div>'+
@@ -703,11 +703,11 @@ function showCustHistory(encKey){
         (_custRecord?'<button onclick="event.stopPropagation();closeModal(\'cust-modal\');addGirviLoanForCustomer(\''+jsAttrEsc(_custRecord.id)+'\');" style="font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid var(--gold-dark);background:rgba(179,146,87,.1);color:var(--gold-dark);cursor:pointer;font-family:inherit;font-weight:700;">+ Add Loan</button>':'')+
       '</div>'+
       '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;">'+
-        '<div><div style="font-size:10px;color:var(--text3);">Active</div><div style="font-weight:700;color:var(--warning);">'+gActive.length+'</div></div>'+
-        '<div><div style="font-size:10px;color:var(--text3);">Closed</div><div style="font-weight:700;color:var(--success);">'+gClosed.length+'</div></div>'+
-        '<div><div style="font-size:10px;color:var(--text3);">Outstanding</div><div style="font-weight:700;color:var(--danger);">₹'+Math.round(gTotalOut).toLocaleString('en-IN')+'</div></div>'+
-        '<div><div style="font-size:10px;color:var(--text3);">Interest Due</div><div style="font-weight:700;color:var(--warning);">₹'+Math.round(gTotalInt).toLocaleString('en-IN')+'</div></div>'+
-        '<div><div style="font-size:10px;color:var(--text3);">Total Paid</div><div style="font-weight:700;color:var(--success);">₹'+Math.round(gTotalPaid).toLocaleString('en-IN')+'</div></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);">Active</div><div style="font-weight:700;color:var(--warning);">'+gActive.length+'</div></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);">Closed</div><div style="font-weight:700;color:var(--success);">'+gClosed.length+'</div></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);">Outstanding</div><div style="font-weight:700;color:var(--danger);">₹'+Math.round(gTotalOut).toLocaleString('en-IN')+'</div></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);">Interest Due</div><div style="font-weight:700;color:var(--warning);">₹'+Math.round(gTotalInt).toLocaleString('en-IN')+'</div></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);">Total Paid</div><div style="font-weight:700;color:var(--success);">₹'+Math.round(gTotalPaid).toLocaleString('en-IN')+'</div></div>'+
       '</div>'+
       _cGirvi.slice().sort(function(a,b){return new Date(b.createdAt)-new Date(a.createdAt);}).map(function(g){
         var ymd=girviExactDuration(g.startDate);
@@ -725,7 +725,7 @@ function showCustHistory(encKey){
           '</div>'+
           '<div style="text-align:right;">'+
             '<div style="font-weight:800;font-size:13px;">'+(g.status==='closed'?'<span style="color:var(--success);">Closed</span>':'₹'+Math.round(girviOutstanding(g)).toLocaleString('en-IN'))+'</div>'+
-            '<div style="font-size:10px;color:var(--text3);">Loan: ₹'+Math.round(g.principal).toLocaleString('en-IN')+'</div>'+
+            '<div style="font-size:var(--text-xs);color:var(--text3);">Loan: ₹'+Math.round(g.principal).toLocaleString('en-IN')+'</div>'+
           '</div>'+
         '</div>';
       }).join('');
@@ -1143,14 +1143,14 @@ function renderReports(entrance){
     var hRev   =Math.max(4,Math.round(d.rev/mx*80));
     var hProfit=Math.max(2,Math.round(Math.max(0,d.profit)/mx*80));
     return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">'+
-      '<div style="font-size:9px;color:var(--text3);">'+(d.rev>0?fmt(d.rev).replace('\u20b9',''):'')+'</div>'+
+      '<div style="font-size:var(--text-xs);color:var(--text3);">'+(d.rev>0?fmt(d.rev).replace('\u20b9',''):'')+'</div>'+
       '<div style="width:100%;position:relative;height:80px;display:flex;align-items:flex-end;gap:1px;">'+
         '<div style="flex:1;height:'+hRev+'px;background:'+(d.active?'var(--gold)':'var(--bg3)')+';border-radius:3px 3px 0 0;"></div>'+
         '<div style="flex:1;height:'+hProfit+'px;background:'+(d.profit>=0?'var(--success)':'var(--danger)')+';border-radius:3px 3px 0 0;opacity:0.8;"></div>'+
       '</div></div>';
   }).join('');
   if(le) le.innerHTML=chartData.map(function(d){
-    return '<div style="flex:1;text-align:center;font-size:10px;color:'+(d.active?'var(--gold-dark)':'var(--text3)')+';">'+d.label+'</div>';
+    return '<div style="flex:1;text-align:center;font-size:var(--text-xs);color:'+(d.active?'var(--gold-dark)':'var(--text3)')+';">'+d.label+'</div>';
   }).join('');
 
   // ── P&L Statement ──
@@ -1309,9 +1309,9 @@ function renderReports(entrance){
     var highRisk=gList.filter(function(g){return girviLTV(g)>0.85;}).length;
     girviRepEl.innerHTML=
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">'+
-        '<div style="background:var(--card2);border-radius:10px;padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:var(--warning);">'+fmt(totalOut)+'</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;">Outstanding</div></div>'+
-        '<div style="background:var(--card2);border-radius:10px;padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:var(--success);">'+fmt(totalInt)+'</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;">Interest Earned</div></div>'+
-        '<div style="background:var(--card2);border-radius:10px;padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:'+(highRisk>0?'var(--danger)':'var(--success)')+';">'+highRisk+'</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;">High Risk</div></div>'+
+        '<div style="background:var(--card2);border-radius:10px;padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:var(--warning);">'+fmt(totalOut)+'</div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;">Outstanding</div></div>'+
+        '<div style="background:var(--card2);border-radius:10px;padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:var(--success);">'+fmt(totalInt)+'</div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;">Interest Earned</div></div>'+
+        '<div style="background:var(--card2);border-radius:10px;padding:10px;text-align:center;"><div style="font-size:18px;font-weight:800;color:'+(highRisk>0?'var(--danger)':'var(--success)')+';">'+highRisk+'</div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;">High Risk</div></div>'+
       '</div>'+
       (gList.length?
         '<div class="tbl-wrap"><table><thead><tr><th>GRV</th><th>Customer</th><th>Principal</th><th>Outstanding</th><th>LTV</th><th>Status</th></tr></thead><tbody>'+
@@ -1422,7 +1422,7 @@ function buildOrdItemRow(i){
   var ows=document.createElement('span'); ows.className='suf'; ows.textContent='g';
   oww.appendChild(owi); oww.appendChild(ows); owf.appendChild(oww); g.appendChild(owf);
   var ewf=document.createElement('div'); ewf.className='fg';
-  ewf.innerHTML='<label>Est. Final Weight (g) <span style="font-size:10px;color:var(--text3);">&#177;tolerance</span></label>';
+  ewf.innerHTML='<label>Est. Final Weight (g) <span style="font-size:var(--text-xs);color:var(--text3);">&#177;tolerance</span></label>';
   var eww=document.createElement('div'); eww.className='isuf';
   var ewi=document.createElement('input'); ewi.type='text'; ewi.setAttribute('inputmode','decimal');
   ewi.placeholder='0.000'; ewi.id='oi-ewt-'+i; ewi.value=item.estWt>0?item.estWt:'';
@@ -1659,7 +1659,7 @@ function renderOrders(){
     div.className='ord-card'+(isUrgent?' urgent':'');
     div.onclick=function(){showOrderDetail(o.id);};
     var priHtml=o.priority==='urgent'?'<span class="priority-urgent">URGENT</span>':o.priority==='vip'?'<span class="priority-vip">VIP</span>':'';
-    var itemSummary=(o.items&&o.items.length)?o.items.slice(0,2).map(function(it){return (it.qty>1?it.qty+'&times; ':'')+escHtml(it.desc)+'<span style="color:var(--text3);font-size:10px;"> ('+escHtml(it.purity)+')</span>';}).join(' &bull; ')+(o.items.length>2?' <span style="color:var(--text3);">+'+( o.items.length-2)+' more</span>':''):escHtml(o.desc||'');
+    var itemSummary=(o.items&&o.items.length)?o.items.slice(0,2).map(function(it){return (it.qty>1?it.qty+'&times; ':'')+escHtml(it.desc)+'<span style="color:var(--text3);font-size:var(--text-xs);"> ('+escHtml(it.purity)+')</span>';}).join(' &bull; ')+(o.items.length>2?' <span style="color:var(--text3);">+'+( o.items.length-2)+' more</span>':''):escHtml(o.desc||'');
     div.innerHTML=
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'+
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+

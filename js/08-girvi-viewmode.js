@@ -162,9 +162,9 @@ function renderGirviByCustomer(search, filter, metalFilter){
         '</div>'+
       '</div>'+
       '<div style="display:flex;gap:16px;flex-wrap:wrap;margin:0 16px 12px;padding:10px 0;border-top:0.5px solid rgba(179,146,87,.14);border-bottom:0.5px solid rgba(179,146,87,.14);">'+
-        '<div><div style="font-size:10px;color:var(--text3);">Total Loan</div><div style="font-weight:700;">\u20b9'+Math.round(grp.totalLoan).toLocaleString('en-IN')+'</div></div>'+
-        '<div><div style="font-size:10px;color:var(--text3);">Interest Due</div><div style="font-weight:700;color:var(--warning);">\u20b9'+Math.round(grp.totalInterest).toLocaleString('en-IN')+'</div></div>'+
-        '<div><div style="font-size:10px;color:var(--text3);">Outstanding</div><div style="font-weight:700;color:var(--danger);">\u20b9'+Math.round(grp.totalOutstanding).toLocaleString('en-IN')+'</div></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);">Total Loan</div><div style="font-weight:700;">\u20b9'+Math.round(grp.totalLoan).toLocaleString('en-IN')+'</div></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);">Interest Due</div><div style="font-weight:700;color:var(--warning);">\u20b9'+Math.round(grp.totalInterest).toLocaleString('en-IN')+'</div></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);">Outstanding</div><div style="font-weight:700;color:var(--danger);">\u20b9'+Math.round(grp.totalOutstanding).toLocaleString('en-IN')+'</div></div>'+
       '</div>'+
       '<div style="padding:0 16px;">'+entriesHtml+'</div>'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin:8px 16px 14px;gap:8px;">'+
@@ -203,7 +203,7 @@ var _v20_renderGirvi_installed = false;
         return '<div class="girvi-card status-closed" style="cursor:default;opacity:.8;">'+
           '<div class="girvi-card-top">'+
             '<div class="girvi-card-meta"><span class="girvi-card-id">'+escHtml(g.grvNo)+'</span>'+
-            '<span style="font-size:10px;color:var(--text3);">Archived '+fmtDate(g._deletedAt)+'</span></div>'+
+            '<span style="font-size:var(--text-xs);color:var(--text3);">Archived '+fmtDate(g._deletedAt)+'</span></div>'+
             '<div class="girvi-card-body">'+
               '<div class="girvi-card-left"><div class="girvi-card-name">'+escHtml(g.customer)+'</div>'+
               '<div class="girvi-card-item">'+((Array.isArray(g.items)&&g.items.length?g.items[0].type:g.item&&g.item.type)||'Item')+'</div></div>'+
@@ -323,7 +323,7 @@ var _v20_renderGirvi_installed = false;
           (_cw?' \u2022 '+_cw.toFixed(2)+'g':'')+
           ' \u2022 Mkt: \u20b9'+Math.round(getRate(it0.metal||'gold',it0.purity||'22K')*girviItemWt(it0)*(parseInt(it0.qty)||1)).toLocaleString('en-IN')+'</div>';
       } else {
-        itemHtml='<div class="girvi-card-item"><span style="background:rgba(179,146,87,.15);color:var(--gold-dark);font-weight:700;font-size:10px;padding:1px 6px;border-radius:8px;margin-right:4px;">'+_allIt.length+' items</span>'+_cw.toFixed(2)+'g \u2022 '+_allIt.map(function(it){ return it.type||'Item'; }).join(', ')+'</div>';
+        itemHtml='<div class="girvi-card-item"><span style="background:rgba(179,146,87,.15);color:var(--gold-dark);font-weight:700;font-size:var(--text-xs);padding:1px 6px;border-radius:8px;margin-right:4px;">'+_allIt.length+' items</span>'+_cw.toFixed(2)+'g \u2022 '+_allIt.map(function(it){ return it.type||'Item'; }).join(', ')+'</div>';
       }
 
       var actionsHtml;
@@ -355,14 +355,14 @@ var _v20_renderGirvi_installed = false;
               '<div class="girvi-card-name">'+escHtml(g.customer)+'</div>'+
               '<div class="girvi-card-phone">\ud83d\udcde '+escHtml(g.phone)+'</div>'+
               itemHtml+
-              (g.staff?'<div style="font-size:10px;color:var(--text3);margin-top:1px;">\ud83d\udc64 '+escHtml(g.staff)+'</div>':'')+
+              (g.staff?'<div style="font-size:var(--text-xs);color:var(--text3);margin-top:1px;">\ud83d\udc64 '+escHtml(g.staff)+'</div>':'')+
             '</div>'+
             '<div class="girvi-card-right">'+
               '<div class="girvi-card-outstanding '+outColor+'">\u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</div>'+
               '<div class="girvi-card-principal">\u20b9'+Math.round(g.principal).toLocaleString('en-IN')+' @ '+g.interestRate+'%'+(g.rateType==='yearly'?'/yr':'/mo')+'</div>'+
               (interest>0?'<div class="girvi-card-interest">+\u20b9'+Math.round(interest).toLocaleString('en-IN')+' interest</div>':'')+
-              (penalty>0?'<div style="font-size:10px;color:var(--danger);font-weight:700;">+\u20b9'+Math.round(penalty).toLocaleString('en-IN')+' penalty</div>':'')+
-              '<div style="font-size:10px;color:'+ltvL.color+';margin-top:2px;">'+ltvL.icon+' LTV '+(ltv*100).toFixed(0)+'%</div>'+
+              (penalty>0?'<div style="font-size:var(--text-xs);color:var(--danger);font-weight:700;">+\u20b9'+Math.round(penalty).toLocaleString('en-IN')+' penalty</div>':'')+
+              '<div style="font-size:var(--text-xs);color:'+ltvL.color+';margin-top:2px;">'+ltvL.icon+' LTV '+(ltv*100).toFixed(0)+'%</div>'+
             '</div>'+
           '</div>'+
         '</div>'+
@@ -491,7 +491,7 @@ function geItemCard(i,item){
 
   var hdr=document.createElement('div');
   hdr.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
-  hdr.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.06em;">Item '+(i+1)+'</div>';
+  hdr.innerHTML='<div style="font-size:var(--text-xs);font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.06em;">Item '+(i+1)+'</div>';
   if(GE_ITEMS.length>1){
     var rb=document.createElement('button');
     rb.style.cssText='padding:3px 10px;border-radius:8px;border:none;background:rgba(168,49,42,.1);color:var(--danger);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;';
@@ -597,7 +597,7 @@ function geRenderAuditLog(g){
       '<div class="ge-audit-dot '+(l.type||'edit')+'"></div>'+
       '<div style="flex:1;">'+
         '<div style="font-size:12px;font-weight:600;color:var(--ink);">'+(ICONS[l.type]||'\ud83d\udccb')+' '+escHtml(l.note||l.type||'Change')+'</div>'+
-        '<div style="font-size:10px;color:var(--text3);margin-top:2px;">'+fmtDate(l.ts)+' '+fmtTime(l.ts)+(l.user?' \u2022 '+escHtml(l.user):'')+'</div>'+
+        '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">'+fmtDate(l.ts)+' '+fmtTime(l.ts)+(l.user?' \u2022 '+escHtml(l.user):'')+'</div>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -1072,9 +1072,9 @@ function openGirviReceiptModal(gid, receiptType){
   var customerHeadline =
     '<div style="background:var(--gold-bg);border:0.5px solid rgba(179,146,87,.3);border-radius:8px;padding:10px 12px;margin-bottom:12px;">'+
       '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;font-size:12px;">'+
-        '<div><div style="color:var(--text3);text-transform:uppercase;font-size:9px;font-family:Inter,sans-serif;">Outstanding Before</div><strong>\u20b9'+Math.round(prevOutstanding).toLocaleString('en-IN')+'</strong></div>'+
-        (lastPay?'<div><div style="color:var(--text3);text-transform:uppercase;font-size:9px;font-family:Inter,sans-serif;">Amount Received</div><strong style="color:var(--success);">\u20b9'+Math.round(lastPay.amount).toLocaleString('en-IN')+'</strong></div>':'<div></div>')+
-        '<div><div style="color:var(--text3);text-transform:uppercase;font-size:9px;font-family:Inter,sans-serif;">Balance Remaining</div><strong style="color:var(--gold-dark);">\u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</strong></div>'+
+        '<div><div style="color:var(--text3);text-transform:uppercase;font-size:var(--text-xs);font-family:Inter,sans-serif;">Outstanding Before</div><strong>\u20b9'+Math.round(prevOutstanding).toLocaleString('en-IN')+'</strong></div>'+
+        (lastPay?'<div><div style="color:var(--text3);text-transform:uppercase;font-size:var(--text-xs);font-family:Inter,sans-serif;">Amount Received</div><strong style="color:var(--success);">\u20b9'+Math.round(lastPay.amount).toLocaleString('en-IN')+'</strong></div>':'<div></div>')+
+        '<div><div style="color:var(--text3);text-transform:uppercase;font-size:var(--text-xs);font-family:Inter,sans-serif;">Balance Remaining</div><strong style="color:var(--gold-dark);">\u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</strong></div>'+
       '</div>'+
     '</div>';
 
@@ -1108,15 +1108,15 @@ function openGirviReceiptModal(gid, receiptType){
         '<div style="font-size:13px;font-weight:700;color:var(--ink);margin-top:8px;text-transform:uppercase;letter-spacing:.1em;">'+title+'</div>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;margin-bottom:12px;">'+
-        '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Girvi No.</div><strong>'+g.grvNo+'</strong></div>'+
-        '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Date</div><strong>'+fmtDate(new Date().toISOString())+'</strong></div>'+
-        '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Customer</div><strong>'+escHtml(g.customer)+'</strong></div>'+
-        '<div><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Mobile</div><strong>'+escHtml(g.phone)+'</strong></div>'+
-        (g.address?'<div style="grid-column:1/-1;"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Address</div>'+escHtml(g.address)+'</div>':'')+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Girvi No.</div><strong>'+g.grvNo+'</strong></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Date</div><strong>'+fmtDate(new Date().toISOString())+'</strong></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Customer</div><strong>'+escHtml(g.customer)+'</strong></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Mobile</div><strong>'+escHtml(g.phone)+'</strong></div>'+
+        (g.address?'<div style="grid-column:1/-1;"><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Address</div>'+escHtml(g.address)+'</div>':'')+
       '</div>'+
       customerHeadline+
       '<div style="border:0.5px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:12px;">'+
-        '<div style="background:var(--gold-dark);color:#fff;padding:7px 10px;font-family:Inter,sans-serif;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Pledged Items</div>'+
+        '<div style="background:var(--gold-dark);color:#fff;padding:7px 10px;font-family:Inter,sans-serif;font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.08em;">Pledged Items</div>'+
         _allIt.map(function(it,n){
           return '<div style="padding:8px 10px;border-bottom:0.5px solid var(--border);font-size:13px;">'+
             '<strong>'+(n+1)+'. '+escHtml(it.desc||it.type||'Item')+'</strong><br>'+
@@ -1143,7 +1143,7 @@ function openGirviReceiptModal(gid, receiptType){
         '</div>'+
       '</details>'+
       (g.notes?'<div style="font-size:11px;color:var(--text3);margin-top:8px;font-style:italic;">Note: '+escHtml(g.notes)+'</div>':'')+
-      '<div style="text-align:center;margin-top:16px;padding-top:12px;border-top:0.5px solid var(--border);font-size:10px;color:var(--text3);">Powered by JewelOS \u2022 Computer-generated receipt</div>'+
+      '<div style="text-align:center;margin-top:16px;padding-top:12px;border-top:0.5px solid var(--border);font-size:var(--text-xs);color:var(--text3);">Powered by JewelOS \u2022 Computer-generated receipt</div>'+
     '</div>';
 
   document.getElementById('girvi-receipt-modal').style.display='block';
@@ -1306,11 +1306,11 @@ function renderAuditLog() {
   };
   var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">' +
     '<thead><tr style="border-bottom:2px solid var(--border2);">' +
-      '<th style="text-align:left;padding:7px 8px;color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.08em;">Time</th>' +
-      '<th style="text-align:left;padding:7px 8px;color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.08em;">User</th>' +
-      '<th style="text-align:left;padding:7px 8px;color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.08em;">Action</th>' +
-      '<th style="text-align:left;padding:7px 8px;color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.08em;">Entity</th>' +
-      '<th style="text-align:left;padding:7px 8px;color:var(--text3);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.08em;">Details</th>' +
+      '<th style="text-align:left;padding:7px 8px;color:var(--text3);font-weight:600;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.08em;">Time</th>' +
+      '<th style="text-align:left;padding:7px 8px;color:var(--text3);font-weight:600;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.08em;">User</th>' +
+      '<th style="text-align:left;padding:7px 8px;color:var(--text3);font-weight:600;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.08em;">Action</th>' +
+      '<th style="text-align:left;padding:7px 8px;color:var(--text3);font-weight:600;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.08em;">Entity</th>' +
+      '<th style="text-align:left;padding:7px 8px;color:var(--text3);font-weight:600;font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.08em;">Details</th>' +
     '</tr></thead><tbody>';
   log.forEach(function(e, idx) {
     var color = actionColors[e.action] || '#5c5244';
@@ -1322,9 +1322,9 @@ function renderAuditLog() {
     } catch(ex) { dt = e.ts; }
     html += '<tr style="border-bottom:0.5px solid var(--border);'+(idx%2?'background:var(--bg);':'')+'">'+
       '<td style="padding:6px 8px;color:var(--text3);white-space:nowrap;">'+escHtml(dt)+'</td>'+
-      '<td style="padding:6px 8px;font-weight:600;color:var(--ink2);">'+escHtml(e.user||'-')+'<br><span style="font-size:10px;color:var(--text3);">'+escHtml(e.role||'')+'</span></td>'+
-      '<td style="padding:6px 8px;"><span style="background:'+color+'22;color:'+color+';padding:2px 8px;border-radius:100px;font-size:10px;font-weight:700;text-transform:uppercase;">'+escHtml(e.action||'-')+'</span></td>'+
-      '<td style="padding:6px 8px;color:var(--ink3);">'+escHtml(e.entity||'-')+'<br><span style="font-size:10px;color:var(--text3);">'+escHtml(e.entityId||'')+'</span></td>'+
+      '<td style="padding:6px 8px;font-weight:600;color:var(--ink2);">'+escHtml(e.user||'-')+'<br><span style="font-size:var(--text-xs);color:var(--text3);">'+escHtml(e.role||'')+'</span></td>'+
+      '<td style="padding:6px 8px;"><span style="background:'+color+'22;color:'+color+';padding:2px 8px;border-radius:100px;font-size:var(--text-xs);font-weight:700;text-transform:uppercase;">'+escHtml(e.action||'-')+'</span></td>'+
+      '<td style="padding:6px 8px;color:var(--ink3);">'+escHtml(e.entity||'-')+'<br><span style="font-size:var(--text-xs);color:var(--text3);">'+escHtml(e.entityId||'')+'</span></td>'+
       '<td style="padding:6px 8px;color:var(--ink3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+escHtml(e.note||'')+'">'+escHtml(e.note||'-')+'</td>'+
     '</tr>';
   });
@@ -1383,7 +1383,7 @@ function renderActivityLogGrouped(){
     var role = entries.length ? (entries[entries.length-1].role||'') : '';
     html += '<div style="margin-bottom:18px;border:0.5px solid var(--border2);border-radius:10px;overflow:hidden;">';
     html += '<div style="background:var(--gold-bg);padding:8px 12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">';
-    html += '<div><strong style="color:var(--ink);">'+escHtml(user)+'</strong>'+(role?' <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">'+escHtml(role)+'</span>':'')+'</div>';
+    html += '<div><strong style="color:var(--ink);">'+escHtml(user)+'</strong>'+(role?' <span style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">'+escHtml(role)+'</span>':'')+'</div>';
     html += '<div style="font-size:11px;color:var(--text3);">Login: '+(loginEntry?escHtml(fmtTime(loginEntry.ts)):'—')+'</div>';
     html += '</div>';
     html += '<div>';

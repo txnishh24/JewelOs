@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody (released 22 Oct by Cowork/Sonnet after trimming this file). Where things stand: JEWELOS-2 crash fix `d02b968` is verified (428/0, check.bat clean) but local only — not pushed, not deployed, not phone-tested, waiting on Tanish's go (66th entry). Sentry replay masking: config confirmed, the visual look at a replay is Tanish's alone (64th entry). The 60th entry's low-priority polish list is still open for Claude Code. Older history was trimmed on 22 Oct; see the note at the bottom of this file.
+> Nobody (released 22 Oct by Claude Code/Sonnet). Where things stand: JEWELOS-2 crash fix `d02b968` is verified and pushed to origin (87bdf32) but NOT deployed, NOT phone-tested — waiting on Tanish's go (66th entry). The 60th entry's polish list is done: font-size sweep (137+4 instances) shipped and verified, the two 320px overflow reports could not be reproduced (not fixed, not confirmed fixed either), the emoji call is made and documented for Tanish (68th entry) — not yet pushed. Sentry replay masking: config confirmed, the visual look at a replay is Tanish's alone (64th entry). Older history was trimmed on 22 Oct; see the note at the bottom of this file.
 
 ---
 
@@ -90,6 +90,19 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-22 (sixty-eighth entry) · Claude Code (Sonnet) — 60th-entry polish queue: font-size sweep done, two 320px overflows NOT reproduced, emoji call made
+
+Picked up the 60th entry's 3-item optional/nothing-blocking list.
+
+**1. Font-size sweep — done.** Swept all 137 `font-size:9px`/`font-size:10px` inline-style declarations across all 11 `js/*.js` files to `font-size:var(--text-xs)` (resolves to 12px, same token every other small label in `index.html` already uses), plus the 4 named 9px CSS classes (`.lbl`, `.bnav-label`, `.ged-label`, `.fsn-label`). Checked `.bnav-label`'s own context first — a 10 Oct comment on `.bnav-btn` confirms only 5 nav buttons now (down from 9), ~78px each on a 375px phone, "plenty of room," so bumping its label is safe. Script-based sweep (byte-exact, avoids the `\uXXXX`-escape risk the house rules flag for string-replace tools), verified 137→0 matches before/after per file. `node tests/regression.test.js`: 428/0. `check.bat`: 11/11 files OK, same AST-check list as baseline (11 numeric-arg sites, 0 missing-`jsAttrEsc` sites — unchanged), backup-check/roundtrip clean.
+
+**2. The two 320px overflows (Stock `btn-sm` row, Reports DIVs reaching 329–337px) — could NOT reproduce, not fixed.** Built a Playwright repro at 320px viewport: seeded `S.products`/`S.sales`/`S.customers` directly (bypassing `loadDemoData()`'s confirm modal) including a deliberately long product name/SKU, rendered both the Stock (card view, confirmed via `getComputedStyle` that the mobile card path is what's live, not the table) and Reports tabs via `switchTab()`, measured `document.documentElement.scrollWidth` vs `clientWidth`. Both came back exactly 320/320 — no overflow, on either screen, with this data shape. Checked the likely CSS suspects by hand too: `.search-row`, `.inv-card-actions` and `.pills` all already have `flex-wrap:wrap` or scoped `overflow-x:auto`; the one global `table{min-width:520px}` rule is always inside a `.tbl-wrap` (its own scroll container), not the page. **Not claiming this is fixed** — either it was already resolved by intervening CSS work since the 20 Oct batch59 text-size pass, or Cowork's original run hit a data shape (a specific report subsection, a longer real product list) this reconstruction didn't match, since their test scripts live in Cowork scratch, not this repo. Flagging as unverified-either-way rather than guessing a CSS fix for a bug I can't see.
+
+**3. Remaining emoji — the call: NOT all intentional, one real pocket of batch56 leftovers.** Traced every flagged emoji by its `\uXXXX` escape: the dashboard/Stock ✅ instances (25+, `✅`) are every one of them inside a `toast(...)` call — confirmed this is the established app-wide convention, not a leftover (162 of the app's 335 `toast()` calls start with an emoji escape). Those are fine as is. **Girvi is different:** three near-duplicate `ICONS` maps in `08-girvi-viewmode.js` (lines ~594/793/909 — `created`/`payment`/`edit`/`closed`/`defaulted`/`renewal`/`whatsapp`/`waiver`/`penalty`, 8-9 raw emoji each) render as the activity-timeline icon for every logged event, plus a bare ✏️ edit-button icon in Girvi's own action row (line 337) and two more in Purchase Bills' edit buttons (`09-purchases.js`, lines 1391/1420) — all persistent UI chrome, the same category of thing the batch56 `svgIcon()`/`data-icon` pass converted everywhere else, not momentary toast text. This accounts for Cowork's "~18 on Girvi" count. Did not convert these myself this pass — it's a visual-chrome change across Girvi specifically (not the protected interest engine, just its icon rendering) and deserves its own verification pass rather than a drive-by alongside two unrelated items.
+
+→ FOR COWORK: nothing blocking — FYI only.
+→ FOR TANISH: the emoji call above is what you asked the 60th entry to decide — short version: dashboard/toast emoji are fine and staying, Girvi's 3 duplicated icon maps + 3 raw edit-button icons are real leftovers from the icon-cleanup pass and worth converting to the same `svgIcon()` system the rest of the app uses, whenever that's worth a slot. Nothing urgent.
 
 ### 2026-10-22 (sixty-seventh entry) · Cowork (Sonnet) — trimmed this file at Tanish's request: old entries out, the newest and the open items kept
 

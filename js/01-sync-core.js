@@ -1624,7 +1624,7 @@ function renderPaymentHistory(sale){
   var html='';
   if(sale.paymentHistory && sale.paymentHistory.length){
     html+='<div style="margin-top:10px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">';
-    html+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text2);padding:7px 10px;background:var(--bg2);">Payment History</div>';
+    html+='<div style="font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text2);padding:7px 10px;background:var(--bg2);">Payment History</div>';
     sale.paymentHistory.forEach(function(p){
       html+='<div class="pay-hist-item">'+
         '<span style="color:var(--text3);">'+fmtDate(p.date)+' '+fmtTime(p.date)+'</span>'+
@@ -2143,7 +2143,7 @@ function openRefundModal(saleId) {
   var itemsHtml = '';
   if(returnableItems.length){
     itemsHtml =
-      '<label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Physically Returned Items (optional)</label>'+
+      '<label style="font-size:var(--text-xs);font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Physically Returned Items (optional)</label>'+
       '<div style="border:1px solid var(--border2);border-radius:9px;padding:8px;max-height:140px;overflow-y:auto;display:grid;gap:6px;">'+
       returnableItems.map(function(x){
         return '<label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">'+
@@ -2159,19 +2159,19 @@ function openRefundModal(saleId) {
     '<div style="font-family:\'Cormorant Garamond\',Georgia,serif;font-size:20px;font-weight:600;color:var(--ink);margin-bottom:4px;">Issue Refund</div>'+
     '<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">'+escHtml(sale.invNo||sale.id)+' &middot; '+escHtml(sale.customer)+'</div>'+
     '<div style="background:var(--danger-soft);border:1px solid var(--danger);border-radius:10px;padding:12px;margin-bottom:14px;text-align:center;">'+
-      '<div style="font-size:10px;font-weight:700;color:var(--danger);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;">Max Refundable</div>'+
+      '<div style="font-size:var(--text-xs);font-weight:700;color:var(--danger);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;">Max Refundable</div>'+
       '<div style="font-size:30px;font-weight:800;color:var(--danger);">&#8377;'+Math.round(maxR).toLocaleString('en-IN')+'</div>'+
     '</div>'+
     '<div style="display:grid;gap:9px;">'+
-      '<label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Refund Amount</label>'+
+      '<label style="font-size:var(--text-xs);font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Refund Amount</label>'+
       '<input id="rfnd-amount" type="number" step="1" max="'+Math.round(maxR)+'" value="'+Math.round(maxR)+'" style="width:100%;padding:11px 13px;border-radius:9px;border:1.5px solid var(--border2);font-size:20px;font-weight:700;font-family:inherit;background:var(--surface);">'+
-      '<label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Refund Mode</label>'+
+      '<label style="font-size:var(--text-xs);font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Refund Mode</label>'+
       '<select id="rfnd-mode" style="width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border2);background:var(--surface);font-size:13px;font-family:inherit;">'+
         '<option value="Cash">&#128181; Cash</option>'+
         '<option value="UPI">&#128241; UPI</option>'+
         '<option value="Bank Transfer">&#127968; Bank Transfer</option>'+
       '</select>'+
-      '<label style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Reason</label>'+
+      '<label style="font-size:var(--text-xs);font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Reason</label>'+
       '<select id="rfnd-reason" style="width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border2);background:var(--surface);font-size:13px;font-family:inherit;">'+
         '<option>Customer Return</option><option>Defective Item</option><option>Wrong Item</option>'+
         '<option>Price Correction</option><option>Order Cancelled</option><option>Other</option>'+
@@ -2347,7 +2347,7 @@ function openBarcodeLabels(prodIds) {
     '.lhuid{font-size:6.5px;background:#d1fae5;color:#065f46;padding:1px 4px;border-radius:3px;font-weight:600}'+
     '.lbar svg{width:100%;height:26px}'+
     '.lsku{font-size:6.5px;color:#888;margin-top:1px;font-weight:600}'+
-    '.lprice{font-size:10px;font-weight:800;color:#7c3aed;margin-top:2px}'+
+    '.lprice{font-size:var(--text-xs);font-weight:800;color:#7c3aed;margin-top:2px}'+
     '@media print{.noprint{display:none}}'+
   '</style></head><body>'+
   '<div class="noprint" style="padding:10px;background:#f1f5f9;margin-bottom:8px;display:flex;gap:10px;align-items:center;">'+

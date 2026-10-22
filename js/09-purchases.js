@@ -327,10 +327,10 @@ function pbFormHtml(){
     // Entered per bill, as agreed with the supplier — not derived after the
     // fact from gross vs net. pbRecalcForm() still uses pbWastagePct() to
     // show what the weights imply, purely as a cross-check alongside it.
-    '<div class="fg"><label>Wastage % <span style="font-size:10px;color:var(--text3)">(as agreed with supplier)</span></label><input type="number" step="0.01" min="0" id="pb-f-wastage" placeholder="0.00" oninput="pbRecalcForm()"/></div>';
+    '<div class="fg"><label>Wastage % <span style="font-size:var(--text-xs);color:var(--text3)">(as agreed with supplier)</span></label><input type="number" step="0.01" min="0" id="pb-f-wastage" placeholder="0.00" oninput="pbRecalcForm()"/></div>';
 
   if(cfg.goldRate){
-    h += '<div class="fg"><label>Gold Rate Snapshot \u20b9/g <span style="font-size:10px;color:var(--text3)">(rate on this date)</span></label><input type="number" id="pb-f-rate" placeholder="0"/></div>';
+    h += '<div class="fg"><label>Gold Rate Snapshot \u20b9/g <span style="font-size:var(--text-xs);color:var(--text3)">(rate on this date)</span></label><input type="number" id="pb-f-rate" placeholder="0"/></div>';
   }
   h += '<div class="fg"><label>Total Amount \u20b9</label><input type="number" id="pb-f-total" placeholder="0" oninput="pbRecalcForm()"/></div>'+
     '<div class="fg"><label>Amount Paid \u20b9</label><input type="number" id="pb-f-paid" placeholder="0" oninput="pbRecalcForm()"/></div>'+
@@ -485,7 +485,7 @@ function pbItemCard(i,item){
 
   var hdr=document.createElement('div');
   hdr.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
-  hdr.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.06em;">Item '+(i+1)+'</div>';
+  hdr.innerHTML='<div style="font-size:var(--text-xs);font-weight:700;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.06em;">Item '+(i+1)+'</div>';
   if(PB_ITEMS.length>1){
     var rb=document.createElement('button');
     rb.type='button';
@@ -1259,7 +1259,7 @@ function pbOpenHistoryModal(billId){
         ? '<b style="color:#a86a00;">Overpaid '+fmt(b.overpaidAmount)+'</b>'
         : '<b style="color:'+(b.pendingAmount>0?'var(--danger)':'var(--success)')+';">'+(b.pendingAmount>0?'Outstanding '+fmt(b.pendingAmount):'Settled')+'</b>')+
     '</div>'+
-    '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:6px;">Payments</div>'+
+    '<div style="font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:6px;">Payments</div>'+
     (b.amountPaid>0?'<div style="font-size:12px;padding:6px 10px;background:var(--card2);border-radius:8px;margin-bottom:5px;color:var(--text2);">At bill entry \u00b7 '+fmt(b.amountPaid)+(b.paymentMethod?' \u00b7 '+escHtml(b.paymentMethod):'')+'</div>':'')+
     (pays.length===0 && !b.amountPaid ? '<div style="font-size:12px;color:var(--text3);padding:6px 0;">No payments recorded yet.</div>' : '')+
     pays.map(function(p){
@@ -1269,7 +1269,7 @@ function pbOpenHistoryModal(billId){
         ((!isRev&&!wasRev)?'<button onclick="pbReversePayment(\''+jsAttrEsc(billId)+'\',\''+jsAttrEsc(p.id)+'\')" style="border:none;background:transparent;color:var(--danger);cursor:pointer;font-size:11px;font-family:inherit;text-decoration:underline;">Reverse</button>':'')+
       '</div>';
     }).join('')+
-    '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:14px 0 6px;">Bill History</div>'+
+    '<div style="font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:14px 0 6px;">Bill History</div>'+
     ((b.timeline&&b.timeline.length)
       ? b.timeline.slice().reverse().map(function(t){
           return '<div style="font-size:12px;padding:5px 10px;border-left:2px solid var(--border2);margin-bottom:4px;">'+
