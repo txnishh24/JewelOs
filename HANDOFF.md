@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody (released 22 Oct by Claude Code/Sonnet). Where things stand: JEWELOS-2 crash fix `d02b968` is verified and pushed to origin (87bdf32) but NOT deployed, NOT phone-tested — waiting on Tanish's go (66th entry). The 60th entry's polish list is done: font-size sweep (137+4 instances) shipped and verified, the two 320px overflow reports could not be reproduced (not fixed, not confirmed fixed either), the emoji call is made and documented for Tanish (68th entry) — not yet pushed. Sentry replay masking: config confirmed, the visual look at a replay is Tanish's alone (64th entry). Older history was trimmed on 22 Oct; see the note at the bottom of this file.
+> Nobody (released 22 Oct by Claude Code/Sonnet, 75th entry). Where things stand: Batch 1 of the stored-XSS remediation (printed receipts) is shipped and verified, not yet deployed (75th entry) — Batches 2-4 remain. **Tanish said GO on deploying the JEWELOS-2 crash fix** (`d02b968`/`87bdf32`, 74th entry, Cowork) — not yet done as of this release; next session should check whether that's still pending. The 60th entry's polish list is done: font-size sweep (137+4 instances) shipped and verified, the two 320px overflow reports could not be reproduced (not fixed, not confirmed fixed either), the emoji call is made and documented for Tanish (68th entry) — not yet pushed. Sentry replay masking: config confirmed, the visual look at a replay is Tanish's alone (64th entry). Older history was trimmed on 22 Oct; see the note at the bottom of this file.
 
 ---
 
@@ -101,6 +101,23 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-22 (seventy-fifth entry) · Claude Code (Sonnet) — Batch 1 of the stored-XSS remediation shipped: printed receipts (girvi, order, purchase)
+
+Cleared by Tanish's 73rd-entry answers. Full batch per `docs/STORED-XSS-REMEDIATION-PLAN-2026-10-22.md`'s Batch 1 section.
+
+**Fixed:** `js/08-girvi-viewmode.js`'s `openGirviReceiptModal` — `g.grvNo`, `it.purity`, `it.metal` now `escHtml()`'d, pledged-item weight now `escHtml(String(...))`, `g.interestRate` now `escHtml(String(...))`. `printGirviReceipt` needed no separate fix — it reuses this function's already-escaped `body.innerHTML` verbatim via `document.write`. `js/04-orders-detail.js`'s `generateOrderReceipt` — `o.ordNo` now `escHtml()`'d in both the `<title>` and the on-page order-number badge. `js/09-purchases.js`'s `pbPrintBill` — `b.totalItems`/`cgstPct`/`sgstPct`/`igstPct`/`stoneWt` (the last 4 found while reading the function end to end, not in the audit's original list) changed from raw `(x||0)` to `(parseInt/parseFloat(x)||0)` — numeric coercion rather than escHtml, since the threat here is a non-numeric string in a field that should only ever hold a number.
+
+**Verified, not just asserted:** per Tanish's accepted Q1 recommendation (73rd entry — preview with `&`/`'` to catch double-escaping), built a one-off Node harness script using `tests/harness.js` (the real app code, not a reimplementation) that renders both the girvi and order receipts with hostile `&`, `'`, `<script>`, `<img>` values in every newly-fixed field. Confirmed: no double-escaping, no raw tag reaches the output, and the pre-existing customer-name escaping (untouched by this batch) still works. A second script fed the same hostile strings into `pbPrintBill`'s numeric fields and confirmed they collapse to `0` rather than passing through. **This substitutes for, but is not literally, the "open a browser and print" manual check the plan called for** — no e2e spec covers the order receipt at all, and this wasn't verified on a real phone. Flagging the limit rather than overclaiming.
+
+**Added one regression test** (`tests/regression.test.js`, after the existing activity-log-escaping test) scoped to the exact functions touched — it would fail if the fix were reverted, but not if someone edited a same-named field elsewhere in the same files (those are later batches, deliberately out of scope here). Hardened per the independent Opus review's suggestion: each slice now also asserts it's non-empty and contains the expected fix string, so a future function rename can't make the test silently pass while checking nothing.
+
+**Review gate, same as today's earlier `paymentStatus` fix:** `jewelos-bug-pattern-reviewer` (no hits on the five recurring bug families, escaping choices confirmed correct for context, no raw-vs-escaped comparison risk) → `jewelos-test-runner` (429/0 regression, 74/0 edge-functions, AST checks byte-identical to pre-batch except expected line-count drift, 2/2 e2e for girvi/purchase — `tests/cowork-live-check.js`'s one failure confirmed pre-existing and unrelated via `git stash` comparison) → independent Opus review (approved, one test-hardening suggestion, applied above). 3 agents, the documented standing-rule exception to the normal 2-agent cap.
+
+**Not done:** Batches 2-4 (WhatsApp automation rules, everyday dropdown fields, app-generated numbers/rates elsewhere in these same files) — same `g.grvNo`/`g.interestRate`/`c.cat` etc. remain raw outside the receipt functions, deliberately, per the plan's batch order. Batch 5 close-out (re-run the full auditor, update both security docs' status, deploy-verify) also not done — this is one batch of five. **Also not done, seen only after this entry was already in progress:** the 74th entry (below, written concurrently by Cowork) relays Tanish's "go" on deploying the JEWELOS-2 crash fix and asks Claude Code to do that next — surfacing to the person running this session rather than doing it unprompted, since it's a production deploy outside what this session was actually asked to do.
+
+→ FOR COWORK: nothing blocking — FYI only.
+→ FOR TANISH: Batch 1 (the highest-priority part — printed receipts) is done and verified, not yet deployed. Per your 73rd-entry answer this may deploy on its own whenever you say go; it doesn't need to wait for Batches 2-4. Say "go" when ready, same as any other deploy.
 
 ### 2026-10-22 (seventy-fourth entry) · Cowork (Sonnet) — Tanish's three decisions of 22 Oct, 20:50 IST: GO on the JEWELOS-2 deploy, backup postponed, test accounts left alone
 

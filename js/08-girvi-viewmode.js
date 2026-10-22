@@ -1108,7 +1108,7 @@ function openGirviReceiptModal(gid, receiptType){
         '<div style="font-size:13px;font-weight:700;color:var(--ink);margin-top:8px;text-transform:uppercase;letter-spacing:.1em;">'+title+'</div>'+
       '</div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:13px;margin-bottom:12px;">'+
-        '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Girvi No.</div><strong>'+g.grvNo+'</strong></div>'+
+        '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Girvi No.</div><strong>'+escHtml(g.grvNo)+'</strong></div>'+
         '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Date</div><strong>'+fmtDate(new Date().toISOString())+'</strong></div>'+
         '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Customer</div><strong>'+escHtml(g.customer)+'</strong></div>'+
         '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-family:Inter,sans-serif;">Mobile</div><strong>'+escHtml(g.phone)+'</strong></div>'+
@@ -1120,7 +1120,7 @@ function openGirviReceiptModal(gid, receiptType){
         _allIt.map(function(it,n){
           return '<div style="padding:8px 10px;border-bottom:0.5px solid var(--border);font-size:13px;">'+
             '<strong>'+(n+1)+'. '+escHtml(it.desc||it.type||'Item')+'</strong><br>'+
-            '<span style="font-size:11px;color:var(--text3);">'+it.purity+' '+it.metal+' \u2022 Gross: '+(it.weight||it.grossWt||0)+'g'+(it.qty>1?' \u2022 Qty: '+it.qty:'')+'</span>'+
+            '<span style="font-size:11px;color:var(--text3);">'+escHtml(it.purity)+' '+escHtml(it.metal)+' \u2022 Gross: '+escHtml(String(it.weight||it.grossWt||0))+'g'+(it.qty>1?' \u2022 Qty: '+it.qty:'')+'</span>'+
           '</div>';
         }).join('')+
       '</div>'+
@@ -1133,7 +1133,7 @@ function openGirviReceiptModal(gid, receiptType){
         '<div style="margin-top:8px;font-family:Inter,sans-serif;font-size:11px;">'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px;">'+
             '<div>Loan Amount: <strong>\u20b9'+Math.round(g.principal).toLocaleString('en-IN')+'</strong></div>'+
-            '<div>Rate: <strong>'+g.interestRate+'% '+(g.rateType==='yearly'?'/yr':'/mo')+'</strong></div>'+
+            '<div>Rate: <strong>'+escHtml(String(g.interestRate))+'% '+(g.rateType==='yearly'?'/yr':'/mo')+'</strong></div>'+
             '<div>Start: '+fmtDate(g.startDate)+'</div>'+
             (dueDate?'<div>Due: <strong style="color:var(--danger);">'+dueDate+'</strong></div>':'')+
             '<div>Interest Paid So Far: <strong>\u20b9'+Math.round(ledger.totalInterestPaid).toLocaleString('en-IN')+'</strong></div>'+

@@ -432,7 +432,7 @@ function generateOrderReceipt(ordId){
       '<span style="color:#888;">'+fmtDate(txn.date)+(txn.ref?' · '+escHtml(txn.ref):'')+'</span>'+
     '</div>';
   }).join(''):'<div style="color:#888;font-size:12px;padding:5px 0;">No payments recorded</div>';
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Order Receipt '+o.ordNo+'</title><style>'+
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Order Receipt '+escHtml(o.ordNo)+'</title><style>'+
     '*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Georgia,serif;background:#fff;color:#1a1814;font-size:13px;padding:0;}'+
     '.page{max-width:680px;margin:0 auto;padding:28px 32px;}'+
     '.hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:2px solid #1a1814;margin-bottom:18px;}'+
@@ -459,7 +459,7 @@ function generateOrderReceipt(ordId){
     '@media print{body{font-size:12px;}.page{padding:16px 20px;}}'+
     '</style></head><body><div class="page">'+
     '<div class="hdr"><div><div class="sn">'+escHtml((SAAS&&SAAS.shop&&SAAS.shop.name)||'JewelOS')+'</div><div class="st">Order Receipt — Not a Tax Invoice</div></div>'+
-    '<div class="ord-badge"><div class="ord-no">'+o.ordNo+'</div><div class="ord-date">'+fmtDate(o.createdAt)+' · '+ordStatusOf(o).label+'</div></div></div>'+
+    '<div class="ord-badge"><div class="ord-no">'+escHtml(o.ordNo)+'</div><div class="ord-date">'+fmtDate(o.createdAt)+' · '+ordStatusOf(o).label+'</div></div></div>'+
     '<div class="info-row">'+
       '<div class="ibox"><div class="ilbl">Customer</div><div class="iname">'+escHtml(o.customer)+'</div>'+(o.phone?'<div class="idet">'+escHtml(o.phone)+'</div>':'')+(o.addr?'<div class="idet">'+escHtml(o.addr)+'</div>':'')+'</div>'+
       '<div class="ibox"><div class="ilbl">Delivery</div><div class="iname">'+fmtDate(o.delivery)+'</div>'+(o.notes?'<div class="idet">'+escHtml(o.notes)+'</div>':'')+'</div>'+

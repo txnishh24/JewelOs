@@ -3022,6 +3022,45 @@ test('activity log notes and user names are escaped wherever the log is rendered
   });
 });
 
+// ── Bug: stored XSS in printed receipts (finding 2 of
+// docs/SECURITY-REVIEW-2026-09-14.md, closed per Batch 1 of
+// docs/STORED-XSS-REMEDIATION-PLAN-2026-10-22.md, 22 Oct 2026) ──────────
+// Girvi no./rate, order no., and purchase total-items/GST%/stone-wt reach
+// a document.write()'d receipt from the staff-writable shop blob; a staff
+// account can set any of these fields to a script-bearing value directly,
+// bypassing the UI inputs that would normally keep them numeric/clean.
+test('printed receipts escape girvi/order numbers and rates, and guard purchase-bill numeric fields', function(){
+  var fs = require('fs'), path = require('path');
+  var girvi = fs.readFileSync(path.join(__dirname, '..', 'js', '08-girvi-viewmode.js'), 'utf-8');
+  // Scoped to the receipt-building function only: other g.grvNo/g.interestRate
+  // sites elsewhere in this file (dashboard lists, settings) are a separate,
+  // not-yet-done batch of the same remediation plan (docs/STORED-XSS-REMEDIATION-
+  // PLAN-2026-10-22.md, Batches 3-4) and are expected to still be raw for now.
+  var girviReceiptFn = girvi.slice(girvi.indexOf('function openGirviReceiptModal'), girvi.indexOf('function printGirviReceipt'));
+  // Guards against a silently-empty/wrong slice if a marker function is ever
+  // renamed -- indexOf would return -1, slice() would come out empty or wrong,
+  // and every assert above would pass without having checked anything.
+  assert(girviReceiptFn.length > 500, 'openGirviReceiptModal slice came out empty/wrong -- a marker function name probably changed');
+  assert(girviReceiptFn.indexOf('escHtml(g.grvNo)') !== -1, 'expected escHtml(g.grvNo) not found in the receipt modal');
+  assert(!/'\+g\.grvNo\+'/.test(girviReceiptFn), '08-girvi-viewmode.js\'s receipt modal renders g.grvNo without escHtml');
+  assert(!/'\+g\.interestRate\+'/.test(girviReceiptFn), '08-girvi-viewmode.js\'s receipt modal renders g.interestRate without escHtml');
+  assert(!/'\+it\.purity\+'|'\+it\.metal\+'/.test(girviReceiptFn), '08-girvi-viewmode.js\'s receipt modal renders a pledged item\'s purity/metal without escHtml');
+
+  var orders = fs.readFileSync(path.join(__dirname, '..', 'js', '04-orders-detail.js'), 'utf-8');
+  var receiptFn = orders.slice(orders.indexOf('function generateOrderReceipt'), orders.indexOf('function toggleOrdForm'));
+  assert(receiptFn.length > 500, 'generateOrderReceipt slice came out empty/wrong -- a marker function name probably changed');
+  assert(receiptFn.indexOf('escHtml(o.ordNo)') !== -1, 'expected escHtml(o.ordNo) not found in the order receipt');
+  assert(!/'\+o\.ordNo\+'/.test(receiptFn), '04-orders-detail.js\'s order receipt renders o.ordNo without escHtml');
+
+  var purchases = fs.readFileSync(path.join(__dirname, '..', 'js', '09-purchases.js'), 'utf-8');
+  var pbPrintBillFn = purchases.slice(purchases.indexOf('function pbPrintBill'), purchases.indexOf('function pbPrintList'));
+  assert(pbPrintBillFn.length > 500, 'pbPrintBill slice came out empty/wrong -- a marker function name probably changed');
+  assert(pbPrintBillFn.indexOf('parseInt(b.totalItems,10)') !== -1, 'expected the parseInt(b.totalItems,10) guard not found in pbPrintBill');
+  assert(!/'\+b\.totalItems\+'/.test(pbPrintBillFn), '09-purchases.js\'s pbPrintBill renders b.totalItems unguarded');
+  assert(!/\(b\.cgstPct\|\|0\)|\(b\.sgstPct\|\|0\)|\(b\.igstPct\|\|0\)/.test(pbPrintBillFn), '09-purchases.js\'s pbPrintBill renders a GST % field unguarded — CSV export (b.cgstPct||0 etc.) is a different, already-safe sink and is outside this slice');
+  assert(!/\(b\.stoneWt\|\|0\)/.test(pbPrintBillFn), '09-purchases.js\'s pbPrintBill renders stoneWt unguarded');
+});
+
 // ── Bug: stored XSS via customer name, using encodeURIComponent() as
 // attribute escaping (23 Sep 2026 security audit — HANDOFF.md) ──────────
 // encodeURIComponent() does not escape ' ( ) — exactly what's needed to

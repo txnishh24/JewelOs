@@ -1461,12 +1461,12 @@ function pbPrintBill(id){
     '<tr><td>Supplier</td><td>'+escHtml(b.supplier)+'</td></tr>'+
     '<tr><td>Supplier Invoice #</td><td>'+escHtml(b.supplierInvoiceNo||'-')+'</td></tr>'+
     '<tr><td>Purchase Type</td><td>'+escHtml(b.purchaseType)+'</td></tr>'+
-    '<tr><td>Total Items</td><td>'+b.totalItems+'</td></tr>'+
+    '<tr><td>Total Items</td><td>'+(parseInt(b.totalItems,10)||0)+'</td></tr>'+
     '<tr><td>Gross / Net Weight</td><td>'+fmtW(b.grossWt)+' / '+fmtW(b.netWt)+'</td></tr>'+
     '<tr><td>Purity</td><td>'+escHtml(b.purity)+'</td></tr>'+
     (cfg.goldRate ? '<tr><td>Gold Rate Snapshot</td><td>'+fmt(b.goldRateSnapshot)+'/g</td></tr>' : '')+
-    (cfg.gst ? '<tr><td>GST (C/S/I)</td><td>'+ (b.cgstPct||0)+'% / '+(b.sgstPct||0)+'% / '+(b.igstPct||0)+'%</td></tr>' : '')+
-    (cfg.stone ? '<tr><td>Stone</td><td>'+fmt(b.stoneAmount)+' ('+(b.stoneWt||0)+'ct) '+escHtml(b.diamondDetails||'')+'</td></tr>' : '')+
+    (cfg.gst ? '<tr><td>GST (C/S/I)</td><td>'+ (parseFloat(b.cgstPct)||0)+'% / '+(parseFloat(b.sgstPct)||0)+'% / '+(parseFloat(b.igstPct)||0)+'%</td></tr>' : '')+
+    (cfg.stone ? '<tr><td>Stone</td><td>'+fmt(b.stoneAmount)+' ('+(parseFloat(b.stoneWt)||0)+'ct) '+escHtml(b.diamondDetails||'')+'</td></tr>' : '')+
     (cfg.hallmark ? '<tr><td>Hallmark Charges</td><td>'+fmt(b.hallmarkCharges)+'</td></tr>' : '')+
     '<tr><td>Total Amount</td><td><b>'+fmt(b.totalAmount)+'</b></td></tr>'+
     '<tr><td>Amount Paid</td><td>'+fmt(b.amountPaid)+'</td></tr>'+
