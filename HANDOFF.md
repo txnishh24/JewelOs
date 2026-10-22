@@ -32,6 +32,17 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
 
 **Open:**
 
+- **[ANSWERED 22 Oct by Tanish — Q1 yes, Q2 yes, Q3 no staff today, Q4 separate; see 73rd entry. Batch 1 is cleared to start] Stored XSS remediation (finding 2) — was 4 questions.**
+  Plan is written (`docs/STORED-XSS-REMEDIATION-PLAN-2026-10-22.md`), nothing implemented
+  yet. (1) Nothing changes visually for real data — a record missing purity/metal shows
+  blank instead of the word "undefined"; OK to ship without a live demo first? (2) May
+  Batch 1 (receipts, the highest-risk batch) deploy alone as soon as verified, or does
+  this need one single deploy? (3) Does any live shop have staff logins today? (decides
+  whether this jumps ahead of other launch items — Cowork can check the live database).
+  **[Cowork 22 Oct: question 3 answered — NO live customer shop has staff logins; see 72nd entry.]**
+  (4) Add the CSP-header stopgap (from the 69th LOG entry) to this effort, or track it
+  separately? Not urgent to answer immediately, but blocks starting Batch 1.
+- **Backup of `public.store` (`tools/backup-store.js`, docs/BACKUP-SETUP.md) — deliberately postponed to the last day of launch (Tanish, 22 Oct).** Not an oversight, don't chase it early. Known cost, accepted: until then the Free-plan database has no backups, so Srisai's shop (`77c4aefe`, 411 sales, 124 girvi loans) is a single unbacked row. Do flag it again if a real shop starts billing heavily before launch day.
 - **`RESEND_API_KEY` / domain — deliberately postponed to deployment day.** Tanish wants to buy a
   domain (picked `jewelos.co`, still unregistered), verify it in Resend, and set the two Supabase
   secrets (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`) all at once when he deploys. Not an oversight —
@@ -90,6 +101,89 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-22 (seventy-fourth entry) · Cowork (Sonnet) — Tanish's three decisions of 22 Oct, 20:50 IST: GO on the JEWELOS-2 deploy, backup postponed, test accounts left alone
+
+- **GO — deploy the JEWELOS-2 fix.** Tanish said "go" after Cowork's list named this item ("say go on the JEWELOS-2 fix: pushed, not deployed, not phone-tested"). That is the split-payment crash fix `d02b968`, pushed to origin as `87bdf32`. Claude Code deploys it to the Cloudflare Worker and byte-verifies the live origin as usual. Reminder from the 65th entry: this reaches the Cloudflare host only. The shop Sentry caught on the old Netlify URL (`heartfelt-queijadas-eeb356`) will not get it until that shop moves hosts. Not phone-tested yet; Tanish knows.
+- **Backup postponed to the last day of launch.** Tanish's call; recorded as a new item in WAITING ON TANISH (with the accepted risk) so it is not chased. Cowork flagged the cost to him before he decided.
+- **Leave the test/demo accounts alone.** Tanish: it is a demo account, no issue with it. Applies to the manager/staff accounts in his own test shops and the never-used `tempPassword` on the invited manager of the dead test shop `232faaf2` (72nd entry). No cleanup, no deleting those shops. Cowork read this as covering that item; if he meant something else he will say.
+
+Nothing was changed in the code or the database by this entry.
+
+→ FOR CLAUDE CODE: deploy the JEWELOS-2 fix now (this is Tanish's explicit go). After that, Batch 1 of the XSS plan per the 73rd entry. Log the deploy with the live byte-check.
+→ FOR TANISH: nothing new. Still yours: change your password, one real sale + VIP + Urgent order on your phone, the Sentry replay look, the call to shop `3720af09`.
+
+### 2026-10-22 (seventy-third entry) · Cowork (Sonnet) — Tanish's answers to the 71st entry's XSS questions: yes, yes, separate. Batch 1 is cleared
+
+Tanish read Cowork's recommendations and answered "yes, yes and separate" (22 Oct, 20:46 IST). Recorded as:
+
+- **Q1 — ship without a live demo first: YES.** Cowork's recommendation, accepted with it: before Batch 1 deploys, preview or print a girvi receipt and an order receipt in a test shop with `&` and `'` in the customer/shop names, to catch double-escaping (a value already escaped upstream showing `&amp;` on a printed receipt). That is Batch 1 verification, not a demo for customers.
+- **Q2 — Batch 1 (receipts) may deploy alone as soon as verified: YES.** No need to wait for a single combined deploy.
+- **Q3 — any live shop with staff logins: NO** (72nd entry, live database). Not an emergency; land Batch 1 before launch and before any shop is told it can add staff.
+- **Q4 — CSP header stopgap: track SEPARATELY, not part of this effort.** Cowork's reasoning, unverified against the code: the app uses inline `onclick` handlers widely, so a CSP that still allows inline scripts adds little against XSS and one that blocks them would break the app; a wrong allow-list can also break Razorpay checkout. The cheap, safe headers (HSTS, X-Frame-Options, nosniff) can be done on their own. Still needs Tanish's sign-off on any CSP allow-list.
+
+Nothing was changed in the code or the database.
+
+→ FOR CLAUDE CODE: start Batch 1 per `docs/STORED-XSS-REMEDIATION-PLAN-2026-10-22.md`, with the `&`/`'` receipt preview above as part of its verification. Deploy still waits for Tanish's explicit "go" as usual; "yes" here means Batch 1 may ship alone, not that it deploys itself.
+→ FOR TANISH: nothing further on the XSS questions. Still on you elsewhere: wire the backup, say "go" on the JEWELOS-2 deploy, change your password.
+
+### 2026-10-22 (seventy-second entry) · Cowork (Sonnet) — answered question 3 of the 71st entry from the live database: no real shop has staff logins today
+
+Read-only SQL against `auth_store` (users and shops arrays) and `login_attempts`. Counted roles and login history only; no emails, hashes or passwords were read or copied here.
+
+- **Only 3 non-owner accounts exist in the whole database, and all 3 are Tanish's own test shops:** `lumineer jewelOs` (`65a3ce29`) has 1 manager + 1 staff, each logged in once, both in August; `Sai Sri Jewellers` (`232faaf2`, the dead test shop already logged) has 1 invited manager who never logged in and still has a `tempPassword` value on the account.
+- **Every real shop (incl. `77c4aefe` with 411 sales) has an owner account only.** So the stored-XSS surface (a staff account writing to the server directly) cannot be exercised in production today. It becomes live the day any real shop adds staff.
+- **What this means for the plan:** question 3 resolves to "no staff today", so Batch 1 does not need to jump ahead of other launch items, but it should land before launch and before any shop is told it can add staff. Not an emergency.
+- **Side note, not acted on:** the `tempPassword` on the never-activated invited manager of `232faaf2` is worth clearing when that test shop is deleted (still undeleted; Tanish's say). I did not read its value.
+- Questions 1, 2 and 4 of the 71st entry are still Tanish's. Nothing was changed in the database or the code.
+
+→ FOR CLAUDE CODE: question 3 is answered above, so you can plan Batch 1 on the basis that no real shop has staff; the order of work is still your call, subject to Tanish's answers to questions 1, 2 and 4.
+→ FOR TANISH: nothing new beyond the 3 open XSS questions already listed at the top of WAITING ON TANISH.
+
+### 2026-10-22 (seventy-first entry) · Claude Code (Sonnet, delegating to Opus) — scoped and planned the stored-XSS remediation (finding 2); plan written, nothing implemented
+
+Per `MODEL-POLICY.md` §8 (auth/security → Opus for analysis and planning), the planning pass itself ran on Opus (the `Plan` agent type, model override), not Sonnet. Full plan: `docs/STORED-XSS-REMEDIATION-PLAN-2026-10-22.md`.
+
+**The 70th entry's file:line list was itself incomplete** — the planning pass found 5 more sites by reading each receipt/view function end to end instead of trusting the audit's line list: `js/08-girvi-viewmode.js:1111,1136` (girvi receipt), `js/04-orders-detail.js:435,462` (order receipt, also feeds a `document.write`), `js/06-inventory-stock.js:440,631` (`c.cat`), `js/07-settings-plans.js:1332`. All added to the plan doc's table.
+
+**Scope confirmed unchanged for real data** — every real value (grvNo, purity, payment mode, etc.) contains no `& < > "` and renders byte-identical once escaped. Two sites explicitly ruled out with reasons, not fixed: `js/09-purchases.js:192,210` (`r.bills`) is a false positive — a per-page counter, never read from saved data. Data-side validation (cleaning values once in `normaliseData` instead of ~30 display-site fixes) was considered and rejected — `normaliseData` writes back to saved data, so an unusual-but-legitimate value would be silently altered and re-synced.
+
+**Plan: 5 batches, ship order by exploitability** — Batch 1 (printed receipts, HIGH — same `document.write`/session-token-reachable class the original review flagged), Batch 2 (WhatsApp automation rules, MEDIUM), Batch 3 (everyday dropdown fields, MEDIUM-LOW), Batch 4 (app-generated numbers/rates, LOW), Batch 5 (close-out: re-run the full auditor since the line list has already been shown incomplete once, update both security docs, deploy-verify). Every batch: `node --check` → `check.bat` → relevant e2e specs → `jewelos-bug-pattern-reviewer` → `jewelos-test-runner` → independent Opus diff review → commit. That's 3 review agents per batch (bug-pattern-reviewer + test-runner + the standing Opus rule), which exceeds CLAUDE.md's normal 2-agent cap — flagging this as the documented standing-rule exception, not a new precedent.
+
+**4 open questions added to WAITING ON TANISH, blocking Batch 1 start** — ship-without-demo approval, single deploy vs. batch-1-alone, whether any live shop currently has staff logins (decides urgency/priority), and whether the CSP-header stopgap from the 69th entry should fold into this effort.
+
+→ FOR COWORK: if asked whether any live shop has staff logins today, that's question 3 above — you have the live database, this file doesn't.
+→ FOR TANISH: see the new item at the top of WAITING ON TANISH → Open. Four short answers needed before Batch 1 (the highest-priority part) can start; nothing else is blocked.
+
+### 2026-10-22 (seventieth entry) · Claude Code (Sonnet, delegating to Opus) — ran the full jewelos-security-auditor re-audit; corrects the 69th entry's "zero outstanding findings" claim — stored XSS (finding 2) is open far more broadly than previously tracked
+
+The `jewelos-security-auditor` agent type wasn't registered as an invokable subagent this session, so its exact spec (`.claude/agents/jewelos-security-auditor.md`) was run via a general-purpose agent on `model: opus`, read-only, no live Supabase calls, same as it would normally run. Full report: `docs/SECURITY-AUDIT-SEMGREP-ZAP-2026-10-22.md` (updated in place with a correction section, not a new file).
+
+**Correction to the 69th entry (same day, this file):** that entry's underlying doc said semgrep's scan found "nothing that review's methodology would have missed" and "zero outstanding static findings." That's wrong — semgrep's generic rules don't trace hand-written string concatenation into `innerHTML` back to its source the way a full syntax-tree sweep does. They're different methods with different coverage; don't treat the semgrep pipeline as a substitute for `jewelos-security-auditor`'s own check going forward.
+
+**What the Opus sweep found, not new, but under-counted:** `SECURITY-REVIEW-2026-09-14.md`'s finding 2 (stored XSS, HIGH once a shop has staff) was already marked "Still open" for "dropdown values, record ids, photo dataUrls" — the Opus sweep supplies the actual file:line list, and it's bigger than that phrase implied: unescaped `innerHTML`/attribute writes across `js/06-inventory-stock.js`, `js/08-girvi-viewmode.js` (including a girvi receipt written via `document.write`, same session-token-reachable risk class as the original review flagged), `js/04-orders-detail.js`, `js/02-ui-inactivity-modals.js`, `js/01-sync-core.js`, `js/07-settings-plans.js`, `js/03-billing-numbers.js`, and `js/09-purchases.js`. All reachable only by a staff account writing to the server directly (not through the normal UI) — same threat model the review already described, not a new regression. Full file:line list is in the doc.
+
+**Everything else confirmed:** findings 1/3/5/9/11 (reset-code limit, session handling, login throttle, stale-cache clear, CSV injection) still fixed, no regression. Findings 4/6/7/8/10 (no write history on `store_cas_write`, `razorpay-webhook` CAS gap, webhook left deployed per Tanish's 13 Oct call, signup rate-limit/PBKDF2-iteration/no-CSP, backup-restore version check) confirmed still open, unchanged — not new, not worse. Tenant isolation holds. `npm audit` at root and in `checks/`: 0 vulnerabilities both. Two new minor items (not in the original review): Sentry's CDN loader runs with full app privileges and no integrity pin (can't be pinned anyway, it's a loader); the secret-write hook only triggers on `Write|Edit|Bash`, not PowerShell/MultiEdit/NotebookEdit.
+
+**Not fixed, deliberately.** Finding 2's real scope (8 files, several dozen sites) is 🔴 per `MODEL-POLICY.md` §8 (auth/security) — this session surfaced it with precision instead of attempting a drive-by fix across that much surface. It needs its own scoped remediation pass.
+
+→ FOR COWORK: nothing blocking — FYI only. If `jewelos-health` or any future scan reports "stored XSS, zero findings" based on a generic tool, don't trust it over this entry's file:line list.
+→ FOR TANISH: the real headline from today's two security sessions combined: the one thing actually fixed today (payment-status escaping) was low-risk; the one thing that matters is that finding 2 from the 14 Sept review — the stored-XSS item already on your radar as "partly fixed" — is still open across more of the app than the one-line description suggested. Not a new problem, not something that happened today, just now mapped precisely. Worth a dedicated session to close it out before launch, your call on timing — the CSP header recommendation from the 69th entry would also reduce its impact as a stopgap.
+
+### 2026-10-22 (sixty-ninth entry) · Claude Code (Sonnet) — completed the semgrep+ZAP security audit (3 earlier sessions had started it, left the ZAP scan stranded across a session boundary); 1 real low-risk fix shipped, 1 earlier "critical" alarm corrected to a non-issue
+
+Three same-day sessions (visible in claude-mem, not in this file) built a cost-free semgrep+OWASP-ZAP security pipeline as an alternative to Strix, but the ZAP scan was launched in the background and never retrieved — it doesn't survive a session boundary. Re-ran both scans fresh this session; full report at `docs/SECURITY-AUDIT-SEMGREP-ZAP-2026-10-22.md`.
+
+**Correction, don't act on the earlier alarm:** those sessions flagged `SB_KEY` in `js/00-config-state.js:4` as a critical hardcoded-credential exposure needing rotation + a git history rebase. Checked the JWT payload myself — it decodes to `{"role":"anon",...}`, the standard Supabase public anon key, meant to ship client-side and backed by RLS + Edge Function session auth (no direct PostgREST access exists per this file's own architecture notes). **No rotation needed, don't do it.**
+
+**Static (semgrep, 214 rules, 26 files): 13 raw hits, 12 false positives, 1 real gap — fixed.** `b.paymentStatus` was concatenated raw (not through `escHtml()`) in `js/09-purchases.js` at 4 sites: the two on-screen renders (`renderPurchaseList`'s table row and mobile card, lines ~1389/~1408) and the two print-preview `document.write` views (`pbPrintBill`/`pbPrintList`, lines ~1474/~1496) — every sibling field in the same output was already escaped. Low real risk (`paymentStatus` is a derived enum set in code, never free-typed), fixed anyway for consistency. All 4 sites now `escHtml(b.paymentStatus)`. Sent through `jewelos-bug-pattern-reviewer`, `jewelos-test-runner`, and an independent Opus review (standing rule) — all three independently confirmed correctness; two of them independently caught the on-screen pair after my first pass only fixed the print views, so I fixed those too before finishing. `node tests/regression.test.js` 428/0, `node tests/edge-functions.test.js` 74/0, AST checks clean (`backup-check`/`roundtrip`/`unescaped-ids` all pass with no false-positive exception). `tests/cowork-live-check.js` still fails — confirmed via `git stash` that it's pre-existing and unrelated (already documented in `tests/README.md`).
+
+**Dynamic (OWASP ZAP baseline, passive only, against the live Worker): 0 failures, 12 warnings, all missing security headers.** No CSP, no HSTS, no X-Frame-Options, no X-Content-Type-Options, no Permissions-Policy/COOP/COEP/CORP — standard pre-launch hardening for an unhardened static site, none exploitable by themselves, none are `js/*.js` changes (they're Cloudflare Worker response-header config). Recommended but not done — CSP needs Tanish's input on the allow-list (get it wrong and it can block Razorpay's checkout script). "Suspicious Comments" (39, informational) checked by hand — ordinary code comments, no secrets.
+
+`.security-audit/` (raw semgrep JSON) added to `.gitignore` — the triaged report is what's kept.
+
+→ FOR COWORK: nothing blocking — FYI only. If `jewelos-health`'s own scans ever surface the same `SB_KEY` pattern, it's the public anon key, not a leak — don't re-flag it as critical.
+→ FOR TANISH: one real (very low-risk) XSS gap found and fixed — a payment-status label wasn't being escaped before display, now is, verified three ways, no regressions. The only thing needing your input before it's actioned: whether to add security response headers (CSP, HSTS, etc.) at the Cloudflare Worker before launch — recommended, config-only, but the CSP allow-list needs your sign-off so it doesn't accidentally block Razorpay. Nothing urgent, nothing to approve right now.
 
 ### 2026-10-22 (sixty-eighth entry) · Claude Code (Sonnet) — 60th-entry polish queue: font-size sweep done, two 320px overflows NOT reproduced, emoji call made
 

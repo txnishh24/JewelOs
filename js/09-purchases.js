@@ -1386,7 +1386,7 @@ function renderPurchaseList(){
         '<td class="num">'+fmt(b.totalAmount)+'</td>'+
         '<td class="num">'+fmt(b.amountPaid)+'</td>'+
         '<td class="num">'+fmt(b.pendingAmount)+'</td>'+
-        '<td><span style="color:'+statusColor+';font-weight:700;">'+b.paymentStatus+'</span></td>'+
+        '<td><span style="color:'+statusColor+';font-weight:700;">'+escHtml(b.paymentStatus)+'</span></td>'+
         '<td style="white-space:nowrap;">'+
           '<button class="btn btn-sm" onclick="pbToggleForm(\''+jsAttrEsc(b.id)+'\')" title="Edit">\u270f\ufe0f</button> '+
           '<button class="btn btn-sm" onclick="pbOpenPaymentModal(\''+jsAttrEsc(b.id)+'\')" title="Record supplier payment">\u20b9</button> '+
@@ -1405,7 +1405,7 @@ function renderPurchaseList(){
         '<div class="inv-card-top">'+
           '<div><div class="inv-card-name">'+escHtml(b.billNo)+'</div>'+
             '<div class="inv-card-sub">'+escHtml(b.date)+' &bull; '+escHtml(b.supplier)+'</div></div>'+
-          '<span style="color:'+statusColor+';font-weight:700;font-size:12px;">'+b.paymentStatus+'</span>'+
+          '<span style="color:'+statusColor+';font-weight:700;font-size:12px;">'+escHtml(b.paymentStatus)+'</span>'+
         '</div>'+
         '<div class="inv-card-rows">'+
           '<div><span class="lbl">Invoice #</span>'+escHtml(b.supplierInvoiceNo||'-')+'</div>'+
@@ -1471,7 +1471,7 @@ function pbPrintBill(id){
     '<tr><td>Total Amount</td><td><b>'+fmt(b.totalAmount)+'</b></td></tr>'+
     '<tr><td>Amount Paid</td><td>'+fmt(b.amountPaid)+'</td></tr>'+
     '<tr><td>Pending</td><td>'+fmt(b.pendingAmount)+'</td></tr>'+
-    '<tr><td>Payment Status</td><td>'+b.paymentStatus+'</td></tr>'+
+    '<tr><td>Payment Status</td><td>'+escHtml(b.paymentStatus)+'</td></tr>'+
     (cfg.credit && b.dueDate ? '<tr><td>Credit Due Date</td><td>'+escHtml(b.dueDate)+'</td></tr>' : '')+
     '<tr><td>Employee</td><td>'+escHtml(b.employee||'-')+'</td></tr>'+
     '<tr><td>Notes</td><td>'+escHtml(b.notes||'-')+'</td></tr>';
@@ -1493,7 +1493,7 @@ function pbPrintList(){
   var body = rows.map(function(b){
     return '<tr><td>'+escHtml(b.billNo)+'</td><td>'+escHtml(b.date)+'</td><td>'+escHtml(b.supplier)+'</td>'+
       '<td>'+escHtml(b.purchaseType)+'</td><td>'+fmtW(b.grossWt)+'</td><td>'+fmt(b.totalAmount)+'</td>'+
-      '<td>'+fmt(b.pendingAmount)+'</td><td>'+b.paymentStatus+'</td></tr>';
+      '<td>'+fmt(b.pendingAmount)+'</td><td>'+escHtml(b.paymentStatus)+'</td></tr>';
   }).join('');
   var w = window.open('', '_blank');
   w.document.write('<html><head><title>Purchase History</title>'+

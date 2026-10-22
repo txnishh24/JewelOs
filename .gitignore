@@ -23,6 +23,9 @@ cf-deploy-stage/
 jewelos-backups/
 store-20*.json
 
+# Raw semgrep scan output (docs/SECURITY-AUDIT-*.md has the triaged findings)
+.security-audit/
+
 # OS / editor noise
 desktop.ini
 Thumbs.db
