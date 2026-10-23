@@ -22,10 +22,9 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Claude Code (Sonnet), 23 Oct. Scoping and planning Batch 6 of the stored-XSS
-> remediation (the ~43 sites the Batch 5 close-out found, 3 HIGH) per Tanish's "go for
-> it" — planning only, no js/ edits yet (Opus does the planning per MODEL-POLICY.md §8,
-> same as Batches 1-5). Will release this line and log when the plan doc is written.
+> nobody — released by Claude Code (Sonnet) after the 80th LOG entry (24 Oct). Batch 6d
+> done: close-out re-audit, one new site fixed (354280f), both security docs updated.
+> Deploy to the live Worker still not attempted — stays on explicit go-ahead.
 
 ---
 
@@ -104,6 +103,23 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-24 (eightieth entry) · Claude Code (Sonnet, delegating to Opus for the re-audit and diff review) — logging Batch 6a/6b/6c retroactively (shipped 23 Oct, never logged), plus Batch 6d: one more site found and fixed, both security docs updated
+
+**Process note first.** This session started by picking up what memory called "Batch 2" of the stored-XSS remediation — stale: Batches 2-4 shipped 23 Oct (`be174d2`, 78th entry). `git log` showed Batches 6a/6b/6c were *also* already committed (`d1a26fd`/`2edca23`/`671ae03`, all 23 Oct, authored under Tanish's own git identity — a different session/machine) — but the NOW line still read "scoping Batch 6... planning only, no js/ edits yet," and no LOG entry for 6a/6b/6c exists anywhere in this file. Logging them now, retroactively, from the commits themselves — I did not do that work, I'm closing the gap left when whoever did skipped the HANDOFF entry.
+
+**Batch 6a/6b/6c (23 Oct, not this session) — fixed every site the Batch 5 close-out found.** Per `docs/STORED-XSS-REMEDIATION-PLAN-BATCH6-2026-10-23.md`: 6a fixed the 2 HIGH sites reachable by normal typing (Edit Bill edit-reason, customer name in dashboard insights); 6b fixed the MEDIUM dropdown/enum sites; 6c fixed the LOW app-generated-number sites plus a root-cause fix for a qty-concatenation bug (a non-numeric saved `qty` could concatenate instead of add into 6 running totals, letting markup through) — coerced at the totals, not at each display site. 6c's own commit message says an independent Opus review confirmed all three batches together cover every one of the 41 real Batch-5 sites (+2 optional), nothing unaccounted for. `tests/regression.test.js` was at 432/432 after these.
+
+**Batch 6d (this session) — the close-out's own close-out found one more site.** Ran a fresh full-source syntax-tree sweep of all 11 `js/` modules from scratch (general-purpose agent on `model: opus`, following `.claude/agents/jewelos-security-auditor.md`'s methodology — that agent type still isn't registered as invokable here, same gap as the 70th entry) — deliberately not trusting the Batch 5/6 lists as a starting point, since every close-out so far has found something the previous one missed. It found exactly one new site: `js/10-daybook.js:756`/`:883`. A saved Day Book manual entry's `date` reaches `dbGoDate()` via a correctly-`jsAttrEsc()`'d onclick (Month view → By Person), but `dbGoDate()` itself only checked `k>dbToday()` before storing it in `_dbDate` — a crafted date string passes that comparison, and on the next render breaks out of `value="..."` on the date input. Not on any of the 4 prior lists (14 Sep, 22 Oct, Batch 5, Batch 6 plan). Every site on every prior list was independently re-verified as actually fixed (not re-discovered, cross-checked against the tracking docs per that agent's own rule).
+
+**Fixed same session, commit `354280f`.** Root cause: `dbGoDate` now requires `/^\d{4}-\d{2}-\d{2}$/` before accepting `k` — the one choke point all 4 callers (the vulnerable one, plus `dbGoPrev`/`dbGoNext`/the date input's own `onchange`, all three already producing regex-shaped strings) route through. Defence in depth: `escHtml(dateKey)` at the render site. `jewelos-bug-pattern-reviewer`: no findings. `jewelos-test-runner`: 433/0 regression, 74/0 edge-functions, all `checks/*.js` clean including backup-check/roundtrip, `tests/e2e/daybook.spec.js` 1/1. Independent Opus review ran the fix through the test harness directly (not just read it) — confirmed `_dbDate` has no other unguarded writer, confirmed `escHtml` (not `jsAttrEsc`) is the right helper for this `value="..."` context, confirmed the fix doesn't regress `dbGoPrev`/`dbGoNext`/the date input's own normal use — and flagged the original regression test as source-pattern-only (would pass even if the logic were broken). Replaced it with one that calls `dbGoDate` with a crafted payload and asserts on the actually-rendered HTML; re-ran clean, 433/433.
+
+**Both security docs updated in place** (not new files): `docs/SECURITY-REVIEW-2026-09-14.md` finding 2's status block and `docs/SECURITY-AUDIT-SEMGREP-ZAP-2026-10-22.md` with a new "Batch 6" section. Both state the same thing plainly: everything found across five full-sweep passes (14 Sep, 22 Oct, Batch 5, Batch 6a/b/c, Batch 6d) is now fixed and verified, but given every one of those five passes found something the previous ones missed, this is reported as *fixed as far as verified*, not as a provable zero — the real next test is the next full-app `jewelos-security-auditor` sweep (standing pre-release check), not a sixth special-purpose pass on this one finding.
+
+**Not done, still open:** `npm audit` wasn't re-run this pass (out of scope — this was a finding-2-only re-audit, not the full 7-point audit). No deploy attempted — this session deliberately stayed out of that (it's a separate, explicit-confirmation action; the 79th entry's deploy block is unrelated and still unresolved). `checks/README.md`'s stale note about an already-fixed `unescaped-ids` finding (flagged in the 78th entry) is still stale — not touched here either, still a cleanup pass someone owes.
+
+→ FOR COWORK: nothing blocking — FYI only. If `jewelos-health` or anything else reports "stored XSS, zero findings," the real state is "fixed as far as five full sweeps have found" — don't upgrade that to "closed" without a sixth sweep.
+→ FOR TANISH: the stored-XSS remediation (finding 2 from 14 Sep) is now fixed as far as every re-audit run so far can tell — that's 5 full sweeps across 3 sessions, each one catching something the last one missed, the last one (today) catching exactly one site in Day Book. Nothing is left on the list as of today. Still not deployed to the live Worker — that's the one thing standing between "fixed in this folder" and "fixed for real shops," and it's your call on when, same as the 79th entry already said.
 
 ### 2026-10-23 (seventy-ninth entry) · Claude Code (Sonnet) — Batch 5 close-out shipped, found ~43 more unseen sites (3 HIGH); deploy to live Worker attempted but blocked, nothing is live
 

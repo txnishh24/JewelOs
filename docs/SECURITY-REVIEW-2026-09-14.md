@@ -71,8 +71,22 @@ Because request/response shapes don't change, this Edge Function can deploy on i
 > that sale) and the customer name typed into any sale (`js/05-auth-login.js:1605`, `:1668`,
 > runs on the **dashboard** if that customer trips a "top debtor"/"top 3 customers"
 > insight). See `docs/SECURITY-AUDIT-SEMGREP-ZAP-2026-10-22.md`'s Batch 5 section for the
-> full list. Needs its own scoped, Opus-planned remediation pass before this finding can
-> actually be called closed.
+> full list.
+>
+> **Update 24 Oct: Batches 6a/6b/6c fixed all ~43 sites from the Batch 5 list** (commits
+> `d1a26fd`, `2edca23`, `671ae03`) — the 3 HIGH sites above, the MEDIUM dropdown/enum
+> sites, and the LOW app-generated-number sites plus a qty-concatenation root-cause fix.
+> **A Batch 6d close-out re-audit (24 Oct, full syntax-tree sweep from scratch, not a
+> cross-check against prior lists) found one more MEDIUM site none of the four previous
+> passes had seen:** a saved Day Book manual entry's date, reachable via Month view → By
+> Person, could break `dbGoDate()`'s `k>dbToday()` check and then break out of the date
+> input's `value="..."` attribute on render (`js/10-daybook.js:756`,`:883`). Fixed same
+> day, commit `354280f` (root-cause regex guard in `dbGoDate` + `escHtml` at the render
+> site), independently Opus-reviewed. **Status: given this finding's track record — every
+> close-out re-audit so far has found something the previous one missed — this is
+> reported as fixed-as-far-as-verified, not as definitively closed.** Nothing is open as
+> of 24 Oct; the next full-app sweep (next release, or `jewelos-security-auditor`'s
+> standing pre-release check) is what would actually prove it.
 
 **What's wrong.** The app builds screens by joining strings into `innerHTML`. Text that
 people type is supposed to pass through `escHtml()` first. Many places don't. If that text
