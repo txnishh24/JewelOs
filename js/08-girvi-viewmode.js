@@ -206,7 +206,7 @@ var _v20_renderGirvi_installed = false;
             '<span style="font-size:var(--text-xs);color:var(--text3);">Archived '+fmtDate(g._deletedAt)+'</span></div>'+
             '<div class="girvi-card-body">'+
               '<div class="girvi-card-left"><div class="girvi-card-name">'+escHtml(g.customer)+'</div>'+
-              '<div class="girvi-card-item">'+((Array.isArray(g.items)&&g.items.length?g.items[0].type:g.item&&g.item.type)||'Item')+'</div></div>'+
+              '<div class="girvi-card-item">'+escHtml((Array.isArray(g.items)&&g.items.length?g.items[0].type:g.item&&g.item.type)||'Item')+'</div></div>'+
               '<div class="girvi-card-right">'+
                 '<div class="girvi-card-outstanding normal">₹'+Math.round(g.principal).toLocaleString('en-IN')+'</div>'+
                 '<button onclick="recoverGirviEntry(\''+jsAttrEsc(g.id)+'\')" style="margin-top:6px;padding:5px 12px;border-radius:20px;border:1px solid var(--border-success);background:var(--success-soft);color:var(--success);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">↺ Recover</button>'+
@@ -340,7 +340,7 @@ var _v20_renderGirvi_installed = false;
         '</div>';
       }
 
-      return '<div class="girvi-card status-'+status+'" onclick="openGirviDetail(\''+jsAttrEsc(g.id)+'\')">'+
+      return '<div class="girvi-card status-'+escHtml(status)+'" onclick="openGirviDetail(\''+jsAttrEsc(g.id)+'\')">'+
         '<div class="girvi-card-top">'+
           '<div class="girvi-card-meta">'+
             '<div>'+
@@ -594,7 +594,7 @@ function geRenderAuditLog(g){
   var ICONS={created:'\ud83d\udfe2',payment:'\ud83d\udcb8',edit:'\u270f\ufe0f',closed:'\ud83d\udd12',defaulted:'\ud83d\udd34',renewal:'\ud83d\udd04',whatsapp:'\ud83d\udcac',waiver:'\ud83c\udff7',penalty:'\u26a0'};
   el.innerHTML=ledger.map(function(l){
     return '<div class="ge-audit-entry">'+
-      '<div class="ge-audit-dot '+(l.type||'edit')+'"></div>'+
+      '<div class="ge-audit-dot '+escHtml(l.type||'edit')+'"></div>'+
       '<div style="flex:1;">'+
         '<div style="font-size:12px;font-weight:600;color:var(--ink);">'+(ICONS[l.type]||'\ud83d\udccb')+' '+escHtml(l.note||l.type||'Change')+'</div>'+
         '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">'+fmtDate(l.ts)+' '+fmtTime(l.ts)+(l.user?' \u2022 '+escHtml(l.user):'')+'</div>'+
@@ -801,7 +801,7 @@ function glRenderEntries(g){
       '<div class="gl-entry-left">'+
         '<div style="font-weight:700;font-size:13px;">'+icon+' '+escHtml(e.note||e.type||'Entry')+'</div>'+
         amtHtml+
-        '<div class="gl-entry-meta">'+(e.mode?e.mode+' ':'')+(e.ref?'Ref: '+escHtml(e.ref):'')+(e.user?' \u2022 '+escHtml(e.user):'')+'</div>'+
+        '<div class="gl-entry-meta">'+(e.mode?escHtml(e.mode)+' ':'')+(e.ref?'Ref: '+escHtml(e.ref):'')+(e.user?' \u2022 '+escHtml(e.user):'')+'</div>'+
       '</div>'+
       '<div class="gl-entry-right">'+
         '<div class="gl-entry-date">'+fmtDate(e.ts)+'</div>'+
@@ -911,7 +911,7 @@ function openGirviTimeline(gid){
   if(!body) return;
   body.innerHTML=events.length?events.map(function(e){
     return '<div class="gt-item">'+
-      '<div class="gt-dot '+(e.type||'edit')+'">'+(ICONS[e.type]||'\ud83d\udccb')+'</div>'+
+      '<div class="gt-dot '+escHtml(e.type||'edit')+'">'+(ICONS[e.type]||'\ud83d\udccb')+'</div>'+
       '<div class="gt-content">'+
         '<div class="gt-title">'+escHtml(e.title||e.type)+'</div>'+
         '<div class="gt-sub">'+fmtDate(e.ts)+(girviIsDateOnly(e.ts)?'':' '+fmtTime(e.ts))+(e.sub?' \u2022 '+escHtml(e.sub):'')+'</div>'+

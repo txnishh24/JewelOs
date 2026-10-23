@@ -660,12 +660,12 @@ function openItemHistoryModal(productId){
       : '<div style="display:grid;gap:8px;">'+moves.map(function(m){
           return '<div style="border:1px solid var(--border2);border-radius:10px;padding:10px 12px;font-size:12px;">'+
             '<div style="display:flex;justify-content:space-between;gap:8px;">'+
-              '<span style="font-weight:700;color:'+(typeColor[m.type]||'var(--text2)')+';">'+(typeLabel[m.type]||m.type)+'</span>'+
+              '<span style="font-weight:700;color:'+(typeColor[m.type]||'var(--text2)')+';">'+escHtml(typeLabel[m.type]||m.type)+'</span>'+
               '<span style="color:var(--text3);">'+new Date(m.ts).toLocaleString('en-IN')+'</span>'+
             '</div>'+
             (m.reason?'<div style="margin-top:3px;color:var(--text2);">'+escHtml(m.reason)+'</div>':'')+
             (m.relatedRef?'<div style="margin-top:3px;color:var(--text3);">Ref: '+escHtml(m.relatedRef)+'</div>':'')+
-            ((m.prevStatus||m.newStatus)?'<div style="margin-top:3px;color:var(--text3);">Status: '+(m.prevStatus||'—')+' \u2192 '+(m.newStatus||'—')+'</div>':'')+
+            ((m.prevStatus||m.newStatus)?'<div style="margin-top:3px;color:var(--text3);">Status: '+escHtml(m.prevStatus||'—')+' \u2192 '+escHtml(m.newStatus||'—')+'</div>':'')+
             ((typeof m.qtyChange==='number')?'<div style="margin-top:3px;color:var(--text3);">Qty: '+(m.qtyChange>0?'+':'')+m.qtyChange+'</div>':'')+
             '<div style="margin-top:3px;color:var(--text3);">by '+escHtml(m.user)+'</div>'+
           '</div>';

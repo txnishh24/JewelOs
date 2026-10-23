@@ -3094,6 +3094,45 @@ test('Edit Bill history and dashboard insights escape free-typed reason/name fie
   assert(!/'\+o\.ordNo\+'/.test(actionsFn), '05-auth-login.js\'s buildTodayActions renders o.ordNo without escHtml');
 });
 
+// ── Bug: stored XSS, dropdown/enum fields reachable with devtools or a
+// direct blob write (finding 2, Batch 6b of
+// docs/STORED-XSS-REMEDIATION-PLAN-BATCH6-2026-10-23.md, 23 Oct 2026) ─────
+test('girvi risk badge, dashboard metal/category breakdowns, and girvi ledger/timeline escape saved enum fields', function(){
+  var fs = require('fs'), path = require('path');
+
+  var orders = fs.readFileSync(path.join(__dirname, '..', 'js', '04-orders-detail.js'), 'utf-8');
+  var riskFn = orders.slice(orders.indexOf('function girviRiskBadge('), orders.indexOf('function girviRiskBadge(') + 800);
+  assert(riskFn.indexOf('escHtml(') !== -1, 'expected escHtml(...) not found in girviRiskBadge');
+
+  var inv = fs.readFileSync(path.join(__dirname, '..', 'js', '06-inventory-stock.js'), 'utf-8');
+  var renderDashFn = inv.slice(inv.indexOf('function renderDash('), inv.indexOf('function fsnCard('));
+  assert(renderDashFn.length > 500, 'renderDash slice came out empty/wrong -- a marker function name probably changed');
+  assert(!/<span>'\+e\[0\]\+'/.test(renderDashFn), '06-inventory-stock.js\'s renderDash renders a purity map key (e[0]) without escHtml');
+  assert((renderDashFn.match(/escHtml\(e\[0\]\)/g)||[]).length === 2, 'expected escHtml(e[0]) at both the gold and silver breakdown sites in renderDash');
+
+  var reportsFn = inv.slice(inv.indexOf('function renderReportsIntelligence('), inv.indexOf('function renderOrdersPipeline('));
+  assert(reportsFn.length > 500, 'renderReportsIntelligence slice came out empty/wrong -- a marker function name probably changed');
+  assert(reportsFn.indexOf('escHtml(m)') !== -1, 'expected escHtml(m) not found in renderReportsIntelligence\'s metal-wise breakdown');
+  assert(reportsFn.indexOf('escHtml(cat)') !== -1, 'expected escHtml(cat) not found in renderReportsIntelligence\'s category breakdown');
+  assert(!/' '\+m\+'</.test(reportsFn), '06-inventory-stock.js\'s renderReportsIntelligence renders a metal key (m) without escHtml');
+  assert(!/>'\+cat\+'/.test(reportsFn), '06-inventory-stock.js\'s renderReportsIntelligence renders a category key (cat) without escHtml');
+
+  var girvi = fs.readFileSync(path.join(__dirname, '..', 'js', '08-girvi-viewmode.js'), 'utf-8');
+  var auditFn = girvi.slice(girvi.indexOf('function geRenderAuditLog('), girvi.indexOf('function saveGirviEdit('));
+  assert(auditFn.length > 300, 'geRenderAuditLog slice came out empty/wrong -- a marker function name probably changed');
+  assert(auditFn.indexOf("escHtml(l.type||'edit')") !== -1, 'expected escHtml(l.type||\'edit\') not found in geRenderAuditLog\'s class attribute');
+  assert(!/ge-audit-dot '\+\(l\.type\|\|'edit'\)\+'/.test(auditFn), '08-girvi-viewmode.js\'s geRenderAuditLog renders l.type into a class attribute without escHtml');
+
+  var timelineFn = girvi.slice(girvi.indexOf('function openGirviTimeline('), girvi.indexOf('function openGirviRenewalModal('));
+  assert(timelineFn.length > 300, 'openGirviTimeline slice came out empty/wrong -- a marker function name probably changed');
+  assert(timelineFn.indexOf("escHtml(e.type||'edit')") !== -1, 'expected escHtml(e.type||\'edit\') not found in openGirviTimeline\'s class attribute');
+  assert(!/gt-dot '\+\(e\.type\|\|'edit'\)\+'/.test(timelineFn), '08-girvi-viewmode.js\'s openGirviTimeline renders e.type into a class attribute without escHtml');
+
+  var settings = fs.readFileSync(path.join(__dirname, '..', 'js', '07-settings-plans.js'), 'utf-8');
+  assert(!/'\+\(it\.purity\|\|''\)\+'/.test(settings), '07-settings-plans.js renders a pledged item\'s purity without escHtml');
+  assert((settings.match(/escHtml\(it\.purity\|\|''\)/g)||[]).length >= 2, 'expected escHtml(it.purity||\'\') at both the single-item and multi-item pledged-item views in 07-settings-plans.js');
+});
+
 // ── Bug: stored XSS via customer name, using encodeURIComponent() as
 // attribute escaping (23 Sep 2026 security audit — HANDOFF.md) ──────────
 // encodeURIComponent() does not escape ' ( ) — exactly what's needed to

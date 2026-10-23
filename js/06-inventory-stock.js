@@ -347,11 +347,11 @@ function renderDash(){
   S.products.filter(function(p){return p.metal==='silver'&&p.status!=='sold';}).forEach(function(p){sbp[p.purity]=(sbp[p.purity]||0)+p.weight;});
   var ge=Object.entries(gbp).sort(function(a,b){return b[1]-a[1];}),gmx=ge.length?ge[0][1]:1;
   document.getElementById('gold-breakdown').innerHTML=ge.length
-    ?ge.map(function(e){return '<div class="bar-row"><div class="bar-top"><span>'+e[0]+'</span><span style="font-weight:700">'+fmtW(e[1])+'</span></div><div class="bar-track"><div class="bar-g" style="width:'+Math.round(e[1]/gmx*100)+'%"></div></div></div>';}).join('')
+    ?ge.map(function(e){return '<div class="bar-row"><div class="bar-top"><span>'+escHtml(e[0])+'</span><span style="font-weight:700">'+fmtW(e[1])+'</span></div><div class="bar-track"><div class="bar-g" style="width:'+Math.round(e[1]/gmx*100)+'%"></div></div></div>';}).join('')
     :'<div class="empty"><span class="empty-icon">&#127775;</span>No gold yet</div>';
   var se=Object.entries(sbp).sort(function(a,b){return b[1]-a[1];}),smx=se.length?se[0][1]:1;
   document.getElementById('silver-breakdown').innerHTML=se.length
-    ?se.map(function(e){return '<div class="bar-row"><div class="bar-top"><span>'+e[0]+'</span><span style="font-weight:700">'+fmtW(e[1])+'</span></div><div class="bar-track"><div class="bar-s" style="width:'+Math.round(e[1]/smx*100)+'%"></div></div></div>';}).join('')
+    ?se.map(function(e){return '<div class="bar-row"><div class="bar-top"><span>'+escHtml(e[0])+'</span><span style="font-weight:700">'+fmtW(e[1])+'</span></div><div class="bar-track"><div class="bar-s" style="width:'+Math.round(e[1]/smx*100)+'%"></div></div></div>';}).join('')
     :'<div class="empty"><span class="empty-icon">&#11088;</span>No silver yet</div>';
 
   // ── F. RECENT SALES WITH PROFIT ───────────────────────────────
@@ -543,7 +543,7 @@ function renderReportsIntelligence(){
     var col = metalColors[m] || 'var(--gold)';
     return '<div style="margin-bottom:14px;">'+
       '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">'+
-        '<span style="font-size:13px;font-weight:600;text-transform:capitalize;">'+(metalEmoji[m]||'\u26AB')+' '+m+'</span>'+
+        '<span style="font-size:13px;font-weight:600;text-transform:capitalize;">'+(metalEmoji[m]||'\u26AB')+' '+escHtml(m)+'</span>'+
         '<span style="font-size:12px;color:var(--text2);">'+fmt(Math.round(d.rev))+' &bull; '+fmtW(d.wt)+' &bull; '+d.units+' pcs</span>'+
       '</div>'+
       '<div style="background:var(--bg3);border-radius:100px;height:10px;overflow:hidden;">'+
@@ -579,7 +579,7 @@ function renderReportsIntelligence(){
     var col  = catPalette[idx % catPalette.length];
     return '<div style="margin-bottom:11px;">'+
       '<div style="display:flex;justify-content:space-between;margin-bottom:4px;">'+
-        '<span style="font-size:12px;font-weight:600;">'+cat+'</span>'+
+        '<span style="font-size:12px;font-weight:600;">'+escHtml(cat)+'</span>'+
         '<span style="font-size:12px;color:var(--text2);">'+fmt(Math.round(d.rev))+' &bull; '+d.units+' pcs</span>'+
       '</div>'+
       '<div style="background:var(--bg3);border-radius:100px;height:8px;overflow:hidden;">'+

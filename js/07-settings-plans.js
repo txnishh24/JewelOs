@@ -997,7 +997,7 @@ function girviLoanCardHTML(g){
 
     var canAct = status!=='closed';
 
-    return '<div class="girvi-card status-'+status+'" onclick="openGirviDetail(\''+jsAttrEsc(g.id)+'\')">'+
+    return '<div class="girvi-card status-'+escHtml(status)+'" onclick="openGirviDetail(\''+jsAttrEsc(g.id)+'\')">'+
       '<div class="girvi-card-top">'+
         '<div class="girvi-card-meta">'+
           '<div>'+
@@ -1250,7 +1250,7 @@ function openGirviDetail(gid){
     var isAdj = p.type==='penalty'||p.type==='refund';
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:12px;">'+
       '<div>'+
-        '<div style="font-weight:700;font-size:13px;">\u20b9'+Math.round(p.amount).toLocaleString('en-IN')+' <span style="font-weight:400;color:var(--text3);font-size:11px;">'+(p.mode||(isAdj?p.type:'Cash'))+'</span></div>'+
+        '<div style="font-weight:700;font-size:13px;">\u20b9'+Math.round(p.amount).toLocaleString('en-IN')+' <span style="font-weight:400;color:var(--text3);font-size:11px;">'+escHtml(p.mode||(isAdj?p.type:'Cash'))+'</span></div>'+
         (isAdj?'':'<div style="font-size:11px;color:var(--text3);">Interest \u20b9'+Math.round(p.interestPortion||0).toLocaleString('en-IN')+' \u2022 Principal \u20b9'+Math.round(p.principalPortion||0).toLocaleString('en-IN')+'</div>')+
       '</div>'+
       '<div style="text-align:right;">'+
@@ -1294,7 +1294,7 @@ function openGirviDetail(gid){
           return '<div style="background:var(--card2);border-radius:11px;padding:11px 13px;">'+
             '<div style="font-size:var(--text-xs);color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:5px;">'+svgIcon('gem')+' Item Pledged</div>'+
             '<div style="font-size:14px;font-weight:700;">'+escHtml(it.type||'Item')+(it.qty>1?' ×'+it.qty:'')+'</div>'+
-            '<div style="font-size:12px;color:var(--text3);">'+(it.purity||'')+' '+(it.metal||'')+(it.weight||it.grossWt?' · '+(it.weight||it.grossWt)+'g':'')+'</div>'+
+            '<div style="font-size:12px;color:var(--text3);">'+escHtml(it.purity||'')+' '+escHtml(it.metal||'')+(it.weight||it.grossWt?' · '+escHtml(String(it.weight||it.grossWt))+'g':'')+'</div>'+
             (it.desc?'<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+escHtml(it.desc)+'</div>':'')+
             (mktVal>0?'<div style="font-size:12px;color:var(--gold);font-weight:600;margin-top:4px;">Mkt: ₹'+Math.round(mktVal).toLocaleString('en-IN')+'</div>':'')+
           '</div>';
@@ -1304,7 +1304,7 @@ function openGirviDetail(gid){
           _its.map(function(it){
             return '<div style="font-size:12px;padding:3px 0;border-bottom:0.5px solid rgba(179,146,87,.1);">'+
               '<span style="font-weight:700;">'+escHtml(it.type||'Item')+(it.qty>1?' ×'+it.qty:'')+'</span>'+
-              '<span style="color:var(--text3);"> '+(it.purity||'')+' '+(it.metal||'')+((it.weight||it.grossWt)?' '+(it.weight||it.grossWt)+'g':'')+'</span>'+
+              '<span style="color:var(--text3);"> '+escHtml(it.purity||'')+' '+escHtml(it.metal||'')+((it.weight||it.grossWt)?' '+escHtml(String(it.weight||it.grossWt))+'g':'')+'</span>'+
             '</div>';
           }).join('')+
         '</div>';

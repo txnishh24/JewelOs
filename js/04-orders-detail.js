@@ -1588,7 +1588,7 @@ function girviRiskBadge(r){
     medium:{bg:'var(--warning-soft)',fg:'var(--warning)'},
     high:{bg:'var(--danger-soft)',fg:'var(--danger)'}
   },c=m[r]||m['medium'];
-  return '<span style="background:'+c.bg+';color:'+c.fg+';font-size:var(--text-xs);font-weight:600;padding:2px 7px;border-radius:var(--radius-pill);">'+(r?r.charAt(0).toUpperCase()+r.slice(1):'Med')+'</span>';
+  return '<span style="background:'+c.bg+';color:'+c.fg+';font-size:var(--text-xs);font-weight:600;padding:2px 7px;border-radius:var(--radius-pill);">'+(r?escHtml(String(r).charAt(0).toUpperCase()+String(r).slice(1)):'Med')+'</span>';
 }
 
 // Patch normaliseData
