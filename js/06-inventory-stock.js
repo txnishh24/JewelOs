@@ -114,7 +114,7 @@ function calcCategoryPerf(year, month){
       if(!cats[cat]) cats[cat]={rev:0,units:0,prevRev:0,profit:0};
       var itemRev = getItemRate(i)*(parseFloat(i.weight)||0)*(i.qty||1);
       var itemProfit = calcItemProfit(i).profit;
-      if(isThis){cats[cat].rev+=itemRev;cats[cat].units+=(i.qty||1);cats[cat].profit+=itemProfit;}
+      if(isThis){cats[cat].rev+=itemRev;cats[cat].units+=(parseFloat(i.qty)||1);cats[cat].profit+=itemProfit;}
       if(isLast){cats[cat].prevRev+=itemRev;}
     });
   });
@@ -531,7 +531,7 @@ function renderReportsIntelligence(){
       if(!metalData[m]) metalData[m] = {rev:0, wt:0, units:0};
       metalData[m].rev += rev;
       metalData[m].wt  += (parseFloat(i.weight)||0) * (i.qty||1);
-      metalData[m].units += (i.qty||1);
+      metalData[m].units += (parseFloat(i.qty)||1);
     });
   });
   var metalTotalRev = Object.values(metalData).reduce(function(s,m){return s+m.rev;},0) || 1;
@@ -567,7 +567,7 @@ function renderReportsIntelligence(){
       var rev = getItemRate(i) * (parseFloat(i.weight)||0) * (i.qty||1) + itemMakingAmount(i) + (i.diamond||0);
       if(!catData[cat]) catData[cat] = {rev:0, units:0};
       catData[cat].rev   += rev;
-      catData[cat].units += (i.qty||1);
+      catData[cat].units += (parseFloat(i.qty)||1);
     });
   });
   var catEntries = Object.entries(catData).sort(function(a,b){return b[1].rev-a[1].rev;}).slice(0,8);

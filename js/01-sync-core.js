@@ -1252,8 +1252,8 @@ function openEditBill(saleId){
     '<div class="fg"><label>Notes / Occasion</label><input id="eb-notes" value="'+escHtml(sale.notes||'')+'"/></div>'+
     '<div class="fg"><label>Extra making (₹)</label><input id="eb-making" type="number" value="'+(parseFloat(sale.making)||0)+'" oninput="calcEditTotal()"/></div>'+
     '<div class="fg"><label>Extra diamond (₹)</label><input id="eb-diamond" type="number" value="'+(parseFloat(sale.diamond)||0)+'" oninput="calcEditTotal()"/></div>'+
-    '<div class="fg"><label>Discount (₹)</label><input id="eb-disc" type="number" value="'+(sale.discount||0)+'" oninput="calcEditTotal()"/></div>'+
-    '<div class="fg"><label>GST %</label><input id="eb-gst" type="number" value="'+(sale.gst||0)+'" oninput="calcEditTotal()"/></div>';
+    '<div class="fg"><label>Discount (₹)</label><input id="eb-disc" type="number" value="'+(parseFloat(sale.discount)||0)+'" oninput="calcEditTotal()"/></div>'+
+    '<div class="fg"><label>GST %</label><input id="eb-gst" type="number" value="'+(parseFloat(sale.gst)||0)+'" oninput="calcEditTotal()"/></div>';
   body.appendChild(nb);
 
   // Items table (read-only display + weight/making edit)
@@ -1271,9 +1271,9 @@ function openEditBill(saleId){
       '</div>'+
       '<div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'+
         '<div class="fg"><label>Net Wt (g)</label><input id="ei-wt-'+i+'" type="text" inputmode="decimal" value="'+((item.weight||0).toFixed(3))+'" oninput="calcEditTotal()"/></div>'+
-        '<div class="fg"><label>Rate (₹/g)</label><input id="ei-rate-'+i+'" type="number" value="'+(item.lockedRate||0)+'" oninput="calcEditTotal()"/></div>'+
-        '<div class="fg"><label>'+(item.isCustom?'Making (₹/g)':'Making (₹)')+'</label><input id="ei-mk-'+i+'" type="number" value="'+(item.making||0)+'" oninput="calcEditTotal()"/></div>'+
-        '<div class="fg"><label>Stone (₹)</label><input id="ei-dc-'+i+'" type="number" value="'+(item.diamond||0)+'" oninput="calcEditTotal()"/></div>'+
+        '<div class="fg"><label>Rate (₹/g)</label><input id="ei-rate-'+i+'" type="number" value="'+(parseFloat(item.lockedRate)||0)+'" oninput="calcEditTotal()"/></div>'+
+        '<div class="fg"><label>'+(item.isCustom?'Making (₹/g)':'Making (₹)')+'</label><input id="ei-mk-'+i+'" type="number" value="'+(parseFloat(item.making)||0)+'" oninput="calcEditTotal()"/></div>'+
+        '<div class="fg"><label>Stone (₹)</label><input id="ei-dc-'+i+'" type="number" value="'+(parseFloat(item.diamond)||0)+'" oninput="calcEditTotal()"/></div>'+
       '</div>';
     body.appendChild(row);
   });
@@ -1285,7 +1285,7 @@ function openEditBill(saleId){
   var existSplits = _editBillExistingSplits(sale);
   var splitHtml = existSplits.map(function(sp,si){
     return '<div class="form-grid" style="grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end;">'+
-      '<div class="fg"><label>Amount (₹)</label><input id="ebsp-amt-'+si+'" type="number" value="'+(sp.amount||0)+'" oninput="calcEditTotal()" placeholder="0"/></div>'+
+      '<div class="fg"><label>Amount (₹)</label><input id="ebsp-amt-'+si+'" type="number" value="'+(parseFloat(sp.amount)||0)+'" oninput="calcEditTotal()" placeholder="0"/></div>'+
       '<div class="fg"><label>Mode</label><select id="ebsp-mode-'+si+'">'+
         ['Cash','UPI','Card','Bank Transfer','Cheque'].map(function(m){return '<option'+(m===sp.mode?' selected':'')+'>'+m+'</option>';}).join('')+
       '</select></div>'+
@@ -1297,8 +1297,8 @@ function openEditBill(saleId){
     '<div id="eb-splits-wrap">'+splitHtml+'</div>'+
     '<button class="split-add-btn" onclick="addEditPayRow()">+ Add payment mode</button>'+
     '<div class="form-grid" style="margin-top:10px;">'+
-      '<div class="fg"><label>Old Gold Value (₹)</label><input id="eb-oldgold" type="number" value="'+((sale.oldGold&&sale.oldGold.value)||0)+'" oninput="calcEditTotal()" placeholder="0"/></div>'+
-      '<div class="fg"><label>Advance already paid (₹)</label><input id="eb-advance" type="number" value="'+((sale.prevAdvance&&sale.prevAdvance.amount)||0)+'" oninput="calcEditTotal()" placeholder="0"/></div>'+
+      '<div class="fg"><label>Old Gold Value (₹)</label><input id="eb-oldgold" type="number" value="'+(parseFloat(sale.oldGold&&sale.oldGold.value)||0)+'" oninput="calcEditTotal()" placeholder="0"/></div>'+
+      '<div class="fg"><label>Advance already paid (₹)</label><input id="eb-advance" type="number" value="'+(parseFloat(sale.prevAdvance&&sale.prevAdvance.amount)||0)+'" oninput="calcEditTotal()" placeholder="0"/></div>'+
     '</div>';
   // Store split count
   pa.dataset.splits = existSplits.length;

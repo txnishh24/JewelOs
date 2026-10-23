@@ -3133,6 +3133,34 @@ test('girvi risk badge, dashboard metal/category breakdowns, and girvi ledger/ti
   assert((settings.match(/escHtml\(it\.purity\|\|''\)/g)||[]).length >= 2, 'expected escHtml(it.purity||\'\') at both the single-item and multi-item pledged-item views in 07-settings-plans.js');
 });
 
+// ── Bug: stored XSS, app-generated numbers and a qty-concatenation bug
+// (finding 2, Batch 6c of
+// docs/STORED-XSS-REMEDIATION-PLAN-BATCH6-2026-10-23.md, 23 Oct 2026) ─────
+// A saved qty that's a string (not a number) would concatenate instead of
+// add in these running totals, letting markup inside it pass straight
+// through to the display. Fixed at the totals, not the display sites, so
+// the fix is "qty is coerced to a number" rather than "escape every count".
+test('qty running totals coerce to a number instead of concatenating, and 0-is-a-real-value fields still show 0', function(){
+  var fs = require('fs'), path = require('path');
+  var billing = fs.readFileSync(path.join(__dirname, '..', 'js', '03-billing-numbers.js'), 'utf-8');
+  assert(!/\.u\+=i\.qty;/.test(billing), '03-billing-numbers.js\'s Top Products total still does pm[i.name].u+=i.qty (string concatenation if qty is a string)');
+  assert(billing.indexOf('.u+=(parseFloat(i.qty)||1);') !== -1, 'expected the Top Products unit total to coerce qty with parseFloat');
+  assert(!/q=i\.qty\|\|1/.test(billing), '03-billing-numbers.js\'s category total still does q=i.qty||1 without parseFloat');
+  assert(billing.indexOf('q=parseFloat(i.qty)||1') !== -1, 'expected the category-total q to coerce qty with parseFloat');
+  assert(!/var n=i\.qty\|\|1/.test(billing), '03-billing-numbers.js\'s sales-history row total still does var n=i.qty||1 without parseFloat');
+  assert(billing.indexOf('var n=parseFloat(i.qty)||1') !== -1, 'expected the sales-history row total n to coerce qty with parseFloat');
+
+  var inv = fs.readFileSync(path.join(__dirname, '..', 'js', '06-inventory-stock.js'), 'utf-8');
+  assert(!/units\+=\(i\.qty\|\|1\)/.test(inv), '06-inventory-stock.js still has a units+=(i.qty||1) total without parseFloat');
+  assert((inv.match(/units\s*\+=\s*\(parseFloat\(i\.qty\)\|\|1\)/g)||[]).length === 3, 'expected 3 units+=(parseFloat(i.qty)||1) totals in 06-inventory-stock.js (category perf, metal breakdown, category breakdown)');
+
+  // 0-is-a-real-value gotcha: escHtml(0) === '' (escHtml does String(s||'')
+  // first), so these two sites use escHtml(String(x)) specifically so a
+  // zero stock count still shows "0" instead of disappearing.
+  var ui = fs.readFileSync(path.join(__dirname, '..', 'js', '02-ui-inactivity-modals.js'), 'utf-8');
+  assert((ui.match(/escHtml\(String\(p\.qty\)\)/g)||[]).length === 2, 'expected escHtml(String(p.qty)) at both the Adjust Stock modal and the sale product search (0 is a real stock count)');
+});
+
 // ── Bug: stored XSS via customer name, using encodeURIComponent() as
 // attribute escaping (23 Sep 2026 security audit — HANDOFF.md) ──────────
 // encodeURIComponent() does not escape ' ( ) — exactly what's needed to

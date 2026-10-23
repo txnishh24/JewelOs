@@ -877,7 +877,7 @@ function renderGirviTodayActions(){
       '<div class="girvi-action-icon">'+(a.urgency==='red'?'\ud83d\udd34':a.urgency==='amber'?'\u26a0\ufe0f':'\ud83d\udfe6')+'</div>'+
       '<div class="girvi-action-body">'+
         '<div class="girvi-action-name">'+escHtml(g.customer)+'</div>'+
-        '<div class="girvi-action-sub">'+g.grvNo+' &bull; '+a.type+' &bull; '+escHtml(g.item.desc||g.item.metal||'')+'</div>'+
+        '<div class="girvi-action-sub">'+escHtml(g.grvNo)+' &bull; '+a.type+' &bull; '+escHtml(g.item.desc||g.item.metal||'')+'</div>'+
         '<div class="girvi-action-btns" onclick="event.stopPropagation();">'+
           '<button class="girvi-action-btn gab-call" onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')">'+svgIcon('phone')+' Call</button>'+
           '<button class="girvi-action-btn gab-wa"   onclick="girviWhatsApp(\''+jsAttrEsc(g.id)+'\')">'+svgIcon('chat')+' WA</button>'+
@@ -1342,7 +1342,7 @@ function openGirviDetail(gid){
       var m = girviMargin(g);
       var marginColor = m.margin>=0 ? 'var(--success)' : 'var(--danger)';
       return '<div style="background:var(--card2);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;margin-bottom:14px;">'+
-        '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px;">\ud83e\udd1d Financer: '+escHtml(g.financerName)+' ('+g.financerRate+'% '+(g.financerRateType==='yearly'?'p.a.':'p.m.')+')</div>'+
+        '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:10px;">\ud83e\udd1d Financer: '+escHtml(g.financerName)+' ('+escHtml(String(g.financerRate))+'% '+(g.financerRateType==='yearly'?'p.a.':'p.m.')+')</div>'+
         '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
           '<div style="flex:1;min-width:100px;"><div style="font-size:var(--text-xs);color:var(--text3);">Customer gives us</div><div style="font-weight:800;color:var(--gold);">\u20b9'+Math.round(m.customerInterest).toLocaleString('en-IN')+'</div></div>'+
           '<div style="flex:1;min-width:100px;"><div style="font-size:var(--text-xs);color:var(--text3);">We pay financer</div><div style="font-weight:800;color:var(--text2);">\u20b9'+Math.round(m.financerInterest).toLocaleString('en-IN')+'</div></div>'+

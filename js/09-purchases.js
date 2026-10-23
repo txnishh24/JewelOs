@@ -514,7 +514,7 @@ function pbItemCard(i,item){
   (function(idx){purSel.querySelector('select').onchange=function(){PB_ITEMS[idx].purity=this.value;};})(i);
   grid.appendChild(purSel);
 
-  var qtyFld=fld('Quantity <span style="font-weight:400;color:var(--text3);">(identical pieces)</span>','<input id="pbi-qty-'+i+'" type="number" min="1" value="'+(item.qty||1)+'"/>');
+  var qtyFld=fld('Quantity <span style="font-weight:400;color:var(--text3);">(identical pieces)</span>','<input id="pbi-qty-'+i+'" type="number" min="1" value="'+(parseInt(item.qty,10)||1)+'"/>');
   (function(idx){qtyFld.querySelector('input').oninput=function(){PB_ITEMS[idx].qty=Math.max(1,parseInt(this.value,10)||1);};})(i);
   grid.appendChild(qtyFld);
 

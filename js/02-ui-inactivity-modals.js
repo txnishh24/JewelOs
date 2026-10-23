@@ -482,7 +482,7 @@ function openAdjustStockModal(id){
   if(!p) return;
   _asProductId = id;
   var info = document.getElementById('as-product-info');
-  if(info) info.innerHTML = '<b>'+escHtml(p.name)+'</b><br/>Current quantity: '+p.qty+' &middot; Current weight: '+fmtW(p.weight);
+  if(info) info.innerHTML = '<b>'+escHtml(p.name)+'</b><br/>Current quantity: '+escHtml(String(p.qty))+' &middot; Current weight: '+fmtW(p.weight);
   var warn = document.getElementById('as-weight-warning');
   if(warn){
     // p.weight only recomputes from qty when unitWeight is set (updQty's
@@ -975,7 +975,7 @@ function skuSearch(idx,val,sugBox){
         '</div>'+
         '<div style="text-align:right;flex-shrink:0;margin-left:8px;">'+
           '<div style="font-weight:700;color:var(--gold-dark);font-size:13px;">'+fmt(mktVal(p))+'</div>'+
-          '<div style="font-size:var(--text-xs);color:var(--text3);">'+p.qty+' in stock</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);">'+escHtml(String(p.qty))+' in stock</div>'+
         '</div>'+
       '</div>';
     row.onmouseover=function(){this.style.background='var(--bg2)';};

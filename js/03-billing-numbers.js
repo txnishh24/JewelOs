@@ -1206,7 +1206,7 @@ function renderReports(entrance){
   var pm={};
   monthSales.forEach(function(s){s.items.forEach(function(i){
     if(!pm[i.name]) pm[i.name]={u:0,w:0,rev:0};
-    pm[i.name].u+=i.qty; pm[i.name].w+=i.weight*i.qty;
+    pm[i.name].u+=(parseFloat(i.qty)||1); pm[i.name].w+=i.weight*i.qty;
     pm[i.name].rev+=getItemRate(i)*(parseFloat(i.weight)||0)*(i.qty||1);
   });});
   var tp=document.getElementById('top-prods');
@@ -1217,7 +1217,7 @@ function renderReports(entrance){
   // ── By category (QA 30 Sep: #cat-perf had no renderer at all -- empty) ──
   var cm={};
   monthSales.forEach(function(s){ (s.items||[]).forEach(function(i){
-    var c=saleItemCat(i), q=i.qty||1;
+    var c=saleItemCat(i), q=parseFloat(i.qty)||1;
     if(!cm[c]) cm[c]={u:0,w:0};
     cm[c].u+=q; cm[c].w+=(parseFloat(i.weight)||0)*q;
   });});
@@ -1233,7 +1233,7 @@ function renderReports(entrance){
       // P4: entrance stagger, first render of this list only (see renderTab).
       var rowCls=entrance?' class="row-enter" style="--i:'+Math.min(idx,6)+'"':''; // v2: cap 6, was 8
       var t=calcSaleTotals(s), q=0, w=0;
-      (s.items||[]).forEach(function(i){ var n=i.qty||1; q+=n; w+=(parseFloat(i.weight)||0)*n; });
+      (s.items||[]).forEach(function(i){ var n=parseFloat(i.qty)||1; q+=n; w+=(parseFloat(i.weight)||0)*n; });
       var modes=salePayModes(s);
       return '<tr'+rowCls+'><td style="font-weight:600">'+escHtml(s.invNo||'')+'</td><td>'+fmtDate(s.date)+'</td><td>'+escHtml(s.customer||'Walk-in')+'</td>'+
         '<td>'+q+'</td><td>'+fmtW(w)+'</td><td>'+escHtml(modes||'\u2014')+'</td>'+

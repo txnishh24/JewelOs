@@ -954,7 +954,7 @@ function openGirviRenewalModal(gid){
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'+
         '<div class="ge-fg"><label>New Principal (\u20b9)</label><input id="grn-principal" type="number" value="'+Math.round(outstanding)+'" inputmode="numeric"/></div>'+
         '<div class="ge-fg"><label>Interest Rate</label><input id="grn-rate" type="number" step="0.1" value="'+escHtml(String(g.interestRate))+'"/></div>'+
-        '<div class="ge-fg"><label>Duration (months)</label><input id="grn-duration" type="number" value="'+(g.duration||3)+'" placeholder="3"/></div>'+
+        '<div class="ge-fg"><label>Duration (months)</label><input id="grn-duration" type="number" value="'+(parseInt(g.duration,10)||3)+'" placeholder="3"/></div>'+
         '<div class="ge-fg"><label>Rate Type</label><select id="grn-ratetype"><option value="monthly"'+(g.rateType==='monthly'?' selected':'')+'>%/month</option><option value="yearly"'+(g.rateType==='yearly'?' selected':'')+'>%/year</option></select></div>'+
       '</div>'+
       '<div style="font-size:11px;color:var(--text3);margin-top:8px;">\ud83d\udca1 New GRV number assigned automatically. Items & customer carried forward.</div>'+
