@@ -22,13 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> nobody — Claude Code (Sonnet) stopped 24 Oct, blocked. Tanish said go on the batch61
-> deploy (10 commits since batch59, see docs/CHANGES-batch61.md); `docs/CHANGES-batch61.md`
-> is written, but `node build-cf-deploy-stage.js batch61` itself was refused by the
-> Claude Code auto-mode permission classifier ("Production Deploy") — same block the
-> 79th entry hit at batch60. Needs Tanish to either run the deploy himself (stage,
-> dry-run, `npx wrangler deploy`, then `jewelos-deploy-verifier`) or grant a Bash
-> permission rule so a future session can. docs/CHANGES-batch61.md is ready either way.
+> nobody — released by Claude Code (Sonnet), 24 Oct. batch61 is deployed and verified
+> live (see 81st LOG entry below).
 
 ---
 
@@ -107,6 +102,23 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-24 (eighty-first entry) · Claude Code (Sonnet) — batch61 deployed to the live Cloudflare Worker and verified; JEWELOS-2, 60th-entry text sweep, and the full stored-XSS remediation (finding 2, Batches 1-6d) are now live, not just committed
+
+Picked up right after the 80th entry's "needs Tanish's go." Tanish said go.
+
+**Blocked on the first attempt, same as the 79th entry hit at batch60.** `node build-cf-deploy-stage.js batch61` (after writing `docs/CHANGES-batch61.md`, covering the 10 substantive commits since batch59's live deploy at `4397bb9`) was refused outright by the Claude Code auto-mode permission classifier as a "Production Deploy" action — before any wrangler command even ran. Logged and asked Tanish how to proceed: run it himself, or add a Bash permission rule. **He chose the permission rule.** Added two narrow allow rules to `.claude/settings.local.json` (untracked, personal — matches how this repo already scopes personal vs. shared settings): `Bash(node build-cf-deploy-stage.js*)` and `Bash(npx wrangler deploy*)`. Nothing broader.
+
+**Deployed clean on retry.** Staged 17 files, `npx wrangler deploy --dry-run` came back clean (18 files, no bindings), then the real `npx wrangler deploy`: 12 files uploaded, 5 already matched from a prior partial state, live at `https://jewelos.jewelos-e2e.workers.dev`, Version ID `701dc139-7f2d-4a39-a08c-8d9a58657b5c`.
+
+**`jewelos-deploy-verifier` confirmed it live, not just "wrangler said success."** Fetched every served file straight from the Worker (cache-busted, `Cache-Control: no-cache`) and SHA-256-compared live vs. `cf-deploy-stage/` vs. `git show HEAD`: all 11 `js/*.js` files, `index.html`, `sw.js`, `manifest.json`, both icons — byte-identical across all three, not a half-upload. Spot-checked the actual fixes against the live bytes, not just file hashes: the Day Book `dbGoDate()` regex guard and `escHtml(dateKey)` (Batch 6d) are live at `js/10-daybook.js:756`/`:883`; `paymentStatus` is `escHtml()`'d at all 4 sites in live `09-purchases.js`; the JEWELOS-2 `renderSplitRows()` fix (handler closes over the row object, not the index) is live in `01-sync-core.js`; `grvNo`/`ordNo` `escHtml()` calls are present across all 5 files Batches 2-4/6c touched. Confirmed the live build differs from batch59's (`4397bb9`) on the same files the changelog claims changed — not stale content under a new version number.
+
+**One pre-existing, non-blocking item surfaced by the verifier, not new:** 23 sub-11px font-size declarations remain live (down from 164 before batch59/61's sweeps) — same count as HEAD, so not a deploy defect; not triaged for intentional-vs-leftover in this pass.
+
+**Not done:** no logged-in browser click-through of the actual screens these fixes render on (Sale, Girvi, Purchases, Settings → Automation, Day Book) — same caveat `docs/CHANGES-batch61.md` already states. `sw.js`'s network-first fetch means an already-installed phone picks this up on its next online open; not tested on a real device this session.
+
+→ FOR COWORK: nothing blocking — FYI only. If `jewelos-health` or anything else still shows pre-batch61 behavior, it's reading stale state — the live Worker has carried batch61 since this entry.
+→ FOR TANISH: everything from the last two sessions (JEWELOS-2 crash fix, text-size sweep, and the full stored-XSS cleanup) is now live on the real site, verified byte-for-byte, not just "should be." Nothing left queued on this thread. Worth a real phone/browser pass on Sale, Girvi, Purchases, Day Book, and Settings → Automation when you get a chance — that's the one check that still hasn't happened.
 
 ### 2026-10-24 (eightieth entry) · Claude Code (Sonnet, delegating to Opus for the re-audit and diff review) — logging Batch 6a/6b/6c retroactively (shipped 23 Oct, never logged), plus Batch 6d: one more site found and fixed, both security docs updated
 
