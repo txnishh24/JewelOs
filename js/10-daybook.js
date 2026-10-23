@@ -753,7 +753,7 @@ function dbGoNext(){ if(dbUiDate() >= dbToday()) return; _dbDate = _dbNextDay(db
 // Jumping to a specific date always means "show me that day" — used both by
 // the day-nav date input and by tapping a bar/row in Month view, so it also
 // switches back to Day mode (§6.2: "tap to drill into that day's single-day view").
-function dbGoDate(k){ if(!k) return; _dbDate = (k > dbToday()) ? dbToday() : k; _dbViewMode = 'day'; renderDayBook(); }
+function dbGoDate(k){ if(!k || !/^\d{4}-\d{2}-\d{2}$/.test(k)) return; _dbDate = (k > dbToday()) ? dbToday() : k; _dbViewMode = 'day'; renderDayBook(); }
 function dbGoToday(){ _dbDate = dbToday(); renderDayBook(); }
 
 function dbSetViewMode(mode){
@@ -880,7 +880,7 @@ function _dbPaintDay(){
   html += '<div class="card" style="padding:0.85rem 1.1rem;">'+
     '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap;gap:8px;">'+
       '<button class="btn btn-sm" style="flex-shrink:0;" onclick="dbGoPrev()">‹</button>'+
-      '<input type="date" id="db-date-input" value="'+dateKey+'" max="'+dbToday()+'" onchange="dbGoDate(this.value)" style="flex:1;min-width:0;font-size:13px;font-weight:600;text-align:center;border:none;background:transparent;color:var(--ink);"/>'+
+      '<input type="date" id="db-date-input" value="'+escHtml(dateKey)+'" max="'+dbToday()+'" onchange="dbGoDate(this.value)" style="flex:1;min-width:0;font-size:13px;font-weight:600;text-align:center;border:none;background:transparent;color:var(--ink);"/>'+
       '<button class="btn btn-sm" style="flex-shrink:0;" onclick="dbGoNext()"'+(isToday?' disabled':'')+'>›</button>'+
       (isToday?'':'<button class="btn btn-sm btn-gold" style="flex-shrink:0;" onclick="dbGoToday()">Today</button>')+
     '</div>'+

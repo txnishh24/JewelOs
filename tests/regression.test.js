@@ -3161,6 +3161,31 @@ test('qty running totals coerce to a number instead of concatenating, and 0-is-a
   assert((ui.match(/escHtml\(String\(p\.qty\)\)/g)||[]).length === 2, 'expected escHtml(String(p.qty)) at both the Adjust Stock modal and the sale product search (0 is a real stock count)');
 });
 
+// ── Bug: stored XSS, Day Book date input (finding 2, Batch 6d close-out
+// re-audit, 24 Oct 2026) ─────────────────────────────────────────────────
+// A saved manual Day Book entry's date reaches dbGoDate() via jsAttrEsc()
+// in the onclick (correctly), but dbGoDate() itself only checked k>dbToday()
+// -- a non-date string passes that comparison, gets stored in _dbDate, and
+// on the next render breaks out of value="..." at the date input. Fixed at
+// the root (dbGoDate rejects anything that isn't YYYY-MM-DD, covering all
+// three callers) plus escHtml(dateKey) at the render site as defence in depth.
+test('dbGoDate rejects non-date strings and the date input escapes dateKey', function(){
+  var a = _dbHarness();
+  var bad = '2000-01-01" autofocus onfocus="alert(1)';
+
+  a._dbDate = '2026-09-10';
+  a.dbGoDate(bad);
+  assert(a._dbDate === '2026-09-10', 'dbGoDate accepted a non-date string: ' + a._dbDate);
+
+  a.dbGoDate('2026-09-05');
+  assert(a._dbDate === '2026-09-05', 'dbGoDate rejected a legitimate YYYY-MM-DD date');
+
+  a._dbDate = bad;
+  var html = a._dbPaintDay();
+  assert(html.indexOf('onfocus="alert') === -1, 'date input is injectable -- raw payload reached the rendered HTML');
+  assert(html.indexOf('&quot; autofocus') !== -1, 'date input did not escape the payload as expected');
+});
+
 // ── Bug: stored XSS via customer name, using encodeURIComponent() as
 // attribute escaping (23 Sep 2026 security audit — HANDOFF.md) ──────────
 // encodeURIComponent() does not escape ' ( ) — exactly what's needed to
