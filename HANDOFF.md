@@ -22,9 +22,13 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> nobody — released by Claude Code (Sonnet) after the 80th LOG entry (24 Oct). Batch 6d
-> done: close-out re-audit, one new site fixed (354280f), both security docs updated.
-> Deploy to the live Worker still not attempted — stays on explicit go-ahead.
+> nobody — Claude Code (Sonnet) stopped 24 Oct, blocked. Tanish said go on the batch61
+> deploy (10 commits since batch59, see docs/CHANGES-batch61.md); `docs/CHANGES-batch61.md`
+> is written, but `node build-cf-deploy-stage.js batch61` itself was refused by the
+> Claude Code auto-mode permission classifier ("Production Deploy") — same block the
+> 79th entry hit at batch60. Needs Tanish to either run the deploy himself (stage,
+> dry-run, `npx wrangler deploy`, then `jewelos-deploy-verifier`) or grant a Bash
+> permission rule so a future session can. docs/CHANGES-batch61.md is ready either way.
 
 ---
 
