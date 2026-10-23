@@ -133,6 +133,29 @@ This is Worker config, not `js/*.js` — out of scope for this session to implem
 without Tanish's say on the CSP allow-list (get it wrong and the app breaks, e.g. blocks
 Razorpay's checkout script). Flagging as a recommendation, not doing it here.
 
+## Stored XSS — Batches 1-4 shipped, 22-23 Oct (commits fe2a426, 442577c, be174d2)
+
+The remediation plan this section's "corrected status" scoped (`docs/STORED-XSS-REMEDIATION-PLAN-2026-10-22.md`) was fully implemented: Batch 1 (printed receipts), the `paymentStatus` gap, and Batches 2-4 (WhatsApp automation rule fields, everyday dropdown fields, app-generated numbers) — every site in the plan's table, plus 3 extra girvi `item.type` sites an independent Opus review caught that the plan's own list had missed. Each batch independently verified: `node --check`, full regression suite (429/429), AST checks, `jewelos-bug-pattern-reviewer`, `jewelos-test-runner`, and an independent Opus diff review. Not yet deployed as of this writing — see `docs/CHANGES-batch60.md`.
+
+## Batch 5 close-out: full re-audit, 23 Oct — finding 2 is NOT closed
+
+Per the plan's own Batch 5 instruction ("re-run the full `jewelos-security-auditor` methodology — the list has already been shown incomplete once"), a fresh full syntax-tree sweep of all 11 `js/` modules ran against the Batches-1-4 commit set. **It should not have been a formality: it found ~43 more raw sites, not on any previous list** (not the 14 Sep review's 611-site inventory, not the 22 Oct plan's table). Every one of the plan's own listed sites, and the 3 extra sites the earlier independent Opus review added, were spot-checked and confirmed actually fixed — the gap is sites nobody had looked at yet.
+
+**Why the list kept being wrong:** the new sites are mostly where saved data passes through an object or map key first (`runInsightEngine`, `buildTodayActions`, `Object.entries` maps building dashboard insight/action objects) and only becomes HTML in a *different* function than the one that reads the field. A line-based "check these line numbers" list — which is what both the 14 Sep review's table and the 22 Oct plan's table were — structurally cannot see that indirection. Only reading a function's full data flow catches it, and apparently that still takes more than one pass.
+
+**HIGH — reachable through completely normal typing, no staff-write-to-server or devtools needed:**
+- `js/01-sync-core.js:1325` — the Edit Bill "Reason for edit" free-text box (typed at `:1334`, saved at `:1452`) goes raw into the Edit History list. Runs when the owner opens Edit Bill on that sale.
+- `js/05-auth-login.js:1605`, `:1668` — a customer's name (typed into any sale, `js/02-ui-inactivity-modals.js:1493`, never sanitised) goes raw into a dashboard insight's text (rendered at `js/06-inventory-stock.js:306`), if that customer trips the "top debtor" (>40% of pending balance) or "top 3 customers by revenue" trigger. Runs on the dashboard, no attacker action needed beyond normal typing plus their balance/revenue crossing a threshold.
+
+**MEDIUM — dropdown/enum fields from saved data, reachable with devtools (same threat model as the already-fixed Batches 2-4):**
+`js/04-orders-detail.js:1591` (`girviRiskBadge()`, called from `07-settings-plans.js:1006` and `08-girvi-viewmode.js:349`); `js/06-inventory-stock.js:350,354,546,582` (purity/metal/cat on dashboard/Reports); `js/07-settings-plans.js:1253,1297,1307` (girvi payment mode, pledged-item purity/metal/weight — the plan fixed only the `:626` preview of these same fields, missing the detail view); `js/08-girvi-viewmode.js:804` (ledger mode); `js/08-girvi-viewmode.js:209` (archived girvi card's `item.type`, same field Batches 2-4 fixed elsewhere but missed here); `js/02-ui-inactivity-modals.js:663,668` (stock-movement type/status). Four sites put a raw value inside a double-quoted `class="..."` attribute (`07-settings-plans.js:1000`, `08-girvi-viewmode.js:343,597,914`) — a `"` in the value breaks out of the attribute, not just the innerHTML.
+
+**LOW — app-generated numbers and numeric fields:** `07-settings-plans.js:880,1345`; `05-auth-login.js:1739,1760`; `08-girvi-viewmode.js:957`; `01-sync-core.js:1255,1256,1274-1276,1288,1300,1301,1323`; `02-ui-inactivity-modals.js:485,978`; `09-purchases.js:517`; running-total sites where a string `qty` would concatenate instead of add (`03-billing-numbers.js:1214,1226,1239`; `06-inventory-stock.js:446,547,583,633` — `normaliseData` doesn't coerce `qty` to a number).
+
+**Other tracked findings, re-confirmed (same audit pass):** finding 4 (no `store_cas_write` history) — still open, unchanged. Finding 6 — **correction to this doc's earlier "unchanged" note**: `auth-gateway` now does real compare-and-swap (migration 008, `mutateBlob`/`auth_store_cas_write`), so finding 6 is fixed on the auth-store side; it's open only on `razorpay-webhook`'s unguarded read-modify-write of `shops`. Finding 8 (no signup rate limit, PBKDF2 at 100k iterations, no CSP) — still open, unchanged. Finding 10 (backup-restore version-prefix check) — still open, unchanged. No regressions found in findings 1, 3, 5. `npm audit` at root and in `checks/`: 0 vulnerabilities, both, same as before.
+
+**Classification and next step:** per `MODEL-POLICY.md` §8, this is 🔴 (auth/security) and needs its own Opus-planned, scoped remediation batch before finding 2 can actually be called closed — the same discipline the 22 Oct plan already used for Batches 1-4, not an ad hoc fix bundled into a close-out pass. Not fixed this session; Tanish's call on priority and timing, same framing the 70th entry used for the original finding-2 scope.
+
 ## Other results from the same-day Opus audit (not from semgrep/ZAP)
 
 - `npm audit` at repo root and in `checks/`: **0 vulnerabilities**, both.
@@ -155,13 +178,22 @@ Razorpay's checkout script). Flagging as a recommendation, not doing it here.
 
 ## Bottom line
 
-- **The one thing this session fixed:** the `paymentStatus` escaping gap (4 sites,
-  `js/09-purchases.js`), low risk, verified three ways.
-- **The one thing this session corrected:** no credential rotation needed on `SB_KEY` —
-  the earlier "critical JWT" alarm from the prior sessions was a false positive.
-- **The one thing this session surfaced but did NOT fix:** stored XSS (finding 2) is
-  open across ~8 files and several dozen sites — see above. 🔴-risk, needs its own
-  scoped remediation pass, Tanish's call on priority/timing.
+*(Updated 23 Oct — see the two sections above for what changed since this doc was first written on 22 Oct.)*
+
+- **What's actually fixed, as of 23 Oct:** `paymentStatus` (4 sites), Batch 1's printed
+  receipts, and Batches 2-4's WhatsApp/dropdown/app-generated-number sites — all
+  verified, all shipped in commits, **not yet deployed** (see `docs/CHANGES-batch60.md`).
+- **What's still wrong, and bigger than tracked at any point before today:** stored XSS
+  (finding 2) is **not closed.** A 23 Oct Batch 5 close-out re-audit found ~43 more raw
+  sites no previous pass had seen, including 3 HIGH ones reachable through completely
+  normal typing (Edit Bill's reason field, a customer's name feeding a dashboard
+  insight) — no staff-write-to-server, no devtools needed. See the "Batch 5 close-out"
+  section above for the full list. 🔴-risk, needs its own scoped, Opus-planned
+  remediation pass — the same discipline Batches 1-4 already used — before this finding
+  can honestly be called closed. Tanish's call on priority/timing.
+- **The one thing the 22 Oct session corrected:** no credential rotation needed on
+  `SB_KEY` — the earlier "critical JWT" alarm from the prior sessions was a false
+  positive.
 - **Before launch, worth doing:** the 5 security headers above, at the Cloudflare Worker
   level — config change, not app code, needs Tanish's input on the CSP allow-list (which,
   notably, would also reduce the blast radius of the still-open stored XSS above).

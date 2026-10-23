@@ -54,11 +54,25 @@ Because request/response shapes don't change, this Edge Function can deploy on i
 
 ## 2. Stored XSS — a staff account can hijack the owner's session · HIGH once a shop has staff
 
-> **Status 14 Sep: partly fixed in batch19, NOT deployed.** Every field in the table below
-> is now escaped, as are activity-log entries, and `auth-gateway` refuses `<`/`>` in names
-> and shop details (server, deploys with the other two fixes). **Still open:** the remaining
-> unescaped values reachable only by writing to the server directly — dropdown values,
-> record ids in `onclick`, photo `dataUrl`s.
+> **Status 23 Oct: still open, broader than tracked — NOT closed.** The table below (the
+> original HIGH "no technical skill needed" fields) was fixed in batch19. A 22 Oct
+> Opus-planned remediation (`docs/STORED-XSS-REMEDIATION-PLAN-2026-10-22.md`) then fixed
+> the "reachable only by writing to the server directly" fields this status line used to
+> list as still open: dropdown values (purity, metal, category, payment mode, status/type),
+> record ids/numbers (grvNo, ordNo, interestRate), and the printed-receipt/paymentStatus
+> sites — 5 batches, all shipped (commits `fe2a426`, `442577c`, `be174d2`). **A Batch 5
+> close-out re-audit (23 Oct, full syntax-tree sweep) found this was not the end of it:**
+> ~43 more raw sites, not on any previous list, where saved data passes through an
+> intermediate object/variable or map key before reaching `innerHTML` in a different
+> function — a path a line-based list can't see, which is how two previous full sweeps
+> (14 Sep and 22 Oct) both missed it. Three are HIGH and reachable through completely
+> normal typing, no staff-write-to-server or devtools needed: the Edit Bill "reason for
+> edit" free-text box (`js/01-sync-core.js:1325`, runs when the owner opens Edit History on
+> that sale) and the customer name typed into any sale (`js/05-auth-login.js:1605`, `:1668`,
+> runs on the **dashboard** if that customer trips a "top debtor"/"top 3 customers"
+> insight). See `docs/SECURITY-AUDIT-SEMGREP-ZAP-2026-10-22.md`'s Batch 5 section for the
+> full list. Needs its own scoped, Opus-planned remediation pass before this finding can
+> actually be called closed.
 
 **What's wrong.** The app builds screens by joining strings into `innerHTML`. Text that
 people type is supposed to pass through `escHtml()` first. Many places don't. If that text
