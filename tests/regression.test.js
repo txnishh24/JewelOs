@@ -3061,6 +3061,39 @@ test('printed receipts escape girvi/order numbers and rates, and guard purchase-
   assert(!/\(b\.stoneWt\|\|0\)/.test(pbPrintBillFn), '09-purchases.js\'s pbPrintBill renders stoneWt unguarded');
 });
 
+// ── Bug: stored XSS reachable by completely normal typing, no staff-write-
+// to-server or devtools needed (finding 2, Batch 6a of
+// docs/STORED-XSS-REMEDIATION-PLAN-BATCH6-2026-10-23.md, 23 Oct 2026) ─────
+// The Edit Bill "reason for edit" box, and a customer's own name, reach
+// innerHTML raw via an intermediate object (editHistory row / dashboard
+// insight) built in one function and rendered in another -- the indirection
+// that let two previous full sweeps (14 Sep, 22 Oct) both miss these.
+test('Edit Bill history and dashboard insights escape free-typed reason/name fields', function(){
+  var fs = require('fs'), path = require('path');
+  var sync = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf-8');
+  var openEditBillFn = sync.slice(sync.indexOf('function openEditBill('), sync.indexOf('function _applyEditBillForm'));
+  assert(openEditBillFn.length > 500, 'openEditBill slice came out empty/wrong -- a marker function name probably changed');
+  assert(openEditBillFn.indexOf('escHtml(h.reason') !== -1, 'expected escHtml(h.reason...) not found in openEditBill\'s history row');
+  assert(!/'\+\(h\.reason\|\|'Edited'\)\+'/.test(openEditBillFn), '01-sync-core.js\'s Edit History row renders h.reason without escHtml');
+  assert(openEditBillFn.indexOf('escHtml(String(h.version))') !== -1, 'expected escHtml(String(h.version)) not found in openEditBill\'s history row');
+  assert(!/'v'\+h\.version\+'/.test(openEditBillFn), '01-sync-core.js\'s Edit History row renders h.version without escHtml');
+
+  var auth = fs.readFileSync(path.join(__dirname, '..', 'js', '05-auth-login.js'), 'utf-8');
+  var insightFn = auth.slice(auth.indexOf('function runInsightEngine('), auth.indexOf('function buildTodayActions('));
+  assert(insightFn.length > 500, 'runInsightEngine slice came out empty/wrong -- a marker function name probably changed');
+  assert(!/split\('_'\)\[0\]\+'/.test(insightFn), '05-auth-login.js\'s runInsightEngine renders a customer name (split(\'_\')[0]) without escHtml');
+  assert(!/return\s+[a-zA-Z0-9_.\[\]]+\.split\('_'\)\[0\];/.test(insightFn), '05-auth-login.js\'s runInsightEngine has a .map() returning a customer name without wrapping it in escHtml');
+  assert(insightFn.indexOf("escHtml(topDebtor[0].split('_')[0])") !== -1, 'expected escHtml(topDebtor[0].split(\'_\')[0]) not found in the top-debtor insight');
+  assert(insightFn.indexOf("escHtml(e[0].split('_')[0])") !== -1, 'expected escHtml(e[0].split(\'_\')[0]) not found in the top-3-customers insight');
+
+  var actionsFn = auth.slice(auth.indexOf('function buildTodayActions('));
+  assert(actionsFn.length > 500, 'buildTodayActions slice came out empty/wrong -- a marker function name probably changed');
+  assert(actionsFn.indexOf('escHtml(g.grvNo)') !== -1, 'expected escHtml(g.grvNo) not found in buildTodayActions');
+  assert(actionsFn.indexOf('escHtml(o.ordNo)') !== -1, 'expected escHtml(o.ordNo) not found in buildTodayActions');
+  assert(!/'\+g\.grvNo\+'/.test(actionsFn), '05-auth-login.js\'s buildTodayActions renders g.grvNo without escHtml');
+  assert(!/'\+o\.ordNo\+'/.test(actionsFn), '05-auth-login.js\'s buildTodayActions renders o.ordNo without escHtml');
+});
+
 // ── Bug: stored XSS via customer name, using encodeURIComponent() as
 // attribute escaping (23 Sep 2026 security audit — HANDOFF.md) ──────────
 // encodeURIComponent() does not escape ' ( ) — exactly what's needed to

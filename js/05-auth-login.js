@@ -1602,7 +1602,7 @@ function runInsightEngine(){
     var topDebtor = Object.entries(custBals).sort(function(a,b){return b[1]-a[1];})[0];
     if(topDebtor && topDebtor[1] > totalPending*0.4){
       insights.push({type:'alert',icon:'⚠️',
-        text:'<strong>'+topDebtor[0].split('_')[0]+'</strong> owes '+fmt(topDebtor[1])+' — that\'s '+(topDebtor[1]/totalPending*100).toFixed(0)+'% of all pending. High concentration risk.'
+        text:'<strong>'+escHtml(topDebtor[0].split('_')[0])+'</strong> owes '+fmt(topDebtor[1])+' — that\'s '+(topDebtor[1]/totalPending*100).toFixed(0)+'% of all pending. High concentration risk.'
       });
     }
     var overdue60 = getSalesDueSoon(60).reduce(function(s,x){return s+calcSaleTotals(x).bal;},0);
@@ -1665,7 +1665,7 @@ function runInsightEngine(){
     var totalRev = calcAllTimeProfit().revenue;
     var top3Pct  = totalRev>0?(top3Rev/totalRev*100).toFixed(0):0;
     insights.push({type:'neutral',icon:'👑',
-      text:'Top 3 customers (<strong>'+topCustomers.map(function(e){return e[0].split('_')[0];}).join(', ')+'</strong>) drive '+top3Pct+'% of total revenue ('+fmt(top3Rev)+'). Nurture these relationships.'
+      text:'Top 3 customers (<strong>'+topCustomers.map(function(e){return escHtml(e[0].split('_')[0]);}).join(', ')+'</strong>) drive '+top3Pct+'% of total revenue ('+fmt(top3Rev)+'). Nurture these relationships.'
     });
   }
 
@@ -1736,7 +1736,7 @@ function buildTodayActions(){
   if(dueSoon.length){
     actions.push({type:'warning',icon:'⏰',
       title: dueSoon.length+' girvi'+(dueSoon.length>1?'s':'')+' due within 7 days',
-      sub:   dueSoon.map(function(g){return g.grvNo+' ('+escHtml(g.customer)+')';}).join(', '),
+      sub:   dueSoon.map(function(g){return escHtml(g.grvNo)+' ('+escHtml(g.customer)+')';}).join(', '),
       cta:   'Send reminders', tab:'girvi'});
   }
 
@@ -1757,7 +1757,7 @@ function buildTodayActions(){
   if(lateOrders.length){
     actions.push({type:'urgent',icon:'📦',
       title: lateOrders.length+' order'+(lateOrders.length>1?'s':'')+' past delivery date',
-      sub:   lateOrders.map(function(o){return o.ordNo+' \u2013 '+escHtml(o.customer);}).join(', '),
+      sub:   lateOrders.map(function(o){return escHtml(o.ordNo)+' \u2013 '+escHtml(o.customer);}).join(', '),
       cta:   'Manage orders', tab:'orders'});
   }
 

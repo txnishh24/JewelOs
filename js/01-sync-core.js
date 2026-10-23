@@ -1320,9 +1320,9 @@ function openEditBill(saleId){
     sale.editHistory.slice().reverse().forEach(function(h){
       hh.innerHTML+='<div class="edit-history-row">'+
         '<span>'+fmtDate(h.at)+' '+fmtTime(h.at)+'</span>'+
-        '<span>v'+h.version+'</span>'+
+        '<span>v'+escHtml(String(h.version))+'</span>'+
         '<span style="color:var(--text2);">Grand: '+fmt(h.grand)+'</span>'+
-        '<span>'+(h.reason||'Edited')+'</span>'+
+        '<span>'+escHtml(h.reason||'Edited')+'</span>'+
       '</div>';
     });
     body.appendChild(hh);
