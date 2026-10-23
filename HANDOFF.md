@@ -22,7 +22,10 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> nobody
+> Claude Code (Sonnet), 23 Oct. Scoping and planning Batch 6 of the stored-XSS
+> remediation (the ~43 sites the Batch 5 close-out found, 3 HIGH) per Tanish's "go for
+> it" — planning only, no js/ edits yet (Opus does the planning per MODEL-POLICY.md §8,
+> same as Batches 1-5). Will release this line and log when the plan doc is written.
 
 ---
 
