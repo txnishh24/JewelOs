@@ -22,10 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Claude Code (Sonnet), 23 Oct. Implementing Batches 2-4 of the stored-XSS remediation
-> (`docs/STORED-XSS-REMEDIATION-PLAN-2026-10-22.md`) — Batch 1 (receipts) already shipped,
-> not yet deployed. Per-batch: implement, verify, commit; will release this line and log
-> when all three batches (or as many as land cleanly) are done.
+> nobody
 
 ---
 
@@ -104,6 +101,20 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-23 (seventy-eighth entry) · Claude Code (Sonnet) — Batches 2, 3, 4 of the stored-XSS remediation shipped (Batch 5 close-out and deploy still outstanding)
+
+Continuation of the 75th entry's Batch 1. Per `docs/STORED-XSS-REMEDIATION-PLAN-2026-10-22.md`'s site table, fixed Batches 2-4 this session: wrapped previously-raw saved-data values in `escHtml()` (or `escHtml(String(x))` where a field can legitimately be `0`, since `escHtml(0)` returns `''`) before they reach `innerHTML`/`document.write`, across 7 files — `js/06-inventory-stock.js` (WhatsApp rule fields, category-perf), `js/04-orders-detail.js`, `js/02-ui-inactivity-modals.js`, `js/01-sync-core.js`, `js/07-settings-plans.js` (item purity/metal/category, payment mode, txn type), `js/08-girvi-viewmode.js`, `js/03-billing-numbers.js` (girvi/order numbers, interest rate). An independent Opus review caught 3 more sites the plan's own list had missed — girvi item `type` in a multi-item card summary, in all three of `03-billing-numbers.js`, `07-settings-plans.js`, `08-girvi-viewmode.js` — same "list incomplete" pattern the plan itself warned about; fixed those too.
+
+All of it landed as **one commit (`be174d2`)**, not three batch-by-batch commits as the plan literally describes — two files carry edits from two different batches each, and Batches 2-4 have no ordering dependency on each other (only Batch 1 had to go first, and it already did, separately). Flagging this so nobody goes looking for 3 commits that don't exist.
+
+**Verification:** `node --check` clean on every touched file; full regression suite 429/429 and `edge-functions.test.js` 74/0; all 10 `checks/*.js` scripts clean, including `backup-check` and `roundtrip` which must always be; `checks/unescaped-ids.js` is now zero, which makes a line in `checks/README.md` stale (it still documents an old finding as open — not fixed this session, worth a cleanup pass). Ran the full local Playwright e2e suite twice — once with this diff applied, once with it stashed out against the unmodified baseline — and got the same failing spec names either way (`auth.spec.js`, `edit-bill-reports-newsale.spec.js` x2, `invoice-numbers.spec.js`, `sale.spec.js`, `session-restore.spec.js`), confirming those are pre-existing flaky/shared-state failures, not something this session broke. A separate pre-existing failure in `tests/cowork-live-check.js` was checked the same way and is also unrelated. Both `jewelos-bug-pattern-reviewer` and `jewelos-test-runner` ran and found nothing beyond what's listed above; a second, independent Opus review confirmed everything is correct and safe, and that nothing changes visually for real (non-malicious) saved data — the plan's central promise held under hostile-input stress testing.
+
+**Pushed to origin** immediately after this entry, same session.
+
+**Not done:** Batch 5 (re-run the full `jewelos-security-auditor`, update both security docs' status, deploy-verify) — wasn't asked for this session. The stale `checks/README.md` note above. Nothing is live on the Cloudflare Worker yet — Batches 1-4 and the earlier JEWELOS-2 fix are all pushed and committed but still not deployed; this is a known, already-tracked gap, not new.
+
+→ FOR COWORK: nothing new — same queue as before (Batch 5 close-out and the eventual deploy are the only open items from this thread, and neither was asked for yet).
 
 ### 2026-10-23 (seventy-seventh entry) · Claude Code (Sonnet) — both queued tasks were already done by prior sessions, just not pushed; pushed 3 pending commits to origin
 
