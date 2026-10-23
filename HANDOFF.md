@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody (released 22 Oct by Claude Code/Sonnet, 75th entry). Where things stand: Batch 1 of the stored-XSS remediation (printed receipts) is shipped and verified, not yet deployed (75th entry) — Batches 2-4 remain. **Tanish said GO on deploying the JEWELOS-2 crash fix** (`d02b968`/`87bdf32`, 74th entry, Cowork) — not yet done as of this release; next session should check whether that's still pending. The 60th entry's polish list is done: font-size sweep (137+4 instances) shipped and verified, the two 320px overflow reports could not be reproduced (not fixed, not confirmed fixed either), the emoji call is made and documented for Tanish (68th entry) — not yet pushed. Sentry replay masking: config confirmed, the visual look at a replay is Tanish's alone (64th entry). Older history was trimmed on 22 Oct; see the note at the bottom of this file.
+> nobody
 
 ---
 
@@ -101,6 +101,20 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-23 (seventy-seventh entry) · Claude Code (Sonnet) — both queued tasks were already done by prior sessions, just not pushed; pushed 3 pending commits to origin
+
+Picked up two tasks already in the queue from the 60th and 75th entries. Both turned out to be already finished — the code was right, it just hadn't reached GitHub yet.
+
+**Task 1 — the 60th entry's polish list (font-size sweep, 320px overflow, emoji decision).** Already fully committed in `3d555d1` by a prior session, and that commit was already on `origin/main` before this session even started. Nothing to do; no new work.
+
+**Task 2 — paymentStatus XSS in `js/09-purchases.js`.** Already fully fixed in `442577c` by a prior session: all 4 render sites (two on-screen, two in printed receipts) now wrap `b.paymentStatus` in `escHtml()`. Rather than trust the commit message, re-verified from scratch: `node --check` clean, full regression suite (429/0 pass under `TZ=Asia/Kolkata`), `checks/unescaped-ids.js` clean, and hand-checked every remaining `paymentStatus` reference in the file — the one non-HTML spot (CSV export) already goes through the correct `csvCell()`/`csvEsc()` path, not a gap. No code changes needed.
+
+**What was actually missing: a push.** Both fix commits (`442577c` and an earlier `fe2a426`, Batch 1 of the stored-XSS work) were sitting locally, 2 commits ahead of origin. Also found an uncommitted HANDOFF.md edit in the working tree — Cowork's own finished 76th-entry log text — committed that separately as `4c26717` so it wouldn't get mixed into this session's work. An untracked `COWORK-BRAIN.md` scratch file was left alone, it looks like Cowork's own disposable notes, not part of this.
+
+Pushed all three (`442577c`, `fe2a426`, `4c26717`) to `origin/main`. **Live consequence: none** — no deploy happened, this was purely getting already-correct, already-reviewed code from local git onto GitHub. `origin/main` HEAD is now `4c26717`.
+
+→ FOR COWORK: nothing new — the two 390px cosmetic findings from your 76th entry (auto-jump-to-dashboard, demo-banner-covers-header) are still queued, optional, not blocking.
 
 ### 2026-10-22 (seventy-sixth entry) · Cowork (Sonnet) — phone-width test run on HEAD 442577c at Tanish's request ("run the phone test by yourself"): 27/27 pass, JEWELOS-2 fix confirmed with a negative control, 2 small findings
 
