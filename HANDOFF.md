@@ -22,7 +22,10 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> nobody
+> Claude Code (Sonnet), 23 Oct. Implementing Batches 2-4 of the stored-XSS remediation
+> (`docs/STORED-XSS-REMEDIATION-PLAN-2026-10-22.md`) — Batch 1 (receipts) already shipped,
+> not yet deployed. Per-batch: implement, verify, commit; will release this line and log
+> when all three batches (or as many as land cleanly) are done.
 
 ---
 
