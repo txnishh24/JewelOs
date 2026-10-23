@@ -717,9 +717,9 @@ function showCustHistory(encKey){
         dur+=ymd.days+'d';
         return '<div onclick="closeModal(\'cust-modal\');setTimeout(function(){openGirviDetail(\''+jsAttrEsc(g.id)+'\');},150);" style="padding:8px 10px;border-radius:8px;background:var(--card2);margin-bottom:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">'+
           '<div>'+
-            '<div style="font-size:12px;font-weight:700;">'+g.grvNo+' &nbsp;'+girviStatusBadge(g.status)+'</div>'+
+            '<div style="font-size:12px;font-weight:700;">'+escHtml(g.grvNo)+' &nbsp;'+girviStatusBadge(g.status)+'</div>'+
             '<div style="font-size:11px;color:var(--text3);">'+
-              (Array.isArray(g.items)&&g.items.length ? g.items.map(function(it){return it.type||'Item';}).join(', ') : (g.item&&g.item.type)||'Item')+
+              (Array.isArray(g.items)&&g.items.length ? g.items.map(function(it){return escHtml(it.type||'Item');}).join(', ') : escHtml((g.item&&g.item.type)||'Item'))+
               ' · '+fmtDate(g.startDate)+' · '+dur+
             '</div>'+
           '</div>'+
@@ -1318,7 +1318,7 @@ function renderReports(entrance){
         gList.slice(0,10).map(function(g){
           var ltv=girviLTV(g); var ltvL=girviLTVLabel(ltv); var out=girviOutstanding(g);
           return '<tr>'+
-            '<td style="font-weight:700;color:var(--gold);">'+g.grvNo+'</td>'+
+            '<td style="font-weight:700;color:var(--gold);">'+escHtml(g.grvNo)+'</td>'+
             '<td>'+escHtml(g.customer)+'</td>'+
             '<td>'+fmt(g.principal)+'</td>'+
             '<td style="font-weight:700;">'+fmt(Math.round(out))+'</td>'+
@@ -1663,7 +1663,7 @@ function renderOrders(){
     div.innerHTML=
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'+
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+
-          '<span style="font-weight:700;font-size:13px;color:var(--info);">'+o.ordNo+'</span>'+
+          '<span style="font-weight:700;font-size:13px;color:var(--info);">'+escHtml(o.ordNo)+'</span>'+
           '<span class="ord-status '+ordStatusOf(o).cls+'">'+ordStatusOf(o).icon+' '+ordStatusOf(o).label+'</span>'+
           priHtml+
         '</div>'+

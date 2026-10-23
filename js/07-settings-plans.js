@@ -623,7 +623,7 @@ function girviAutoCalc(){
     var fr=document.getElementById('gf-final-rows');
     var _irows=GF_ITEMS.filter(function(it){return (parseFloat(it.grossWt)||0)>0;}).map(function(it,i){
       return '<div class="girvi-preview-row"><span>Item '+(i+1)+' ('+escHtml(it.type||'Item')+')</span><span>'+
-        (it.desc?escHtml(it.desc)+' · ':'')+it.purity+' '+it.metal+' · '+it.grossWt+'g'+(it.qty>1?' \xd7'+it.qty:'')+
+        (it.desc?escHtml(it.desc)+' · ':'')+escHtml(it.purity)+' '+escHtml(it.metal)+' · '+escHtml(String(it.grossWt))+'g'+(it.qty>1?' \xd7'+it.qty:'')+
         (gfItemMktVal(it)>0?' · \u20b9'+Math.round(gfItemMktVal(it)).toLocaleString('en-IN'):'')+
       '</span></div>';
     }).join('');
@@ -1001,7 +1001,7 @@ function girviLoanCardHTML(g){
       '<div class="girvi-card-top">'+
         '<div class="girvi-card-meta">'+
           '<div>'+
-            '<span class="girvi-card-id">'+g.grvNo+'</span>'+
+            '<span class="girvi-card-id">'+escHtml(g.grvNo)+'</span>'+
             ' <span class="girvi-card-days '+daysBadgeClass+'">'+daysBadge+'</span>'+
             ' '+girviRiskBadge(g.risk)+
           '</div>'+
@@ -1016,16 +1016,16 @@ function girviLoanCardHTML(g){
               var _cw=_ci.reduce(function(s,it){return s+(parseFloat(it.weight||it.grossWt)||0)*(parseInt(it.qty)||1);},0);
               if(_ci.length===1){var it=_ci[0];
                 return '<div class="girvi-card-item">'+escHtml(it.desc||it.type||'Item')+
-                  ' &bull; '+(it.purity||'')+' '+(it.metal||'')+(_cw?' &bull; '+_cw+'g':'')+' &bull; Mkt: &#8377;'+
+                  ' &bull; '+escHtml(it.purity||'')+' '+escHtml(it.metal||'')+(_cw?' &bull; '+_cw+'g':'')+' &bull; Mkt: &#8377;'+
                   Math.round(getRate(it.metal||'gold',it.purity||'22K')*_cw).toLocaleString('en-IN')+'</div>';
               }
               return '<div class="girvi-card-item"><span style="background:rgba(179,146,87,.15);color:var(--gold-dark);font-weight:700;font-size:var(--text-xs);padding:1px 6px;border-radius:8px;margin-right:4px;">'+_ci.length+' items</span>'+
-                _cw.toFixed(2)+'g &bull; '+_ci.map(function(it){return it.type||'Item';}).join(', ')+'</div>';
+                _cw.toFixed(2)+'g &bull; '+_ci.map(function(it){return escHtml(it.type||'Item');}).join(', ')+'</div>';
             })()+
           '</div>'+
           '<div class="girvi-card-right">'+
             '<div class="girvi-card-outstanding '+outColor+'">\u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</div>'+
-            '<div class="girvi-card-principal">₹'+Math.round(g.principal).toLocaleString('en-IN')+' @ '+g.interestRate+'%'+(g.rateType==='yearly'?'/yr':'/mo')+'</div>'+
+            '<div class="girvi-card-principal">₹'+Math.round(g.principal).toLocaleString('en-IN')+' @ '+escHtml(String(g.interestRate))+'%'+(g.rateType==='yearly'?'/yr':'/mo')+'</div>'+
             (interest>0?'<div class="girvi-card-interest">+\u20b9'+Math.round(interest).toLocaleString('en-IN')+' interest</div>':'')+
             (penalty>0?'<div style="font-size:var(--text-xs);color:var(--danger);font-weight:700;">+\u20b9'+Math.round(penalty).toLocaleString('en-IN')+' penalty</div>':'')+
             '<div style="font-size:var(--text-xs);color:'+ltvL.color+';margin-top:2px;">'+ltvL.icon+' LTV '+(ltv*100).toFixed(0)+'%</div>'+
@@ -1329,7 +1329,7 @@ function openGirviDetail(gid){
       '<div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--text2);margin-bottom:6px;">'+
         '<div>\ud83d\udcc5 Started <strong>'+fmtDate(g.startDate)+'</strong></div>'+
         '<div>\u23f1 <strong>'+durationStr+'</strong> ago ('+_daysElapsed+' days)</div>'+
-        '<div>\ud83d\udcc8 <strong>'+g.interestRate+'% '+(g.rateType==='yearly'?'p.a.':'p.m.')+(g.compound?' compound':' simple')+'</strong></div>'+
+        '<div>\ud83d\udcc8 <strong>'+escHtml(String(g.interestRate))+'% '+(g.rateType==='yearly'?'p.a.':'p.m.')+(g.compound?' compound':' simple')+'</strong></div>'+
         '<div>\ud83d\udcb3 Paid so far <strong>\u20b9'+Math.round(totalPaid).toLocaleString('en-IN')+'</strong></div>'+
       '</div>'+
       (penalty>0?'<div style="font-size:12px;color:var(--danger);font-weight:600;">\u26a0 Penalty for late payment: +\u20b9'+Math.round(penalty).toLocaleString('en-IN')+'</div>':'')+

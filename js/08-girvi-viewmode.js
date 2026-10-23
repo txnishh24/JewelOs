@@ -68,7 +68,7 @@ function renderGirviExecDash(){
           var stageLabel = di.overdue>90?'Auction Risk':di.overdue>30?'Critical':'Warning';
           return '<div class="girvi-overdue-row">'+
             '<span style="font-weight:700;">'+escHtml(g.customer)+'</span>'+
-            '<span style="font-size:11px;color:var(--text3);">'+g.grvNo+' \u00b7 '+di.overdue+'d overdue</span>'+
+            '<span style="font-size:11px;color:var(--text3);">'+escHtml(g.grvNo)+' \u00b7 '+di.overdue+'d overdue</span>'+
             '<span class="girvi-auction-stage '+stage+'">'+stageLabel+'</span>'+
             '<span style="font-weight:700;color:var(--danger);">\u20b9'+Math.round(girviOutstanding(g)).toLocaleString('en-IN')+'</span>'+
             '<button style="padding:3px 9px;border-radius:8px;border:none;background:var(--danger);color:#fff;font-size:11px;font-weight:700;cursor:pointer;" onclick="openGirviLedger(\''+jsAttrEsc(g.id)+'\')">Collect</button>'+
@@ -144,7 +144,7 @@ function renderGirviByCustomer(search, filter, metalFilter){
         var itemDesc = its.length===1 ? (its[0].desc||its[0].type||'Item') : (its.length+' items');
         var statusBadge = girviStatusBadge(g.status);
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:12px;background:rgba(0,0,0,0.02);margin-bottom:6px;cursor:pointer;transition:background .15s;" onmouseover="this.style.background=\'rgba(179,146,87,.07)\'" onmouseout="this.style.background=\'rgba(0,0,0,0.02)\'" onclick="event.stopPropagation();openGirviDetail(\''+jsAttrEsc(g.id)+'\')">'+
-          '<div><span style="font-weight:700;font-size:12px;">'+g.grvNo+'</span> '+statusBadge+
+          '<div><span style="font-weight:700;font-size:12px;">'+escHtml(g.grvNo)+'</span> '+statusBadge+
           '<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+escHtml(itemDesc)+' &bull; '+fmtDate(g.startDate)+'</div></div>'+
           '<div style="text-align:right;"><div style="font-weight:700;font-size:13px;">\u20b9'+Math.round(g.status==='closed'?g.principal:girviOutstanding(g)).toLocaleString('en-IN')+'</div></div>'+
         '</div>';
@@ -319,11 +319,11 @@ var _v20_renderGirvi_installed = false;
       if(_allIt.length===1){
         var it0=_allIt[0];
         itemHtml='<div class="girvi-card-item">'+escHtml(it0.desc||it0.type||'Item')+
-          ' \u2022 '+(it0.purity||'')+' '+(it0.metal||'')+
+          ' \u2022 '+escHtml(it0.purity||'')+' '+escHtml(it0.metal||'')+
           (_cw?' \u2022 '+_cw.toFixed(2)+'g':'')+
           ' \u2022 Mkt: \u20b9'+Math.round(getRate(it0.metal||'gold',it0.purity||'22K')*girviItemWt(it0)*(parseInt(it0.qty)||1)).toLocaleString('en-IN')+'</div>';
       } else {
-        itemHtml='<div class="girvi-card-item"><span style="background:rgba(179,146,87,.15);color:var(--gold-dark);font-weight:700;font-size:var(--text-xs);padding:1px 6px;border-radius:8px;margin-right:4px;">'+_allIt.length+' items</span>'+_cw.toFixed(2)+'g \u2022 '+_allIt.map(function(it){ return it.type||'Item'; }).join(', ')+'</div>';
+        itemHtml='<div class="girvi-card-item"><span style="background:rgba(179,146,87,.15);color:var(--gold-dark);font-weight:700;font-size:var(--text-xs);padding:1px 6px;border-radius:8px;margin-right:4px;">'+_allIt.length+' items</span>'+_cw.toFixed(2)+'g \u2022 '+_allIt.map(function(it){ return escHtml(it.type||'Item'); }).join(', ')+'</div>';
       }
 
       var actionsHtml;
@@ -344,7 +344,7 @@ var _v20_renderGirvi_installed = false;
         '<div class="girvi-card-top">'+
           '<div class="girvi-card-meta">'+
             '<div>'+
-              '<span class="girvi-card-id">'+g.grvNo+'</span>'+
+              '<span class="girvi-card-id">'+escHtml(g.grvNo)+'</span>'+
               ' <span class="girvi-card-days '+daysBadgeClass+'">'+daysBadge+'</span>'+
               ' '+girviRiskBadge(g.risk)+
             '</div>'+
@@ -359,7 +359,7 @@ var _v20_renderGirvi_installed = false;
             '</div>'+
             '<div class="girvi-card-right">'+
               '<div class="girvi-card-outstanding '+outColor+'">\u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</div>'+
-              '<div class="girvi-card-principal">\u20b9'+Math.round(g.principal).toLocaleString('en-IN')+' @ '+g.interestRate+'%'+(g.rateType==='yearly'?'/yr':'/mo')+'</div>'+
+              '<div class="girvi-card-principal">\u20b9'+Math.round(g.principal).toLocaleString('en-IN')+' @ '+escHtml(String(g.interestRate))+'%'+(g.rateType==='yearly'?'/yr':'/mo')+'</div>'+
               (interest>0?'<div class="girvi-card-interest">+\u20b9'+Math.round(interest).toLocaleString('en-IN')+' interest</div>':'')+
               (penalty>0?'<div style="font-size:var(--text-xs);color:var(--danger);font-weight:700;">+\u20b9'+Math.round(penalty).toLocaleString('en-IN')+' penalty</div>':'')+
               '<div style="font-size:var(--text-xs);color:'+ltvL.color+';margin-top:2px;">'+ltvL.icon+' LTV '+(ltv*100).toFixed(0)+'%</div>'+
@@ -953,7 +953,7 @@ function openGirviRenewalModal(gid){
       '<div style="font-size:11px;color:var(--success);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:8px;">\ud83d\udd04 New Loan Terms</div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'+
         '<div class="ge-fg"><label>New Principal (\u20b9)</label><input id="grn-principal" type="number" value="'+Math.round(outstanding)+'" inputmode="numeric"/></div>'+
-        '<div class="ge-fg"><label>Interest Rate</label><input id="grn-rate" type="number" step="0.1" value="'+g.interestRate+'"/></div>'+
+        '<div class="ge-fg"><label>Interest Rate</label><input id="grn-rate" type="number" step="0.1" value="'+escHtml(String(g.interestRate))+'"/></div>'+
         '<div class="ge-fg"><label>Duration (months)</label><input id="grn-duration" type="number" value="'+(g.duration||3)+'" placeholder="3"/></div>'+
         '<div class="ge-fg"><label>Rate Type</label><select id="grn-ratetype"><option value="monthly"'+(g.rateType==='monthly'?' selected':'')+'>%/month</option><option value="yearly"'+(g.rateType==='yearly'?' selected':'')+'>%/year</option></select></div>'+
       '</div>'+

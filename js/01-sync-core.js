@@ -1267,7 +1267,7 @@ function openEditBill(saleId){
     row.style.cssText='background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;';
     row.innerHTML=
       '<div style="font-weight:700;font-size:13px;margin-bottom:6px;">'+escHtml(item.name)+
-        ' <span class="badge '+(item.metal==='gold'?'bg-gold':'bg-silver')+'">'+item.purity+'</span>'+
+        ' <span class="badge '+(item.metal==='gold'?'bg-gold':'bg-silver')+'">'+escHtml(item.purity)+'</span>'+
       '</div>'+
       '<div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr;">'+
         '<div class="fg"><label>Net Wt (g)</label><input id="ei-wt-'+i+'" type="text" inputmode="decimal" value="'+((item.weight||0).toFixed(3))+'" oninput="calcEditTotal()"/></div>'+
@@ -1414,7 +1414,7 @@ function calcEditTotal(){
   var el=document.getElementById('eb-total-display');
   if(!el) return;
   var splitHtml=r.splits.map(function(sp){
-    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--ch6);"><span>&#128179; Paid ('+sp.mode+')</span><span style="color:var(--em4);font-weight:500;">'+fmt(sp.amount)+'</span></div>';
+    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--ch6);"><span>&#128179; Paid ('+escHtml(sp.mode)+')</span><span style="color:var(--em4);font-weight:500;">'+fmt(sp.amount)+'</span></div>';
   }).join('');
   el.innerHTML=
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;">'+
@@ -1628,7 +1628,7 @@ function renderPaymentHistory(sale){
     sale.paymentHistory.forEach(function(p){
       html+='<div class="pay-hist-item">'+
         '<span style="color:var(--text3);">'+fmtDate(p.date)+' '+fmtTime(p.date)+'</span>'+
-        '<span>'+p.mode+'</span>'+
+        '<span>'+escHtml(p.mode)+'</span>'+
         '<span class="pay-hist-badge">'+fmt(p.amount)+'</span>'+
       '</div>';
     });

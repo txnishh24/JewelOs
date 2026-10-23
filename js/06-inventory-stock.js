@@ -437,7 +437,7 @@ function renderDash(){
           : '';
         return '<div style="margin-bottom:9px;">'+
           '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">'+
-            '<span style="font-weight:600;">'+c.cat+'</span>'+
+            '<span style="font-weight:600;">'+escHtml(c.cat)+'</span>'+
             '<span style="color:var(--text3);">'+fmt(Math.round(c.rev))+' '+trendHtml+'</span>'+
           '</div>'+
           '<div style="background:var(--bg3);border-radius:4px;height:5px;overflow:hidden;">'+
@@ -628,7 +628,7 @@ function renderReportsIntelligence(){
         var tIcon = c.prevRev>0?(c.trend>=0?'\u25B2 '+Math.round(c.trend)+'%':'\u25BC '+Math.abs(Math.round(c.trend))+'%'):'—';
         var tColor= c.prevRev>0?(c.trend>=0?'var(--success)':'var(--danger)'):'var(--text3)';
         return '<tr>'+
-          '<td style="font-weight:600;">'+c.cat+'</td>'+
+          '<td style="font-weight:600;">'+escHtml(c.cat)+'</td>'+
           '<td style="font-weight:700;color:var(--gold-dark);">'+fmt(Math.round(c.rev))+'</td>'+
           '<td>'+c.units+'</td>'+
           '<td style="color:var(--success);">'+fmt(Math.round(c.profit))+'</td>'+
@@ -1094,10 +1094,10 @@ function renderWaRules(){
   el.innerHTML = rules.map(function(r){
     return '<div class="wa-rule" style="flex-direction:column;align-items:stretch;">'+
       '<div style="display:flex;align-items:center;gap:10px;">'+
-        '<div class="wa-rule-icon">'+r.icon+'</div>'+
+        '<div class="wa-rule-icon">'+escHtml(r.icon)+'</div>'+
         '<div class="wa-rule-body">'+
-          '<div class="wa-rule-title">'+r.name+'</div>'+
-          '<div class="wa-rule-sub">'+r.trigger+'</div>'+
+          '<div class="wa-rule-title">'+escHtml(r.name)+'</div>'+
+          '<div class="wa-rule-sub">'+escHtml(r.trigger)+'</div>'+
         '</div>'+
         '<label class="wa-toggle">'+
           '<input type="checkbox" '+(r.enabled?'checked':'')+' onchange="toggleWaRule(\''+jsAttrEsc(r.id)+'\')">'+
@@ -1107,7 +1107,7 @@ function renderWaRules(){
       '<details style="margin-top:8px;">'+
         '<summary style="cursor:pointer;font-size:11px;color:var(--gold-dark);font-weight:700;">\u270f\ufe0f Edit message wording</summary>'+
         '<div style="margin-top:8px;">'+
-          '<textarea id="wa-tpl-'+r.id+'" rows="7" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;padding:10px;border-radius:10px;border:1px solid var(--border2);background:var(--card1);color:var(--ink);resize:vertical;">'+escHtml(r.messageTemplate||'')+'</textarea>'+
+          '<textarea id="wa-tpl-'+escHtml(r.id)+'" rows="7" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;padding:10px;border-radius:10px;border:1px solid var(--border2);background:var(--card1);color:var(--ink);resize:vertical;">'+escHtml(r.messageTemplate||'')+'</textarea>'+
           '<div style="font-size:var(--text-xs);color:var(--text3);margin:5px 0 8px;">Available: {customer_name} {shop_name} {amount} {due_date} {girvi_number} {invoice_number} {order_number} {items} {item_desc} \u2014 write in your own words, these get swapped in automatically.</div>'+
           '<div style="display:flex;gap:6px;flex-wrap:wrap;">'+
             '<button onclick="saveWaRuleTemplate(\''+jsAttrEsc(r.id)+'\')" style="padding:6px 14px;border-radius:8px;border:none;background:var(--gold);color:#1a1200;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Save</button>'+
@@ -1247,7 +1247,7 @@ function renderSettingsAutomation(){
       var short = gist.length>90 ? gist.slice(0,90)+'…' : gist;
       return '<div style="padding:10px 12px;background:var(--card2);border-radius:9px;margin-bottom:7px;">'+
         '<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">'+
-          '<span>'+r.icon+'</span>'+
+          '<span>'+escHtml(r.icon)+'</span>'+
           '<span style="font-size:12px;font-weight:700;">'+escHtml(r.name)+'</span>'+
           (edited?'<span style="font-size:var(--text-xs);font-weight:700;color:var(--gold-dark);background:var(--gold-bg);padding:2px 7px;border-radius:100px;letter-spacing:.04em;">YOUR WORDING</span>':'')+
           (r.enabled?'':'<span style="font-size:var(--text-xs);font-weight:700;color:var(--text3);background:var(--bg2);padding:2px 7px;border-radius:100px;letter-spacing:.04em;">OFF</span>')+

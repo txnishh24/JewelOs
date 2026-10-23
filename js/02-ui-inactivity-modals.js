@@ -848,7 +848,7 @@ function renderSaleItems(){
         '<div>'+
           '<div style="font-weight:700;font-size:var(--text-base);color:var(--text);">'+escHtml(p.name)+'</div>'+
           '<div style="margin-top:3px;">'+
-            '<span class="badge '+(p.metal==='gold'?'bg-gold':'bg-silver')+'">'+p.purity+'</span>'+
+            '<span class="badge '+(p.metal==='gold'?'bg-gold':'bg-silver')+'">'+escHtml(p.purity)+'</span>'+
             '&nbsp; Gross: <strong>'+fmtW(p.weight)+'</strong>'+
             '&nbsp; Rate: <strong>'+fmt(getRate(p.metal,p.purity))+'/g</strong>'+
             (p.huid?'&nbsp; HUID: <strong style="color:var(--info);">'+escHtml(p.huid)+'</strong>':'')+
@@ -2057,7 +2057,7 @@ function refreshCustomItemDisplay(i,item){
     if(gross>0){
       ltDiv.style.cssText='margin-top:10px;background:rgba(179,146,87,0.06);border:1px solid rgba(179,146,87,0.2);border-radius:var(--radius);padding:10px 12px;';
       ltDiv.innerHTML=
-        '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:3px;"><span>Gold value ('+item.purity+' \u00d7 '+fmtW(net)+')</span><span>'+fmt(gvAmt)+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:3px;"><span>Gold value ('+escHtml(item.purity)+' \u00d7 '+fmtW(net)+')</span><span>'+fmt(gvAmt)+'</span></div>'+
         (mkAmt>0?'<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:3px;"><span>Making ('+fmt(parseFloat(item.making)||0)+'/g)</span><span>'+fmt(mkAmt)+'</span></div>':'')+
         (scAmt>0?'<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:3px;"><span>Stone / Diamond</span><span>'+fmt(scAmt)+'</span></div>':'')+
         '<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;color:var(--gold-dark);border-top:1px solid rgba(179,146,87,0.2);padding-top:6px;margin-top:4px;"><span>Item Total</span><span>'+fmt(lineTotal)+'</span></div>';

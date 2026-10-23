@@ -43,8 +43,8 @@ function showOrderDetail(ordId){
           '<div>'+
             '<div style="font-weight:600;font-size:13px;">'+(n+1)+'. '+escHtml(item.desc)+'</div>'+
             '<div style="font-size:11px;color:var(--text3);margin-top:2px;">'+
-              item.purity+' '+item.metal+
-              (item.cat?' &bull; '+item.cat:'')+
+              escHtml(item.purity)+' '+escHtml(item.metal)+
+              (item.cat?' &bull; '+escHtml(item.cat):'')+
               (item.qty>1?' &bull; Qty: '+item.qty:'')+
             '</div>'+
           '</div>'+
@@ -95,7 +95,7 @@ function showOrderDetail(ordId){
           '<div style="font-size:11px;color:var(--text3);margin-top:1px;">'+fmtDate(txn.date)+' '+fmtTime(txn.date)+(txn.ref?' &bull; Ref: '+escHtml(txn.ref):'')+(txn.note?' &bull; '+escHtml(txn.note):'')+'</div>'+
         '</div>'+
         '<div style="display:flex;gap:6px;align-items:center;">'+
-          '<span class="badge '+(isRev?'bg-red':txn.type==='advance'?'bg-gold':'bg-green')+'">'+txn.type+'</span>'+
+          '<span class="badge '+(isRev?'bg-red':txn.type==='advance'?'bg-gold':'bg-green')+'">'+escHtml(txn.type)+'</span>'+
           (!isRev&&o.status!=='delivered'&&o.status!=='cancelled'?
             '<button class="btn btn-xs btn-danger" onclick="reversePayment(\''+jsAttrEsc(ordId)+'\',\''+jsAttrEsc(txn.txnId)+'\')">Reverse</button>':'')+
         '</div>';
