@@ -102,6 +102,27 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-22 (seventy-sixth entry) · Cowork (Sonnet) — phone-width test run on HEAD 442577c at Tanish's request ("run the phone test by yourself"): 27/27 pass, JEWELOS-2 fix confirmed with a negative control, 2 small findings
+
+**What this was, and was not.** An emulated phone (390x844, touch, Pixel-class UA, headless Chromium) against a local copy of `442577c` (this is BEFORE Batch 1, `fe2a426`, so the receipt escaping is NOT covered). No login, no production, no real Supabase: a stand-in for store-proxy that follows the client's own contract (GET row|null, PUT with expectedVersion/409, POST counter). It is not a real handset: no real keyboard, print dialog, tap feel, network or sign-in.
+
+**Result: 27 pass, 0 fail, no page errors.**
+- Sale: item picked by typing SKU + Enter; bill total ₹86,460 equals an independent recompute (₹7,200 x 11.8 g net + ₹120/g x 12.5 g gross); paid in full; reached the cloud with no error banner.
+- **JEWELOS-2:** typing into a split-payment box whose row was removed no longer crashes (0 page errors). **Negative control:** with the pre-fix index-closing handlers restored in a copy, the same test fails with `Cannot set properties of undefined (setting 'amount')` at `01-sync-core.js:1138` — the exact Sentry message. So the test does catch the bug and the fix does remove it.
+- VIP and Urgent orders: both save with the right priority, the VIP/URGENT pill shows on its own card, both reach the cloud.
+- Airplane-mode billing: phone held 5 reserved invoice numbers, went offline, "Saved offline: INV-902" queued 1 bill, back online it uploaded and the queue emptied.
+- All 9 main screens at 390px: no sideways scroll, no visible text under 11px (the 68th entry's font sweep holds in the rendered app). The first-launch "what is new" box fits and its button is tappable.
+
+**Findings (both low, both visual/UX, nothing lost):**
+1. **Auto-jump to Dashboard overrides a quick tap.** After every saved sale (online `js/02-ui-inactivity-modals.js:1876`, offline `:1863`) the app calls `setTimeout(switchTab('dashboard'), 900)` unconditionally. A tap on another tab within 0.9 s of "Sale recorded" is overridden. Suggest: only jump if the Sales panel is still the active one.
+2. **Demo banner covers the top of the header at 390px.** `#demo-banner` is `position:fixed`, 53 px tall because the text wraps to two lines, but the sticky header is offset for ~34 px (header top = 34, banner bottom = 53), so ~19 px of the header, including half the shop name, sits under the banner. Demo mode only, but demo mode is what a jeweller sees in Tanish's in-person demo. Extends the 60th entry's "demo banner wraps at 360px" item: it wraps at 390px too, and it clips.
+3. Observation, no action: the success toast sits over the sticky Record button for a few seconds but has `pointer-events:none`, so it cannot swallow a tap.
+
+**Not covered:** Girvi loan create, add product/customer save, GST bill, print/PDF, Batch 1 receipts (newer than the snapshot), anything on a real handset. The harness is saved at `jewelos-brain\phone-test\phone2.js` and can run the `&`/`'` receipt preview from the 73rd entry on request.
+
+→ FOR CLAUDE CODE: optional, low priority, any order: (1) guard the 0.9 s auto-jump; (2) make the header offset follow the demo banner's real height (or keep the banner to one line). Nothing blocking.
+→ FOR TANISH: the emulated phone passes. A real handset is still the only thing that covers your own phone's keyboard, print and signal, so the real sale, one VIP and one Urgent order on your phone are still worth doing once. Demo mode clips your shop name at the top; cosmetic, fix is queued for Claude Code.
+
 ### 2026-10-22 (seventy-fifth entry) · Claude Code (Sonnet) — Batch 1 of the stored-XSS remediation shipped: printed receipts (girvi, order, purchase)
 
 Cleared by Tanish's 73rd-entry answers. Full batch per `docs/STORED-XSS-REMEDIATION-PLAN-2026-10-22.md`'s Batch 1 section.
