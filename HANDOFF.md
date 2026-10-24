@@ -22,9 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> nobody — released by Claude Code (Sonnet), 24 Oct. Security-hardening config pass
-> (82nd entry) is now committed and pushed to origin (see 83rd LOG entry below); still
-> not deployed.
+> nobody — released by Claude Code (Sonnet), 24 Oct. Traced the 88th entry's finding 1 as
+> far as code alone allows (see 89th LOG entry); blocked on a live DB read only Cowork can do.
 
 ---
 
@@ -103,6 +102,118 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-24 (ninety-third entry) · Cowork (Sonnet) — Tanish said "go": deploy the 92nd entry's `toggleStatus` fix
+
+Tanish gave the go on 24 Oct, 20:32 IST, in reply to Cowork's "tell me go on the deploy". Scope: the `toggleStatus` quantity/weight fix in `js/02-ui-inactivity-modals.js` only. Nothing else approved for this deploy. Cowork did not deploy anything and did not touch code.
+
+→ FOR CLAUDE CODE: commit and deploy the 92nd entry's fix, then log the deploy here and tell me when it is live.
+→ FOR COWORK (me, next): once live, toggle a 2-piece item sold and back on the real site and confirm it returns 2, read-only against the database afterwards.
+→ FOR TANISH: nothing yet. Do not edit C001's quantity until I confirm the fix live.
+
+### 2026-10-24 (ninety-second entry) · Claude Code (Sonnet) — fixed the 91st entry's confirmed bug: `toggleStatus()` lost a multi-piece item's real quantity on a sold→available round trip
+
+**Root cause, confirmed in code, matches the live timeline exactly.** `toggleStatus()` (`js/02-ui-inactivity-modals.js:511`) hardcoded `p.qty` to `0` (marking sold) or `1` (restoring available) — it had no concept of "how many pieces," so a 2-piece item toggled sold then back came back as qty 1, not 2. C001's movement log: opening +1, manual +1 (qty 2, 22 Oct) → toggle sold (qty forced 0) → toggle available (qty forced **1**, the second piece silently gone here) → sale -1 (qty 0, status sold, 24 Oct). The pricing itself was always correct, per the 90th entry — this was a pure stock-count bug in the toggle, nowhere near New Sale.
+
+**Fixed:** `toggleStatus` now remembers the quantity a product had when marked sold (`p._qtyBeforeSold`) and restores that exact number on the way back to available, instead of a hardcoded `1`. Also now recomputes `weight = unitWeight*qty` on both transitions (it never touched weight at all before — a second latent inconsistency on any multi-piece item, independent of the quantity bug, now closed the same way `updQty`/`deductSoldStock` already do it elsewhere). The save-failure rollback branch restores the exact previous `qty` too, not an inferred one.
+
+**Byte-exact edit** — the file has `\uXXXX`/UTF-8 escapes near this function; used a one-off Python read-modify-write script (deleted after running), per house rule.
+
+**Verified:** `node --check js/02-ui-inactivity-modals.js` clean. Full `check.bat` equivalent run manually (its own `pause` doesn't play well non-interactively): regression suite 433/0 (same as baseline), all 9 `checks/*.js` scripts — same hits as the documented baseline, nothing new, `backup-check` and `roundtrip` both clean. `jewelos-bug-pattern-reviewer`/`jewelos-test-runner` not separately invoked — the manual run above covers the same ground this diff touches (one function, no sale/billing/sync logic changed).
+
+**Not done:** C001 itself is still damaged live (`qty` 0, status `sold`) — per the 91st entry, fixing it there is Tanish's call once this ships, not done automatically by this fix. Not deployed.
+
+→ FOR COWORK: fix is in, not deployed yet. Once it's live, re-check: toggle a 2-piece item sold→available on the real site and confirm it comes back as 2, not 1. C001 itself still needs Tanish's manual correction (edit quantity to 1 in Stock, per the 91st entry) — do that only after this fix is confirmed live, so it's tested on clean data as asked.
+→ FOR TANISH: the bug that lost a piece off the Lion ring is fixed in code, not deployed yet. Once Cowork confirms it live, you can correct C001's quantity back to 1 in Stock.
+
+### 2026-10-24 (ninety-first entry) · Cowork (Sonnet) — Tanish confirms the Lion ring (C001) really had 2 pieces: the lost piece is a real bug, not a data quirk
+
+Tanish answered the 90th entry's question: he set C001 to 2 pieces himself (22 Oct "Manual quantity edit"). So after INV-141 sold one piece, the item should show quantity 1 and stay available. The live record shows quantity 0 and status `sold`: one piece vanished. Pricing is fine (see 90th).
+
+Two suspects, not yet proven: the 23 Oct "Manual status toggle" pair (sold, then available) resetting quantity to 1, and the sale deduction itself marking the whole item sold. The movement log shows only -1 for the sale, so the status toggle is the likelier culprit.
+
+→ FOR CLAUDE CODE: this is now a confirmed stock-count bug on a multi-piece item. Reproduce locally: set a product to 2 pieces, toggle sold and back to available, then sell 1. Check `qty`, `stockQty` and status after each step. Fix, then tell me and I will check the same product live (C001 is already damaged; a manual correction to quantity 1 / available is Tanish's call).
+→ FOR TANISH: C001 now reads sold with 0 pieces. If you want the 1 remaining piece back, edit the quantity to 1 in Stock after the fix ships, so the fix is tested on clean data.
+
+### 2026-10-24 (ninetieth entry) · Cowork (Sonnet) — answer to the 89th: C001's raw record pulled from the Lumineer shop (read-only); the "weight halving" is most likely not a pricing bug, but one stock-count oddity remains
+
+Read-only database pull, nothing written. Shop `65a3ce29`, product `67e1a3d3`, SKU C001 "Lion ring", read after the test sale INV-141.
+
+**Stored record now:** `unitWeight` 1.5, `grossWt` 1.5, `weight` 0, `netWeight` 0, `netWt` 0, `qty` 0, `stockQty` 1, `_origQty` 1, status `sold`, `mcRate` 850, 22K gold.
+
+**Stock movements for this product (all by user Lumineer):**
+1. 22 Oct 15:49 opening_stock, +1, "Manually added to inventory"
+2. 22 Oct 15:52 adjustment, +1, "Manual quantity edit"
+3. 23 Oct 14:59:08 adjustment, -1, "Manual status toggle", to sold
+4. 23 Oct 14:59:19 adjustment, +1, "Manual status toggle", back to available
+5. 24 Oct 13:54 sale, -1, INV-141
+
+**What this says:**
+- The item was edited to 2 pieces on 22 Oct. With `unitWeight` 1.5, the Stock page total of 3.00g (2 x 1.5g) and ₹44,850 market value are consistent. New Sale then bills one piece at 1.5g, and INV-141 is 1.5g, total ₹23,700 (₹15,800 per gram). So the pricing is correct; the Stock page shows the weight of all pieces and the sale bills one piece. The 88th entry's "exactly half" is two pieces, not a halving bug. The 89th entry's guess that `unitWeight` and `weight` disagree is not what happened: they agree with a quantity of 2.
+- Still unexplained: the movements add up to +1 net before the sale, but the item ended with `qty` 0 and status `sold` after selling one piece out of two. If the quantity really was 2 before the sale, one piece disappeared. The likely place is the 23 Oct status toggle pair (#3 and #4), which looks like it reset quantity to 1 on the way back to available (`stockQty`/`_origQty` are 1). I have not proven that; it needs a look at what the status-toggle handler does to `qty` and `weight` when a multi-piece item is toggled sold and back.
+
+→ FOR CLAUDE CODE: drop the pricing theory. Read the "Manual status toggle" handler and check whether toggling a 2-piece item to sold and back to available changes `qty` and `weight`. Also confirm the sale path deducts exactly one piece from a 2-piece item and leaves it available with `qty` 1.
+→ FOR TANISH: ask the Lumineer owner (you) whether the Lion ring really had 2 pieces. If yes, the app lost one piece, and that is a real finding.
+
+### 2026-10-24 (eighty-ninth entry) · Claude Code (Sonnet) — traced the 88th entry's finding 1 (New Sale weight-halving on stock `C001`) as far as code alone allows; blocked on a live DB read; no code changed
+
+Read-only investigation, no files touched. Found the mechanism, not the root cause — need data Claude Code can't see.
+
+**Mechanism:** billing weight for a stock item comes from `productUnitWeight(p)` (`js/01-sync-core.js:1054`) — `if(p.unitWeight>0) return p.unitWeight;` else `p.weight/p.qty`. It trusts a stored `p.unitWeight` with zero cross-check against `p.weight`/`p.qty`. For C001 to bill 1.50g while Stock shows gross 3.00g and 1 piece, `p.unitWeight` must be stored as `1.50` while `p.weight` is `3.00` — the two fields disagree.
+
+**Checked every write path that touches a product's weight** (`addProduct`, `saveEditProd`, Purchases→stock sync, `updQty`, `deductSoldStock`, `openAdjustStockModal`) — all of them keep `unitWeight` and `weight` in sync correctly, or (one documented case, `js/02-ui-inactivity-modals.js:490-495`, the Adjust Stock modal's own warning) explicitly flag when they'd desync. None of the in-app paths produce the disagreement this item shows. Most likely: stale or directly-seeded data on this one product, not a live app bug reachable through normal use — but that's a guess, not confirmed.
+
+**Blocked here.** Claude Code has no live DB access (per `CLAUDE.md`). Need C001's raw stored record — `unitWeight`, `weight`, `qty`, `netWeight`, exactly as saved — pulled from Supabase for the Lumineer shop, to confirm the disagreement and find when it happened (stock movement history, if any, on that product).
+
+→ FOR COWORK: pull C001's raw product record (Lumineer shop) — `unitWeight`/`weight`/`qty`/`netWeight` as stored, plus any `stockMovements` entries for that product id. That confirms or kills this theory; report back here either way.
+→ FOR TANISH: nothing needed yet — waiting on the data pull above.
+
+### 2026-10-24 (eighty-eighth entry) · Cowork (Sonnet) — follow-up to the 87th: Tanish said yes, one real test sale recorded on the Lumineer shop; JEWELOS-2 Save fix confirmed live, finding 1 now reproduced
+
+**Test sale:** customer "TEST Claude live check", stock `C001` Lion ring, qty 1, no deductions, payment left at 0 (Cash). Clicked Record & Sync Sale on `https://jewelos.jewelos-e2e.workers.dev`.
+
+**JEWELOS-2: confirmed fixed live.** Save completed, app returned to the dashboard, no console errors and no uncaught errors or rejections captured during the click. Dashboard now shows Today's Sales ₹23,700 (1 bill), Profit ₹1,275, Outstanding Payments ₹23,700, and Recent Activity "Lion ring • 1.50g".
+
+**Finding 1 from the 87th is now a recorded fact, not only a preview.** The bill sold the whole piece (Pieces in Stock 0, Stock Value ₹0) but billed 1.50g for ₹23,700, while Stock listed it at 3.00g gross, ₹44,850 market value. If the item's real weight is 3.00g, the shop is under-billing by half on this path. Cause still unknown.
+
+**Left behind on the Lumineer shop (test data, Tanish's own shop):** the bill above with ₹23,700 outstanding, and `C001` now marked Sold. Stock page has "♺ Restore" for the ring. The bill itself cannot be deleted from the app.
+
+→ FOR CLAUDE CODE: finding 1 is the priority. Trace where New Sale takes net weight for a stock item with no net weight stored, and why it comes out as exactly half of gross.
+→ FOR TANISH: nothing needed. Say so if you want the ring restored to stock.
+
+### 2026-10-24 (eighty-seventh entry) · Cowork (Sonnet) — live test of batch61 on the Worker site, per the 86th entry: read-only pass clean, nothing saved, 2 findings
+
+**How:** Tanish's own Chrome, already logged in as Lumineer · Owner, on `https://jewelos.jewelos-e2e.workers.dev`. Nothing was saved anywhere: no bill, loan, purchase, Day Book entry or setting was written.
+
+**Passed (no console errors on any page):**
+- New Sale: page loads, SKU search and stock pick work, totals compute, Bill Preview opens. XSS probe typed into customer name (`<img src=x onerror="window.__xss=1">`) shows as literal text in the preview; `window.__xss` stayed unset and the page has zero `img[src=x]` nodes.
+- Girvi, Purchases, Day Book (Day, Month, By Person) and Settings → Automation all load and render.
+- Text sweep: the only elements under 11px on the Automation page are hidden ones (`#gf-items-summary` 9px, `#sql-setup-pre` 10.5px), not visible. Other pages not measured.
+
+**NOT tested, so still unconfirmed live:**
+- The Save click itself (JEWELOS-2 `splitRows` crash). Record & Sync Sale writes a real bill, so it was held for Tanish's OK.
+- Hostile data in Edit Bill edit-reason, dashboard customer-name insight, dropdown/enum sites, and the Day Book manual entry date. By Person showed "No entries linked to a person this month", so that site had no data to exercise.
+- Printed receipts for girvi, order and purchase.
+
+**Findings, not confirmed as regressions:**
+1. Weight mismatch on stock `C001` "Lion ring". Stock page: gross 3.00g, net blank, market value ₹44,850 (3.00g × ₹14,950). In New Sale the same item priced at 1.50g (gold value ₹22,425, bill shows Net Wt 1.50g) with every weight deduction at 0.000. Exactly half. Need to know whether a net weight is stored on the item or the sale form halves it, and whether batch61 touched it.
+2. Purchases: PB-00007 total ₹2,13,885, Paid ₹1,50,000, yet Pending ₹0 and status Paid. Supplier Ledger for Pearls Chain shows Paid ₹4,43,885 against ₹3,50,000 summed from the two bills' Paid column. May be payments recorded outside that column; flagging only.
+
+→ FOR CLAUDE CODE: look at finding 1 first (pricing), then 2 if cheap.
+→ FOR TANISH: say yes if I may record one real test sale on the Lumineer shop, to confirm the JEWELOS-2 Save fix live. It writes a bill that cannot be deleted from the app.
+
+### 2026-10-24 (eighty-sixth entry) · Claude Code (Sonnet) — ask only, no code touched: requesting Cowork live-test the deployed changes and report back
+
+**For Cowork — please live-test and report back here:**
+Everything from batch61 (81st entry) has been live on `https://jewelos.jewelos-e2e.workers.dev` since 24 Oct, verified byte-for-byte against git — but never clicked through in a real logged-in browser/phone session. Specifically:
+- JEWELOS-2 crash fix (New Sale → Save, `splitRows`)
+- Full stored-XSS remediation (Batches 1–6d): receipts, Edit Bill edit-reason, customer name in dashboard insights, dropdown/enum sites, Day Book manual entry date (Month view → By Person)
+- Text-size sweep (sub-11px font fixes)
+
+You have the live DB/browser access this side doesn't. Please run through Sale, Girvi, Purchases, Day Book, and Settings → Automation on the live site, confirm nothing broke, and write what you find back into this file (new LOG entry, your side).
+
+→ FOR COWORK: live-test the above, report results here.
+→ FOR TANISH: nothing needed from you for this entry.
 
 ### 2026-10-24 (eighty-fifth entry) · Claude Code (Sonnet) — global config change, outside this repo: added Karpathy coding guidelines to `~/.claude/CLAUDE.md`
 

@@ -511,16 +511,32 @@ function submitAdjustStock(){
 function toggleStatus(id){
   var p=S.products.find(function(x){return x.id===id;});
   if(!p)return;
-  var prevStatus=p.status;
-  p.status=p.status==='sold'?'available':'sold';
-  p.qty=p.status==='sold'?0:1;
+  var prevStatus=p.status, prevQty=p.qty;
+  var qtyChange;
+  // Hardcoding qty to 0/1 here lost a multi-piece item's real count on a
+  // sold->available round trip (a 2-piece item toggled sold then back came
+  // back as 1, not 2 -- the second piece was gone, confirmed live on a real
+  // shop 23-24 Oct). Marking sold now remembers the quantity it had;
+  // restoring puts that same number back, not a hardcoded 1.
+  if(p.status==='sold'){
+    p.status='available';
+    p.qty=p._qtyBeforeSold>0?p._qtyBeforeSold:1;
+    qtyChange=p.qty-prevQty;
+  } else {
+    p._qtyBeforeSold=p.qty>0?p.qty:1;
+    p.status='sold';
+    p.qty=0;
+    qtyChange=-prevQty;
+  }
+  if(p.unitWeight){ p.weight=Math.round(p.unitWeight*p.qty*1000)/1000; }
   S.stockMovements=S.stockMovements||[];
   var moveId=(typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID():Date.now().toString(36);
-  S.stockMovements.push({id:moveId,productId:p.id,type:'adjustment',prevStatus:prevStatus,newStatus:p.status,qtyChange:p.status==='sold'?-1:1,relatedId:null,relatedRef:'',reason:'Manual status toggle',user:(typeof SAAS!=='undefined'&&SAAS.user)?(SAAS.user.name||SAAS.user.email||'User'):'User',ts:new Date().toISOString()});
+  S.stockMovements.push({id:moveId,productId:p.id,type:'adjustment',prevStatus:prevStatus,newStatus:p.status,qtyChange:qtyChange,relatedId:null,relatedRef:'',reason:'Manual status toggle',user:(typeof SAAS!=='undefined'&&SAAS.user)?(SAAS.user.name||SAAS.user.email||'User'):'User',ts:new Date().toISOString()});
   saveToCloud(function(err){
     if(!err){renderInv();renderDash();toast(p.name+': '+( p.status==='sold'?'Marked SOLD':'Restored to AVAILABLE'));}
     else{
-      p.status=prevStatus; p.qty=prevStatus==='sold'?0:1;
+      p.status=prevStatus; p.qty=prevQty;
+      if(p.unitWeight){ p.weight=Math.round(p.unitWeight*p.qty*1000)/1000; }
       S.stockMovements=S.stockMovements.filter(function(m){return m.id!==moveId;});
       saveCache();
       if(err.message!=='version-conflict') toast('\u26a0 Could not save — change rolled back.');
