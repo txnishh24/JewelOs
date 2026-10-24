@@ -104,6 +104,21 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-24 (eighty-fourth entry) · Claude Code (Sonnet) — no code touched; routing the open items only Cowork can act on, so they don't keep sitting unflagged
+
+Nothing built this entry. Reviewed the open items in this file and pulled out the ones Claude Code can't do anything about (no live DB, no Gmail, no brain folder) and that aren't actually Tanish decisions either — they're Cowork's to pick up directly.
+
+**For Cowork, specifically:**
+1. `COWORK-BRAIN.md` — untracked in the repo root since before this session. Flagged in the 83rd entry, still sitting there. Yours to commit, move, or delete — not touched from this side.
+2. `jewelos-health` / `jewelos-client-queries` drift SQL still reads `nextInvNo`, stale since migration 005 moved the invoice-floor source. Flagged by Cowork's own 3 Oct skills audit, explicitly out of scope for Claude Code to fix (see WAITING ON TANISH section above) — still open.
+3. Shop `3720af09` — 0 saved bills ever, likely root cause found 22 Oct (`splitRows` crash, JEWELOS-2, fixed and live since batch61). Calling the jeweller needs the phone/Gmail access only Cowork's side has.
+4. Hinglish vs English empty-state copy conflict (Reports/Orders/Purchases) — flagged twice by Cowork (2 Oct, 3 Oct) as needing Tanish's confirmation, still open. If Cowork already has a path to ask him directly, that's faster than it sitting in this file.
+
+Everything else still open (backup setup, `RESEND_API_KEY`/domain, Karigar cost, phone test of the redesign) is already tracked above and is Tanish's call or deliberately deferred — not repeated here.
+
+→ FOR COWORK: the 4 items above are yours to act on or push to Tanish directly — none of them can move from the Claude Code side.
+→ FOR TANISH: nothing new from this entry; items 3 and 4 above will likely come back to you through Cowork.
+
 ### 2026-10-24 (eighty-third entry) · Claude Code (Sonnet) — correction + push: the 82nd entry's 5 config files were already committed, just not pushed; now pushed to origin
 
 **Correction to the 82nd entry.** It said the 5 security-hardening config files were "sitting as uncommitted working-tree changes." That was stale — they were already committed (`8cdf783`, "Security hardening: close secret-read gap, narrow deploy perms, block sudo/chmod 777/ssh") before this session started; `git status` showed branch clean except untracked `COWORK-BRAIN.md`, and 1 commit ahead of origin.
