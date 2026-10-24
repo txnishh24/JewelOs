@@ -6,7 +6,10 @@
       "Read(**/credentials*)",
       "Edit(./.env*)",
       "Edit(**/*.pem)",
-      "Edit(**/credentials*)"
+      "Edit(**/credentials*)",
+      "Bash(sudo*)",
+      "Bash(chmod 777*)",
+      "Bash(ssh*)"
     ]
   },
   "hooks": {

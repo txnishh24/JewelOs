@@ -18,15 +18,21 @@
 //    all and sailed through untouched. Bash commands are free text, not a
 //    clean path, so this can't be as precise as the file_path check -- it's
 //    deliberately conservative (over-block, don't under-block): ANY secret-
-//    pattern substring plus ANY write-shaped token anywhere in the command
-//    denies the whole call, with no attempt at real shell parsing.
+//    pattern substring plus ANY write-shaped OR read-shaped token anywhere in
+//    the command denies the whole call, with no attempt at real shell parsing.
 //    Known gaps, on purpose rather than by oversight: a target built from a
 //    shell variable (`echo x > $F`), heredoc redirection split across lines
-//    in a way the single-line scan misses, or any command run through `sh -c`
-//    /`bash -c` with the dangerous part double-quoted inside another string.
+//    in a way the single-line scan misses, any command run through `sh -c`
+//    /`bash -c` with the dangerous part double-quoted inside another string,
+//    and case variation (`CAT .env` -- neither token regex is case-insensitive,
+//    matching the original WRITE_TOKEN_RE's own long-standing gap).
 //    This is a backstop, not a sandbox -- it catches the common, literal case.
+// 3. Added 24 Oct: READ_TOKEN_RE closes the read-side gap `cat .env` /
+//    `type .env.test` demonstrated against this hook -- SECRET_RE + a write
+//    token denied a write, but nothing stopped a plain read of the same file.
 const SECRET_RE = /\.env(\.[\w-]+)?\b|\.pem\b|credentials/i;
 const WRITE_TOKEN_RE = /(>>?|<<|\bcp\b|\bmv\b|\btee\b|\bdd\b|\brsync\b|\binstall\b)/;
+const READ_TOKEN_RE = /\b(cat|type|more|less|head|tail|grep|strings|od|xxd|base64)\b/;
 
 function deny(reason) {
   console.log(JSON.stringify({
@@ -58,8 +64,8 @@ process.stdin.on('end', () => {
   }
 
   const command = toolInput.command || '';
-  if (command && SECRET_RE.test(command) && WRITE_TOKEN_RE.test(command)) {
-    deny(`Blocked: this command looks like it writes to a protected secret-file pattern (.env*, *.pem, credentials*): ${command}`);
+  if (command && SECRET_RE.test(command) && (WRITE_TOKEN_RE.test(command) || READ_TOKEN_RE.test(command))) {
+    deny(`Blocked: this command looks like it reads or writes a protected secret-file pattern (.env*, *.pem, credentials*): ${command}`);
     return;
   }
 });

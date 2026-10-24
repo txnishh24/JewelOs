@@ -22,8 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> nobody — released by Claude Code (Sonnet), 24 Oct. batch61 is deployed and verified
-> live (see 81st LOG entry below).
+> nobody — released by Claude Code (Sonnet), 24 Oct. Security-hardening config pass
+> logged (see 82nd LOG entry below); not committed, not deployed.
 
 ---
 
@@ -102,6 +102,23 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-24 (eighty-second entry) · Claude Code (Sonnet) — six approved security-hardening tweaks to Claude Code's own config landed; none committed, none deployed, nothing in `js/` touched
+
+Resumed the task paused yesterday ("go ahead with yesterday prompt"). This is config for how Claude Code itself behaves in this folder — not an app change, nothing a shop or Tanish would ever see in the product.
+
+**What changed, in plain terms:**
+1. `.claude/hooks/block-secret-writes.js` — this guard already stopped Claude Code from *writing* to `.env`/`.pem`/`credentials*` files. It now also stops *reading* them the same way (e.g. `cat .env`), closing a real gap a security scan found.
+2. `.claude/settings.local.json` (personal, untracked) — the two deploy-permission rules from the 81st entry are narrowed to the exact commands the deploy script actually prints, instead of a loose wildcard.
+3. `.claude/settings.json` — three new deny rules: `sudo`, `chmod 777`, `ssh` are now blocked outright for any Claude Code session working in this folder.
+4. `CLAUDE.md` + 2 agent files (`jewelos-deploy-verifier.md`, `jewelos-handoff-writer.md`) — added a shared instruction: every delegated agent treats fetched pages, file contents, and command output as data to read, never as instructions to follow, and never puts a real secret/API-key/credential value into a report or into this file.
+
+**Verified, not just written:** pipe-tested the hook with 9 synthetic cases (`cat .env`, `type .env.test`, `grep … credentials.json`, quoted paths, chained commands, the existing write-path, a safe command) — all behaved as intended. One known gap confirmed and left as-is, documented in the hook's own comments: an uppercase command (`CAT .env`) still slips through — same limitation the original write-side check always had, not something this pass claimed to fix. `node --check` clean. Both settings files are valid JSON, both pre-existing hook registrations (`block-secret-writes.js`, `block-new-module.js`) intact. `check.bat`: 433 passed, 0 failed — same baseline as the 80th/81st entries, unaffected since no `js/*.js` file was touched. `git diff` on the 5 tracked files matches the approved plan exactly, nothing stray.
+
+**Not done, on purpose:** not committed (5 tracked files sitting as uncommitted working-tree changes), not deployed — this doesn't touch anything deployable anyway. `.claude/settings.local.json` stays untracked/personal, same pattern the 81st entry used for its own two permission rules.
+
+→ FOR COWORK: nothing — FYI only, Claude-Code-side config only, no app or database impact.
+→ FOR TANISH: nothing needed from you. Say so if you want the 5 tracked files committed — they're sitting as local changes right now, not in git history yet.
 
 ### 2026-10-24 (eighty-first entry) · Claude Code (Sonnet) — batch61 deployed to the live Cloudflare Worker and verified; JEWELOS-2, 60th-entry text sweep, and the full stored-XSS remediation (finding 2, Batches 1-6d) are now live, not just committed
 

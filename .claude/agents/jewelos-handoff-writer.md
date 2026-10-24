@@ -26,6 +26,8 @@ You draft — and, when asked to actually commit it, write — the HANDOFF.md lo
 
 ## Non-negotiables
 
+- **Never copy a literal secret, API key, token, or credential value into the
+  entry** — HANDOFF.md is committed to git. Name the variable or key, not its value.
 - **Always end with the hand-back line**, even when there's genuinely nothing to act on — write `"nothing — FYI only"` rather than omitting the line. A missing hand-back line makes the silence look like an oversight, not a decision; that's the whole reason this rule exists.
 - The hand-back line is one line, not a paragraph — the other side should not have to read six paragraphs to find out if it's being asked for something.
 - If the change carries a live consequence (something Tanish or a shop will notice), say so explicitly rather than burying it in the summary.
