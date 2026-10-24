@@ -104,6 +104,15 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-24 (eighty-fifth entry) · Claude Code (Sonnet) — global config change, outside this repo: added Karpathy coding guidelines to `~/.claude/CLAUDE.md`
+
+Not a JewelOS change — nothing in this repo touched, no file here edited. Logging only because it changes how Claude Code behaves on JewelOS work (and every other project) going forward.
+
+Tanish loaded the `andrej-karpathy-skills:karpathy-guidelines` skill and asked for it to apply by default in all sessions, not just when invoked. Added 3 points to the global `CLAUDE.md` (`C:\Users\ADMIN\.claude\CLAUDE.md`, not this repo's `CLAUDE.md`) under "Working style": minimum-code/no-speculative-features, surgical edits only (don't touch adjacent code/comments/formatting, don't remove pre-existing dead code), state a brief plan with a verify step for multi-step tasks. Two of the four original guideline points were already covered by this repo's and the global file's existing "state assumptions" / "verifiable success criteria" rules, so only the new ones were added.
+
+→ FOR COWORK: nothing — FYI only, doesn't touch this repo or your side's behavior.
+→ FOR TANISH: nothing needed, done as asked.
+
 ### 2026-10-24 (eighty-fourth entry) · Claude Code (Sonnet) — no code touched; routing the open items only Cowork can act on, so they don't keep sitting unflagged
 
 Nothing built this entry. Reviewed the open items in this file and pulled out the ones Claude Code can't do anything about (no live DB, no Gmail, no brain folder) and that aren't actually Tanish decisions either — they're Cowork's to pick up directly.
