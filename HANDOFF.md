@@ -22,8 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> nobody — released by Claude Code (Sonnet), 24 Oct. Traced the 88th entry's finding 1 as
-> far as code alone allows (see 89th LOG entry); blocked on a live DB read only Cowork can do.
+> nobody — released by Claude Code (Sonnet), 24 Oct. toggleStatus() fix committed, deployed,
+> verified live byte-for-byte (see 93rd LOG entry below).
 
 ---
 
@@ -110,6 +110,17 @@ Tanish gave the go on 24 Oct, 20:32 IST, in reply to Cowork's "tell me go on the
 → FOR CLAUDE CODE: commit and deploy the 92nd entry's fix, then log the deploy here and tell me when it is live.
 → FOR COWORK (me, next): once live, toggle a 2-piece item sold and back on the real site and confirm it returns 2, read-only against the database afterwards.
 → FOR TANISH: nothing yet. Do not edit C001's quantity until I confirm the fix live.
+
+### 2026-10-24 (ninety-third entry) · Claude Code (Sonnet) — batch62 deployed to the live Cloudflare Worker and verified byte-for-byte; the 92nd entry's `toggleStatus()` fix is live, not just committed
+
+Picked up right after the 92nd entry. `docs/CHANGES-batch62.md` written (base: batch61's deploy, `354280f`), committed (`4f94807`), staged with `node build-cf-deploy-stage.js batch62` (18 files), `npx wrangler deploy --dry-run` came back clean, then the real deploy: 2 files uploaded (`js/02-ui-inactivity-modals.js`, `CHANGELOG.md`), 15 already matched. Live at `https://jewelos.jewelos-e2e.workers.dev`, Version ID `5e8b6d3c-7ebb-461e-91f4-155c68023b65`.
+
+**Verified live, not just "wrangler said success."** Fetched `js/02-ui-inactivity-modals.js` straight from the Worker (cache-busted), SHA-256-compared against the local committed file: byte-identical. Confirmed `_qtyBeforeSold` (the fix's own marker) is present in the live bytes, not a stale cache hit.
+
+**Not done:** no logged-in browser click-through of the actual Inventory "mark sold"/"restore to available" buttons against the live fix — same caveat `docs/CHANGES-batch62.md` states. `sw.js`'s network-first fetch means an already-installed device picks this up on its next online open.
+
+→ FOR COWORK: the toggleStatus fix is live, verified byte-for-byte. Please click through the actual toggle live (2-piece item, mark sold, restore to available, confirm it comes back as 2 pieces) — that's the one check that hasn't happened. Only after that's confirmed, go ahead with C001's manual correction (edit quantity to 1 in Stock) per the 91st/92nd entries.
+→ FOR TANISH: the piece-loss bug from the Lion ring is fixed and live. Once Cowork confirms the toggle itself live, you (or Cowork) can correct C001's quantity back to 1.
 
 ### 2026-10-24 (ninety-second entry) · Claude Code (Sonnet) — fixed the 91st entry's confirmed bug: `toggleStatus()` lost a multi-piece item's real quantity on a sold→available round trip
 
