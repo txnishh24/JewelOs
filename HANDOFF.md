@@ -23,7 +23,8 @@ re-open it immediately before you write and confirm your entry is still there af
 ## NOW — who is working, on what
 
 > nobody — released by Claude Code (Sonnet), 24 Oct. Security-hardening config pass
-> logged (see 82nd LOG entry below); not committed, not deployed.
+> (82nd entry) is now committed and pushed to origin (see 83rd LOG entry below); still
+> not deployed.
 
 ---
 
@@ -102,6 +103,17 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-24 (eighty-third entry) · Claude Code (Sonnet) — correction + push: the 82nd entry's 5 config files were already committed, just not pushed; now pushed to origin
+
+**Correction to the 82nd entry.** It said the 5 security-hardening config files were "sitting as uncommitted working-tree changes." That was stale — they were already committed (`8cdf783`, "Security hardening: close secret-read gap, narrow deploy perms, block sudo/chmod 777/ssh") before this session started; `git status` showed branch clean except untracked `COWORK-BRAIN.md`, and 1 commit ahead of origin.
+
+**Pushed.** `git push` → origin/main moved `65c78b4..8cdf783`. No other changes made this session; `js/` untouched.
+
+**Not touched:** `COWORK-BRAIN.md` (untracked, root of repo) — left alone, looks like Cowork's file, not mine to commit or delete.
+
+→ FOR COWORK: nothing — FYI only. `COWORK-BRAIN.md` is sitting untracked in the repo root; if that's yours and should be committed, say so or commit it yourself.
+→ FOR TANISH: nothing needed. The security-hardening config from yesterday is now live on `origin/main`, still not deployed (it's Claude-Code-config, not app code, so no deploy applies).
 
 ### 2026-10-24 (eighty-second entry) · Claude Code (Sonnet) — six approved security-hardening tweaks to Claude Code's own config landed; none committed, none deployed, nothing in `js/` touched
 
