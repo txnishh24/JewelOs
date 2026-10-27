@@ -1343,10 +1343,10 @@ function plRow(label, val, color, bold){
 // Without this, the very first open threw a ReferenceError and the
 // Order Items section rendered empty, which looked like the section
 // had "vanished" while working fine after an open/close/reopen cycle.
-var ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''}];
+var ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',karigarPayMode:'',karigarCost:0,karigarWastagePct:0,qty:1,note:''}];
 
 function addOrdItem(){
-  ordItems.push({desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''});
+  ordItems.push({desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',karigarPayMode:'',karigarCost:0,karigarWastagePct:0,qty:1,note:''});
   var wrap=document.getElementById('of-items-wrap');
   if(wrap) wrap.appendChild(buildOrdItemRow(ordItems.length-1));
   calcOrdEst();
@@ -1439,6 +1439,34 @@ function buildOrdItemRow(i){
   mki.placeholder='0'; mki.id='oi-mk-'+i; mki.value=item.making>0?item.making:''; mki.style.flex='1';
   (function(idx){mki.oninput=function(){ordItems[idx].making=parseFloat(this.value)||0;calcOrdEst();};})(i);
   mkw.appendChild(mksel); mkw.appendChild(mki); mkf.appendChild(mkw); g.appendChild(mkf);
+  // Row 4b: Karigar payment (Tanish, 27 Oct) — cash (repair jobs) or wastage %
+  // of weight valued at the pure 24K rate (new-order jobs), per item. Neither
+  // set keeps karigarCostOf() at 0, same as before this field existed.
+  var kf=document.createElement('div'); kf.className='fg'; kf.innerHTML='<label>Karigar Payment</label>';
+  var kw=document.createElement('div'); kw.style.cssText='display:flex;gap:6px;';
+  var ksel=document.createElement('select'); ksel.id='oi-kmode-'+i; ksel.style.cssText='width:auto;padding:9px 28px 9px 8px;font-size:12px;';
+  [['','Not set'],['cash','Cash ₹'],['wastage','Wastage %']].forEach(function(o){var op=document.createElement('option');op.value=o[0];op.textContent=o[1];if(o[0]===(item.karigarPayMode||''))op.selected=true;ksel.appendChild(op);});
+  var kcashI=document.createElement('input'); kcashI.type='text'; kcashI.setAttribute('inputmode','decimal');
+  kcashI.placeholder='₹ per piece'; kcashI.id='oi-kcash-'+i; kcashI.value=item.karigarCost>0?item.karigarCost:''; kcashI.style.flex='1';
+  var kwastI=document.createElement('input'); kwastI.type='text'; kwastI.setAttribute('inputmode','decimal');
+  kwastI.placeholder='% of weight'; kwastI.id='oi-kwast-'+i; kwastI.value=item.karigarWastagePct>0?item.karigarWastagePct:''; kwastI.style.flex='1';
+  function _kVis(){
+    var m=ksel.value;
+    kcashI.style.display = m==='cash' ? '' : 'none';
+    kwastI.style.display = m==='wastage' ? '' : 'none';
+  }
+  _kVis();
+  (function(idx){ksel.onchange=function(){ordItems[idx].karigarPayMode=this.value;_kVis();calcOrdEst();};})(i);
+  (function(idx){kcashI.oninput=function(){ordItems[idx].karigarCost=parseFloat(this.value)||0;calcOrdEst();};})(i);
+  (function(idx){kwastI.oninput=function(){
+    ordItems[idx].karigarWastagePct=parseFloat(this.value)||0;
+    // Soft sanity check only — typical trade range is ~2-12%; still saves a
+    // value outside it, this just catches an obvious fat-finger (40 for 4).
+    var v=parseFloat(this.value)||0;
+    kwastI.style.borderColor = (v>0 && (v<2||v>12)) ? 'var(--warning)' : '';
+    calcOrdEst();
+  };})(i);
+  kw.appendChild(ksel); kw.appendChild(kcashI); kw.appendChild(kwastI); kf.appendChild(kw); g.appendChild(kf);
   // Row 5: Qty + Note
   g.appendChild(field('Quantity','oi-qty-'+i,'number','1',item.qty||1,function(){ordItems[i].qty=parseInt(this.value)||1;}));
   g.appendChild(field('Design Note / Reference','oi-note-'+i,'text','Colour, finish, photo ref...',item.note,function(){ordItems[i].note=this.value;}));
@@ -1568,7 +1596,7 @@ function saveOrder(_pastDateOk){
     restore:function(){ S.nextOrdId=_prevNextOrdId; S.auditLog=_auditSnap; }}, function(err){
     renderOrders();
     if(err) return;
-    ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',qty:1,note:''}];
+    ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',karigarPayMode:'',karigarCost:0,karigarWastagePct:0,qty:1,note:''}];
     toggleOrdForm();
     toast('\u2713 '+ord.ordNo+' saved!');
   });

@@ -2938,6 +2938,41 @@ test('QA P1 item 11: order profit estimate is not the whole quote when no estima
   assert(a.orderProfitEst({ quote:100000, items:[{ metal:'gold', purity:'22K', orderWt:5, qty:1, making:0 }] }) === 100000 - 5*r, 'order weight used when no estimate');
 });
 
+test('karigarCostOf: cash mode is a flat per-piece amount times qty, 0 when unset', function(){
+  var a = require('./harness.js').loadApp();
+  assert(a.karigarCostOf({ karigarPayMode:'cash', karigarCost:500, qty:3 }) === 1500, 'cash cost should scale with qty');
+  assert(a.karigarCostOf({ karigarPayMode:'', qty:3 }) === 0, 'unset mode -> 0, not a guess');
+  assert(a.karigarCostOf({ qty:1 }) === 0, 'no mode field at all -> 0');
+});
+
+test('karigarCostOf: wastage mode is pct of weight at the pure 24K rate, not the item\'s own purity rate', function(){
+  var a = require('./harness.js').loadApp();
+  var g24 = a.getRate('gold','24K');
+  assert(a.karigarCostOf({ karigarPayMode:'wastage', karigarWastagePct:4, weight:15, qty:1 }) === 0.04*15*g24, 'should price wastage at 24K, not 22K');
+  assert(a.karigarCostOf({ karigarPayMode:'wastage', karigarWastagePct:4, estWt:15, qty:2 }) === 0.04*15*2*g24, 'estWt used when weight is absent, scaled by qty');
+});
+
+test('orderProfitEst: real karigar cost overrides the old billed-making guess once set', function(){
+  var a = require('./harness.js').loadApp();
+  var rGold = a.getRate('gold','22K'), g24 = a.getRate('gold','24K');
+  var order = { quote:120000, items:[{ metal:'gold', purity:'22K', orderWt:15, qty:1, making:650, makingType:'per_gram' }] };
+  var oldEst = a.orderProfitEst(order); // no karigar field -> old guess (full making charge as cost)
+  assert(oldEst === 120000 - 15*rGold - 650*15, 'old guess unchanged when field unused');
+  order.items[0].karigarPayMode = 'wastage';
+  order.items[0].karigarWastagePct = 4;
+  var newEst = a.orderProfitEst(order);
+  assert(newEst === 120000 - 15*rGold - 0.04*15*g24, 'real karigar cost replaces the old making-charge guess');
+});
+
+test('calcItemProfit: mcCost comes from karigarCostOf(), 0 for a manual custom sale with no order behind it', function(){
+  var a = require('./harness.js').loadApp();
+  var noOrder = a.calcItemProfit({ weight:15, qty:1, lockedRate:a.getRate('gold','22K'), making:650 });
+  assert(noOrder.mcCost === 0, 'manual custom sale item, no karigar field -> 0 cost, unchanged');
+  var g24 = a.getRate('gold','24K');
+  var fromOrder = a.calcItemProfit({ weight:15, qty:1, lockedRate:a.getRate('gold','22K'), making:650, karigarPayMode:'wastage', karigarWastagePct:4 });
+  assert(fromOrder.mcCost === 0.04*15*g24, 'bill line carried from an order with a recorded karigar cost shows the real figure');
+});
+
 test('an order status not in ORD_STATUS falls back to "new" instead of throwing (16 Oct, loadDemoData seeded "making")', function(){
   assert(app.ordStatusOf({ status:'making' }) === app.ORD_STATUS['new'], 'unknown status falls back to new');
   assert(app.ordStatusOf({}) === app.ORD_STATUS['new'], 'missing status falls back to new');
@@ -4913,6 +4948,68 @@ test('QA 1 Oct P1-7: a custom/order bill line keeps its category for Reports', f
   var s = a.buildSaleObj();
   assert(s.items.length === 1 && s.items[0].cat === 'Rings', 'cat lost: ' + JSON.stringify(s.items));
   assert(a.saleItemCat(s.items[0]) === 'Rings', 'Reports category should be Rings');
+});
+
+test('27 Oct, bug-pattern review: a karigar cost carried onto an order-derived custom line survives buildSaleObj(), not dropped on the floor', function(){
+  var a = loadApp();
+  a.UI.saleMode = 'custom';
+  a.customSaleItems = [{ name:'Order necklace', cat:'Necklaces / Haar', metal:'gold', purity:'22K', grossWt:15, blackBeads:0, diamond:0, making:650, stoneCharges:0,
+                          karigarPayMode:'wastage', karigarCost:0, karigarWastagePct:4 }];
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){ return /^csi-/.test(id) ? null : _o(id); };
+  var s = a.buildSaleObj();
+  assert(s.items[0].karigarPayMode === 'wastage' && s.items[0].karigarWastagePct === 4, 'karigar fields dropped by buildSaleObj(): ' + JSON.stringify(s.items[0]));
+  var g24 = a.getRate('gold','24K');
+  var profit = a.calcItemProfit(s.items[0]);
+  assert(profit.mcCost === 0.04 * s.items[0].weight * g24,
+         'real karigar cost must reach the final bill\'s profit calc, not revert to 0: ' + JSON.stringify(profit));
+});
+
+test('27 Oct, Opus review #1: karigar cost reduces calcSaleProfit (dashboard/reports), not just the category table', function(){
+  var a = loadApp();
+  a.UI.saleMode = 'custom';
+  a.customSaleItems = [{ name:'Order necklace', cat:'Rings', metal:'gold', purity:'22K', grossWt:15, blackBeads:0, diamond:0, making:650, stoneCharges:0,
+                          karigarPayMode:'wastage', karigarCost:0, karigarWastagePct:4 }];
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){ return /^csi-/.test(id) ? null : _o(id); };
+  var sale = a.buildSaleObj();
+  var withKarigar = a.calcSaleProfit(sale).profit;
+
+  sale.items[0].karigarPayMode = ''; // same bill, karigar cost unset -> old behaviour
+  var withoutKarigar = a.calcSaleProfit(sale).profit;
+
+  var g24 = a.getRate('gold','24K');
+  var expectedCost = 0.04 * sale.items[0].weight * g24;
+  assert(approxEqual(withoutKarigar - withKarigar, expectedCost, 1),
+    'karigar cost should reduce calcSaleProfit by exactly the wastage cost (' + expectedCost + '), got a difference of ' + (withoutKarigar - withKarigar));
+});
+
+test('27 Oct, Opus review #2: wastage on a silver item is priced at the silver rate, not gold', function(){
+  var a = loadApp();
+  var sil = a.getRate('silver','22K'); // getRate ignores purity for silver -> same as S.rates.sil
+  var g24 = a.getRate('gold','24K');
+  assert(sil !== g24, 'test fixture should have different gold/silver rates to actually prove this');
+  var silverCost = a.karigarCostOf({ karigarPayMode:'wastage', karigarWastagePct:4, metal:'silver', weight:20, qty:1 });
+  assert(silverCost === 0.04 * 20 * sil, 'silver wastage must use the silver rate: expected ' + (0.04*20*sil) + ', got ' + silverCost);
+  assert(silverCost !== 0.04 * 20 * g24, 'silver wastage must NOT be priced at the gold 24K rate');
+});
+
+test('27 Oct, Opus review #3: karigar cost on a saved bill uses the rate locked at sale time, not today\'s rate', function(){
+  var a = loadApp();
+  a.UI.saleMode = 'custom';
+  a.customSaleItems = [{ name:'Order necklace', cat:'Rings', metal:'gold', purity:'22K', grossWt:15, blackBeads:0, diamond:0, making:650, stoneCharges:0,
+                          karigarPayMode:'wastage', karigarCost:0, karigarWastagePct:4 }];
+  var _o = a.document.getElementById;
+  a.document.getElementById = function(id){ return /^csi-/.test(id) ? null : _o(id); };
+  var sale = a.buildSaleObj();
+  var lockedRate = sale.items[0].karigarRate;
+  assert(lockedRate > 0, 'buildSaleObj should lock a karigarRate on the sale item, got ' + lockedRate);
+
+  var profitAtSaveTime = a.calcItemProfit(sale.items[0]).mcCost;
+  a.S.rates.g24 = a.S.rates.g24 * 2; // the gold rate moves after this bill was already saved
+  var profitLater = a.calcItemProfit(sale.items[0]).mcCost;
+  assert(profitAtSaveTime === profitLater,
+    'an already-saved bill\'s karigar cost must not drift when today\'s rate changes: was ' + profitAtSaveTime + ', now ' + profitLater);
 });
 
 test('QA 1 Oct P1-8: Pending Aging never labels an unpaid bill "Paid"', function(){

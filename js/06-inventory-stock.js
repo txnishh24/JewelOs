@@ -62,7 +62,13 @@ function orderProfitEst(o){
     var rate = getRate(it.metal||'gold', it.purity||'22K');
     return s + rate * _w(it) * (parseInt(it.qty)||1);
   },0);
+  // Real karigar cost (karigarCostOf, 01-sync-core.js) when an item recorded
+  // one; otherwise fall back to the old guess -- the billed making charge
+  // treated as if it were the cost, zero margin on labour -- unchanged for
+  // any order that hasn't used the new field.
   var mcCost = (o.items||[]).reduce(function(s,it){
+    var real = karigarCostOf(it);
+    if(real > 0) return s + real;
     var mc = parseFloat(it.making)||0;
     var qty = parseInt(it.qty)||1;
     return s + (it.makingType==='per_gram' ? mc*_w(it)*qty : mc*qty);

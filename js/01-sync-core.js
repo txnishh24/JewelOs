@@ -1704,6 +1704,27 @@ function getItemCostRate(item){
   return getItemRate(item);
 }
 
+// Karigar cost of one line (Tanish, 27 Oct): recorded two ways, per item --
+// flat cash (repair jobs) or wastage % of net weight valued at the pure 24K
+// rate (new-order jobs, since that's the purity the shop and karigar actually
+// settle in, not the finished piece's own karat). Returns 0 when neither mode
+// is set, which is the old (honest-because-unknown) behaviour unchanged.
+function karigarCostOf(item){
+  var qty = parseInt(item.qty) || 1;
+  if(item.karigarPayMode==='cash') return (parseFloat(item.karigarCost)||0) * qty;
+  if(item.karigarPayMode==='wastage'){
+    var wt = parseFloat(item.weight||item.estWt||item.orderWt) || 0;
+    // karigarRate is locked at bill time (buildSaleObj, same convention as
+    // lockedRate) so an old bill's profit doesn't move every time today's
+    // rate changes; the live order estimate has no locked rate yet, so it
+    // reads the current one. metal-aware: a silver order wastes silver, not
+    // gold (Opus review, 27 Oct -- this used to hardcode 'gold' for every metal).
+    var rate = item.karigarRate || getRate(item.metal||'gold','24K');
+    return (parseFloat(item.karigarWastagePct)||0)/100 * wt * qty * rate;
+  }
+  return 0;
+}
+
 function calcItemProfit(item){
   var sellRate  = getItemRate(item);
   var costRate  = getItemCostRate(item);
@@ -1715,11 +1736,13 @@ function calcItemProfit(item){
   // mcRate is the product's Making Charge per gram — what the customer is
   // billed, not what the karigar was paid. It used to be subtracted here as a
   // cost as well, which made every sale carrying a making charge show a loss
-  // of exactly that amount. No separate making cost is recorded anywhere, so
-  // the honest figure is zero; making cost lives inside costRate (the rate the
-  // shop paid for the finished piece).
+  // of exactly that amount. No separate making cost was recorded anywhere, so
+  // the honest figure was zero; making cost lived inside costRate (the rate
+  // the shop paid for the finished piece). karigarCostOf() now supplies a
+  // real figure when the order it came from recorded one -- still 0 for a
+  // manual custom sale with no order behind it, same as before.
   var mcCharged = itemMakingAmount(item);
-  var mcCost    = 0;
+  var mcCost    = karigarCostOf(item);
   // Stone/diamond: full margin (cost not tracked separately → 0 cost assumed unless set)
   var stoneSell = (parseFloat(item.diamond)||0) * qty;
   var stoneCost = (parseFloat(item.stoneCost)||0) * qty;
@@ -1746,7 +1769,11 @@ function saleItemCost(i){
   var p = S.products.find(function(x){ return x.id===i.pid; });
   var costRate = (p && p.costRate > 0) ? p.costRate : getItemRate(i);
   var stoneCost= (parseFloat(i.stoneCost)||0) * (i.qty||1);
-  return costRate * (parseFloat(i.weight)||0) * (i.qty||1) + stoneCost;
+  // karigarCostOf (Opus review, 27 Oct): calcItemProfit alone only feeds the
+  // Category Intelligence table -- calcSaleProfit/calcRefundAdj go through
+  // THIS function for every other profit figure (dashboard, P&L, reports),
+  // and were still silently treating an order-derived bill's karigar wage as 0.
+  return costRate * (parseFloat(i.weight)||0) * (i.qty||1) + stoneCost + karigarCostOf(i);
 }
 
 function calcSaleProfit(sale){
