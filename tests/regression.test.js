@@ -6560,6 +6560,31 @@ test('QA M4: focusing a field that already has a real value leaves it untouched'
   assert(el.value === '3', 'focus must only clear a literal "0", not a real value, got ' + JSON.stringify(el.value));
 });
 
+// ── Karigar directory (Task 2: Karigar Management) ─────────────────────
+console.log('\nKarigar directory:');
+test('addOrGetKarigar: creates a new karigar on first use, reuses an existing one by name (case/whitespace-insensitive)', function(){
+  var a = loadApp();
+  var k1 = a.addOrGetKarigar('Ramesh');
+  assert(k1 && k1.id && k1.name === 'Ramesh', 'should create a karigar with an id: ' + JSON.stringify(k1));
+  assert(a.S.karigars.length === 1, 'should push exactly one karigar');
+
+  var k2 = a.addOrGetKarigar('  ramesh  ');
+  assert(k2.id === k1.id, 'same name (trimmed, case-insensitive) should reuse the existing karigar, not duplicate it');
+  assert(a.S.karigars.length === 1, 'still only one karigar after the "duplicate" call');
+
+  var k3 = a.addOrGetKarigar('Suresh');
+  assert(k3.id !== k1.id, 'a genuinely different name creates a second karigar');
+  assert(a.S.karigars.length === 2, 'two distinct karigars now exist');
+});
+
+test('findKarigar: returns undefined for an unknown or deleted id, never throws', function(){
+  var a = loadApp();
+  var k = a.addOrGetKarigar('Ramesh');
+  assert(a.findKarigar(k.id) === k, 'should find the karigar just created');
+  assert(a.findKarigar('does-not-exist') === undefined, 'unknown id -> undefined, not a throw');
+  assert(a.findKarigar(undefined) === undefined, 'no id at all -> undefined, not a throw');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

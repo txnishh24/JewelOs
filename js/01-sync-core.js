@@ -1018,6 +1018,25 @@ function toast(msg){
   clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},ms);
 }
 
+// Karigar directory — same auto-create-on-type pattern as S.suppliers
+// (09-purchases.js:888), now a named function since both the order-item
+// karigar picker and the karigar list UI need to call it, not just one
+// inline save handler.
+function addOrGetKarigar(name){
+  name = (name||'').trim();
+  var existing = (S.karigars||[]).find(function(k){ return (k.name||'').trim().toLowerCase() === name.toLowerCase(); });
+  if(existing) return existing;
+  var k = { id: 'kar' + (Date.now()) + Math.floor(Math.random()*1000), name: name, phone: '' };
+  S.karigars = S.karigars || [];
+  S.karigars.push(k);
+  return k;
+}
+
+function findKarigar(id){
+  if(!id) return undefined;
+  return (S.karigars||[]).find(function(k){ return k.id === id; });
+}
+
 function getRate(metal,purity){
   if(!metal||!purity) return 0;
   if(!S.rates||typeof S.rates!=='object') return 0; // null guard
