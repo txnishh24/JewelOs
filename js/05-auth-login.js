@@ -1048,6 +1048,56 @@ function renderSettings(){
   if(accEl){
     accEl.innerHTML = '<b>'+escHtml(SAAS.user.name)+'</b> &bull; '+escHtml(SAAS.user.email)+' &bull; <span class="role-badge '+(SAAS.user.role==='owner'?'':'staff')+'">'+escHtml(SAAS.user.role)+'</span>' + subAccountLineHtml();
   }
+
+  // Karigar Management (27 Oct): one card per karigar, same derived-not-stored
+  // principle as pbSupplierLedgerHtml (09-purchases.js) -- nothing here is
+  // kept pre-computed, karigarOwed/karigarStats/karigarQueue scan the real
+  // records fresh every render.
+  renderKarigarList();
+}
+
+// Karigar Management (27 Oct): one card per karigar, same derived-not-stored
+// principle as pbSupplierLedgerHtml (09-purchases.js) -- nothing here is
+// kept pre-computed, karigarOwed/karigarStats/karigarQueue scan the real
+// records fresh every render.
+function renderKarigarList(){
+  var wrap = document.getElementById('karigar-list');
+  if(!wrap) return;
+  var monthKey = dbDayKey(new Date()).slice(0,7);
+  var cards = (S.karigars||[]).map(function(k){
+    var owed = karigarOwed(k.id);
+    var month = karigarStats(k.id, monthKey);
+    var life = karigarStats(k.id);
+    var queue = karigarQueue(k.id);
+    return '<div class="card" style="margin-bottom:12px;">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;">'+
+        '<strong>'+escHtml(k.name)+'</strong>'+
+        '<span style="font-size:12px;color:var(--text3);">'+queue.length+' in progress</span>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px;font-size:13px;">'+
+        '<div>This month: <b>'+month.piecesSubmitted+'</b> pieces, '+fmt(month.cash)+' cash, '+month.gold.toFixed(2)+'g gold, '+month.silver.toFixed(2)+'g silver</div>'+
+        '<div>Lifetime: <b>'+life.piecesSubmitted+'</b> pieces, '+fmt(life.cash)+' cash, '+life.gold.toFixed(2)+'g gold, '+life.silver.toFixed(2)+'g silver</div>'+
+        '<div style="color:'+(owed.cash>0?'var(--danger)':'var(--text2)')+';">Owed cash: '+fmt(owed.cash)+'</div>'+
+        '<div style="color:'+((owed.gold>0||owed.silver>0)?'var(--danger)':'var(--text2)')+';">Owed gold: '+owed.gold.toFixed(2)+'g · silver: '+owed.silver.toFixed(2)+'g</div>'+
+      '</div>'+
+      '<button class="btn btn-sm" style="margin-top:8px;" onclick="promptKarigarPayment(\''+jsAttrEsc(k.id)+'\')">Record Payment</button>'+
+    '</div>';
+  }).join('') || '<div style="color:var(--text3);padding:12px;">No karigars yet — add one from an order item\'s Karigar Stages.</div>';
+  wrap.innerHTML = cards;
+}
+
+// A minimal prompt-based entry point for v1 -- a full modal form is a later
+// polish pass, not required for the core workflow (assign -> submit -> see
+// balance -> settle) this task exists to close.
+function promptKarigarPayment(karigarId){
+  var type = prompt('Payment type: cash, gold, or silver?', 'cash');
+  if(!type || ['cash','gold','silver'].indexOf(type)===-1){ toast('Cancelled — type must be cash, gold, or silver'); return; }
+  var amount = parseFloat(prompt(type==='cash' ? 'Amount paid (₹)?' : 'Weight handed over (grams)?'));
+  if(!(amount > 0)){ toast('Cancelled — enter a positive amount'); return; }
+  var note = prompt('Note (optional):','') || '';
+  recordKarigarPayment(karigarId, type, amount, note);
+  renderKarigarList();
+  toast('✓ Payment recorded');
 }
 
 function saveShopProfile(){
