@@ -6657,7 +6657,6 @@ test('karigarStageCost: factors the per-stage cash/wastage math out of karigarCo
 
 test('karigarOwed: sums submitted-stage cost across orders and sales, nets against recorded payments, per unit', function(){
   var a = loadApp();
-  var g24 = a.getRate('gold','24K');
   var k = a.addOrGetKarigar('Ramesh');
   a.S.orders = [{ id:'o1', items:[{ metal:'gold', weight:10, qty:1, karigarStages:[
     { karigarId:k.id, karigarPayMode:'wastage', karigarWastagePct:4, status:'submitted' }
@@ -6669,7 +6668,9 @@ test('karigarOwed: sums submitted-stage cost across orders and sales, nets again
   a.S.karigarPayments = [{ karigarId:k.id, type:'cash', amount:100 }];
 
   var owed = a.karigarOwed(k.id);
-  assert(owed.gold === 0.04*10*g24, 'gold owed: ' + JSON.stringify(owed));
+  // Wastage is owed in GRAMS, never converted to a rupee snapshot -- the shop
+  // physically hands over gold/silver, not its rupee-equivalent at today's rate.
+  assert(owed.gold === 0.04*10, 'gold owed should be raw grams (0.04 x 10wt), not a rupee figure: ' + JSON.stringify(owed));
   assert(owed.silver === 0, 'no silver work recorded -> 0, not undefined');
   assert(owed.cash === 200, 'cash owed should be 300 earned minus 100 paid: ' + JSON.stringify(owed));
 });
@@ -6683,6 +6684,39 @@ test('karigarOwed: a karigar with submitted work and no payments ever recorded o
   a.S.karigarPayments = []; // nobody has ever been paid
   var owed = a.karigarOwed(k.id);
   assert(owed.cash === 500, 'full amount owed with no payment history: ' + JSON.stringify(owed));
+});
+
+test('karigarStats: filters by submittedDate month prefix when monthKey is given, lifetime when omitted', function(){
+  var a = loadApp();
+  var k = a.addOrGetKarigar('Ramesh');
+  var now = new Date();
+  var thisMonthKey = a.dbDayKey(now).slice(0,7);
+  var lastMonth = new Date(now.getFullYear(), now.getMonth()-1, 15);
+  var lastMonthKey = a.dbDayKey(lastMonth).slice(0,7);
+  var thisMonthDate = thisMonthKey + '-10';
+  var lastMonthDate = lastMonthKey + '-10';
+
+  a.S.orders = [{ id:'o1', items:[
+    { metal:'gold', weight:10, qty:1, karigarStages:[
+      { karigarId:k.id, karigarPayMode:'wastage', karigarWastagePct:4, status:'submitted', submittedDate:thisMonthDate }
+    ]},
+    { metal:'gold', weight:20, qty:1, karigarStages:[
+      { karigarId:k.id, karigarPayMode:'wastage', karigarWastagePct:5, status:'submitted', submittedDate:thisMonthDate }
+    ]}
+  ]}];
+  a.S.sales = [{ items:[{ metal:'gold', weight:5, qty:1, karigarStages:[
+    { karigarId:k.id, karigarPayMode:'cash', karigarCost:300, status:'submitted', submittedDate:lastMonthDate }
+  ]}]}];
+
+  var thisMonth = a.karigarStats(k.id, thisMonthKey);
+  assert(thisMonth.piecesSubmitted === 2, 'only the 2 this-month stages, not last month\'s cash stage: ' + JSON.stringify(thisMonth));
+  assert(thisMonth.gold === 0.04*10 + 0.05*20, 'gold grams for this month only (two wastage stages): ' + JSON.stringify(thisMonth));
+  assert(thisMonth.cash === 0, 'last month\'s cash stage must not leak into this month\'s totals: ' + JSON.stringify(thisMonth));
+
+  var lifetime = a.karigarStats(k.id);
+  assert(lifetime.piecesSubmitted === 3, 'lifetime (no monthKey) must include both months: ' + JSON.stringify(lifetime));
+  assert(lifetime.cash === 300, 'lifetime cash includes last month\'s stage too: ' + JSON.stringify(lifetime));
+  assert(lifetime.gold === 0.04*10 + 0.05*20, 'lifetime gold grams unchanged by adding the cash stage: ' + JSON.stringify(lifetime));
 });
 
 test('karigarQueue: lists every currently-assigned (not yet submitted) stage for a karigar, across orders', function(){

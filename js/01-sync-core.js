@@ -1765,6 +1765,17 @@ function karigarStageCost(item, stage){
   return 0;
 }
 
+// Raw wastage grams owed for one stage (0 for cash mode or an unsubmitted
+// stage) -- separate from karigarStageCost's rupee COST figure, since what's
+// physically handed to the karigar in wastage mode is grams, never converted
+// to a rupee snapshot (spec decision: no Rs-equivalent for wastage balances).
+function karigarStageGrams(item, stage){
+  if(stage.status !== 'submitted' || stage.karigarPayMode !== 'wastage') return 0;
+  var qty = parseInt(item.qty) || 1;
+  var wt  = parseFloat(item.weight||item.estWt||item.orderWt) || 0;
+  return (parseFloat(stage.karigarWastagePct)||0)/100 * wt * qty;
+}
+
 // Every item carrying at least one karigarStages entry, across both S.orders
 // (pre-sale) and S.sales (post-sale) -- a stage doesn't stop counting once
 // the order becomes a bill, since that's how the karigar actually gets paid.
@@ -1784,12 +1795,13 @@ function karigarOwed(karigarId){
   var totals = { cash:0, gold:0, silver:0 };
   _allKarigarStageEntries().forEach(function(e){
     if(e.stage.karigarId !== karigarId) return;
-    var cost = karigarStageCost(e.item, e.stage);
-    if(cost <= 0) return;
-    if(e.stage.karigarPayMode === 'cash') totals.cash += cost;
-    else if(e.stage.karigarPayMode === 'wastage'){
+    if(e.stage.status !== 'submitted') return;
+    if(e.stage.karigarPayMode === 'cash'){
+      totals.cash += karigarStageCost(e.item, e.stage);
+    } else if(e.stage.karigarPayMode === 'wastage'){
+      var grams = karigarStageGrams(e.item, e.stage);
       var metal = e.item.metal || 'gold';
-      if(metal === 'silver') totals.silver += cost; else totals.gold += cost;
+      if(metal === 'silver') totals.silver += grams; else totals.gold += grams;
     }
   });
   (S.karigarPayments||[]).forEach(function(p){
@@ -1807,12 +1819,13 @@ function karigarStats(karigarId, monthKey){
     if(e.stage.karigarId !== karigarId) return;
     if(e.stage.status !== 'submitted') return;
     if(monthKey && (e.stage.submittedDate||'').slice(0,7) !== monthKey) return;
-    var cost = karigarStageCost(e.item, e.stage);
     out.piecesSubmitted++;
-    if(e.stage.karigarPayMode === 'cash') out.cash += cost;
-    else if(e.stage.karigarPayMode === 'wastage'){
+    if(e.stage.karigarPayMode === 'cash'){
+      out.cash += karigarStageCost(e.item, e.stage);
+    } else if(e.stage.karigarPayMode === 'wastage'){
+      var grams = karigarStageGrams(e.item, e.stage);
       var metal = e.item.metal || 'gold';
-      if(metal === 'silver') out.silver += cost; else out.gold += cost;
+      if(metal === 'silver') out.silver += grams; else out.gold += grams;
     }
   });
   return out;
