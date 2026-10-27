@@ -1735,22 +1735,99 @@ function getItemCostRate(item){
 // used to read directly. Only a SUBMITTED stage has actually been earned;
 // an assigned-but-unfinished stage costs nothing yet.
 function karigarCostOf(item){
+  return (item.karigarStages||[]).reduce(function(sum, stage){ return sum + karigarStageCost(item, stage); }, 0);
+}
+
+// ── KARIGAR MANAGEMENT — derived views ───────────────────────────────
+// Nothing here is stored pre-computed; every view is scanned fresh from
+// S.orders/S.sales/S.karigarPayments on read, same reasoning as why
+// Suppliers' ledger (09-purchases.js pbSupplierLedgerHtml) is derived from
+// purchase bills rather than kept as a separate running total that could
+// drift out of sync.
+
+// The one place the per-stage cash/wastage formula lives -- karigarCostOf()
+// (above) sums this across an item's stages for the profit engine;
+// karigarOwed/karigarStats attribute it to a SPECIFIC karigar below.
+function karigarStageCost(item, stage){
+  if(stage.status !== 'submitted') return 0;
   var qty = parseInt(item.qty) || 1;
   var wt  = parseFloat(item.weight||item.estWt||item.orderWt) || 0;
-  return (item.karigarStages||[]).reduce(function(sum, stage){
-    if(stage.status !== 'submitted') return sum;
-    if(stage.karigarPayMode === 'cash') return sum + (parseFloat(stage.karigarCost)||0) * qty;
-    if(stage.karigarPayMode === 'wastage'){
-      // karigarRate is locked at bill time (buildSaleObj, same convention as
-      // lockedRate) so an old bill's profit doesn't move every time today's
-      // rate changes; the live order estimate has no locked rate yet, so it
-      // reads the current one. Read from the ITEM's metal, never the stage --
-      // all stages on one item share one physical piece's metal.
-      var rate = stage.karigarRate || getRate(item.metal||'gold','24K');
-      return sum + (parseFloat(stage.karigarWastagePct)||0)/100 * wt * qty * rate;
+  if(stage.karigarPayMode === 'cash') return (parseFloat(stage.karigarCost)||0) * qty;
+  if(stage.karigarPayMode === 'wastage'){
+    // karigarRate is locked at bill time (buildSaleObj, same convention as
+    // lockedRate) so an old bill's profit doesn't move every time today's
+    // rate changes; the live order estimate has no locked rate yet, so it
+    // reads the current one. Read from the ITEM's metal, never the stage --
+    // all stages on one item share one physical piece's metal.
+    var rate = stage.karigarRate || getRate(item.metal||'gold','24K');
+    return (parseFloat(stage.karigarWastagePct)||0)/100 * wt * qty * rate;
+  }
+  return 0;
+}
+
+// Every item carrying at least one karigarStages entry, across both S.orders
+// (pre-sale) and S.sales (post-sale) -- a stage doesn't stop counting once
+// the order becomes a bill, since that's how the karigar actually gets paid.
+function _allKarigarStageEntries(){
+  var out = [];
+  (S.orders||[]).concat(S.sales||[]).forEach(function(rec){
+    (rec.items||[]).forEach(function(item){
+      (item.karigarStages||[]).forEach(function(stage){
+        out.push({ item:item, stage:stage, ordNo:rec.ordNo, orderId:rec.id, itemName:item.desc||item.name||'' });
+      });
+    });
+  });
+  return out;
+}
+
+function karigarOwed(karigarId){
+  var totals = { cash:0, gold:0, silver:0 };
+  _allKarigarStageEntries().forEach(function(e){
+    if(e.stage.karigarId !== karigarId) return;
+    var cost = karigarStageCost(e.item, e.stage);
+    if(cost <= 0) return;
+    if(e.stage.karigarPayMode === 'cash') totals.cash += cost;
+    else if(e.stage.karigarPayMode === 'wastage'){
+      var metal = e.item.metal || 'gold';
+      if(metal === 'silver') totals.silver += cost; else totals.gold += cost;
     }
-    return sum;
-  }, 0);
+  });
+  (S.karigarPayments||[]).forEach(function(p){
+    if(p.karigarId !== karigarId) return;
+    if(p.type === 'cash')   totals.cash   -= (parseFloat(p.amount)||0);
+    if(p.type === 'gold')   totals.gold   -= (parseFloat(p.amount)||0);
+    if(p.type === 'silver') totals.silver -= (parseFloat(p.amount)||0);
+  });
+  return totals;
+}
+
+function karigarStats(karigarId, monthKey){
+  var out = { piecesSubmitted:0, cash:0, gold:0, silver:0 };
+  _allKarigarStageEntries().forEach(function(e){
+    if(e.stage.karigarId !== karigarId) return;
+    if(e.stage.status !== 'submitted') return;
+    if(monthKey && (e.stage.submittedDate||'').slice(0,7) !== monthKey) return;
+    var cost = karigarStageCost(e.item, e.stage);
+    out.piecesSubmitted++;
+    if(e.stage.karigarPayMode === 'cash') out.cash += cost;
+    else if(e.stage.karigarPayMode === 'wastage'){
+      var metal = e.item.metal || 'gold';
+      if(metal === 'silver') out.silver += cost; else out.gold += cost;
+    }
+  });
+  return out;
+}
+
+function karigarQueue(karigarId){
+  return _allKarigarStageEntries()
+    .filter(function(e){ return e.stage.karigarId === karigarId && e.stage.status !== 'submitted'; })
+    .map(function(e){ return { orderId:e.orderId, ordNo:e.ordNo, itemName:e.itemName, task:e.stage.task||'', assignedDate:e.stage.assignedDate||'' }; });
+}
+
+function recordKarigarPayment(karigarId, type, amount, note){
+  S.karigarPayments = S.karigarPayments || [];
+  S.karigarPayments.push({ id:'kp'+Date.now()+Math.floor(Math.random()*1000), karigarId:karigarId, date:dbDayKey(new Date()), type:type, amount:parseFloat(amount)||0, note:note||'' });
+  saveToCloud(function(){});
 }
 
 function calcItemProfit(item){

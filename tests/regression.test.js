@@ -6641,6 +6641,72 @@ test('markStageSubmitted: no-ops when every stage is already submitted, or there
   assert(saved === 0, 'none of the no-op cases should trigger a save');
 });
 
+test('karigarStageCost: factors the per-stage cash/wastage math out of karigarCostOf without changing its total', function(){
+  var a = loadApp();
+  var g24 = a.getRate('gold','24K');
+  var item = { metal:'gold', weight:10, qty:2, karigarStages:[
+    { karigarPayMode:'wastage', karigarWastagePct:4, status:'submitted' },
+    { karigarPayMode:'cash', karigarCost:50, status:'submitted' }
+  ]};
+  var stage0Cost = a.karigarStageCost(item, item.karigarStages[0]);
+  var stage1Cost = a.karigarStageCost(item, item.karigarStages[1]);
+  assert(stage0Cost === 0.04*10*2*g24, 'wastage stage cost: ' + stage0Cost);
+  assert(stage1Cost === 100, 'cash stage cost (50 x qty 2): ' + stage1Cost);
+  assert(a.karigarCostOf(item) === stage0Cost + stage1Cost, 'karigarCostOf total must still equal the sum of per-stage costs');
+});
+
+test('karigarOwed: sums submitted-stage cost across orders and sales, nets against recorded payments, per unit', function(){
+  var a = loadApp();
+  var g24 = a.getRate('gold','24K');
+  var k = a.addOrGetKarigar('Ramesh');
+  a.S.orders = [{ id:'o1', items:[{ metal:'gold', weight:10, qty:1, karigarStages:[
+    { karigarId:k.id, karigarPayMode:'wastage', karigarWastagePct:4, status:'submitted' }
+  ]}]}];
+  a.S.sales = [{ items:[{ metal:'gold', weight:5, qty:1, karigarStages:[
+    { karigarId:k.id, karigarPayMode:'cash', karigarCost:300, status:'submitted' },
+    { karigarId:k.id, karigarPayMode:'cash', karigarCost:999, status:'assigned' } // not yet earned
+  ]}]}];
+  a.S.karigarPayments = [{ karigarId:k.id, type:'cash', amount:100 }];
+
+  var owed = a.karigarOwed(k.id);
+  assert(owed.gold === 0.04*10*g24, 'gold owed: ' + JSON.stringify(owed));
+  assert(owed.silver === 0, 'no silver work recorded -> 0, not undefined');
+  assert(owed.cash === 200, 'cash owed should be 300 earned minus 100 paid: ' + JSON.stringify(owed));
+});
+
+test('karigarOwed: a karigar with submitted work and no payments ever recorded owes the full amount, not a throw', function(){
+  var a = loadApp();
+  var k = a.addOrGetKarigar('Ramesh');
+  a.S.orders = [{ id:'o1', items:[{ metal:'gold', weight:10, qty:1, karigarStages:[
+    { karigarId:k.id, karigarPayMode:'cash', karigarCost:500, status:'submitted' }
+  ]}]}];
+  a.S.karigarPayments = []; // nobody has ever been paid
+  var owed = a.karigarOwed(k.id);
+  assert(owed.cash === 500, 'full amount owed with no payment history: ' + JSON.stringify(owed));
+});
+
+test('karigarQueue: lists every currently-assigned (not yet submitted) stage for a karigar, across orders', function(){
+  var a = loadApp();
+  var k = a.addOrGetKarigar('Ramesh');
+  a.S.orders = [
+    { id:'o1', ordNo:'ORD-1', items:[{ desc:'Necklace', karigarStages:[{ karigarId:k.id, task:'Gold work', status:'assigned', assignedDate:'2026-10-27' }] }] },
+    { id:'o2', ordNo:'ORD-2', items:[{ desc:'Ring', karigarStages:[{ karigarId:k.id, task:'Gold work', status:'submitted' }] }] } // already done -> not in queue
+  ];
+  var queue = a.karigarQueue(k.id);
+  assert(queue.length === 1, 'only the unsubmitted stage should appear: ' + JSON.stringify(queue));
+  assert(queue[0].ordNo === 'ORD-1' && queue[0].itemName === 'Necklace' && queue[0].task === 'Gold work', 'wrong queue entry: ' + JSON.stringify(queue[0]));
+});
+
+test('recordKarigarPayment: appends to S.karigarPayments and persists', function(){
+  var a = loadApp(), saved = 0;
+  a.saveToCloud = function(cb){ saved++; cb && cb(null); };
+  var k = a.addOrGetKarigar('Ramesh');
+  a.recordKarigarPayment(k.id, 'cash', 500, 'advance');
+  assert(a.S.karigarPayments.length === 1, 'should append one payment');
+  assert(a.S.karigarPayments[0].karigarId === k.id && a.S.karigarPayments[0].amount === 500 && a.S.karigarPayments[0].type === 'cash', 'payment fields wrong: ' + JSON.stringify(a.S.karigarPayments[0]));
+  assert(saved === 1, 'should persist');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');
