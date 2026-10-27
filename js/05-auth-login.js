@@ -1145,6 +1145,8 @@ function exportFullBackup(){
       customers:  S.customers||[],
       purchases:  S.purchases||[],
       suppliers:  S.suppliers||[],
+      karigars:        S.karigars||[],
+      karigarPayments: S.karigarPayments||[],
       rates:      S.rates,
       purchaseCfg:S.purchaseCfg||null,
       waRules:    S.waRules||null,
@@ -1203,6 +1205,8 @@ function processBackupFile(input){
         if(d.customers)  S.customers   = d.customers;
         if(d.purchases)  S.purchases   = d.purchases;
         if(d.suppliers)  S.suppliers   = d.suppliers;
+        if(d.karigars)        S.karigars        = d.karigars;
+        if(d.karigarPayments) S.karigarPayments = d.karigarPayments;
         if(d.rates)      S.rates       = d.rates;
         if(d.purchaseCfg)S.purchaseCfg = d.purchaseCfg;
         if(d.waRules)    S.waRules     = d.waRules;

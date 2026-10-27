@@ -14,6 +14,8 @@ const before = {
   customers: [{ id: 1, name: 'R. Kumar' }],
   purchases: [{ id: 1, billNo: 'PB-1', supplier: 'Mehta Bullion' }],
   suppliers: [{ id: 1, name: 'Mehta Bullion' }],
+  karigars: [{ id: 1, name: 'Ramesh', phone: '9000000001' }],
+  karigarPayments: [{ id: 1, karigarId: 1, date: '2026-10-27', type: 'cash', amount: 500, note: 'advance' }],
   rates: { g24: 7800, g22: 7200 },
   purchaseCfg: { showWastage: false },
   waRules: { reminder: true },

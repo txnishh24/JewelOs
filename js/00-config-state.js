@@ -65,6 +65,7 @@ try{ if(/[?&]dev=1(&|$)/.test(location.search)) document.documentElement.classLi
 var S = {
   products:[], sales:[], orders:[], girvi:[], customers:[],
   purchases:[], suppliers:[], purchaseAuditLog:[],
+  karigars:[], karigarPayments:[],
   rates:{g24:7800,g22:7200,g18:5900,g14:4600,sil:95},
   nextId:1, nextSaleId:1, nextInvNo:1, nextOrdId:1, nextGirviId:1, nextPurchaseId:1, nextPurchaseBillNo:1,
   purchaseCfg:{gst:true, goldRate:false, stone:false, hallmark:false, credit:false, timeline:false},

@@ -522,6 +522,7 @@ function saveCache(){
       shopId:ownerShopId,
       products:S.products,sales:S.sales,orders:S.orders||[],girvi:S.girvi||[],customers:S.customers||[],
       purchases:S.purchases||[],suppliers:S.suppliers||[],purchaseAuditLog:S.purchaseAuditLog||[],purchaseCfg:S.purchaseCfg||{},rates:S.rates,
+      karigars:S.karigars||[],karigarPayments:S.karigarPayments||[],
       auditLog:S.auditLog||[],activityLog:S.activityLog||[],waRules:S.waRules||[],dayBook:S.dayBook||null,
       stockMovements:S.stockMovements||[], // F2: was never cached, so stock history vanished on every reopen
       voidedInvNos:S.voidedInvNos||[],
@@ -740,6 +741,8 @@ function loadCache(){
     if(Array.isArray(r.customers)) S.customers=r.customers;
     if(Array.isArray(r.purchases)) S.purchases=r.purchases;
     if(Array.isArray(r.suppliers)) S.suppliers=r.suppliers;
+    if(Array.isArray(r.karigars)) S.karigars=r.karigars;
+    if(Array.isArray(r.karigarPayments)) S.karigarPayments=r.karigarPayments;
     if(Array.isArray(r.purchaseAuditLog)) S.purchaseAuditLog=r.purchaseAuditLog;
     if(Array.isArray(r.auditLog)) S.auditLog=r.auditLog;
     if(Array.isArray(r.activityLog)) S.activityLog=r.activityLog;
