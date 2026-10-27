@@ -22,8 +22,15 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> nobody — released by Claude Code (Sonnet), 24 Oct. toggleStatus() fix committed, deployed,
-> verified live byte-for-byte (see 93rd LOG entry below).
+> nobody — released by Claude Code (Sonnet), 27 Oct. Decommissioned Netlify as a live
+> host: removed its origin from auth-gateway/store-proxy ALLOWED_ORIGINS, deployed both
+> (auth-gateway v11, store-proxy v12), updated README/CLAUDE.md references. Cloudflare
+> worker (jewelos.jewelos-e2e.workers.dev) is now the sole live host.
+> NOT done: password-locking the Netlify site itself — no per-site tool available
+> (Netlify MCP only offers team-wide password lock, which would've hit other projects
+> too), Tanish is doing it by hand in the dashboard (Site configuration → Visitor
+> access, that one site only).
+> → FOR COWORK: nothing — FYI only.
 
 ---
 
@@ -102,6 +109,23 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-26 (ninety-fourth entry) · Claude Code (Sonnet) — ran a 9-seat Roast Room council on launch readiness + ₹3999 pricing; verdict WAIT, with a concrete 48h/7-day gate
+
+Tanish asked whether JewelOS survives post-launch, whether ₹3999/mo (his real target, not the ₹499/₹999 still in `PLAN_NAMES`) is right, and what to fix before launch. Ran a full 9-seat Roast Room council (Bezos, Graham, Hormozi, Gary V, Martell, Wickman, Buffett, Sara/Blakely, Elon/Musk), 3 rounds. Full report: `.claude/skills/roast-room/sessions/2026-10-26-jewelos-launch-survival-pricing/verdict.md` (outside this repo, in the user's roast-room skill folder).
+
+**Verdict: WAIT, converts to GO once this gate clears — unanimous (9 endorse, 0 dissent):**
+1. Supabase backup confirmed by an actual restore test (not just enabled), within 48 hours.
+2. Stale Netlify deploy (`heartfelt-queijadas-eeb356.netlify.app`) retired — all live traffic, including Srisai Jewellers, repointed to the current Cloudflare Worker — within the same 48 hours.
+3. The 66th entry's JEWELOS-2 crash fix verified against real production volume (50 real sale-saves at Srisai, or 7 calendar days, whichever comes first), zero repeats.
+4. Tanish personally confirms all three — not either AI agent's self-report.
+5. ₹3999 quoted to 2-3 real new jeweller prospects in parallel this week, logged yes/no — informational, not a launch gate.
+
+The council's own read: none of this was a pricing debate. ₹3999 is an 8x untested jump from the coded price with zero paying customers, but every seat treated it as a reversible two-way door — the real, converged risk is reliability (no backup + unverified crash fix + a real shop on a stale deploy target), not the rupee figure.
+
+→ FOR COWORK: this doesn't change anything you're mid-doing. If Tanish asks you about launch timing or pricing, the council's numbers are in the verdict file above — don't re-litigate from scratch.
+→ FOR CLAUDE CODE (next session): plan the next work session around the 5-item gate above, items 1-3 specifically (items 4-5 are Tanish's own actions, not code). Item 3 overlaps the already-open "call shop `3720af09`" and Netlify-vs-Cloudflare items in WAITING ON TANISH — same root, now with an external deadline (48h / ~7 days) attached by the council rather than an open-ended "whenever." Don't start on ₹3999 pricing code changes (`PLAN_NAMES`/tier cleanup) until the gate clears per the verdict's own sequencing.
+→ FOR TANISH: the full verdict with all nine seats' reasoning is in the file above; ask me to open it if you want to see it directly. Short version: fix backup + the stale deploy this week, verify the crash fix against real use, then launch at ₹3999 — don't gate the launch on the price itself, just ask a couple of real jewellers in parallel.
 
 ### 2026-10-24 (ninety-third entry) · Cowork (Sonnet) — Tanish said "go": deploy the 92nd entry's `toggleStatus` fix
 

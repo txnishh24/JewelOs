@@ -131,7 +131,7 @@ Delegate to these installed agents automatically, without being asked:
 - **Production problems** → `Incident Response Commander`
 - **Planning and prioritising** → `Sprint Prioritizer`
 - **JewelOS-specific review, after any js/ change** → `jewelos-bug-pattern-reviewer`, then `jewelos-test-runner`
-- **After every Netlify deploy, before telling Tanish it's live** → `jewelos-deploy-verifier`
+- **After every deploy (Cloudflare worker is the sole live host since 27 Oct), before telling Tanish it's live** → `jewelos-deploy-verifier`
 - **End of any session** → `jewelos-handoff-writer`
 - **Auth, session, payment, RLS/migration, or per-shop data-access changes, and before any release** → `jewelos-security-auditor`
 - **A diff touching sale/stock, billing, girvi, purchases, daybook, or sync/retry logic** → `jewelos-invariant-tester`, then `jewelos-test-runner`

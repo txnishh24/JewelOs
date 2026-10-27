@@ -89,19 +89,17 @@ const RESET_MAX_GUESSES = 5; // wrong guesses before a reset code is burned
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
 
-// Every origin a real deployed client is currently served from (verified live
-// 14 Oct — Netlify is still production, pages.dev is the Netlify-credits
-// stand-in, workers.dev is the Cloudflare migration target; all three are up
-// and point at this same Supabase project). CORS previously reflected any
-// origin back (accepted 14 Sep as low-risk since auth is a header token, not
-// a cookie — true, but it still let any site complete a real login/signup
-// via fetch() from a victim's browser). Add a new deploy target here before
-// anyone can sign in from it: an unlisted origin's request still runs
-// server-side, but the browser refuses to hand the page the response, so the
-// app just looks broken there.
+// Every origin a real deployed client is currently served from (workers.dev is
+// the sole live host since 27 Oct — Netlify decommissioned, pages.dev kept as
+// test deploy target; both point at this same Supabase project). CORS
+// previously reflected any origin back (accepted 14 Sep as low-risk since auth
+// is a header token, not a cookie — true, but it still let any site complete a
+// real login/signup via fetch() from a victim's browser). Add a new deploy
+// target here before anyone can sign in from it: an unlisted origin's request
+// still runs server-side, but the browser refuses to hand the page the
+// response, so the app just looks broken there.
 const ALLOWED_ORIGINS = [
   "https://jewelos.jewelos-e2e.workers.dev",
-  "https://heartfelt-queijadas-eeb356.netlify.app",
   "https://jewelos-test.pages.dev",
 ];
 // Local dev (`npx serve`, Playwright on any port) — 21 Oct. Only a page

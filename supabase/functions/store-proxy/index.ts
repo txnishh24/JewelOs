@@ -52,7 +52,6 @@ const CAN_READ = new Set(["owner", "manager", "staff", "readonly"]);
 // sync; add a new deploy target to both at once.
 const ALLOWED_ORIGINS = [
   "https://jewelos.jewelos-e2e.workers.dev",
-  "https://heartfelt-queijadas-eeb356.netlify.app",
   "https://jewelos-test.pages.dev",
 ];
 // Local dev (`npx serve`, Playwright on any port) — 21 Oct. Only a page
