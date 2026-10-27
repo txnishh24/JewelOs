@@ -54,7 +54,16 @@ function showOrderDetail(ordId){
             (item.making?'<div>Making: '+makingDisplay+'</div>':'')+
           '</div>'+
         '</div>'+
-        (item.note?'<div style="font-size:11px;color:var(--text3);margin-top:4px;font-style:italic;">'+escHtml(item.note)+'</div>':'');
+        (item.note?'<div style="font-size:11px;color:var(--text3);margin-top:4px;font-style:italic;">'+escHtml(item.note)+'</div>':'')+
+        // Karigar Management (27 Oct): the active stage is the first one not
+        // yet submitted -- sequential only, so there's always at most one
+        // button live per item.
+        ((item.karigarStages||[]).some(function(s){return s.status!=='submitted';})
+          ? '<div style="margin-top:6px;">'+
+              '<span style="font-size:11px;color:var(--text3);">Active: '+escHtml((item.karigarStages.filter(function(s){return s.status!=='submitted';})[0]||{}).task||'Unassigned task')+'</span> '+
+              '<button class="btn btn-sm" onclick="markStageSubmitted(\''+jsAttrEsc(o.id)+'\','+n+');showOrderDetail(\''+jsAttrEsc(o.id)+'\');">Mark Submitted</button>'+
+            '</div>'
+          : '');
       itemsInner.appendChild(row);
     });
     itemsDiv.appendChild(itemsInner);
@@ -302,6 +311,23 @@ function cancelOrder(ordId){
     });
   },true);
   return;
+}
+
+// Karigar Management (27 Oct): submits the FIRST stage that isn't already
+// submitted -- sequential only, so this is always the one currently "with"
+// a karigar. Returns false (no save triggered) when there's nothing to
+// submit, rather than silently no-op-ing a save call.
+function markStageSubmitted(ordId, itemIdx){
+  var o = (S.orders||[]).find(function(x){ return x.id===ordId; });
+  if(!o || !o.items || !o.items[itemIdx]) return false;
+  var stages = o.items[itemIdx].karigarStages;
+  if(!stages || !stages.length) return false;
+  var stage = stages.find(function(s){ return s.status !== 'submitted'; });
+  if(!stage) return false;
+  stage.status = 'submitted';
+  stage.submittedDate = dbDayKey(new Date());
+  saveToCloud(function(){});
+  return true;
 }
 
 // ── CONVERT TO SALE ───────────────────────────────────────────────────────

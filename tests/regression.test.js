@@ -6609,6 +6609,38 @@ test('findKarigar: returns undefined for an unknown or deleted id, never throws'
   assert(a.findKarigar(undefined) === undefined, 'no id at all -> undefined, not a throw');
 });
 
+test('markStageSubmitted: submits the first unsubmitted stage, leaves later stages untouched', function(){
+  var a = loadApp(), saved = 0;
+  a.saveToCloud = function(cb){ saved++; cb && cb(null); };
+  a.S.orders = [{ id:'o1', items:[{ karigarStages:[
+    { task:'Gold work', status:'submitted', submittedDate:'2026-10-20' },
+    { task:'Diamond setting', status:'assigned' },
+    { task:'Polishing', status:'assigned' }
+  ]}]}];
+  var ok = a.markStageSubmitted('o1', 0);
+  assert(ok === true, 'should report success');
+  var stages = a.S.orders[0].items[0].karigarStages;
+  assert(stages[0].status === 'submitted' && stages[0].submittedDate === '2026-10-20', 'already-submitted first stage must stay untouched');
+  assert(stages[1].status === 'submitted' && !!stages[1].submittedDate, 'the first UNSUBMITTED stage (Diamond setting) should now be submitted');
+  assert(stages[2].status === 'assigned', 'the stage after the one just submitted must stay assigned');
+  assert(saved === 1, 'should persist the change');
+});
+
+test('markStageSubmitted: no-ops when every stage is already submitted, or there are no stages', function(){
+  var a = loadApp(), saved = 0;
+  a.saveToCloud = function(cb){ saved++; cb && cb(null); };
+  a.S.orders = [
+    { id:'o1', items:[{ karigarStages:[{ status:'submitted' }] }] },
+    { id:'o2', items:[{ karigarStages:[] }] },
+    { id:'o3', items:[{}] }
+  ];
+  assert(a.markStageSubmitted('o1', 0) === false, 'all stages already submitted -> no-op');
+  assert(a.markStageSubmitted('o2', 0) === false, 'empty stages array -> no-op');
+  assert(a.markStageSubmitted('o3', 0) === false, 'no karigarStages field at all -> no-op, not a throw');
+  assert(a.markStageSubmitted('does-not-exist', 0) === false, 'unknown order id -> no-op, not a throw');
+  assert(saved === 0, 'none of the no-op cases should trigger a save');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');
