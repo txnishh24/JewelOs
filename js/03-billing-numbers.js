@@ -1439,34 +1439,59 @@ function buildOrdItemRow(i){
   mki.placeholder='0'; mki.id='oi-mk-'+i; mki.value=item.making>0?item.making:''; mki.style.flex='1';
   (function(idx){mki.oninput=function(){ordItems[idx].making=parseFloat(this.value)||0;calcOrdEst();};})(i);
   mkw.appendChild(mksel); mkw.appendChild(mki); mkf.appendChild(mkw); g.appendChild(mkf);
-  // Row 4b: Karigar payment (Tanish, 27 Oct) — cash (repair jobs) or wastage %
-  // of weight valued at the pure 24K rate (new-order jobs), per item. Neither
-  // set keeps karigarCostOf() at 0, same as before this field existed.
-  var kf=document.createElement('div'); kf.className='fg'; kf.innerHTML='<label>Karigar Payment</label>';
-  var kw=document.createElement('div'); kw.style.cssText='display:flex;gap:6px;';
-  var ksel=document.createElement('select'); ksel.id='oi-kmode-'+i; ksel.style.cssText='width:auto;padding:9px 28px 9px 8px;font-size:12px;';
-  [['','Not set'],['cash','Cash ₹'],['wastage','Wastage %']].forEach(function(o){var op=document.createElement('option');op.value=o[0];op.textContent=o[1];if(o[0]===(item.karigarPayMode||''))op.selected=true;ksel.appendChild(op);});
-  var kcashI=document.createElement('input'); kcashI.type='text'; kcashI.setAttribute('inputmode','decimal');
-  kcashI.placeholder='₹ per piece'; kcashI.id='oi-kcash-'+i; kcashI.value=item.karigarCost>0?item.karigarCost:''; kcashI.style.flex='1';
-  var kwastI=document.createElement('input'); kwastI.type='text'; kwastI.setAttribute('inputmode','decimal');
-  kwastI.placeholder='% of weight'; kwastI.id='oi-kwast-'+i; kwastI.value=item.karigarWastagePct>0?item.karigarWastagePct:''; kwastI.style.flex='1';
-  function _kVis(){
-    var m=ksel.value;
-    kcashI.style.display = m==='cash' ? '' : 'none';
-    kwastI.style.display = m==='wastage' ? '' : 'none';
+  // Row 4b: Karigar stages (27 Oct, Karigar Management) -- a repeatable
+  // chain of tasks/karigars per item (e.g. gold work, then diamond setting),
+  // same add/remove interaction as addOrdItem/removeOrdItem one level up.
+  // Sequential only: the FIRST stage with status !== 'submitted' is the
+  // active one; marking it submitted (order detail view, a later task)
+  // simply makes the next stage first-unsubmitted.
+  var stagesWrap=document.createElement('div'); stagesWrap.className='fg'; stagesWrap.style.gridColumn='1 / -1';
+  stagesWrap.innerHTML='<label>Karigar Stages</label>';
+  var stagesList=document.createElement('div'); stagesList.id='oi-stages-'+i; stagesList.style.cssText='display:flex;flex-direction:column;gap:6px;';
+  function _renderStages(){
+    stagesList.innerHTML='';
+    (item.karigarStages||[]).forEach(function(stage, si){
+      var row=document.createElement('div'); row.style.cssText='display:flex;gap:6px;align-items:center;border:1px dashed var(--border-gold,#b39257);border-radius:8px;padding:6px 8px;';
+      var taskI=document.createElement('input'); taskI.type='text'; taskI.placeholder='Task (e.g. Gold work)';
+      taskI.value=stage.task||''; taskI.style.flex='1';
+      (function(idx){taskI.oninput=function(){ordItems[i].karigarStages[idx].task=this.value;};})(si);
+      var karI=document.createElement('input'); karI.type='text'; karI.placeholder='Karigar name';
+      karI.value=(findKarigar(stage.karigarId)||{}).name||''; karI.style.flex='1';
+      (function(idx){karI.onchange=function(){ordItems[i].karigarStages[idx].karigarId=addOrGetKarigar(this.value).id;};})(si);
+      var modeSel=document.createElement('select'); modeSel.style.cssText='width:auto;padding:9px 28px 9px 8px;font-size:12px;';
+      [['','Not set'],['cash','Cash ₹'],['wastage','Wastage %']].forEach(function(o){var op=document.createElement('option');op.value=o[0];op.textContent=o[1];if(o[0]===(stage.karigarPayMode||''))op.selected=true;modeSel.appendChild(op);});
+      var cashI=document.createElement('input'); cashI.type='text'; cashI.setAttribute('inputmode','decimal');
+      cashI.placeholder='₹ per piece'; cashI.value=stage.karigarCost>0?stage.karigarCost:''; cashI.style.cssText='width:80px;display:'+(stage.karigarPayMode==='cash'?'':'none');
+      var wastI=document.createElement('input'); wastI.type='text'; wastI.setAttribute('inputmode','decimal');
+      wastI.placeholder='% of weight'; wastI.value=stage.karigarWastagePct>0?stage.karigarWastagePct:''; wastI.style.cssText='width:80px;display:'+(stage.karigarPayMode==='wastage'?'':'none');
+      (function(idx){modeSel.onchange=function(){
+        ordItems[i].karigarStages[idx].karigarPayMode=this.value;
+        cashI.style.display=this.value==='cash'?'':'none';
+        wastI.style.display=this.value==='wastage'?'':'none';
+        calcOrdEst();
+      };})(si);
+      (function(idx){cashI.oninput=function(){ordItems[i].karigarStages[idx].karigarCost=parseFloat(this.value)||0;calcOrdEst();};})(si);
+      (function(idx){wastI.oninput=function(){
+        ordItems[i].karigarStages[idx].karigarWastagePct=parseFloat(this.value)||0;
+        var v=parseFloat(this.value)||0;
+        wastI.style.borderColor=(v>0&&(v<2||v>12))?'var(--warning)':'';
+        calcOrdEst();
+      };})(si);
+      var rmBtn=document.createElement('button'); rmBtn.type='button'; rmBtn.className='btn btn-sm btn-danger'; rmBtn.textContent='×';
+      (function(idx){rmBtn.onclick=function(){ordItems[i].karigarStages.splice(idx,1);_renderStages();};})(si);
+      row.appendChild(taskI); row.appendChild(karI); row.appendChild(modeSel); row.appendChild(cashI); row.appendChild(wastI); row.appendChild(rmBtn);
+      stagesList.appendChild(row);
+    });
   }
-  _kVis();
-  (function(idx){ksel.onchange=function(){ordItems[idx].karigarPayMode=this.value;_kVis();calcOrdEst();};})(i);
-  (function(idx){kcashI.oninput=function(){ordItems[idx].karigarCost=parseFloat(this.value)||0;calcOrdEst();};})(i);
-  (function(idx){kwastI.oninput=function(){
-    ordItems[idx].karigarWastagePct=parseFloat(this.value)||0;
-    // Soft sanity check only — typical trade range is ~2-12%; still saves a
-    // value outside it, this just catches an obvious fat-finger (40 for 4).
-    var v=parseFloat(this.value)||0;
-    kwastI.style.borderColor = (v>0 && (v<2||v>12)) ? 'var(--warning)' : '';
-    calcOrdEst();
-  };})(i);
-  kw.appendChild(ksel); kw.appendChild(kcashI); kw.appendChild(kwastI); kf.appendChild(kw); g.appendChild(kf);
+  _renderStages();
+  var addStageBtn=document.createElement('button'); addStageBtn.type='button'; addStageBtn.className='btn btn-sm';
+  addStageBtn.textContent='+ Add Karigar Stage';
+  addStageBtn.onclick=function(){
+    ordItems[i].karigarStages = ordItems[i].karigarStages || [];
+    ordItems[i].karigarStages.push({task:'', karigarId:'', karigarPayMode:'', karigarCost:0, karigarWastagePct:0, status:'assigned', assignedDate:dbDayKey(new Date())});
+    _renderStages();
+  };
+  stagesWrap.appendChild(stagesList); stagesWrap.appendChild(addStageBtn); g.appendChild(stagesWrap);
   // Row 5: Qty + Note
   g.appendChild(field('Quantity','oi-qty-'+i,'number','1',item.qty||1,function(){ordItems[i].qty=parseInt(this.value)||1;}));
   g.appendChild(field('Design Note / Reference','oi-note-'+i,'text','Colour, finish, photo ref...',item.note,function(){ordItems[i].note=this.value;}));
