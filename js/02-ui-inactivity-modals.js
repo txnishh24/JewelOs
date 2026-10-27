@@ -1406,17 +1406,25 @@ function buildSaleObj(){
     saleItems=customSaleItems.filter(function(x){return x.name&&(parseFloat(x.grossWt)||0)>0;}).map(function(item){
       var net=calcNetGold(item);
       var lockedRate=getRate(item.metal||'gold',item.purity||'22K');
+      var k24Rate=getRate(item.metal||'gold','24K');
+      // Each stage locks its own karigarRate the same way lockedRate is
+      // locked, one line up -- karigarCostOf() (01-sync-core.js) prefers this
+      // over the live rate so a bill's profit doesn't drift every time
+      // today's gold/silver rate changes.
+      var lockedStages=(item.karigarStages||[]).map(function(st){
+        return {task:st.task||'', karigarId:st.karigarId, karigarPayMode:st.karigarPayMode,
+                karigarCost:parseFloat(st.karigarCost)||0, karigarWastagePct:parseFloat(st.karigarWastagePct)||0,
+                status:st.status||'', assignedDate:st.assignedDate||'', submittedDate:st.submittedDate||'',
+                karigarRate:k24Rate};
+      });
       // makingBasis records what this bill was actually charged on, so the
       // figures stay reproducible if the shop's basis ever changes again.
       return{pid:null,name:item.name,qty:1,grossWeight:parseFloat(item.grossWt)||0,blackBeads:parseFloat(item.blackBeads)||0,diamondWt:parseFloat(item.diamond)||0,weight:net,purity:item.purity||'22K',metal:item.metal||'gold',making:parseFloat(item.making)||0,makingBasis:'gross',diamond:parseFloat(item.stoneCharges)||0,huid:'',isCustom:true,lockedRate:lockedRate,cat:item.cat||'',
              // Carried from convertToSale()'s customSaleItems line if this came
              // from an order — buildSaleObj() re-derives everything else above
-             // from DOM inputs, which silently dropped these three on the floor.
-             karigarPayMode:item.karigarPayMode,karigarCost:parseFloat(item.karigarCost)||0,karigarWastagePct:parseFloat(item.karigarWastagePct)||0,
-             // Locked the same way lockedRate is, two lines up -- karigarCostOf()
-             // (01-sync-core.js) prefers this over the live rate so a bill's
-             // profit doesn't drift every time today's gold/silver rate changes.
-             karigarRate:getRate(item.metal||'gold','24K')};
+             // from DOM inputs, which silently dropped these on the floor once
+             // already (27 Oct), fixed here for the stage-array shape from the start.
+             karigarStages:lockedStages};
     });
   } else {
     saleItems=UI.saleItems.filter(function(x){return x.pid;}).map(function(item){

@@ -367,10 +367,9 @@ function convertToSale(ordId){
                       making:perGram, stoneCharges:0,
                       // Carried straight through, same per-piece convention as
                       // `making` above — karigarCostOf() (01-sync-core.js)
-                      // reads these on the final bill the same way
+                      // reads this array on the final bill the same way
                       // orderProfitEst() already did on the order estimate.
-                      karigarPayMode:it.karigarPayMode, karigarCost:it.karigarCost,
-                      karigarWastagePct:it.karigarWastagePct});
+                      karigarStages:(it.karigarStages||[]).slice()});
         }
       });
       if(lines.length){
@@ -496,7 +495,7 @@ function toggleOrdForm(){
   if(isOpen){
     form.style.display='none';
     if(btn)btn.textContent='+ New Order';
-    ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',karigarPayMode:'',karigarCost:0,karigarWastagePct:0,qty:1,note:''}];
+    ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',karigarStages:[],qty:1,note:''}];
   } else {
     form.style.display='block';
     if(btn)btn.textContent='Cancel';

@@ -1728,20 +1728,29 @@ function getItemCostRate(item){
 // rate (new-order jobs, since that's the purity the shop and karigar actually
 // settle in, not the finished piece's own karat). Returns 0 when neither mode
 // is set, which is the old (honest-because-unknown) behaviour unchanged.
+// Karigar Management (27 Oct): a single karigar per item couldn't express a
+// piece passing through a chain (necklace karigar, then a separate
+// diamond-setter) -- karigarStages replaces the single flat
+// karigarPayMode/karigarCost/karigarWastagePct fields this same function
+// used to read directly. Only a SUBMITTED stage has actually been earned;
+// an assigned-but-unfinished stage costs nothing yet.
 function karigarCostOf(item){
   var qty = parseInt(item.qty) || 1;
-  if(item.karigarPayMode==='cash') return (parseFloat(item.karigarCost)||0) * qty;
-  if(item.karigarPayMode==='wastage'){
-    var wt = parseFloat(item.weight||item.estWt||item.orderWt) || 0;
-    // karigarRate is locked at bill time (buildSaleObj, same convention as
-    // lockedRate) so an old bill's profit doesn't move every time today's
-    // rate changes; the live order estimate has no locked rate yet, so it
-    // reads the current one. metal-aware: a silver order wastes silver, not
-    // gold (Opus review, 27 Oct -- this used to hardcode 'gold' for every metal).
-    var rate = item.karigarRate || getRate(item.metal||'gold','24K');
-    return (parseFloat(item.karigarWastagePct)||0)/100 * wt * qty * rate;
-  }
-  return 0;
+  var wt  = parseFloat(item.weight||item.estWt||item.orderWt) || 0;
+  return (item.karigarStages||[]).reduce(function(sum, stage){
+    if(stage.status !== 'submitted') return sum;
+    if(stage.karigarPayMode === 'cash') return sum + (parseFloat(stage.karigarCost)||0) * qty;
+    if(stage.karigarPayMode === 'wastage'){
+      // karigarRate is locked at bill time (buildSaleObj, same convention as
+      // lockedRate) so an old bill's profit doesn't move every time today's
+      // rate changes; the live order estimate has no locked rate yet, so it
+      // reads the current one. Read from the ITEM's metal, never the stage --
+      // all stages on one item share one physical piece's metal.
+      var rate = stage.karigarRate || getRate(item.metal||'gold','24K');
+      return sum + (parseFloat(stage.karigarWastagePct)||0)/100 * wt * qty * rate;
+    }
+    return sum;
+  }, 0);
 }
 
 function calcItemProfit(item){

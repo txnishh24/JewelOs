@@ -1343,10 +1343,10 @@ function plRow(label, val, color, bold){
 // Without this, the very first open threw a ReferenceError and the
 // Order Items section rendered empty, which looked like the section
 // had "vanished" while working fine after an open/close/reopen cycle.
-var ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',karigarPayMode:'',karigarCost:0,karigarWastagePct:0,qty:1,note:''}];
+var ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',karigarStages:[],qty:1,note:''}];
 
 function addOrdItem(){
-  ordItems.push({desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',karigarPayMode:'',karigarCost:0,karigarWastagePct:0,qty:1,note:''});
+  ordItems.push({desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',karigarStages:[],qty:1,note:''});
   var wrap=document.getElementById('of-items-wrap');
   if(wrap) wrap.appendChild(buildOrdItemRow(ordItems.length-1));
   calcOrdEst();
@@ -1596,7 +1596,7 @@ function saveOrder(_pastDateOk){
     restore:function(){ S.nextOrdId=_prevNextOrdId; S.auditLog=_auditSnap; }}, function(err){
     renderOrders();
     if(err) return;
-    ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',karigarPayMode:'',karigarCost:0,karigarWastagePct:0,qty:1,note:''}];
+    ordItems=[{desc:'',cat:'Other',metal:'gold',purity:'22K',orderWt:0,estWt:0,making:0,makingType:'flat',karigarStages:[],qty:1,note:''}];
     toggleOrdForm();
     toast('\u2713 '+ord.ordNo+' saved!');
   });
