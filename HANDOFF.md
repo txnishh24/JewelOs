@@ -22,14 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> nobody — released by Claude Code (Sonnet), 27 Oct. Decommissioned Netlify as a live
-> host: removed its origin from auth-gateway/store-proxy ALLOWED_ORIGINS, deployed both
-> (auth-gateway v11, store-proxy v12), updated README/CLAUDE.md references. Cloudflare
-> worker (jewelos.jewelos-e2e.workers.dev) is now the sole live host.
-> NOT done: password-locking the Netlify site itself — no per-site tool available
-> (Netlify MCP only offers team-wide password lock, which would've hit other projects
-> too), Tanish is doing it by hand in the dashboard (Site configuration → Visitor
-> access, that one site only).
+> Nobody. Released by Claude Code (Sonnet), 28 Oct — see ninety-sixth entry.
 > → FOR COWORK: nothing — FYI only.
 
 ---
@@ -109,6 +102,62 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-28 (ninety-sixth entry) · Claude Code (Sonnet) — Karigar Management feature built, reviewed, deployed live (batch63)
+
+Built the Karigar Management feature end to end per
+`docs/superpowers/specs/2026-10-27-karigar-management-design.md` and
+`docs/superpowers/plans/2026-10-27-karigar-management.md`: a karigar can be assigned to
+an order item (cash or wastage-% pay, locked rate), items can carry a chain of karigar
+stages, a stage is marked Submitted from order detail, and Settings → Team now shows a
+per-karigar card (monthly/lifetime stats, owed balance, record payment). 7-task
+subagent-driven build (commits `b4050ab`..`6429512`), each task reviewed (Sonnet gate,
+several also Opus) except Task 7 (`6429512`, the Settings UI), which was committed
+without a review gate.
+
+Caught that gap this session, ran the missing Opus review on `6429512`: SAFE WITH
+CAVEATS. No XSS, no gold/silver or rupee/gram mixing, no double-counting, but
+`promptKarigarPayment()` accepted `Infinity` as an amount (owed goes to `-Infinity`, then
+desyncs after a cloud round-trip), was case-sensitive/untrimmed on the type prompt, and
+recorded a payment with no confirm step and no undo. Fixed in `176b352`: `isFinite`
+check, `.trim().toLowerCase()`, a `confirm()` before recording, plus the two regression
+tests Task 7 had shipped without.
+
+**Verified on a real screen before deploying** (first time in several batches): a
+throwaway Playwright run against the local dev build (project's own isolated E2E test
+shop) confirmed the Settings → Team card renders the karigar name HTML-escaped, cash/
+gold/silver owed in separate buckets, and the new `confirm()` dialog fires and records
+correctly through the real UI — not just unit tests. Spec and screenshots discarded after
+use.
+
+**Deployed live as batch63** (`docs/CHANGES-batch63.md`, Worker version
+`69e820e1-a171-46e8-8330-e234abe118a8`). `jewelos-deploy-verifier` confirmed byte-for-byte:
+live = local `cf-deploy-stage/` = HEAD `176b352` for all 17 served files, including
+`js/06-inventory-stock.js` (not listed in the changelog's file list but correctly shipped
+— `orderProfitEst` now calls `karigarCostOf`). `sw.js` cache version unchanged
+(`jewelos-v20`) — fine, fetch handler is network-first, only matters for an offline
+device's stale cache.
+
+**Not verified:** the live origin itself — the real-screen check above ran against
+`localhost:4173`, not the Worker. Nobody has clicked Settings → Team → Record Payment on
+the actual live site yet.
+
+→ FOR COWORK: nothing to act on. FYI: new feature live, Karigar Management
+(`S.karigars`/`S.karigarPayments`, `karigarStages` on order items) — if you touch order
+items, orders, or profit calc, these fields now exist.
+→ FOR TANISH: same open item as before — password-lock the Netlify site's Visitor access
+by hand. Unrelated to this entry.
+
+### 2026-10-27 (ninety-fifth entry) · Claude Code (Sonnet) — logging a prior session's Netlify decommission retroactively; it was only ever recorded on the NOW line, never logged
+
+**Process note.** This session found the NOW line still claimed by a prior session's summary of work it never gave its own LOG entry — the same gap the 80th entry closed once already for a different session. Logging it now from the NOW line's own text before overwriting it to claim the line for today's Karigar Management build (ninety-sixth entry onward).
+
+**What that prior session actually did (26-27 Oct, gate item 2 of the Roast Room council's 94th-entry verdict): decommissioned Netlify as a live host.** Removed its origin from both `auth-gateway` and `store-proxy`'s `ALLOWED_ORIGINS`, deployed both (`auth-gateway v11`, `store-proxy v12`), updated README/CLAUDE.md references. The Cloudflare Worker (`jewelos.jewelos-e2e.workers.dev`) is now the sole live host.
+
+**Not done:** password-locking the Netlify site itself — no per-site tool available (Netlify MCP only offers team-wide password lock, which would've hit other projects too). Left for Tanish to do by hand (Site configuration → Visitor access, that one site only).
+
+→ FOR COWORK: nothing — FYI only, same as the original note said.
+→ FOR TANISH: still your one action item from this — password-lock the Netlify site's Visitor access setting by hand.
 
 ### 2026-10-26 (ninety-fourth entry) · Claude Code (Sonnet) — ran a 9-seat Roast Room council on launch readiness + ₹3999 pricing; verdict WAIT, with a concrete 48h/7-day gate
 
