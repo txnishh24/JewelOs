@@ -30,3 +30,24 @@ store-20*.json
 desktop.ini
 Thumbs.db
 .DS_Store
+
+# Skill packs synced in by a plugin reload, unrelated to this Supabase+Cloudflare
+# project (this repo has no Vercel deploy target)
+.agents/skills/deploy-to-vercel/
+.agents/skills/vercel-cli-with-tokens/
+.agents/skills/vercel-composition-patterns/
+.agents/skills/vercel-optimize/
+.agents/skills/vercel-react-best-practices/
+.agents/skills/vercel-react-native-skills/
+.agents/skills/vercel-react-view-transitions/
+.agents/skills/web-design-guidelines/
+.agents/skills/writing-guidelines/
+.claude/skills/deploy-to-vercel/
+.claude/skills/vercel-cli-with-tokens/
+.claude/skills/vercel-composition-patterns/
+.claude/skills/vercel-optimize/
+.claude/skills/vercel-react-best-practices/
+.claude/skills/vercel-react-native-skills/
+.claude/skills/vercel-react-view-transitions/
+.claude/skills/web-design-guidelines/
+.claude/skills/writing-guidelines/
