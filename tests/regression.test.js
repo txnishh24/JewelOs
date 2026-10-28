@@ -6741,6 +6741,50 @@ test('recordKarigarPayment: appends to S.karigarPayments and persists', function
   assert(saved === 1, 'should persist');
 });
 
+test('promptKarigarPayment: a non-finite or non-positive amount is rejected and never recorded', function(){
+  var a = loadApp();
+  var k = a.addOrGetKarigar('Ramesh');
+  var toasts = []; a.toast = function(m){ toasts.push(m); };
+  var calls = 0;
+  a.prompt = function(){ calls++; return calls === 1 ? 'cash' : (calls === 2 ? 'Infinity' : ''); };
+  a.confirm = function(){ return true; };
+  a.promptKarigarPayment(k.id);
+  assert(a.S.karigarPayments.length === 0, 'Infinity amount must not be recorded: ' + JSON.stringify(a.S.karigarPayments));
+  assert(/positive amount/i.test(toasts[toasts.length - 1]), 'should toast a rejection, got: ' + JSON.stringify(toasts));
+});
+
+test('promptKarigarPayment: trims/lowercases the type and requires confirm before recording', function(){
+  var a = loadApp(), saved = 0;
+  a.saveToCloud = function(cb){ saved++; cb && cb(null); };
+  var k = a.addOrGetKarigar('Suresh');
+  var calls = 0;
+  a.prompt = function(){ calls++; return calls === 1 ? ' Cash ' : (calls === 2 ? '500' : ''); };
+  var confirmed = false;
+  a.confirm = function(){ confirmed = true; return false; }; // decline
+  a.promptKarigarPayment(k.id);
+  assert(confirmed === true, 'confirm must be called before recording a payment');
+  assert(a.S.karigarPayments.length === 0, 'declining the confirm must not record a payment');
+
+  calls = 0;
+  a.confirm = function(){ return true; }; // now accept
+  a.promptKarigarPayment(k.id);
+  assert(a.S.karigarPayments.length === 1, 'accepted confirm should record exactly one payment: ' + JSON.stringify(a.S.karigarPayments));
+  assert(a.S.karigarPayments[0].type === 'cash', 'type should be trimmed and lowercased to cash, got: ' + JSON.stringify(a.S.karigarPayments[0]));
+});
+
+test('renderKarigarList: escapes the karigar name and keeps cash/gold/silver owed buckets separate', function(){
+  var a = loadApp();
+  var k = a.addOrGetKarigar('<img src=x onerror=alert(1)>');
+  a.S.orders = [{ id:'o1', items:[{ metal:'gold', weight:10, qty:1, karigarStages:[
+    { karigarId:k.id, karigarPayMode:'cash', karigarCost:300, status:'submitted' }
+  ] }] }];
+  a.renderKarigarList();
+  var html = a.document.getElementById('karigar-list').innerHTML;
+  assert(html.indexOf('<img src=x') === -1, 'raw unescaped name must not appear in innerHTML: ' + html);
+  assert(/&lt;img/.test(html), 'name should be HTML-escaped: ' + html);
+  assert(/Owed cash/.test(html) && /Owed gold/.test(html), 'cash and gold/silver owed must render as separate buckets: ' + html);
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

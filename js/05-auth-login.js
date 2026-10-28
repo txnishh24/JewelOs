@@ -1091,10 +1091,12 @@ function renderKarigarList(){
 // balance -> settle) this task exists to close.
 function promptKarigarPayment(karigarId){
   var type = prompt('Payment type: cash, gold, or silver?', 'cash');
+  type = (type||'').trim().toLowerCase();
   if(!type || ['cash','gold','silver'].indexOf(type)===-1){ toast('Cancelled — type must be cash, gold, or silver'); return; }
   var amount = parseFloat(prompt(type==='cash' ? 'Amount paid (₹)?' : 'Weight handed over (grams)?'));
-  if(!(amount > 0)){ toast('Cancelled — enter a positive amount'); return; }
+  if(!(amount > 0) || !isFinite(amount)){ toast('Cancelled — enter a positive amount'); return; }
   var note = prompt('Note (optional):','') || '';
+  if(!confirm('Record '+(type==='cash' ? fmt(amount) : amount+'g '+type)+' to this karigar? This cannot be undone.')) { toast('Cancelled'); return; }
   recordKarigarPayment(karigarId, type, amount, note);
   renderKarigarList();
   toast('✓ Payment recorded');
