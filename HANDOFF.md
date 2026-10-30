@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. batch65 (Karigars tab + stage box redesign) is built locally, awaiting Tanish's phone look before deploy — see the 119th entry. NOT deployed.
+> Nobody. batch65 (Karigars tab + stage box redesign) is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`, verified by `jewelos-deploy-verifier`). Previous live = tag `batch64-live`. Local `main` is NOT pushed to GitHub.
 > batch64 is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `f0455912-83df-4b98-abfa-d4c08cda55be`,
 > verified by `jewelos-deploy-verifier`). Local `main` is NOT pushed to GitHub.
 
@@ -103,6 +103,17 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-30 (hundred-and-twentieth entry) · Claude Code (Sonnet) — batch65 DEPLOYED to the Cloudflare worker and verified live
+
+**Deployed on Tanish's "deploy".** `node build-cf-deploy-stage.js batch65` (needed a new `docs/CHANGES-batch65.md`), every staged file byte-identical to the repo, `npx wrangler deploy --dry-run` clean, then `npx wrangler deploy`: 4 files uploaded, 13 already present. Live at `https://jewelos.jewelos-e2e.workers.dev`, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`. Rollback point tagged `batch64-live` (at `63eb88a`): `git checkout batch64-live`, `node build-cf-deploy-stage.js batch64`, `npx wrangler deploy`, back to `main`.
+
+**Verified live (`jewelos-deploy-verifier`, PASS).** index.html, sw.js, manifest.json and all 11 js files byte-identical (sha256) to local; markers `karigarInitials`, `kg-card`, `kg-stage`, `.kg-avatar` and the new tab subtitle present; `/CHANGELOG.md` headed batch65; wrangler.jsonc, .wrangler, .git/HEAD, HANDOFF.md, package.json, COWORK-BRAIN.md all 404.
+
+**Not verified, plainly:** nobody has looked at it on a real phone (Tanish said deploy before or without that look, as far as this session knows); no staff login; the live Worker version was not read back, the byte match is the evidence; installed PWAs may show an older copy until the network-first service worker refreshes; `git` could not be run by the verifier (dubious ownership). Local `main` is not pushed to GitHub (still the only copy of batch64-65 apart from the E: backup).
+
+→ FOR COWORK: re-run the live karigar click test from the 115th entry against batch65 (card layout changed: the Karigars tab now shows Gold/Silver in hand, a Settled/You owe line, and the totals behind Details; the stage box has labels above inputs). Ids and data are unchanged.
+→ FOR TANISH: open the live site on your phone, check the Karigars tab and an order's Karigar Stage box, and tell me if anything looks wrong. Say if I should push `main` to GitHub.
 
 ### 2026-10-30 (hundred-and-nineteenth entry) · Claude Code (Sonnet) — batch65: Karigars tab + order-form stage box redesign (presentation only). Built and tested locally, NOT deployed (committed locally on main; awaiting Tanish's phone look)
 
