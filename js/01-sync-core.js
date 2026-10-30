@@ -1037,6 +1037,24 @@ function findKarigar(id){
   return (S.karigars||[]).find(function(k){ return k.id === id; });
 }
 
+// Karigar profile (29 Oct): name/phone/skills/note. Returns '' on success
+// (and saves), else an error string without mutating. Renaming is safe --
+// stages reference karigarId -- but a clash is refused, or addOrGetKarigar
+// would match either of the two by name from then on.
+function updateKarigarProfile(id, f){
+  var k = findKarigar(id);
+  if(!k) return 'Karigar not found';
+  var name = String(f.name||'').trim();
+  if(!name) return 'Name is required';
+  var clash = (S.karigars||[]).some(function(x){ return x.id !== id && String(x.name||'').trim().toLowerCase() === name.toLowerCase(); });
+  if(clash) return 'Another karigar is already called ' + name;
+  var ph = normPhone10(f.phone);
+  if(ph === null) return 'Phone should be a 10-digit mobile number starting 6-9, like 98765 43210.';
+  k.name = name; k.phone = ph; k.skills = String(f.skills||'').trim(); k.note = String(f.note||'').trim();
+  saveToCloud(function(){});
+  return '';
+}
+
 function getRate(metal,purity){
   if(!metal||!purity) return 0;
   if(!S.rates||typeof S.rates!=='object') return 0; // null guard
@@ -1776,12 +1794,102 @@ function karigarStageGrams(item, stage){
   return (parseFloat(stage.karigarWastagePct)||0)/100 * wt * qty;
 }
 
+// ── KARIGAR PROVENANCE (29 Oct) — issued vs received metal, derived ──
+// stage.issued = [{date, wt, purity, note?}] (append-only; wt is grams as
+// weighed for the WHOLE item line, negative only for a typo correction).
+// Absent/empty = issuance not logged (every stage from before 29 Oct) --
+// readers return null/0, never a guessed number. None of this feeds
+// karigarStageCost/karigarOwed: issuance is custody, not pay.
+function karigarFineOf(metal, purity, grams){
+  var f = PURITY_FINENESS[metal === 'silver' ? 'silver' : 'gold'][purity];
+  if(!f) return null;
+  var g = parseFloat(grams);
+  // 29 Oct Opus review: a missing/corrupt weight must read as unknown, never
+  // a silent 0 (spec invariant 6) -- 0 itself (e.g. "no leftover scrap") is
+  // still a real, finite number and passes through fine.
+  if(!isFinite(g)) return null;
+  return g * f;
+}
+
+// Canonical purity key for a typed answer ('24k', '925') or '' if it isn't a
+// valid purity for that metal.
+function karigarPurityKey(metal, typed){
+  var t = String(typed||'').trim().toLowerCase();
+  if(!t) return '';
+  var keys = Object.keys(PURITY_FINENESS[metal === 'silver' ? 'silver' : 'gold']);
+  for(var i=0; i<keys.length; i++){
+    if(keys[i].toLowerCase() === t || keys[i].split(' ')[0].toLowerCase() === t) return keys[i];
+  }
+  return '';
+}
+
+// Fine grams issued on one stage, under the ITEM's metal (never the stage).
+// 0 when nothing logged; null if any entry has no fineness for that metal.
+function karigarIssuedFine(item, stage){
+  var metal = item.metal || 'gold', total = 0, bad = false;
+  (stage.issued||[]).forEach(function(e){
+    var f = karigarFineOf(metal, e.purity, e.wt);
+    if(f === null) bad = true; else total += f;
+  });
+  return bad ? null : total;
+}
+
+// Receipt check for one stage. receivedWt / receivedScrapWt override the
+// stored fields so the UI can check BEFORE writing. allowanceFine uses the
+// same weight base as karigarStageGrams on purpose -- the allowance shown at
+// receipt is exactly the wastage this stage is paid.
+function karigarReceiptCheck(item, stage, receivedWt, receivedScrapWt){
+  if(!(stage.issued && stage.issued.length)) return null;
+  var rw = (receivedWt === undefined) ? stage.receivedWt : receivedWt;
+  var sw = (receivedScrapWt === undefined) ? stage.receivedScrapWt : receivedScrapWt;
+  if(rw === undefined || rw === null || rw === '' || !isFinite(parseFloat(rw))) return null;
+  var metal = item.metal === 'silver' ? 'silver' : 'gold';
+  var issuedFine = karigarIssuedFine(item, stage);
+  var pieceFine  = karigarFineOf(metal, item.purity, rw);
+  var scrapFine  = karigarFineOf(metal, stage.issued[0].purity, sw || 0);
+  if(issuedFine === null || pieceFine === null || scrapFine === null) return null;
+  var allowance = 0;
+  if(stage.karigarPayMode === 'wastage'){
+    var qty = parseInt(item.qty) || 1;
+    var wt  = parseFloat(item.weight||item.estWt||item.orderWt) || 0;
+    allowance = (parseFloat(stage.karigarWastagePct)||0)/100 * wt * qty;
+  }
+  var shortFine = issuedFine - pieceFine - scrapFine, tol = KARIGAR_WEIGH_TOL_G, band;
+  if(shortFine < -tol) band = 'over';
+  else if(shortFine <= tol) band = 'match';
+  else if(shortFine <= allowance + tol) band = 'allowance';
+  else band = 'short';
+  return { metal:metal, issuedFine:issuedFine, receivedFine:pieceFine+scrapFine, shortFine:shortFine, allowanceFine:allowance, band:band };
+}
+
+// Metal physically with this karigar now: issued fine on every stage not yet
+// submitted. Includes cancelled orders on purpose -- cancelling the order
+// does not bring the gold back. Gold and silver are never summed together.
+function karigarMetalHeld(karigarId){
+  var held = { gold:0, silver:0 };
+  _allKarigarStageEntries().forEach(function(e){
+    if(e.stage.karigarId !== karigarId || e.stage.status === 'submitted') return;
+    var f = karigarIssuedFine(e.item, e.stage);
+    if(!f) return; // 0 (nothing logged) or null (invalid entry -- don't guess)
+    if(e.item.metal === 'silver') held.silver += f; else held.gold += f;
+  });
+  return held;
+}
+
 // Every item carrying at least one karigarStages entry, across both S.orders
 // (pre-sale) and S.sales (post-sale) -- a stage doesn't stop counting once
 // the order becomes a bill, since that's how the karigar actually gets paid.
 function _allKarigarStageEntries(){
-  var out = [];
-  (S.orders||[]).concat(S.sales||[]).forEach(function(rec){
+  // 29 Oct B2: a billed order stays in S.orders (billedSaleId set) AND its
+  // stages are copied onto the sale lines -- scanning both counted every
+  // billed stage twice and left a never-submittable copy in the queue. The
+  // ORDER is canonical (it's where stages are edited and submitted); a sale
+  // that some order was billed into is skipped here. Profit is unaffected:
+  // calcItemProfit reads sale lines directly, not through this function.
+  var out = [], billed = {};
+  (S.orders||[]).forEach(function(o){ if(o.billedSaleId) billed[o.billedSaleId] = true; });
+  var sales = (S.sales||[]).filter(function(s){ return !billed[s.id]; });
+  (S.orders||[]).concat(sales).forEach(function(rec){
     (rec.items||[]).forEach(function(item){
       (item.karigarStages||[]).forEach(function(stage){
         out.push({ item:item, stage:stage, ordNo:rec.ordNo, orderId:rec.id, itemName:item.desc||item.name||'' });
@@ -1814,7 +1922,7 @@ function karigarOwed(karigarId){
 }
 
 function karigarStats(karigarId, monthKey){
-  var out = { piecesSubmitted:0, cash:0, gold:0, silver:0 };
+  var out = { piecesSubmitted:0, cash:0, gold:0, silver:0, daysTotal:0, daysCount:0, shortGold:0, shortSilver:0, shortJobs:0 };
   _allKarigarStageEntries().forEach(function(e){
     if(e.stage.karigarId !== karigarId) return;
     if(e.stage.status !== 'submitted') return;
@@ -1826,6 +1934,18 @@ function karigarStats(karigarId, monthKey){
       var grams = karigarStageGrams(e.item, e.stage);
       var metal = e.item.metal || 'gold';
       if(metal === 'silver') out.silver += grams; else out.gold += grams;
+    }
+    // 29 Oct, minimal performance (spec gap 4): turnaround from dates we
+    // already store, and metal short beyond allowance from the receipt check.
+    // Derived only -- no rating/score is stored anywhere.
+    if(e.stage.assignedDate && e.stage.submittedDate){
+      var days = (new Date(e.stage.submittedDate) - new Date(e.stage.assignedDate)) / 86400000;
+      if(isFinite(days) && days >= 0){ out.daysTotal += days; out.daysCount++; }
+    }
+    var chk = karigarReceiptCheck(e.item, e.stage);
+    if(chk && chk.band === 'short'){
+      out.shortJobs++;
+      if(chk.metal === 'silver') out.shortSilver += chk.shortFine; else out.shortGold += chk.shortFine;
     }
   });
   return out;

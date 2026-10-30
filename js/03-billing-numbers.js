@@ -1479,7 +1479,25 @@ function buildOrdItemRow(i){
       };})(si);
       var rmBtn=document.createElement('button'); rmBtn.type='button'; rmBtn.className='btn btn-sm btn-danger'; rmBtn.textContent='×';
       (function(idx){rmBtn.onclick=function(){ordItems[i].karigarStages.splice(idx,1);_renderStages();};})(si);
-      row.appendChild(taskI); row.appendChild(karI); row.appendChild(modeSel); row.appendChild(cashI); row.appendChild(wastI); row.appendChild(rmBtn);
+      // 29 Oct provenance: metal handed over with this stage (blank = none yet).
+      // Wraps to its own line so the row stays usable on a phone.
+      var issueLine=document.createElement('div'); issueLine.style.cssText='display:flex;gap:6px;align-items:center;flex-basis:100%;';
+      var issLbl=document.createElement('span'); issLbl.style.cssText='font-size:11px;color:var(--text3);'; issLbl.textContent='Metal issued now:';
+      var issW=document.createElement('input'); issW.type='text'; issW.setAttribute('inputmode','decimal'); issW.placeholder='g (blank = none)'; issW.style.width='110px';
+      var issP=document.createElement('select'); issP.style.cssText='width:auto;padding:9px 28px 9px 8px;font-size:12px;';
+      var _first=(stage.issued&&stage.issued[0])||null;
+      issW.value=_first?_first.wt:'';
+      Object.keys(PURITY_FINENESS[ordItems[i].metal==='silver'?'silver':'gold']).forEach(function(p){var op=document.createElement('option');op.value=p;op.textContent=p;if(p===((_first&&_first.purity)||ordItems[i].purity))op.selected=true;issP.appendChild(op);});
+      (function(idx){
+        function sync(){
+          var w=parseFloat(issW.value);
+          ordItems[i].karigarStages[idx].issued=(w>0&&isFinite(w))?[{date:dbDayKey(new Date()),wt:w,purity:issP.value}]:[];
+        }
+        issW.oninput=sync; issP.onchange=sync;
+      })(si);
+      issueLine.appendChild(issLbl); issueLine.appendChild(issW); issueLine.appendChild(issP);
+      row.style.flexWrap='wrap';
+      row.appendChild(taskI); row.appendChild(karI); row.appendChild(modeSel); row.appendChild(cashI); row.appendChild(wastI); row.appendChild(rmBtn); row.appendChild(issueLine);
       stagesList.appendChild(row);
     });
   }
@@ -1562,6 +1580,14 @@ function saveOrder(_pastDateOk){
   var _q=parseFloat((document.getElementById('of-quote')||{value:0}).value)||0;
   var _adv=parseFloat((document.getElementById('of-adv-amt')||{value:0}).value)||0;
   if(_q>0 && _adv>_q){toast('Advance ('+fmt(_adv)+') is more than the quote ('+fmt(_q)+'). Check both amounts.');return;}
+  // Karigar provenance (29 Oct): stage rows don't re-render when an item's
+  // metal is changed, so an issued purity is re-checked against the item's
+  // CURRENT metal here, before anything is locked or saved.
+  var _badIssue=null;
+  validItems.forEach(function(it){ (it.karigarStages||[]).forEach(function(st){ (st.issued||[]).forEach(function(e){
+    if(!_badIssue && karigarFineOf(it.metal||'gold', e.purity, 1)===null) _badIssue=it;
+  }); }); });
+  if(_badIssue){toast('The metal-issued purity on "'+_badIssue.desc+'" does not match its metal ('+(_badIssue.metal||'gold')+') -- re-pick it in Karigar Stages.');return;}
   if(!_pastDateOk && delivery < dbDayKey(new Date())){
     safeConfirm('Delivery date is in the past', 'The delivery date '+fmtDate(delivery)+' has already passed. Save this order anyway (for example, an older order being entered now)?', function(){ saveOrder(true); });
     return;
@@ -1592,7 +1618,12 @@ function saveOrder(_pastDateOk){
     items:validItems.map(function(i){
       return{desc:i.desc,cat:i.cat,metal:i.metal||'gold',purity:i.purity||'22K',
              orderWt:i.orderWt||0,estWt:i.estWt||0,making:i.making||0,
-             makingType:i.makingType||'flat',qty:i.qty||1,note:i.note||''};
+             makingType:i.makingType||'flat',qty:i.qty||1,note:i.note||'',
+             // 29 Oct B1: the order form's Karigar Stages editor was never
+             // saved -- this field list silently dropped it. Rows the owner
+             // added but never named a karigar on are left out, or they'd
+             // sit forever as an "Unassigned task" active stage.
+             karigarStages:(i.karigarStages||[]).filter(function(st){ return st.karigarId; })};
     }),
     quote:parseFloat((document.getElementById('of-quote')||{value:0}).value)||0,
     finalRate:parseFloat((document.getElementById('of-finalrate')||{value:0}).value)||0,

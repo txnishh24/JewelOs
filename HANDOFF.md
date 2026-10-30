@@ -22,8 +22,9 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. Released by Claude Code (Sonnet), 28 Oct — see ninety-sixth entry.
-> → FOR COWORK: nothing — FYI only.
+> Nobody. The 29 Oct Karigar Provenance & Profile build (claimed here on 29 Oct)
+> was interrupted: the working folder lost files and git objects. See the
+> 98th entry. The feature is PARTLY lost and needs rebuilding; nothing deployed.
 
 ---
 
@@ -102,6 +103,119 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-30 (ninety-eighth entry) · Claude Code (Sonnet) — recovered the working folder after files and git objects went missing; Karigar Provenance (29 Oct) is partly lost
+
+**What happened.** On arrival `E:\jewelos` had no `js/04`, `js/10`, `checks/`, `tests/`, `supabase/`,
+most of `docs/`, and git itself refused to open (`.git/refs/` was gone). Cause unknown. The
+reflog showed the 29 Oct provenance commits, but one of them (`d819789`) and ~90 file
+objects were missing from `.git/objects`, and none of the ~10 provenance commits were ever
+pushed (GitHub `main` stops at `6a74db4`, the batch63 Karigar docs commit).
+
+**What I did.** Backed up the broken `.git` to `E:\jewelos-git-backup-20261030`. Recreated
+`refs/heads/main`, restored deleted files from the local index, ran `git fetch origin` for
+the rest, and filled `js/04-orders-detail.js` + `tests/regression.test.js` from
+`origin/main`. Then rebuilt the index and pointed local `main` at `origin/main`
+(unchanged from GitHub). The recovered tree is committed on branch
+`recovery/2026-10-30`, NOT on `main`, so nothing deploys from it.
+
+**What is lost.** The provenance UI that lived in `js/04`: `logStageIssue`, `promptStageReceipt`
+(receipt prompt), order-detail provenance UI, assign-time issuance, the order form's
+metal-issued weight+purity fields, the Karigars-tab editable profile, and the holding-now /
+turnaround card. Also the 28 Oct Karigar Management design spec doc. **What survives:**
+the plan and design docs for 29 Oct (`docs/superpowers/plans/2026-10-29-…`, `specs/2026-10-29-…`),
+and newer edits in `js/00–03`, `js/05`, `index.html` (incl. the orphaned helper
+`karigarReceiptCheck` in `01-sync-core.js`, which nothing calls now).
+
+**Verified (Node v26.13.0, portable copy at `C:\Users\User\tools`).** `node --check` on all 11 modules,
+regression suite 456 passed / 0 failed, `backup-check`, `roundtrip`, `making-basis` clean,
+`loadorder` + `unescaped-ids` none, `scope`/`handlers`/`ids`/`css`/`unquoted-args` show only
+the usual false positives (not diffed against a previous build). **Not verified:** the e2e
+specs (not run), any UI in a browser, and whether the recovered `js/00–03/05` edits are
+complete or half a task.
+
+→ FOR COWORK: nothing urgent — FYI the provenance feature (29 Oct) is not live and not on `main`; Task 10's live-DB count is no longer needed until it is rebuilt.
+→ FOR TANISH: decide whether to rebuild the provenance feature from the plan now or defer it; and check why the E: drive folders went missing, since it could happen again.
+
+### 2026-10-28 (ninety-seventh entry) · Claude Code (Sonnet) — Karigar Management reshaped into its own nav tab + order-level "Assign to Karigar" (not deployed)
+
+Tanish's follow-up on the 96th entry's feature: he wants Karigars to read as a
+separate module (like Sale/Orders/Girvi), not a card buried in Settings →
+Team, and wants the workflow to start from Orders — open an order, one
+"Assign to Karigar" button, done — rather than editing each item's stage by
+hand in the order form.
+
+**Built, committed (`a17e63e`), not deployed.** No schema change — reused the
+batch63 data model as-is (`karigarStages` on order items, `S.karigars`/
+`S.karigarPayments`, `karigarOwed`/`karigarStats`/`karigarQueue` in
+`01-sync-core.js`).
+
+1. **New top-level "Karigars" tab** (`panel-karigars`, bnav more-menu + desktop
+   `dtabs`, staff-blocked same as girvi/settings/reports/customers — karigar
+   payment data is shop-financial, same sensitivity bucket). Moved
+   `renderKarigarList()`'s call site from `renderSettings()` to `renderTab()`;
+   deleted the old Settings → Team card. No duplicate render, no orphaned
+   `#karigar-list` id (only one now).
+2. **`assignOrderToKarigar()`** (`js/04-orders-detail.js`), wired to a new
+   button in the order detail "Order Items" header. One prompt flow (karigar
+   name, task, cash ₹ or wastage %) pushes one `karigarStages` entry onto
+   every item in that order that doesn't already have an active
+   (non-submitted) stage — skips items already in progress rather than
+   stacking a second stage. Validation mirrors `promptKarigarPayment()`'s
+   existing `isFinite`/positive-amount pattern (the thing the 96th entry's
+   Opus review caught last time).
+
+**Reviewed twice, both clean.** `jewelos-bug-pattern-reviewer`: no findings
+— specifically checked the four array/membership edits in `switchTab()`
+(`staffBlocked`, the two tab-list `forEach`s, the `.dtab` index-mapping
+array, the `moreBtn` active-list) against the `dtabs` button order in
+`index.html` for an off-by-one; none found. `jewelos-test-runner`:
+independent run, regression suite 456/0, `node --check` clean on all 11
+files, all 9 AST checks clean (no new hits; `backup-check`/`roundtrip` both
+pass — correct, since no schema changed). It also confirmed two *other*
+failures are pre-existing and unrelated to this diff, by stashing it and
+reproducing identically against clean HEAD: `edge-functions.test.js`'s CORS
+test (stale expectation against the 27 Oct Netlify decommission, nothing to
+do with today) and `tests/cowork-live-check.js` (crashes on a GST-bill
+validation gap in `recordSale()`, pre-existing, open, out of scope for this
+change). One thing it could *not* reproduce: a `checks/making-basis.js`
+TypeError I saw once on my side — it ran clean for the reviewer on both the
+diff and clean HEAD, 4+ times. Treating mine as transient; flagging in case
+it recurs for someone else.
+
+**Verified on an actual screen, later the same session.** The Chrome
+extension stayed disconnected and the Playwright MCP stayed down, so instead
+of those, wrote a one-off ad hoc script (`verify-ui.md`'s exploratory kind,
+not a persisted spec) using the project's own `@playwright/test` devDependency
+and `tests/e2e/fixtures/testShop.js`'s existing `login()` helper — same E2E
+Test Shop the real suite uses, same `E2E-<tag>` data-marking convention, no
+new throwaway shop created. It: logged in, created a real order (tagged
+`E2E-UICHK-<timestamp>`), opened it, clicked Assign to Karigar, answered its
+prompt chain (karigar name, task, cash mode, ₹500), screenshotted the order
+detail, then switched to the new Karigars tab and screenshotted that too.
+Script deleted after the run (scratch, not committed).
+
+**Confirmed from the screenshots:** the order item flips to "Active: Gold
+work / Mark Submitted" right after assign, a toast confirms "Assigned 1
+item(s) to \<karigar\> Karigar", and the new Karigars tab renders — icon,
+title, "Work queue, stats & balances" subcaption, and a card per karigar
+with the same stats/owed/Record Payment layout the old Settings → Team card
+had. Left behind in the shared E2E Test Shop: one tagged test order + one
+tagged test karigar (`E2E-UICHK-<timestamp>...`) — same kind of artifact
+every other spec in `tests/e2e/` already leaves, nothing that needs
+cleaning up per that suite's own convention.
+
+**Still not deployed.** Tanish hasn't seen this on the live site yet — no
+build handed off, no Worker deploy.
+
+→ FOR COWORK: nothing to act on yet — this isn't deployed, nothing live
+changed. FYI only: if Tanish asks about Karigars before Claude Code's next
+session, this is where it stands — built, reviewed, and now screen-verified
+locally, not yet shipped.
+→ FOR TANISH: built per your follow-up (separate tab, order-level assign
+button), reviewed clean, and now confirmed on an actual screen too
+(screenshots in this session, not just logic review). Not deployed — say
+the word when you want it live.
 
 ### 2026-10-28 (ninety-sixth entry) · Claude Code (Sonnet) — Karigar Management feature built, reviewed, deployed live (batch63)
 

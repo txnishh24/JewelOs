@@ -108,6 +108,7 @@ function renderTab(tab, isEntrance){
   else if(tab==='inventory'){loadRates();renderInv(isEntrance);}
   else if(tab==='sales'){initSaleDate();renderSaleItems();}
   else if(tab==='orders')renderOrders();
+  else if(tab==='karigars')renderKarigarList();
   else if(tab==='girvi')renderGirvi();
   else if(tab==='customers')renderCustomers(isEntrance);
   else if(tab==='reports')renderReports(isEntrance);
@@ -125,7 +126,7 @@ function switchTab(tab){
   // ── Staff role enforcement ───────────────────────────────────────────
   // staff: can only access dashboard, sales, inventory
   // manager/owner: full access
-  var staffBlocked = ['reports','customers','girvi','settings'];
+  var staffBlocked = ['reports','customers','girvi','settings','karigars'];
   var managerBlocked = []; // managers can access everything
   if(isStaff() && staffBlocked.indexOf(tab) !== -1){
     toast('\u26a0 Ask the owner for access to ' + tab);
@@ -134,11 +135,11 @@ function switchTab(tab){
   // Plan-based tab gating removed. Every shop gets every module; whether it
   // can write is decided by paidUntil (subGuard), not by tier.
   // Save scroll position of current active panel before switching
-  ['dashboard','inventory','sales','orders','girvi','customers','reports','daybook','settings'].forEach(function(t){
+  ['dashboard','inventory','sales','orders','karigars','girvi','customers','reports','daybook','settings'].forEach(function(t){
     var cp = document.getElementById('panel-'+t);
     if(cp && cp.classList.contains('active')) _tabScrollPos[t] = window.scrollY;
   });
-  ['dashboard','inventory','sales','orders','girvi','customers','reports','daybook','settings'].forEach(function(t){
+  ['dashboard','inventory','sales','orders','karigars','girvi','customers','reports','daybook','settings'].forEach(function(t){
     var p=document.getElementById('panel-'+t),b=document.getElementById('bn-'+t);
     if(p)p.classList.toggle('active',t===tab);
     if(b)b.classList.toggle('active',t===tab);
@@ -148,9 +149,9 @@ function switchTab(tab){
   // always shows where you are even when that destination isn't one of the
   // 4 buttons shown directly.
   var moreBtn=document.getElementById('bn-more');
-  if(moreBtn) moreBtn.classList.toggle('active',['girvi','orders','customers','reports','settings'].indexOf(tab)!==-1);
+  if(moreBtn) moreBtn.classList.toggle('active',['girvi','orders','karigars','customers','reports','settings'].indexOf(tab)!==-1);
   document.querySelectorAll('.dtab').forEach(function(el,i){
-    el.classList.toggle('active',['dashboard','inventory','sales','orders','girvi','customers','reports','daybook','settings'][i]===tab);
+    el.classList.toggle('active',['dashboard','inventory','sales','orders','karigars','girvi','customers','reports','daybook','settings'][i]===tab);
   });
   // P4: entrance=true only for this first, synchronous render of the tab
   // just switched into. The stale-reload below re-renders the SAME tab a

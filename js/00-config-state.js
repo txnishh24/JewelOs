@@ -55,6 +55,17 @@ setInterval(function(){
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
 var G_PUR=['24K','22K','18K','14K','Gold Plated'];
 var S_PUR=['999 Pure','925 Sterling','800','Silver Plated'];
+// Karigar provenance (29 Oct): fineness per purity, by metal -- used ONLY to
+// compare metal issued to a karigar vs metal received back when the purities
+// differ (24K fine out, 22K piece back). Never used for pricing. Plated
+// purities are absent on purpose: there is no karigar metal account for plating.
+var PURITY_FINENESS = {
+  gold:   {'24K':0.999, '22K':0.916, '18K':0.750, '14K':0.585},
+  silver: {'999 Pure':0.999, '925 Sterling':0.925, '800':0.800}
+};
+// Scale noise floor for the receipt check, fine grams. A calibration knob:
+// raise it if a shop's scale reads coarser.
+var KARIGAR_WEIGH_TOL_G = 0.05;
 var CATS=['All','Rings','Necklaces / Haar','Earrings','Jhumkas','Bangles','Kankanalu','Bracelets','Anklets / Payal','Pendants','Chains','Mangalsutras','Maang Tikka','Nose Ring / Nath','Armlet / Bajuband','Waist Belt / Kamarbandh','Jadau','Other'];
 var CCLS={Rings:'bg-purple','Necklaces / Haar':'bg-gold',Earrings:'bg-blue',Jhumkas:'bg-blue',Bangles:'bg-green',Kankanalu:'bg-green',Bracelets:'bg-info','Anklets / Payal':'bg-purple',Pendants:'bg-gold',Chains:'bg-gold',Mangalsutras:'bg-red','Maang Tikka':'bg-amber','Nose Ring / Nath':'bg-amber','Armlet / Bajuband':'bg-silver','Waist Belt / Kamarbandh':'bg-silver',Jadau:'bg-gold',Other:'bg-silver'};
 

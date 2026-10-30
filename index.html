@@ -1922,6 +1922,7 @@ tr:hover td{background:var(--bg2);}
       <button class="dtab" onclick="switchTab('inventory')">Stock</button>
       <button class="dtab" onclick="switchTab('sales')">Sale</button>
       <button class="dtab" onclick="switchTab('orders')">Orders</button>
+      <button class="dtab" onclick="switchTab('karigars')" id="dtab-karigars"><span data-icon="user"></span> Karigars</button>
       <button class="dtab" onclick="switchTab('girvi')" id="dtab-girvi"><span data-icon="lock"></span> Girvi</button>
       <button class="dtab" onclick="switchTab('customers')">Customers</button>
       <button class="dtab" onclick="switchTab('reports')">Reports</button>
@@ -2558,6 +2559,17 @@ tr:hover td{background:var(--bg2);}
 
 </div>
 
+<!-- ═══════════════════════════════════════════════════════ KARIGARS PANEL -->
+<div id="panel-karigars" class="panel">
+  <div class="card">
+    <div class="card-title">
+      <span><span data-icon="user"></span> Karigars</span>
+      <span style="font-size:11px;font-weight:400;color:var(--text3);">Work queue, stats &amp; balances</span>
+    </div>
+    <div id="karigar-list"></div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════ GIRVI PANEL -->
 <div id="panel-girvi" class="panel">
 
@@ -3147,10 +3159,6 @@ tr:hover td{background:var(--bg2);}
       <div class="card-title"><span><span data-icon="clipboard"></span> Activity Log</span></div>
       <div id="set-activity-log"></div>
     </div>
-    <div class="card">
-      <div class="card-title">Karigars</div>
-      <div id="karigar-list"></div>
-    </div>
   </div>
 
 
@@ -3318,6 +3326,7 @@ tr:hover td{background:var(--bg2);}
     <div class="modal-body" style="padding:.5rem;">
       <button class="more-menu-item" onclick="switchTab('girvi');closeMoreMenu();" id="bn-girvi"><span class="bnav-icon" data-icon="lock"></span><span>Girvi</span></button>
       <button class="more-menu-item" onclick="switchTab('orders');closeMoreMenu();" id="bn-orders"><span class="bnav-icon" data-icon="clipboard"></span><span>Orders</span></button>
+      <button class="more-menu-item" onclick="switchTab('karigars');closeMoreMenu();" id="bn-karigars"><span class="bnav-icon" data-icon="user"></span><span>Karigars</span></button>
       <button class="more-menu-item" onclick="switchTab('customers');closeMoreMenu();" id="bn-customers"><span class="bnav-icon" data-icon="users"></span><span>Customers</span></button>
       <button class="more-menu-item" onclick="switchTab('reports');closeMoreMenu();" id="bn-reports"><span class="bnav-icon" data-icon="chart"></span><span>Reports</span></button>
       <button class="more-menu-item" onclick="switchTab('settings');closeMoreMenu();" id="bn-settings"><span class="bnav-icon" data-icon="gear"></span><span>Settings</span></button>
