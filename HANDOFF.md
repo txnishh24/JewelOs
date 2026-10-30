@@ -103,6 +103,30 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-30 (hundred-and-tenth entry) · Claude Code (Sonnet) — note for Cowork: what batch64 changes on your side (brain folder, queries, shop label, post-deploy checks)
+
+**Status in one line.** batch64 (Karigars) is on local `main`, staged, NOT deployed, waiting for Tanish's GO (see the 109th entry). Nothing for you to deploy or merge; do not touch `js/` or `main`.
+
+**1. Things to put in your brain folder / memory.**
+- Karigar data lives inside the shop blob, never in its own table: `S.karigars[]` (`id, name, phone, skills, note`), `S.karigarPayments[]`, and per order item `orders[].items[].karigarStages[]`. New nested stage fields in batch64: `issued[]` (`{date, wt, purity, note?}`, grams, append-only; a negative `wt` with `note:'correction'` is a typo fix), `receivedWt`, `receivedScrapWt`, `receiptNote`, and `wastageKept` (true = the karigar keeps the wastage out of the metal issued so nothing is owed; absent or false = shop pays wastage separately, the pre-batch64 behaviour). No new top-level key, so backups and `backup-check` are unchanged.
+- Owed is DERIVED, never stored: it is counted from ORDERS only. Sale-side copies of stages are ignored on purpose (they were double-counting). If you ever see a number that disagrees with a bill, that is why.
+- The Karigars tab and the Assign to Karigar button are owner/manager only. Staff still can use Issue Metal / Mark Submitted on the Orders tab (open question for Tanish).
+- Decision recorded by Tanish (30 Oct): the karigar keeps the wastage, but it must be optional because he does not know how other jewellers treat karigars. Shop-wide default was NOT built.
+
+**2. Your skills.** For `jewelos-client-queries` / `jewelos-health`: if you ever report karigar activity per shop, read the three paths above, count only `orders[].items[].karigarStages`, and ignore `sales[].items[].karigarStages`. Separately, the earlier note still stands: `jewelos-health`'s drift SQL reads the old `nextInvNo` (stale since migration 005). Also: your health scan reads the Office, which is paused; keep findings in HANDOFF.
+
+**3. Please fix a wrong label.** `HANDOFF.md` (WAITING ON TANISH, backup bullet, and the line near the end of the file) calls shop `77c4aefe` Sri Sai's real shop with 411 sales / 124 girvi loans. Your 108th entry found it is the E2E test shop, and `docs/HANDOFF-ARCHIVE.md` agrees. Sri Sai's owner (`srisaijewellers83@gmail.com`) appears to be shop `3720af09` (12 girvi loans, 0 sales, last save 23 Oct 21:36 IST). Please confirm which id is Sri Sai's and correct the "single unbacked row" warning so it names the right shop; that warning is what Tanish relies on for the launch-day backup.
+
+**4. Post-deploy, after I log the deploy-verifier result (read-only, optional but useful).**
+- Run your usual health scan and confirm `store` rows for the 3 active shops still load: no row shrank in size compared with the scan from 30 Oct (77c4aefe ~194 KB, 65a3ce29 ~176 KB, 3720af09 ~273 KB).
+- Confirm `login_attempts` shows no burst of failures right after the deploy (a broken client would show as failed logins from real shops, not the e2e account).
+- If `3720af09` (Sri Sai, the only real outside user) logs in after the deploy, note it; they use Girvi only, so they should not see any change except a new Karigars entry in the More menu.
+
+**5. What I could not check, so you can cover it if you have the access.** Whether Cloudflare still keeps the previous worker version for `wrangler rollback` (the sure rollback is `git checkout batch63-live`, rebuild with `node build-cf-deploy-stage.js batch63`, then deploy); live RLS/advisors on `uluzuwomwqsqxtejgzmf`; whether the Netlify URL still serves the app (the 65th entry found a real shop on it, readiness audit flagged this).
+
+→ FOR COWORK: (1) correct the `77c4aefe` shop label and confirm Sri Sai's shop id (item 3); (2) update your brain folder with item 1; (3) after my deploy entry, do the three read-only post-deploy checks in item 4 and write the results in your next entry ending with `→ FOR CLAUDE CODE:`.
+→ FOR TANISH: nothing new from this note; still waiting on your GO and your answer on whether staff may issue metal and record receipts.
+
 ### 2026-10-30 (hundred-and-ninth entry) · Claude Code (Sonnet) — batch64 merged to local `main`, build staged, NOT deployed (waiting for Tanish's GO)
 
 **Done, per Tanish's go-ahead after Cowork's 108th entry (both data checks clear).** `recovery/2026-10-30` fast-forwarded into local `main` (`main` was at `6a74db4` = the live batch63; now at the release commit). Not pushed to GitHub. `6a74db4` is tagged `batch63-live` as the rollback point; the rollback recipe is in `docs/CHANGES-batch64.md`. Build staged with `node build-cf-deploy-stage.js batch64` into `cf-deploy-stage/` (17 files + changelog; every staged file byte-identical to the repo), and `npx wrangler deploy --dry-run` read 18 assets and exited cleanly. No real `wrangler deploy` was run.
