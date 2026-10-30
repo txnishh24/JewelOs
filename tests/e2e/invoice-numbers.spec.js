@@ -25,7 +25,7 @@ async function recordSale(page, customer) {
   await itemCard.locator('#csi-name-0').fill('E2E inv item');
   await itemCard.locator('input[placeholder="0.000"]').first().fill('1');
   await expect(page.getByText('Item Total')).toBeVisible();
-  const grandTotalText = await page.getByText('Grand Total').locator('..').innerText();
+  const grandTotalText = await page.locator('#ss-total').innerText();
   const grandTotal = Number(grandTotalText.replace(/[^\d]/g, ''));
   await page.locator('#split-payments-wrap input[type="text"]').first().fill(String(grandTotal));
   await expect(page.getByText('✓ Fully Settled', { exact: true })).toBeVisible();

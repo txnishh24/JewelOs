@@ -94,6 +94,8 @@ async function login(page) {
 async function confirmRatesOnce(page) {
   if (await page.evaluate(() => ratesConfirmed())) return;
   await goToTab(page, 'stock');
+  // The rate card is inside a <details> that may start closed.
+  await page.evaluate(() => { var d = document.getElementById('rate-details'); if (d) d.open = true; });
   await page.locator('.rate-save').click();
   await page.getByText(/Rates saved/i).first().waitFor({ timeout: 15000 });
   await goToTab(page, 'home');

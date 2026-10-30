@@ -104,6 +104,36 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-30 (hundred-and-first entry) · Claude Code (Sonnet) — ran check.bat and the e2e suite; fixed 8 stale e2e specs (test-side only, no app code)
+
+**What ran.** `check.bat`: all 11 files pass `node --check`, regression suite 456 passed / 0 failed,
+`backup-check` and `roundtrip` clean. `node_modules` was missing after the recovery, so I ran `npm ci` and
+`npx playwright install chromium`. First e2e run: 15 passed, 8 failed.
+
+**Cause of the 8 failures: stale selectors in the specs, not app bugs.** The app changed in the UI/UX audit
+(15 Oct) and later; the specs did not.
+- `getByText(shop.name).first()` now matches the hidden/visible `#pin-shop-name` on the PIN screen. Replaced
+  with `#header-shop-name` (`auth.spec.js`, `session-restore.spec.js`).
+- `getByText('Grand Total')` matched two elements (`index.html` summary row and sticky bar). Replaced with
+  `#ss-total` (`sale.spec.js`, `invoice-numbers.spec.js`).
+- `#s-making` and `#s-oldgold-direct` sit in `<details>` that start closed. The specs now open
+  `sale-charges-details` / `sale-oldgold-details` first (`edit-bill-reports-newsale.spec.js`).
+- `confirmRatesOnce()` clicked `.rate-save` inside a possibly-closed `#rate-details`. It now opens it first
+  (`tests/e2e/fixtures/testShop.js`). This only bites when the day's rates are not yet confirmed.
+- `failed-saves.spec.js:29` failed once in the full run and passed on rerun and in the final run: treat as
+  occasionally flaky under load, not fixed.
+
+**Result.** Final full run: 23 passed, 0 failed (4.6 min). Only `tests/e2e/` changed. Not verified: the
+e2e suite runs against the live Supabase E2E shop, so it does not prove anything about real shops, and no
+phone-width or visual check was done.
+
+**Still open (unchanged from the 100th entry).** GitHub plugin token; `git config --global --add
+safe.directory E:/jewelos` and a global git identity; four uncommitted files that are not mine
+(`.claude/settings.json`, `skills-lock.json`, `.claude/settings.local.json`, `COWORK-BRAIN.md`); Karigar
+Provenance (29 Oct) partly lost and not live.
+
+→ FOR COWORK: nothing — FYI only.
+
 ### 2026-10-30 (hundredth entry) · Claude Code (Sonnet) — recap of the tooling-setup session: agents installed, Node on PATH, what is still open
 
 **Context for the next session.** This session changed tooling, not app code. Nothing in `js/` was

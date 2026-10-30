@@ -94,7 +94,7 @@ test.describe('auth', () => {
     // 1) -- it's no longer chrome visible on every tab, so the shop name in
     // the header is the "whole app is up, not just one tab" signal this
     // test actually needs (see the comment above on what this test checks).
-    const appChrome = page.getByText(shop.name).first();
+    const appChrome = page.locator('#header-shop-name');
     await expect(appChrome).toBeVisible();
 
     // Jump past the real 5-minute inactivity window (INACTIVITY_MS,

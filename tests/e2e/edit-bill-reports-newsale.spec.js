@@ -101,6 +101,8 @@ test.describe('edit bill', () => {
     // must never post a "Sale" cash-in line (M3 follow-up #2: a plain
     // exchange sale fully covered by old gold/advance was reaching
     // dbAutoLines()'s tier-3 cash fallback).
+    // Old Gold sits in a <details> that starts closed (UI/UX audit, 15 Oct).
+    await page.evaluate(() => { document.getElementById('sale-oldgold-details').open = true; });
     await page.locator('#s-oldgold-direct').fill(String(grandTotal));
     await expect(page.getByText('✓ Fully Settled', { exact: true })).toBeVisible();
     await page.locator('#panel-sales').getByRole('button', { name: /record & sync sale/i }).click();
@@ -173,6 +175,8 @@ test.describe('new sale number boxes', () => {
     // (Memo Bill mode, js/02-ui-inactivity-modals.js setSaleFormBillType) --
     // a business rule unrelated to M4. #s-making and #s-disc carry the exact
     // same zeroFieldFocus/zeroFieldBlur fix and are always visible.
+    // Extra charges sit in a <details> that starts closed (UI/UX audit, 15 Oct).
+    await page.evaluate(() => { document.getElementById('sale-charges-details').open = true; });
     for (const sel of ['#s-making', '#s-disc']) {
       const box = page.locator(sel);
       await expect(box).toHaveValue('0');

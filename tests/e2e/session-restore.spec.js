@@ -44,7 +44,7 @@ async function reopen(page, { idle = false, expired = false } = {}) {
 // dashboard into Settings -> Account (UI/UX audit, 15 Oct, Phase 1), so the
 // shop name in the header is the stable always-visible signal now. Kept
 // the name `signOutBtn` to minimise the diff against every call site below.
-const signOutBtn = (page) => page.getByText(shop.name).first();
+const signOutBtn = (page) => page.locator('#header-shop-name');
 
 test.describe('reopening the app (F1 / R1)', () => {
   test('recently active: resumes straight into the app with a working token', async ({ page }) => {

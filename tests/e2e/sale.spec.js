@@ -103,7 +103,7 @@ test.describe('sale', () => {
     const payMode = page.locator('#split-payments-wrap select').first();
     // Amount must match the computed total for "Fully Settled" — read it back
     // from the Grand Total line rather than recomputing the rate again here.
-    const grandTotalText = await page.getByText('Grand Total').locator('..').innerText();
+    const grandTotalText = await page.locator('#ss-total').innerText();
     const grandTotal = Number(grandTotalText.replace(/[^\d]/g, ''));
     await payAmount.fill(String(grandTotal));
     await payMode.selectOption('UPI');
