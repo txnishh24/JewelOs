@@ -478,8 +478,11 @@ function assignOrderToKarigar(ordId){
   if(!name){ toast('Cancelled'); return false; }
   var task = String(prompt('Task (e.g. Gold work, Polish, Setting)?', '') || '').trim();
   if(!task){ toast('Cancelled'); return false; }
-  var mode = String(prompt('How is this karigar paid: cash or wastage?', 'cash') || '').trim().toLowerCase();
-  if(mode !== 'cash' && mode !== 'wastage'){ toast('Cancelled — type cash or wastage'); return false; }
+  var mode = String(prompt('How is this karigar paid: cash, wastage (he keeps it out of the metal), or wastage-paid (you pay wastage separately)?', 'cash') || '').trim().toLowerCase();
+  // 30 Oct: wastage = karigar keeps it (nothing owed); wastage-paid = old behaviour
+  var wastageKept = (mode === 'wastage');
+  if(mode === 'wastage-paid') mode = 'wastage';
+  if(mode !== 'cash' && mode !== 'wastage'){ toast('Cancelled — type cash, wastage or wastage-paid'); return false; }
   var cost = 0, pct = 0;
   if(mode === 'cash'){
     cost = parseFloat(prompt('Cash to pay per piece (₹)?', ''));
@@ -516,7 +519,7 @@ function assignOrderToKarigar(ordId){
   var karigar = addOrGetKarigar(name);
   targets.forEach(function(it, idx){
     it.karigarStages = it.karigarStages || [];
-    var st = {task:task, karigarId:karigar.id, karigarPayMode:mode, karigarCost:cost, karigarWastagePct:pct, status:'assigned', assignedDate:dbDayKey(new Date())};
+    var st = {task:task, karigarId:karigar.id, karigarPayMode:mode, karigarCost:cost, karigarWastagePct:pct, wastageKept:wastageKept, status:'assigned', assignedDate:dbDayKey(new Date())};
     if(issueWts[idx]) st.issued = [{ date:dbDayKey(new Date()), wt:issueWts[idx], purity:issuePur[idx] }];
     it.karigarStages.push(st);
   });

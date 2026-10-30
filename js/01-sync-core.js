@@ -1917,6 +1917,11 @@ function karigarOwed(karigarId){
     if(e.stage.karigarPayMode === 'cash'){
       totals.cash += karigarStageCost(e.item, e.stage);
     } else if(e.stage.karigarPayMode === 'wastage'){
+      // 30 Oct (Tanish): in this shop the karigar KEEPS the wastage out of the
+      // metal issued, so nothing is owed to him. Optional per stage: shops that
+      // return all metal and pay wastage separately leave wastageKept false.
+      // Absent (every stage from before 30 Oct) = old behaviour, still owed.
+      if(e.stage.wastageKept === true) return;
       var grams = karigarStageGrams(e.item, e.stage);
       var metal = e.item.metal || 'gold';
       if(metal === 'silver') totals.silver += grams; else totals.gold += grams;

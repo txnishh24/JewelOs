@@ -1473,6 +1473,7 @@ function buildOrdItemRow(i){
         ordItems[i].karigarStages[idx].karigarPayMode=this.value;
         cashI.style.display=this.value==='cash'?'':'none';
         wastI.style.display=this.value==='wastage'?'':'none';
+        if(typeof keepLine!=='undefined' && keepLine) keepLine.style.display=this.value==='wastage'?'flex':'none';
         calcOrdEst();
       };})(si);
       (function(idx){cashI.oninput=function(){ordItems[i].karigarStages[idx].karigarCost=parseFloat(this.value)||0;calcOrdEst();};})(si);
@@ -1501,8 +1502,15 @@ function buildOrdItemRow(i){
         issW.oninput=sync; issP.onchange=sync;
       })(si);
       issueLine.appendChild(issLbl); issueLine.appendChild(issW); issueLine.appendChild(issP);
+      // 30 Oct: does the karigar keep the wastage out of the metal issued (so it
+      // is NOT owed to him), or does the shop pay it separately? Per stage, so
+      // a shop that does it both ways is covered.
+      var keepLine=document.createElement('label'); keepLine.style.cssText='display:'+(stage.karigarPayMode==='wastage'?'flex':'none')+';gap:6px;align-items:center;flex-basis:100%;font-size:11px;color:var(--text3);';
+      var keepCb=document.createElement('input'); keepCb.type='checkbox'; keepCb.checked=stage.wastageKept===true; keepCb.style.cssText='width:auto;margin:0;';
+      (function(idx){keepCb.onchange=function(){ordItems[i].karigarStages[idx].wastageKept=this.checked;};})(si);
+      keepLine.appendChild(keepCb); keepLine.appendChild(document.createTextNode('Karigar keeps the wastage out of the metal issued (untick if you pay wastage separately)'));
       row.style.flexWrap='wrap';
-      row.appendChild(taskI); row.appendChild(karI); row.appendChild(modeSel); row.appendChild(cashI); row.appendChild(wastI); row.appendChild(rmBtn); row.appendChild(issueLine);
+      row.appendChild(taskI); row.appendChild(karI); row.appendChild(modeSel); row.appendChild(cashI); row.appendChild(wastI); row.appendChild(rmBtn); row.appendChild(issueLine); row.appendChild(keepLine);
       stagesList.appendChild(row);
     });
   }
@@ -1511,7 +1519,7 @@ function buildOrdItemRow(i){
   addStageBtn.textContent='+ Add Karigar Stage';
   addStageBtn.onclick=function(){
     ordItems[i].karigarStages = ordItems[i].karigarStages || [];
-    ordItems[i].karigarStages.push({task:'', karigarId:'', karigarPayMode:'', karigarCost:0, karigarWastagePct:0, status:'assigned', assignedDate:dbDayKey(new Date())});
+    ordItems[i].karigarStages.push({task:'', karigarId:'', karigarPayMode:'', karigarCost:0, karigarWastagePct:0, wastageKept:true, status:'assigned', assignedDate:dbDayKey(new Date())});
     _renderStages();
   };
   stagesWrap.appendChild(stagesList); stagesWrap.appendChild(addStageBtn); g.appendChild(stagesWrap);

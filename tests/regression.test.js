@@ -7210,6 +7210,40 @@ test('30 Oct fix: karigarPurityKey accepts a bare karat number; receipt bands do
   assert(a.karigarReceiptCheck(item, s22, recv).band === 'match', 'short by exactly tolerance is still a match: ' + JSON.stringify(a.karigarReceiptCheck(item, s22, recv)));
 });
 
+test('30 Oct wastage: a stage where the karigar KEEPS the wastage owes him nothing; absent flag (legacy) and false still owe it', function(){
+  var a = loadApp();
+  var k = a.addOrGetKarigar('Ramesh');
+  var mk = function(extra){ var s = { karigarId:k.id, karigarPayMode:'wastage', karigarWastagePct:4, status:'submitted' }; for(var p in extra) s[p] = extra[p]; return s; };
+  var item = function(stage){ return { metal:'gold', purity:'22K', estWt:10, qty:1, karigarStages:[stage] }; };
+  a.S.orders = [{ id:'o1', items:[ item(mk({})) ] }];
+  assert(approxEqual(a.karigarOwed(k.id).gold, 0.4, 1e-9), 'legacy stage (no flag) still owed 0.4g: ' + JSON.stringify(a.karigarOwed(k.id)));
+  a.S.orders = [{ id:'o1', items:[ item(mk({ wastageKept:false })) ] }];
+  assert(approxEqual(a.karigarOwed(k.id).gold, 0.4, 1e-9), 'wastageKept:false = shop pays it separately, still owed');
+  a.S.orders = [{ id:'o1', items:[ item(mk({ wastageKept:true })) ] }];
+  assert(a.karigarOwed(k.id).gold === 0, 'wastageKept:true owes nothing: ' + JSON.stringify(a.karigarOwed(k.id)));
+  // cash stages are untouched by the flag, and the cost used for profit does not move
+  a.S.orders = [{ id:'o1', items:[ item({ karigarId:k.id, karigarPayMode:'cash', karigarCost:500, status:'submitted', wastageKept:true }) ] }];
+  assert(a.karigarOwed(k.id).cash === 500, 'cash stage unaffected');
+  var plain = item(mk({})), kept = item(mk({ wastageKept:true }));
+  assert(a.karigarCostOf(plain) === a.karigarCostOf(kept), 'profit cost must not depend on who keeps the wastage');
+});
+
+test('30 Oct wastage: assign flow -- "wastage" = karigar keeps it, "wastage-paid" = shop pays separately', function(){
+  var t1 = _assignApp([_gItem('Ring')], ['Ramesh','Gold work','wastage','4','']);
+  assert(t1.a.assignOrderToKarigar('o1') === true, t1.toasts.join(' | '));
+  var s1 = t1.a.S.orders[0].items[0].karigarStages[0];
+  assert(s1.karigarPayMode === 'wastage' && s1.wastageKept === true && s1.karigarWastagePct === 4, JSON.stringify(s1));
+  var t2 = _assignApp([_gItem('Ring')], ['Ramesh','Gold work','wastage-paid','4','']);
+  assert(t2.a.assignOrderToKarigar('o1') === true, t2.toasts.join(' | '));
+  var s2 = t2.a.S.orders[0].items[0].karigarStages[0];
+  assert(s2.karigarPayMode === 'wastage' && s2.wastageKept === false, JSON.stringify(s2));
+  var t3 = _assignApp([_gItem('Ring')], ['Ramesh','Gold work','cash','100','']);
+  t3.a.assignOrderToKarigar('o1');
+  assert(t3.a.S.orders[0].items[0].karigarStages[0].wastageKept === false, 'cash stage records wastageKept:false');
+  var t4 = _assignApp([_gItem('Ring')], ['Ramesh','Gold work','weird','4']);
+  assert(t4.a.assignOrderToKarigar('o1') === false && t4.saved() === 0, 'unknown mode still cancels');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

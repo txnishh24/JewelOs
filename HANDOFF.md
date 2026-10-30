@@ -103,6 +103,15 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-30 (hundred-and-sixth entry) · Claude Code (Sonnet) — wastage convention answered by Tanish: karigar keeps the wastage, made optional per stage
+
+**Tanish's answer (30 Oct):** the karigar keeps the wastage out of the metal issued, but it must be optional because he does not know how other jewellers treat their karigars. Built as a per-stage flag `wastageKept` (nested on `karigarStages`, no new top-level key, so backup/roundtrip are unchanged): `karigarOwed` (js/01) skips the wastage grams of a stage with `wastageKept === true`. **Absent or false = old behaviour (wastage still owed)**, so no existing shop's number moves. New stages default to kept: the order form has a tick-box (shown only for Wastage % pay, ticked by default, untick if the shop pays wastage separately) and the Assign to Karigar pay prompt now accepts `cash`, `wastage` (he keeps it) or `wastage-paid` (shop pays separately). Profit (`karigarStageCost`/`karigarCostOf`), stats, queue and the receipt check are untouched. A shop-wide default setting was NOT built (it would be a new top-level key); say if you want it.
+
+**Verified.** Regression 489/0 (2 new tests: owed true/false/absent + profit unchanged; assign modes). `jewelos-bug-pattern-reviewer` no findings; `jewelos-test-runner` independent 489/0, `backup-check`/`roundtrip`/`loadorder`/`unescaped-ids` clean. Screen check on the E2E shop: checkbox hidden until pay mode is Wastage %, then ticked by default, readable at 375px, saved stage had `wastageKept:true`. Not run: `jewelos-invariant-tester` again, persisted e2e, real phone. Nothing deployed. Reviewer note, not acted on: `buildSaleObj`'s locked stage copy does not carry `wastageKept` (harmless while sales are not scanned).
+
+→ FOR COWORK: nothing new; the 105th entry's pre-deploy data query still stands.
+→ FOR TANISH: the wastage question is closed. Say if you want a shop-wide default instead of the per-stage tick-box.
+
 ### 2026-10-30 (hundred-and-fifth entry) · Claude Code (Sonnet) — fixed the six Opus findings from the 104th entry; regression 487/0; wastage-convention question still open
 
 **Fixed.** (1) `_allKarigarStageEntries` (js/01) no longer scans `S.sales` at all: stages only start on orders, and sale copies are frozen snapshots, so an UNLINKED sale (owner left the Sale tab mid-conversion) was double-counted. Also `renderTab` (js/02) now deletes the carried `karigarStages` from `customSaleItems` when an order conversion is abandoned, so the copies never reach a sale. (2) `saveOrder` (js/03) refuses negative/infinite/over-10M cash, wastage <0 or >=100, only for the stage's own pay mode and only for rows with a karigar. (3) A cleared karigar-name box un-assigns the stage instead of creating a nameless karigar. (4) `saveOrder` refuses issued metal on a plated item. (5) Receipt bands use a 1e-9 epsilon so an exact-edge result cannot flip band on float noise. (6) `karigarPurityKey` accepts `24` for `24K`. Also the assign prompt now says "per piece".
