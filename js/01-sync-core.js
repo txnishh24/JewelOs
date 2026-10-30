@@ -1818,7 +1818,9 @@ function karigarPurityKey(metal, typed){
   if(!t) return '';
   var keys = Object.keys(PURITY_FINENESS[metal === 'silver' ? 'silver' : 'gold']);
   for(var i=0; i<keys.length; i++){
-    if(keys[i].toLowerCase() === t || keys[i].split(' ')[0].toLowerCase() === t) return keys[i];
+    var first = keys[i].split(' ')[0].toLowerCase();
+    // a bare number is accepted for karat purities too: '24' means 24K
+    if(keys[i].toLowerCase() === t || first === t || first === t + 'k') return keys[i];
   }
   return '';
 }
@@ -1854,10 +1856,12 @@ function karigarReceiptCheck(item, stage, receivedWt, receivedScrapWt){
     var wt  = parseFloat(item.weight||item.estWt||item.orderWt) || 0;
     allowance = (parseFloat(stage.karigarWastagePct)||0)/100 * wt * qty;
   }
-  var shortFine = issuedFine - pieceFine - scrapFine, tol = KARIGAR_WEIGH_TOL_G, band;
-  if(shortFine < -tol) band = 'over';
-  else if(shortFine <= tol) band = 'match';
-  else if(shortFine <= allowance + tol) band = 'allowance';
+  // EPS: a result that is exactly at a band edge on paper (0.05g) can come out
+  // as 0.05000000000000071 in floating point -- do not let that flip the band.
+  var shortFine = issuedFine - pieceFine - scrapFine, tol = KARIGAR_WEIGH_TOL_G, EPS = 1e-9, band;
+  if(shortFine < -tol - EPS) band = 'over';
+  else if(shortFine <= tol + EPS) band = 'match';
+  else if(shortFine <= allowance + tol + EPS) band = 'allowance';
   else band = 'short';
   return { metal:metal, issuedFine:issuedFine, receivedFine:pieceFine+scrapFine, shortFine:shortFine, allowanceFine:allowance, band:band };
 }
@@ -1886,10 +1890,16 @@ function _allKarigarStageEntries(){
   // ORDER is canonical (it's where stages are edited and submitted); a sale
   // that some order was billed into is skipped here. Profit is unaffected:
   // calcItemProfit reads sale lines directly, not through this function.
-  var out = [], billed = {};
-  (S.orders||[]).forEach(function(o){ if(o.billedSaleId) billed[o.billedSaleId] = true; });
-  var sales = (S.sales||[]).filter(function(s){ return !billed[s.id]; });
-  (S.orders||[]).concat(sales).forEach(function(rec){
+  //
+  // 30 Oct (Opus review): the first fix only skipped sales some order names in
+  // billedSaleId. A sale recorded after the owner left the Sale tab mid-
+  // conversion carries stage copies but is NOT linked to its order, so it was
+  // still counted twice. Stages only ever START on orders (order form /
+  // assignOrderToKarigar) and reach a sale only as copies via convertToSale,
+  // and no code path deletes an order -- so every sale-side stage has an
+  // order-side original. S.sales is therefore not scanned at all.
+  var out = [];
+  (S.orders||[]).forEach(function(rec){
     (rec.items||[]).forEach(function(item){
       (item.karigarStages||[]).forEach(function(stage){
         out.push({ item:item, stage:stage, ordNo:rec.ordNo, orderId:rec.id, itemName:item.desc||item.name||'' });

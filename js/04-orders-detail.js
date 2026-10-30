@@ -482,7 +482,7 @@ function assignOrderToKarigar(ordId){
   if(mode !== 'cash' && mode !== 'wastage'){ toast('Cancelled — type cash or wastage'); return false; }
   var cost = 0, pct = 0;
   if(mode === 'cash'){
-    cost = parseFloat(prompt('Cash to pay per item (₹)?', ''));
+    cost = parseFloat(prompt('Cash to pay per piece (₹)?', ''));
     if(!(cost > 0) || !isFinite(cost)){ toast('Cancelled — enter a positive amount'); return false; }
   } else {
     pct = parseFloat(prompt('Wastage allowed (% of item weight)?', ''));

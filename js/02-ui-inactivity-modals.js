@@ -95,7 +95,15 @@ function stockSV(){return S.products.filter(function(p){return p.metal==='silver
 function renderTab(tab, isEntrance){
   // F4: leaving the Sale tab abandons an order conversion, so the next,
   // unrelated sale can't be billed against that order.
-  if(tab!=='sales') _pendingOrderConversion = null;
+  if(tab!=='sales'){
+    // 30 Oct: the lines convertToSale pre-filled carry copies of the order's
+    // karigarStages. If the conversion is abandoned but the lines survive, the
+    // next Record Sale would save those copies on an UNLINKED sale. Drop them.
+    if(_pendingOrderConversion && typeof customSaleItems !== 'undefined' && customSaleItems){
+      customSaleItems.forEach(function(it){ delete it.karigarStages; });
+    }
+    _pendingOrderConversion = null;
+  }
   // Re-checked on every screen change so the state stays honest across a
   // session left open overnight, and the warn banner returns the next day.
   if(typeof renderSubBanner === 'function') renderSubBanner();

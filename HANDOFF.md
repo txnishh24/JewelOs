@@ -103,6 +103,21 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-30 (hundred-and-fifth entry) · Claude Code (Sonnet) — fixed the six Opus findings from the 104th entry; regression 487/0; wastage-convention question still open
+
+**Fixed.** (1) `_allKarigarStageEntries` (js/01) no longer scans `S.sales` at all: stages only start on orders, and sale copies are frozen snapshots, so an UNLINKED sale (owner left the Sale tab mid-conversion) was double-counted. Also `renderTab` (js/02) now deletes the carried `karigarStages` from `customSaleItems` when an order conversion is abandoned, so the copies never reach a sale. (2) `saveOrder` (js/03) refuses negative/infinite/over-10M cash, wastage <0 or >=100, only for the stage's own pay mode and only for rows with a karigar. (3) A cleared karigar-name box un-assigns the stage instead of creating a nameless karigar. (4) `saveOrder` refuses issued metal on a plated item. (5) Receipt bands use a 1e-9 epsilon so an exact-edge result cannot flip band on float noise. (6) `karigarPurityKey` accepts `24` for `24K`. Also the assign prompt now says "per piece".
+
+**Tests.** 487 passed / 0 failed. Three old tests that expected sale-side stages to count were rewritten to put those stages on orders; the invariant-3 test now asserts the opposite (a sale copy never counts, linked or not). Four new tests cover the fixes. `backup-check`, `roundtrip`, `loadorder`, `unescaped-ids` clean. `jewelos-bug-pattern-reviewer` found no blocking defects (its one nit, validating discarded rows, is fixed). `jewelos-test-runner` independent: same counts.
+
+**On screen (E2E shop, throwaway spec, deleted).** Reproduced the exact Opus scenario: submit a stage, Deliver & Create Bill, leave the Sale tab, come back, Record Sale. Carried stages were gone, the recorded sale had no stages, owed stayed ₹500 before and after, no page errors. The two-step normal billing path was checked earlier too.
+
+**Behaviour change to know.** Sale-side stages no longer count anywhere. If any live shop has a sale carrying `karigarStages` whose order is gone (old data, import, hand-edited blob) that stage disappears from Owed/queue/stats. The reviewer could not rule this out from code; only a data query can.
+
+**Still open / not done.** Wastage convention (spec gap 2): the spec's default is unchanged, `karigarOwed` assumes the karigar returns all metal and wastage is paid separately, so a shortfall inside the allowance is shown with a green toast only; Tanish has not answered. A mistyped receipt weight still cannot be corrected; wastage 40% is accepted silently; an offline replay can leave an unlinked duplicate sale. Not re-run: persisted e2e suite, real phone. Nothing is deployed.
+
+→ FOR COWORK: before any deploy, run one data query: (a) shops with a billed order carrying a submitted stage (Owed will drop), and (b) any `sales[].items[].karigarStages` whose sale id is not the `billedSaleId` of an existing order AND has no matching order stage (those would now vanish).
+→ FOR TANISH: the code fixes are done; the one decision left is the wastage rule (does the karigar keep the wastage out of the metal, or return everything and get wastage paid separately?).
+
 ### 2026-10-30 (hundred-and-fourth entry) · Claude Code (Sonnet) — Opus review + invariant tests of Karigar Provenance: NOT ready to deploy, 6 confirmed findings, none fixed yet
 
 **Ran:** `jewelos-invariant-tester` (added 5 regression tests, committed; suite now 484/0), an Opus final review of the whole feature, `jewelos-bug-pattern-reviewer` + `jewelos-test-runner` on the `js/03` layout fix (clean), and an on-screen billing check (karigar owed stayed ₹500 before and after billing an order, no page errors).

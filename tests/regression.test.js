@@ -6661,10 +6661,11 @@ test('karigarOwed: sums submitted-stage cost across orders and sales, nets again
   a.S.orders = [{ id:'o1', items:[{ metal:'gold', weight:10, qty:1, karigarStages:[
     { karigarId:k.id, karigarPayMode:'wastage', karigarWastagePct:4, status:'submitted' }
   ]}]}];
-  a.S.sales = [{ items:[{ metal:'gold', weight:5, qty:1, karigarStages:[
+  // 30 Oct: stages are counted from ORDERS only (sale-side copies are never scanned)
+  a.S.orders.push({ id:'o2', items:[{ metal:'gold', weight:5, qty:1, karigarStages:[
     { karigarId:k.id, karigarPayMode:'cash', karigarCost:300, status:'submitted' },
     { karigarId:k.id, karigarPayMode:'cash', karigarCost:999, status:'assigned' } // not yet earned
-  ]}]}];
+  ]}]});
   a.S.karigarPayments = [{ karigarId:k.id, type:'cash', amount:100 }];
 
   var owed = a.karigarOwed(k.id);
@@ -6704,9 +6705,10 @@ test('karigarStats: filters by submittedDate month prefix when monthKey is given
       { karigarId:k.id, karigarPayMode:'wastage', karigarWastagePct:5, status:'submitted', submittedDate:thisMonthDate }
     ]}
   ]}];
-  a.S.sales = [{ items:[{ metal:'gold', weight:5, qty:1, karigarStages:[
+  // 30 Oct: stages are counted from ORDERS only (sale-side copies are never scanned)
+  a.S.orders.push({ id:'o2', items:[{ metal:'gold', weight:5, qty:1, karigarStages:[
     { karigarId:k.id, karigarPayMode:'cash', karigarCost:300, status:'submitted', submittedDate:lastMonthDate }
-  ]}]}];
+  ]}]});
 
   var thisMonth = a.karigarStats(k.id, thisMonthKey);
   assert(thisMonth.piecesSubmitted === 2, 'only the 2 this-month stages, not last month\'s cash stage: ' + JSON.stringify(thisMonth));
@@ -7098,29 +7100,27 @@ test('30 Oct invariant 2/4: issuance, receipt, shortfall and metal-held never ch
   assert(a.S.karigarPayments.length === 1, 'no payment row may be auto-created for a shortfall');
 });
 
-test('30 Oct invariant 3: B2 dedupe hides only the sale an order was billed into -- unbilled orders and unlinked sales still count', function(){
+test('30 Oct invariant 3: stages count from ORDERS only -- a sale copy is never counted, billed-and-linked or not', function(){
   var a = loadApp();
   var k = a.addOrGetKarigar('Ramesh');
-  var stg = function(){ return [{ karigarId:k.id, karigarPayMode:'cash', karigarCost:100, status:'submitted', submittedDate:'2026-10-20' }]; };
-  var line = function(){ return { metal:'gold', weight:5, qty:1, karigarStages:stg() }; };
-  // unbilled order (no billedSaleId) + a sale with a different id: both must count.
+  var stg = function(st){ return [{ karigarId:k.id, karigarPayMode:'cash', karigarCost:100, status:st||'submitted', submittedDate:'2026-10-20' }]; };
+  var line = function(st){ return { metal:'gold', weight:5, qty:1, karigarStages:stg(st) }; };
   a.S.orders = [{ id:'o1', items:[ { metal:'gold', estWt:5, qty:1, karigarStages:stg() } ] }];
-  a.S.sales  = [{ id:'s9', items:[ line() ] }];
-  assert(a.karigarStats(k.id).piecesSubmitted === 2 && a.karigarOwed(k.id).cash === 200, 'unbilled order + unlinked sale must both count: ' + JSON.stringify(a.karigarStats(k.id)));
-  // order billed into s1: an unrelated sale s2 is NOT hidden.
+  // sale linked to the order via billedSaleId
   a.S.orders[0].billedSaleId = 's1';
-  a.S.sales = [{ id:'s1', items:[ line() ] }, { id:'s2', items:[ line() ] }];
-  assert(a.karigarStats(k.id).piecesSubmitted === 2, 'only s1 hidden; order stage + s2 stage = 2, got ' + a.karigarStats(k.id).piecesSubmitted);
-  // empty/undefined billedSaleId must never match a sale with a missing id.
-  a.S.orders[0].billedSaleId = '';
-  a.S.sales = [{ items:[ line() ] }];
-  assert(a.karigarStats(k.id).piecesSubmitted === 2, 'blank billedSaleId must not hide an id-less sale: ' + a.karigarStats(k.id).piecesSubmitted);
-  // order billed into a sale that no longer exists: the order stage still counts once.
-  a.S.orders[0].billedSaleId = 'gone';
+  a.S.sales = [{ id:'s1', items:[ line() ] }];
+  assert(a.karigarStats(k.id).piecesSubmitted === 1 && a.karigarOwed(k.id).cash === 100, 'linked sale copy must not count');
+  // 30 Oct (Opus review): the SAME sale but the link was never written
+  // (owner left the Sale tab mid-conversion) -- must STILL count once.
+  delete a.S.orders[0].billedSaleId;
+  assert(a.karigarStats(k.id).piecesSubmitted === 1 && a.karigarOwed(k.id).cash === 100, 'UNLINKED sale copy must not count either: ' + JSON.stringify(a.karigarOwed(k.id)));
+  // a stage still assigned on an unlinked sale copy must not sit in the queue forever
+  a.S.sales = [{ id:'s2', items:[ line('assigned') ] }];
+  assert(a.karigarQueue(k.id).length === 0, 'sale-copy stage must not appear in the queue');
+  // no sales at all: the order stage counts once
   a.S.sales = [];
-  assert(a.karigarStats(k.id).piecesSubmitted === 1 && a.karigarOwed(k.id).cash === 100, 'order is canonical even if its sale is missing');
+  assert(a.karigarStats(k.id).piecesSubmitted === 1 && a.karigarOwed(k.id).cash === 100, 'order is canonical');
 });
-
 test('30 Oct invariant 6/7: karigarFineOf and metal-held treat missing/corrupt/non-finite weight as unknown, never 0 or NaN', function(){
   var a = loadApp();
   assert(a.karigarFineOf('gold','22K',undefined) === null, 'undefined weight -> null');
@@ -7164,6 +7164,50 @@ test('30 Oct invariant 7: promptStageIssue refuses Infinity / NaN / zero weights
   t.q.push('0', '24K');        t.a.promptStageIssue('o1', 0);
   t.q.push('5', '925');        t.a.promptStageIssue('o1', 0);
   assert(t.stage().issued.length === 1 && t.saved() === 0 && t.confirms.length === 0, 'issued log must be unchanged: ' + JSON.stringify(t.stage().issued));
+});
+
+
+test('30 Oct fix: leaving the Sale tab mid-conversion drops the carried karigar stage copies', function(){
+  var a = loadApp();
+  a.customSaleItems = [{ name:'Ring', metal:'gold', purity:'22K', grossWt:5, karigarStages:[{ karigarId:'k1', status:'submitted' }] }];
+  a._pendingOrderConversion = 'o1';
+  a.renderTab('dashboard');
+  assert(a.customSaleItems[0].karigarStages === undefined, 'stage copies must be gone: ' + JSON.stringify(a.customSaleItems[0]));
+  assert(a._pendingOrderConversion === null, 'conversion flag cleared');
+});
+
+test('30 Oct fix: saveOrder refuses negative/infinite cash, wastage >= 100, and issued metal on a plated item', function(){
+  function tryStage(stage, itemPurity){
+    var vals = { 'oi-desc-0':'Ring', 'of-cust':'Asha', 'of-delivery':'2099-01-01' };
+    if(itemPurity) vals['oi-purity-0'] = itemPurity;   // saveOrder re-reads the purity box
+    var t = _orderFormApp(vals);
+    t.a.ordItems[0].karigarStages = [stage];
+    t.a.saveOrder();
+    return t;
+  }
+  var base = function(x){ var s = { karigarId:'k1', karigarPayMode:'cash', karigarCost:500, status:'assigned' }; for(var p in x) s[p] = x[p]; return s; };
+  assert(tryStage(base({ karigarCost:-5 })).saves() === 0, 'negative cash refused');
+  assert(tryStage(base({ karigarCost:Infinity })).saves() === 0, 'Infinity cash refused');
+  assert(tryStage(base({ karigarPayMode:'wastage', karigarCost:0, karigarWastagePct:100 })).saves() === 0, 'wastage 100% refused');
+  assert(tryStage(base({ karigarPayMode:'wastage', karigarCost:0, karigarWastagePct:-1 })).saves() === 0, 'negative wastage refused');
+  var plated = tryStage(base({ issued:[{ date:'2026-10-30', wt:6, purity:'24K' }] }), 'Gold Plated');
+  assert(plated.saves() === 0 && /plated/i.test(plated.msg()), 'plated item with issued metal refused: ' + plated.msg());
+  assert(tryStage(base({})).saves() === 1, 'a normal stage still saves');
+});
+
+test('30 Oct fix: karigarPurityKey accepts a bare karat number; receipt bands do not flip on float noise at the edge', function(){
+  var a = loadApp();
+  assert(a.karigarPurityKey('gold','24') === '24K' && a.karigarPurityKey('gold','22') === '22K', 'bare karat number');
+  assert(a.karigarPurityKey('gold','23') === '', 'non-existent karat still refused');
+  var item = { metal:'gold', purity:'22K', estWt:10, qty:1 };
+  var stage = { karigarPayMode:'cash', issued:[{ wt:10, purity:'24K' }] };
+  // 24K 10g = 9.99 fine; 22K 10.88g = 9.96608 fine -> 0.02392 short (inside tol)
+  assert(a.karigarReceiptCheck(item, stage, 10.88).band === 'match', 'inside tolerance');
+  // exactly-on-the-edge cases computed in floating point must land in the SAME band as on paper:
+  var T = a.KARIGAR_WEIGH_TOL_G;
+  var s22 = { karigarPayMode:'cash', issued:[{ wt:10, purity:'22K' }] };
+  var recv = (10 * 0.916 - T) / 0.916;           // short by exactly tol
+  assert(a.karigarReceiptCheck(item, s22, recv).band === 'match', 'short by exactly tolerance is still a match: ' + JSON.stringify(a.karigarReceiptCheck(item, s22, recv)));
 });
 
 Promise.all(asyncTests).then(function(){
