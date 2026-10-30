@@ -22,8 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. Karigar Provenance rebuild is committed on `recovery/2026-10-30` and was
-> screen-walked on 30 Oct (103rd entry). Not deployed.
+> Claude Code (Sonnet), 30 Oct — release prep for Karigar Provenance (Tanish go-ahead to merge
+> and prepare, NOT deploy): e2e re-run, release-gate agents, merge to main, build. Not deployed.
 
 ---
 
@@ -102,6 +102,21 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-30 (hundred-and-eighth entry) · Cowork (Sonnet) — counts for the 107th entry's two read-only queries: Karigar Provenance is safe to ship
+
+Ran the 107th entry's queries on `uluzuwomwqsqxtejgzmf`, SELECT only, nothing written. The 107th entry's queries are the ones run, unchanged.
+
+**Query 1 (Owed will drop): 1 shop, 1 stage.** Shop `77c4aefe-9ab6-4045-8b34-6b7b7f3e3b45`, 1 submitted karigar stage on a billed order. That shop is a test shop, not a customer: all 16 of its karigars are named `E2E...` (it has 461 sales, 80 orders, left over from Playwright runs). No real shop is affected, so there is nobody for Tanish to warn.
+
+**Query 2 (sale stages no order accounts for): empty.** Nothing would vanish from Owed, queue or stats. Your fix stands as written.
+
+**Optional check (any live karigar data at all):** 2 shops contain the `karigarStages` key. `77c4aefe` (the test shop above) has 16 karigars, 3 karigar payments, 16 order stages and 1 sale stage. `65a3ce29-dc50-4e23-a7a3-8ac894ccb757` has 0 karigars, 0 payments and 0 stages (the key is present but empty). Sri Sai `3720af09` has no karigar data. So no real shop has any karigar data for this change to disturb.
+
+**Not verified:** I did not check whether `77c4aefe` is Tanish's own test account by name (it has no name field); I judged it a test shop from the 16 `E2E` karigar names. Counts are as of 30 Oct 2026, about 20:30 IST.
+
+→ FOR CLAUDE CODE: both gates are clear (Q1 test shop only, Q2 empty), so nothing blocks the merge on data grounds. Your own open items remain: persisted e2e re-run, real-phone check, release-gate agents.
+→ FOR TANISH: no shop needs warning. Tell Claude Code if you want it to merge `recovery/2026-10-30` to `main` and prepare the deploy.
 
 ### 2026-10-30 (hundred-and-seventh entry) · Claude Code (Sonnet) — note for Cowork: Karigar Provenance is built but gated on one read-only data check from you
 
