@@ -30,7 +30,10 @@ function showOrderDetail(ordId){
   if(o.items&&o.items.length){
     var itemsDiv=document.createElement('div');
     itemsDiv.style.cssText='margin-bottom:1rem;';
-    itemsDiv.innerHTML='<div class="ord-section-label">Order Items ('+o.items.length+')</div>';
+    itemsDiv.innerHTML='<div class="ord-section-label" style="display:flex;justify-content:space-between;align-items:center;">'+
+      '<span>Order Items ('+o.items.length+')</span>'+
+      (o.status!=='cancelled'&&o.status!=='delivered'&&!o.billedSaleId&&isManager()?'<button class="btn btn-sm" onclick="assignOrderToKarigar(\''+jsAttrEsc(o.id)+'\');">Assign to Karigar</button>':'')+
+    '</div>';
     var itemsInner=document.createElement('div');
     itemsInner.style.cssText='background:var(--surface);border:0.5px solid var(--border2);border-radius:var(--radius);overflow:hidden;';
     o.items.forEach(function(item,n){
@@ -58,12 +61,7 @@ function showOrderDetail(ordId){
         // Karigar Management (27 Oct): the active stage is the first one not
         // yet submitted -- sequential only, so there's always at most one
         // button live per item.
-        ((item.karigarStages||[]).some(function(s){return s.status!=='submitted';})
-          ? '<div style="margin-top:6px;">'+
-              '<span style="font-size:11px;color:var(--text3);">Active: '+escHtml((item.karigarStages.filter(function(s){return s.status!=='submitted';})[0]||{}).task||'Unassigned task')+'</span> '+
-              '<button class="btn btn-sm" onclick="markStageSubmitted(\''+jsAttrEsc(o.id)+'\','+n+');showOrderDetail(\''+jsAttrEsc(o.id)+'\');">Mark Submitted</button>'+
-            '</div>'
-          : '');
+        _stageLinesHtml(o.id, item, n);
       itemsInner.appendChild(row);
     });
     itemsDiv.appendChild(itemsInner);
@@ -317,16 +315,214 @@ function cancelOrder(ordId){
 // submitted -- sequential only, so this is always the one currently "with"
 // a karigar. Returns false (no save triggered) when there's nothing to
 // submit, rather than silently no-op-ing a save call.
-function markStageSubmitted(ordId, itemIdx){
+function markStageSubmitted(ordId, itemIdx, receipt){
   var o = (S.orders||[]).find(function(x){ return x.id===ordId; });
   if(!o || !o.items || !o.items[itemIdx]) return false;
   var stages = o.items[itemIdx].karigarStages;
   if(!stages || !stages.length) return false;
   var stage = stages.find(function(s){ return s.status !== 'submitted'; });
   if(!stage) return false;
+  // 29 Oct receipt verification: weigh-in fields, written only when the
+  // caller (promptStageReceipt) collected them. Receipt date = submittedDate.
+  if(receipt){
+    stage.receivedWt = receipt.receivedWt;
+    stage.receivedScrapWt = receipt.receivedScrapWt || 0;
+    if(receipt.receiptNote) stage.receiptNote = receipt.receiptNote;
+  }
   stage.status = 'submitted';
   stage.submittedDate = dbDayKey(new Date());
   saveToCloud(function(){});
+  return true;
+}
+
+// Karigar provenance (29 Oct): append one entry to the ACTIVE stage's
+// issued[] log -- first issue, mid-job top-up, or (negative wt) a typo
+// correction. Append-only, same convention as the order ledger's reversals.
+// Returns '' on success, else an error string, without mutating anything.
+function logStageIssue(ordId, itemIdx, wt, purity){
+  var o = (S.orders||[]).find(function(x){ return x.id===ordId; });
+  var item = o && o.items && o.items[itemIdx];
+  if(!item) return 'Item not found';
+  var stage = (item.karigarStages||[]).find(function(s){ return s.status !== 'submitted'; });
+  if(!stage) return 'No active karigar stage on this item';
+  wt = parseFloat(wt);
+  if(!isFinite(wt) || wt === 0) return 'Enter a weight in grams';
+  var metal = item.metal || 'gold';
+  if(karigarFineOf(metal, purity, 1) === null) return (purity||'That') + ' is not a valid purity for ' + metal;
+  var sameTotal = (stage.issued||[]).reduce(function(s, e){ return e.purity === purity ? s + (parseFloat(e.wt)||0) : s; }, 0);
+  if(sameTotal + wt < -1e-9) return 'Correction is more than the ' + fmtW(sameTotal) + ' of ' + purity + ' issued';
+  stage.issued = stage.issued || [];
+  var entry = { date:dbDayKey(new Date()), wt:wt, purity:purity };
+  if(wt < 0) entry.note = 'correction';
+  stage.issued.push(entry);
+  saveToCloud(function(){});
+  return '';
+}
+
+// Per-purity totals of a stage's issued[] log, for the order detail line.
+function _issuedSummary(stage){
+  var by = {};
+  (stage.issued||[]).forEach(function(e){ by[e.purity] = (by[e.purity]||0) + (parseFloat(e.wt)||0); });
+  return Object.keys(by).map(function(p){ return fmtW(by[p]) + ' (' + escHtml(p) + ')'; }).join(' + ');
+}
+
+// Issue Metal button: first issue, top-up, or typo correction (negative,
+// behind a warn confirm) on the active stage.
+function promptStageIssue(ordId, itemIdx){
+  var o = (S.orders||[]).find(function(x){ return x.id===ordId; });
+  var item = o && o.items && o.items[itemIdx];
+  var stage = item && (item.karigarStages||[]).find(function(s){ return s.status !== 'submitted'; });
+  if(!stage) return;
+  var qty = parseInt(item.qty) || 1;
+  var wRaw = prompt('Metal handed over now (grams' + (qty>1 ? ', total for all ' + qty + ' pieces' : '') + ')? Use a negative number only to fix a typo.', '');
+  if(wRaw === null || String(wRaw).trim() === ''){ toast('Cancelled'); return; }
+  var wt = parseFloat(wRaw);
+  if(!isFinite(wt) || wt === 0){ toast('Cancelled — enter a weight in grams'); return; }
+  var last = (stage.issued && stage.issued.length) ? stage.issued[stage.issued.length-1].purity : (item.purity||'');
+  var pRaw = prompt('Purity of that metal (e.g. 24K, 22K, 925 Sterling)?', last);
+  if(pRaw === null){ toast('Cancelled'); return; }
+  var purity = karigarPurityKey(item.metal||'gold', pRaw);
+  if(!purity){ toast('Cancelled — ' + String(pRaw).trim() + ' is not a valid purity for ' + (item.metal||'gold')); return; }
+  function go(){
+    var err = logStageIssue(ordId, itemIdx, wt, purity);
+    if(err){ toast(err); return; }
+    showOrderDetail(ordId);
+    toast(wt < 0 ? 'Correction recorded' : '✓ Metal issue recorded');
+  }
+  if(wt < 0){
+    safeConfirm('Reduce metal issued?', 'This reduces metal issued by ' + fmtW(-wt) + ' of ' + purity + '. Only use this to fix a typo.', go, 'warn');
+    return;
+  }
+  go();
+}
+
+// Mark Submitted button. No issuance logged -> exactly the old path. With
+// issuance -> weigh-in required, then warn-and-let-through on a shortfall
+// beyond the stage's wastage allowance (spec gap 2). safeConfirm is async,
+// so every re-render happens inside done(), never after this returns.
+function promptStageReceipt(ordId, itemIdx){
+  var o = (S.orders||[]).find(function(x){ return x.id===ordId; });
+  var item = o && o.items && o.items[itemIdx];
+  var stage = item && (item.karigarStages||[]).find(function(s){ return s.status !== 'submitted'; });
+  if(!stage) return;
+  if(!(stage.issued && stage.issued.length)){
+    markStageSubmitted(ordId, itemIdx);
+    showOrderDetail(ordId);
+    return;
+  }
+  var qty = parseInt(item.qty) || 1;
+  var rwRaw = prompt('Net metal weight received back (grams, exclude stones' + (qty>1 ? '; total for all ' + qty + ' pieces' : '') + ')?', '');
+  if(rwRaw === null || String(rwRaw).trim() === ''){ toast('Cancelled'); return; }
+  var rw = parseFloat(rwRaw);
+  if(!isFinite(rw) || rw < 0){ toast('Cancelled — enter a weight in grams'); return; }
+  var swRaw = prompt('Leftover metal returned (grams at ' + stage.issued[0].purity + ')? Leave blank if none.', '');
+  if(swRaw === null){ toast('Cancelled'); return; }
+  var sw = String(swRaw).trim() === '' ? 0 : parseFloat(swRaw);
+  if(!isFinite(sw) || sw < 0){ toast('Cancelled — enter a weight in grams'); return; }
+  var chk = karigarReceiptCheck(item, stage, rw, sw);
+  function done(note){
+    markStageSubmitted(ordId, itemIdx, { receivedWt:rw, receivedScrapWt:sw, receiptNote:note||'' });
+    showOrderDetail(ordId);
+  }
+  if(chk && chk.band === 'short'){
+    safeConfirm('Metal short by ' + fmtW(chk.shortFine) + ' fine',
+      'Issued ' + fmtW(chk.issuedFine) + ' fine · received ' + fmtW(chk.receivedFine) + ' fine · wastage allowance ' + fmtW(chk.allowanceFine) + '. Record this receipt anyway?',
+      function(){ done(String(prompt('Note for the record (optional)?', '') || '').trim()); toast('Receipt recorded with shortfall'); }, 'warn');
+    return;
+  }
+  done();
+  if(!chk) toast('✓ Received');
+  else if(chk.band === 'match') toast('✓ Received — matches metal issued');
+  else if(chk.band === 'allowance') toast('✓ Received — ' + fmtW(chk.shortFine) + ' fine short, within this stage\'s ' + fmtW(chk.allowanceFine) + ' wastage allowance');
+  else toast('Received ' + fmtW(-chk.shortFine) + ' fine MORE than issued — check stones were not weighed in');
+}
+
+// One line per weighed-in submitted stage, then the active stage with its
+// buttons. Sequential stages, so at most one active line per item.
+function _stageLinesHtml(ordId, item, n){
+  var stages = item.karigarStages || [], html = '';
+  stages.forEach(function(s){
+    if(s.status !== 'submitted') return;
+    var chk = karigarReceiptCheck(item, s);
+    if(!chk) return;
+    var verdict = chk.band === 'match' ? 'matches issued'
+                : chk.band === 'over'  ? fmtW(-chk.shortFine) + ' fine over'
+                : fmtW(chk.shortFine) + ' fine short' + (chk.band === 'allowance' ? ' (within allowance)' : '');
+    html += '<div style="margin-top:4px;font-size:11px;color:' + (chk.band === 'short' ? 'var(--danger)' : 'var(--text3)') + ';">' +
+            escHtml(s.task || 'Stage') + ' — received ' + fmtW(s.receivedWt) + ' · ' + verdict + (s.receiptNote ? ' · ' + escHtml(s.receiptNote) : '') + '</div>';
+  });
+  var active = stages.filter(function(s){ return s.status !== 'submitted'; })[0];
+  if(active){
+    var iss = _issuedSummary(active);
+    html += '<div style="margin-top:6px;">' +
+      '<span style="font-size:11px;color:var(--text3);">Active: ' + escHtml(active.task || 'Unassigned task') + (iss ? ' · Issued ' + iss : '') + '</span> ' +
+      '<button class="btn btn-sm" onclick="promptStageIssue(\'' + jsAttrEsc(ordId) + '\',' + n + ');">Issue Metal</button> ' +
+      '<button class="btn btn-sm" onclick="promptStageReceipt(\'' + jsAttrEsc(ordId) + '\',' + n + ');">Mark Submitted</button>' +
+    '</div>';
+  }
+  return html;
+}
+
+// Order-level "Assign to Karigar" (27 Oct, rebuilt 30 Oct after the folder
+// loss): one prompt chain assigns the same karigar/task/pay to every item that
+// has no active (non-submitted) stage -- items already in progress are skipped,
+// never stacked. All-or-nothing: nothing is pushed until every prompt passes.
+function assignOrderToKarigar(ordId){
+  var o = (S.orders||[]).find(function(x){ return x.id===ordId; });
+  if(!o || !o.items || !o.items.length){ toast('Order not found'); return false; }
+  var targets = o.items.filter(function(it){
+    return !(it.karigarStages||[]).some(function(s){ return s.status !== 'submitted'; });
+  });
+  if(!targets.length){ toast('Every item already has a karigar working on it'); return false; }
+  var name = String(prompt('Karigar name?', '') || '').trim();
+  if(!name){ toast('Cancelled'); return false; }
+  var task = String(prompt('Task (e.g. Gold work, Polish, Setting)?', '') || '').trim();
+  if(!task){ toast('Cancelled'); return false; }
+  var mode = String(prompt('How is this karigar paid: cash or wastage?', 'cash') || '').trim().toLowerCase();
+  if(mode !== 'cash' && mode !== 'wastage'){ toast('Cancelled — type cash or wastage'); return false; }
+  var cost = 0, pct = 0;
+  if(mode === 'cash'){
+    cost = parseFloat(prompt('Cash to pay per item (₹)?', ''));
+    if(!(cost > 0) || !isFinite(cost)){ toast('Cancelled — enter a positive amount'); return false; }
+  } else {
+    pct = parseFloat(prompt('Wastage allowed (% of item weight)?', ''));
+    if(!(pct > 0) || !(pct < 100) || !isFinite(pct)){ toast('Cancelled — enter a wastage % between 0 and 100'); return false; }
+  }
+  // Karigar provenance (29 Oct): metal handed over, one weight per item
+  // (blank = not yet), then ONE purity for the lump -- asked only if any
+  // weight was entered, so the "not issuing yet" path costs only Enters.
+  var issueWts = [], issuePur = [], anyIssue = false;
+  for(var ti=0; ti<targets.length; ti++){
+    var tq = parseInt(targets[ti].qty) || 1;
+    var wRaw = prompt('Metal handed over for item ' + (ti+1) + ' of ' + targets.length + ' — "' + (targets[ti].desc||'Item') + '" (grams' + (tq>1 ? ', total for all ' + tq + ' pieces' : '') + '). Leave blank if not handing metal over yet.', '');
+    if(wRaw === null){ toast('Cancelled'); return false; }
+    if(String(wRaw).trim() === ''){ issueWts.push(0); continue; }
+    var w = parseFloat(wRaw);
+    if(!(w > 0) || !isFinite(w)){ toast('Cancelled — enter a positive weight or leave it blank'); return false; }
+    issueWts.push(w); anyIssue = true;
+  }
+  if(anyIssue){
+    var pRaw = prompt('Purity of the metal handed over (e.g. 24K, 22K, 925 Sterling)? Leave blank to use each item\'s own purity.', '');
+    if(pRaw === null){ toast('Cancelled'); return false; }
+    var typed = String(pRaw).trim();
+    for(var pi=0; pi<targets.length; pi++){
+      if(!issueWts[pi]){ issuePur.push(''); continue; }
+      var m = targets[pi].metal || 'gold';
+      var key = karigarPurityKey(m, typed || targets[pi].purity);
+      if(!key){ toast('Cancelled — ' + (typed || targets[pi].purity || 'that purity') + ' is not a valid purity for "' + (targets[pi].desc||'Item') + '" (' + m + ')'); return false; }
+      issuePur.push(key);
+    }
+  }
+  var karigar = addOrGetKarigar(name);
+  targets.forEach(function(it, idx){
+    it.karigarStages = it.karigarStages || [];
+    var st = {task:task, karigarId:karigar.id, karigarPayMode:mode, karigarCost:cost, karigarWastagePct:pct, status:'assigned', assignedDate:dbDayKey(new Date())};
+    if(issueWts[idx]) st.issued = [{ date:dbDayKey(new Date()), wt:issueWts[idx], purity:issuePur[idx] }];
+    it.karigarStages.push(st);
+  });
+  saveToCloud(function(){});
+  showOrderDetail(ordId);
+  toast('✓ Assigned ' + targets.length + ' item(s) to ' + karigar.name + ' Karigar');
   return true;
 }
 

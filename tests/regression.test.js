@@ -6785,6 +6785,293 @@ test('renderKarigarList: escapes the karigar name and keeps cash/gold/silver owe
   assert(/Owed cash/.test(html) && /Owed gold/.test(html), 'cash and gold/silver owed must render as separate buckets: ' + html);
 });
 
+// ── 29 Oct Karigar Provenance & Profile (restored 30 Oct after the folder loss;
+//    tests are the ones written in docs/superpowers/plans/2026-10-29-*) ──────
+
+test('29 Oct B1: saveOrder keeps karigarStages typed in the order form, drops rows with no karigar', function(){
+  var t = _orderFormApp({ 'oi-desc-0':'Ring', 'of-cust':'Asha', 'of-delivery':'2099-01-01' });
+  t.a.ordItems[0].karigarStages = [
+    { task:'Gold work', karigarId:'kar1', karigarPayMode:'cash', karigarCost:500, karigarWastagePct:0, status:'assigned', assignedDate:'2026-10-29' },
+    { task:'', karigarId:'', karigarPayMode:'', karigarCost:0, karigarWastagePct:0, status:'assigned', assignedDate:'2026-10-29' }
+  ];
+  t.a.saveOrder();
+  assert(t.saves() === 1, 'sanity: the order should have saved');
+  var st = t.a.S.orders[t.a.S.orders.length-1].items[0].karigarStages;
+  assert(Array.isArray(st) && st.length === 1, 'expected exactly the one filled stage, got ' + JSON.stringify(st));
+  assert(st[0].karigarId === 'kar1' && st[0].karigarCost === 500 && st[0].status === 'assigned', 'stage fields lost: ' + JSON.stringify(st[0]));
+});
+
+test('29 Oct B2: a billed order\'s stages count once in karigarOwed/karigarStats/karigarQueue, not once per copy', function(){
+  var a = loadApp();
+  var k = a.addOrGetKarigar('Ramesh');
+  var st = function(status){ return { karigarId:k.id, karigarPayMode:'cash', karigarCost:500, status:status, assignedDate:'2026-10-15', submittedDate: status==='submitted' ? '2026-10-20' : '' }; };
+  a.S.orders = [{ id:'o1', ordNo:'ORD-1', billedSaleId:'s1', items:[
+    { desc:'Ring',  metal:'gold', estWt:5, qty:1, karigarStages:[st('submitted')] },
+    { desc:'Chain', metal:'gold', estWt:8, qty:1, karigarStages:[st('assigned')] } ]}];
+  a.S.sales = [{ id:'s1', items:[
+    { name:'Ring',  metal:'gold', weight:5, qty:1, karigarStages:[st('submitted')] },
+    { name:'Chain', metal:'gold', weight:8, qty:1, karigarStages:[st('assigned')] } ]}];
+  assert(a.karigarOwed(k.id).cash === 500, 'owed should be 500 once, got ' + JSON.stringify(a.karigarOwed(k.id)));
+  assert(a.karigarStats(k.id).piecesSubmitted === 1, 'stats should count the billed stage once: ' + JSON.stringify(a.karigarStats(k.id)));
+  assert(a.karigarQueue(k.id).length === 1, 'the assigned stage should be in the queue once, not twice: ' + JSON.stringify(a.karigarQueue(k.id)));
+});
+
+test('29 Oct provenance: karigarFineOf / karigarPurityKey are metal-aware, plated and wrong-metal give null/empty', function(){
+  var a = loadApp();
+  assert(approxEqual(a.karigarFineOf('gold','22K',10), 9.16, 1e-9), '22K fine');
+  assert(a.karigarFineOf('gold','Gold Plated',10) === null, 'plated has no fineness');
+  assert(a.karigarFineOf('gold','925 Sterling',10) === null, 'silver purity on gold metal -> null, not a number');
+  assert(approxEqual(a.karigarFineOf('silver','925 Sterling',100), 92.5, 1e-9), 'silver fine');
+  assert(a.karigarPurityKey('gold',' 24k ') === '24K', 'case/space-insensitive');
+  assert(a.karigarPurityKey('silver','925') === '925 Sterling', 'first-word match');
+  assert(a.karigarPurityKey('gold','925') === '', 'wrong metal -> empty');
+});
+
+test('29 Oct provenance: karigarReceiptCheck bands -- match, cross-purity match, allowance, short, over', function(){
+  var a = loadApp(), T = a.KARIGAR_WEIGH_TOL_G;
+  var item = { metal:'gold', purity:'22K', estWt:10, qty:1 };
+  var cash = function(iss){ return { karigarPayMode:'cash', issued:iss }; };
+  assert(a.karigarReceiptCheck(item, cash([{wt:10,purity:'22K'}]), 10).band === 'match', 'same purity, same weight');
+  assert(a.karigarReceiptCheck(item, cash([{wt:10,purity:'24K'}]), 10.9).band === 'match', '24K 10g out (9.99 fine) vs 22K 10.9g back (9.984 fine)');
+  var wst = { karigarPayMode:'wastage', karigarWastagePct:4, issued:[{wt:10,purity:'22K'}] };
+  var c1 = a.karigarReceiptCheck(item, wst, 9.7);
+  assert(c1.band === 'allowance' && approxEqual(c1.allowanceFine, 0.4, 1e-9), 'within wastage allowance: ' + JSON.stringify(c1));
+  var c2 = a.karigarReceiptCheck(item, cash([{wt:10,purity:'22K'}]), 8);
+  assert(c2.band === 'short' && approxEqual(c2.shortFine, 2*0.916, 1e-9), 'cash stage, 2g 22K missing: ' + JSON.stringify(c2));
+  assert(a.karigarReceiptCheck(item, cash([{wt:10,purity:'22K'}]), 10.5).band === 'over', 'more back than issued');
+  assert(a.karigarReceiptCheck(item, cash([{wt:10,purity:'22K'}]), 9, 1).band === 'match', 'leftover scrap counts toward returned');
+  assert(a.karigarReceiptCheck(item, cash([{wt:10,purity:'22K'}]), 0).band === 'short', 'receivedWt 0 is a real answer, not "unknown"');
+  assert(T > 0, 'tolerance constant defined');
+});
+
+test('29 Oct provenance: karigarReceiptCheck returns null for every "unknown" case (legacy stages)', function(){
+  var a = loadApp();
+  var item = { metal:'gold', purity:'22K', estWt:10, qty:1 };
+  assert(a.karigarReceiptCheck(item, { karigarPayMode:'cash' }, 10) === null, 'no issued field (every pre-29-Oct stage)');
+  assert(a.karigarReceiptCheck(item, { issued:[] }, 10) === null, 'empty issued');
+  assert(a.karigarReceiptCheck(item, { issued:[{wt:10,purity:'22K'}] }) === null, 'no receivedWt stored, none passed');
+  assert(a.karigarReceiptCheck({ metal:'gold', purity:'Gold Plated' }, { issued:[{wt:10,purity:'22K'}] }, 10) === null, 'plated item');
+  assert(a.karigarReceiptCheck(item, { issued:[{wt:10,purity:'925 Sterling'}] }, 10) === null, 'wrong-metal issued entry -> null, never a number');
+  var stored = { issued:[{wt:10,purity:'22K'}], receivedWt:10, receivedScrapWt:0 };
+  assert(a.karigarReceiptCheck(item, stored).band === 'match', 'reads stored fields when no override passed');
+});
+
+test('29 Oct provenance: karigarMetalHeld sums active issued fine per metal, includes cancelled orders, excludes submitted/other karigars', function(){
+  var a = loadApp();
+  var k = a.addOrGetKarigar('Ramesh'), k2 = a.addOrGetKarigar('Suresh');
+  a.S.orders = [
+    { id:'o1', items:[{ metal:'gold', purity:'22K', karigarStages:[{ karigarId:k.id, status:'assigned', issued:[{wt:10,purity:'24K'},{wt:2,purity:'24K'}] }] }] },
+    { id:'o2', status:'cancelled', items:[{ metal:'silver', purity:'925 Sterling', karigarStages:[{ karigarId:k.id, status:'assigned', issued:[{wt:100,purity:'925 Sterling'}] }] }] },
+    { id:'o3', items:[{ metal:'gold', purity:'22K', karigarStages:[{ karigarId:k.id, status:'submitted', issued:[{wt:50,purity:'24K'}] }] }] },
+    { id:'o4', items:[{ metal:'gold', purity:'22K', karigarStages:[{ karigarId:k.id, status:'assigned' }] }] },
+    { id:'o5', items:[{ metal:'gold', purity:'22K', karigarStages:[{ karigarId:k2.id, status:'assigned', issued:[{wt:7,purity:'24K'}] }] }] }
+  ];
+  var h = a.karigarMetalHeld(k.id);
+  assert(approxEqual(h.gold, 12*0.999, 1e-9), 'gold held = 12g 24K fine: ' + JSON.stringify(h));
+  assert(approxEqual(h.silver, 92.5, 1e-9), 'silver held separately, cancelled order still counts: ' + JSON.stringify(h));
+});
+
+test('29 Oct invariant 1: new provenance fields never change karigarStageCost / karigarCostOf / orderProfitEst', function(){
+  var a = loadApp();
+  var mk = function(extra){ var s = { karigarId:'kar1', karigarPayMode:'wastage', karigarWastagePct:4, status:'submitted' }; for(var p in extra) s[p] = extra[p]; return s; };
+  var plain = { metal:'gold', purity:'22K', estWt:10, qty:2, karigarStages:[mk({})] };
+  var rich  = { metal:'gold', purity:'22K', estWt:10, qty:2, karigarStages:[mk({ issued:[{date:'2026-10-29',wt:25,purity:'24K'}], receivedWt:19, receivedScrapWt:1, receiptNote:'x' })] };
+  assert(a.karigarCostOf(plain) === a.karigarCostOf(rich), 'karigarCostOf moved');
+  assert(a.karigarStageGrams(plain, plain.karigarStages[0]) === a.karigarStageGrams(rich, rich.karigarStages[0]), 'wastage grams moved');
+  assert(a.orderProfitEst({ quote:150000, items:[plain] }) === a.orderProfitEst({ quote:150000, items:[rich] }), 'orderProfitEst moved');
+});
+
+test('29 Oct receipt: markStageSubmitted writes receipt fields when given, behaves exactly as before when not', function(){
+  var a = loadApp(), saved = 0;
+  a.saveToCloud = function(cb){ saved++; cb && cb(null); };
+  a.S.orders = [{ id:'o1', items:[
+    { karigarStages:[{ task:'Gold work', status:'assigned', issued:[{wt:10,purity:'22K'}] }] },
+    { karigarStages:[{ task:'Polish', status:'assigned' }] } ]}];
+  assert(a.markStageSubmitted('o1', 0, { receivedWt:9.5, receivedScrapWt:0.3, receiptNote:'short, told him' }) === true, 'should submit');
+  var s0 = a.S.orders[0].items[0].karigarStages[0];
+  assert(s0.status === 'submitted' && s0.receivedWt === 9.5 && s0.receivedScrapWt === 0.3 && s0.receiptNote === 'short, told him', JSON.stringify(s0));
+  assert(a.markStageSubmitted('o1', 1) === true, 'legacy call still works');
+  var s1 = a.S.orders[0].items[1].karigarStages[0];
+  assert(!('receivedWt' in s1) && !('receiptNote' in s1), 'no receipt arg -> no receipt fields written: ' + JSON.stringify(s1));
+  assert(saved === 2, 'one save per submit');
+});
+
+test('29 Oct issuance: logStageIssue appends top-ups and corrections, refuses bad input without mutating', function(){
+  var a = loadApp(), saved = 0;
+  a.saveToCloud = function(cb){ saved++; cb && cb(null); };
+  a.S.orders = [{ id:'o1', items:[{ metal:'gold', purity:'22K', karigarStages:[{ status:'submitted' }, { status:'assigned' }] }] }];
+  var st = function(){ return a.S.orders[0].items[0].karigarStages[1]; };
+  assert(a.logStageIssue('o1', 0, 10, '24K') === '', 'first issue');
+  assert(a.logStageIssue('o1', 0, 2, '24K') === '', 'top-up');
+  assert(a.logStageIssue('o1', 0, -0.5, '24K') === '', 'typo correction');
+  assert(st().issued.length === 3 && st().issued[2].note === 'correction' && !!st().issued[0].date, JSON.stringify(st().issued));
+  assert(a.S.orders[0].items[0].karigarStages[0].issued === undefined, 'went to the ACTIVE stage, not the submitted one');
+  var before = JSON.stringify(st());
+  assert(a.logStageIssue('o1', 0, -20, '24K') !== '', 'correction below zero refused');
+  assert(a.logStageIssue('o1', 0, 5, '925 Sterling') !== '', 'wrong-metal purity refused');
+  assert(a.logStageIssue('o1', 0, 0, '24K') !== '', 'zero refused');
+  assert(a.logStageIssue('o1', 0, Infinity, '24K') !== '', 'Infinity refused');
+  assert(a.logStageIssue('o1', 0, 'abc', '24K') !== '', 'non-number refused');
+  assert(JSON.stringify(st()) === before, 'refusals must not mutate');
+  assert(a.logStageIssue('nope', 0, 5, '24K') !== '', 'unknown order -> error string, no throw');
+  assert(saved === 3, 'only the 3 accepted writes saved, got ' + saved);
+});
+
+function _karigarUiApp(stage, item){
+  var a = loadApp(), saved = 0, toasts = [], confirms = [], q = [];
+  a.saveToCloud = function(cb){ saved++; cb && cb(null); };
+  a.toast = function(m){ toasts.push(m); };
+  a.safeConfirm = function(t, m, ok, d){ confirms.push({ t:t, m:m, ok:ok, d:d }); };
+  a.showOrderDetail = function(){};
+  a.prompt = function(){ return q.length ? q.shift() : null; };
+  var it = item || { desc:'Ring', metal:'gold', purity:'22K', estWt:10, qty:1 };
+  it.karigarStages = [stage];
+  a.S.orders = [{ id:'o1', items:[it] }];
+  return { a:a, q:q, toasts:toasts, confirms:confirms, saved:function(){ return saved; }, stage:function(){ return a.S.orders[0].items[0].karigarStages[0]; } };
+}
+
+test('29 Oct receipt UI: legacy stage (no issuance) submits immediately, no prompts', function(){
+  var t = _karigarUiApp({ task:'Gold work', status:'assigned' });
+  t.a.prompt = function(){ throw new Error('must not prompt for a legacy stage'); };
+  t.a.promptStageReceipt('o1', 0);
+  assert(t.stage().status === 'submitted' && !('receivedWt' in t.stage()) && t.saved() === 1, JSON.stringify(t.stage()));
+});
+
+test('29 Oct receipt UI: blank or cancelled weigh-in cancels the submit', function(){
+  var t = _karigarUiApp({ status:'assigned', karigarPayMode:'cash', issued:[{wt:10,purity:'22K'}] });
+  t.q.push('');  t.a.promptStageReceipt('o1', 0);
+  t.q.push(null); t.a.promptStageReceipt('o1', 0);
+  t.q.push('-3'); t.a.promptStageReceipt('o1', 0);
+  assert(t.stage().status === 'assigned' && t.saved() === 0, 'nothing saved: ' + JSON.stringify(t.stage()));
+});
+
+test('29 Oct receipt UI: match submits with a toast, no confirm', function(){
+  var t = _karigarUiApp({ status:'assigned', karigarPayMode:'cash', issued:[{wt:10,purity:'22K'}] });
+  t.q.push('10', '');
+  t.a.promptStageReceipt('o1', 0);
+  assert(t.stage().status === 'submitted' && t.stage().receivedWt === 10 && t.confirms.length === 0, JSON.stringify(t.stage()));
+  assert(/matches/.test(t.toasts[t.toasts.length-1]), t.toasts.join(' | '));
+});
+
+test('29 Oct receipt UI: short beyond allowance asks via safeConfirm(warn); cancel saves nothing, OK saves with note', function(){
+  var t = _karigarUiApp({ status:'assigned', karigarPayMode:'cash', issued:[{wt:10,purity:'22K'}] });
+  t.q.push('8', '');
+  t.a.promptStageReceipt('o1', 0);
+  assert(t.confirms.length === 1 && t.confirms[0].d === 'warn' && /short/i.test(t.confirms[0].t), 'expected one warn confirm');
+  assert(t.stage().status === 'assigned' && t.saved() === 0, 'nothing written before OK (= cancel path)');
+  t.q.push('weighed twice');
+  t.confirms[0].ok();
+  assert(t.stage().status === 'submitted' && t.stage().receivedWt === 8 && t.stage().receiptNote === 'weighed twice' && t.saved() === 1, JSON.stringify(t.stage()));
+});
+
+test('29 Oct issue UI: a negative correction needs a warn confirm; a positive top-up does not', function(){
+  var t = _karigarUiApp({ status:'assigned', issued:[{wt:10,purity:'24K'}] });
+  t.q.push('2', '24K');  t.a.promptStageIssue('o1', 0);
+  assert(t.stage().issued.length === 2 && t.confirms.length === 0, 'top-up straight through');
+  t.q.push('-1', '24K'); t.a.promptStageIssue('o1', 0);
+  assert(t.stage().issued.length === 2 && t.confirms.length === 1 && t.confirms[0].d === 'warn', 'correction waits for confirm');
+  t.confirms[0].ok();
+  assert(t.stage().issued.length === 3 && t.stage().issued[2].note === 'correction', JSON.stringify(t.stage().issued));
+});
+
+function _assignApp(items, answers){
+  var a = loadApp(), saved = 0, toasts = [], q = answers.slice(), asked = 0;
+  a.saveToCloud = function(cb){ saved++; cb && cb(null); };
+  a.toast = function(m){ toasts.push(m); };
+  a.showOrderDetail = function(){};
+  a.prompt = function(){ asked++; return q.length ? q.shift() : null; };
+  a.S.orders = [{ id:'o1', items:items }];
+  return { a:a, toasts:toasts, saved:function(){ return saved; }, asked:function(){ return asked; } };
+}
+function _gItem(desc, metal, purity){ return { desc:desc, metal:metal||'gold', purity:purity||'22K', estWt:5, qty:1 }; }
+
+test('29 Oct assign: all weights blank -> no purity prompt, stages pushed without issued', function(){
+  var t = _assignApp([_gItem('Ring'), _gItem('Chain')], ['Ramesh','Gold work','cash','500','','']);
+  assert(t.a.assignOrderToKarigar('o1') === true && t.asked() === 6, 'expected exactly 6 prompts, got ' + t.asked());
+  var s = t.a.S.orders[0].items[0].karigarStages[0];
+  assert(s.karigarCost === 500 && !s.issued, 'no issued field when nothing handed over: ' + JSON.stringify(s));
+});
+
+test('29 Oct assign: per-item weights + one explicit purity; blank weight item stays unissued', function(){
+  var t = _assignApp([_gItem('Ring'), _gItem('Chain')], ['Ramesh','Gold work','cash','500','10','','24k']);
+  assert(t.a.assignOrderToKarigar('o1') === true, t.toasts.join(' | '));
+  var s0 = t.a.S.orders[0].items[0].karigarStages[0], s1 = t.a.S.orders[0].items[1].karigarStages[0];
+  assert(s0.issued.length === 1 && s0.issued[0].wt === 10 && s0.issued[0].purity === '24K' && !!s0.issued[0].date, JSON.stringify(s0));
+  assert(!s1.issued, 'blank-weight item must not get an issued entry: ' + JSON.stringify(s1));
+});
+
+test('29 Oct assign: blank purity uses each item\'s own purity', function(){
+  var t = _assignApp([_gItem('Payal','silver','925 Sterling')], ['Ramesh','Polish','cash','100','50','']);
+  t.a.assignOrderToKarigar('o1');
+  assert(t.a.S.orders[0].items[0].karigarStages[0].issued[0].purity === '925 Sterling', JSON.stringify(t.a.S.orders[0].items[0]));
+});
+
+test('29 Oct assign: wrong-metal purity or a bad weight cancels the WHOLE flow, nothing pushed or saved', function(){
+  var t1 = _assignApp([_gItem('Ring'), _gItem('Payal','silver','925 Sterling')], ['Ramesh','Work','cash','100','5','50','24K']);
+  assert(t1.a.assignOrderToKarigar('o1') === false && t1.saved() === 0, 'mixed metal + explicit 24K must cancel');
+  assert(!t1.a.S.orders[0].items[0].karigarStages && /Payal/.test(t1.toasts[t1.toasts.length-1]), 'toast names the item: ' + t1.toasts.join(' | '));
+  var t2 = _assignApp([_gItem('Ring')], ['Ramesh','Work','cash','100','abc']);
+  assert(t2.a.assignOrderToKarigar('o1') === false && t2.saved() === 0, 'non-number weight cancels');
+  var t3 = _assignApp([_gItem('Ring','gold','Gold Plated')], ['Ramesh','Work','cash','100','5','']);
+  assert(t3.a.assignOrderToKarigar('o1') === false && t3.saved() === 0, 'plated item with a weight cancels');
+});
+
+test('29 Oct assign: items that already have an active stage are skipped, not stacked', function(){
+  var busy = _gItem('Ring'); busy.karigarStages = [{ status:'assigned', task:'Old', karigarId:'k0' }];
+  var t = _assignApp([busy, _gItem('Chain')], ['Ramesh','Polish','cash','100','']);
+  assert(t.a.assignOrderToKarigar('o1') === true && t.asked() === 5, 'one target item -> 5 prompts, got ' + t.asked());
+  assert(t.a.S.orders[0].items[0].karigarStages.length === 1, 'busy item untouched');
+  assert(t.a.S.orders[0].items[1].karigarStages.length === 1, 'free item got a stage');
+});
+
+test('29 Oct form: saveOrder carries a stage\'s issued entry', function(){
+  var t = _orderFormApp({ 'oi-desc-0':'Ring', 'of-cust':'Asha', 'of-delivery':'2099-01-01' });
+  t.a.ordItems[0].karigarStages = [{ task:'Gold work', karigarId:'kar1', karigarPayMode:'cash', karigarCost:500, status:'assigned', assignedDate:'2026-10-29',
+                                     issued:[{ date:'2026-10-29', wt:6, purity:'24K' }] }];
+  t.a.saveOrder();
+  var st = t.a.S.orders[t.a.S.orders.length-1].items[0].karigarStages[0];
+  assert(t.saves() === 1 && st.issued[0].wt === 6 && st.issued[0].purity === '24K', JSON.stringify(st));
+});
+
+test('29 Oct form: an issued purity that no longer fits the item\'s metal blocks the save with a toast', function(){
+  var t = _orderFormApp({ 'oi-desc-0':'Ring', 'of-cust':'Asha', 'of-delivery':'2099-01-01' });
+  t.a.ordItems[0].karigarStages = [{ karigarId:'kar1', status:'assigned', issued:[{ date:'2026-10-29', wt:6, purity:'925 Sterling' }] }];
+  t.a.saveOrder();
+  assert(t.saves() === 0 && /purity/i.test(t.msg()), 'expected a refusal, got saves=' + t.saves() + ' msg=' + t.msg());
+  if(typeof t.a._orderLocked === 'function') assert(!t.a._orderLocked('__new'), 'refusal must happen BEFORE the save lock is taken');
+});
+
+test('29 Oct profile: updateKarigarProfile validates phone and name clash, mutates nothing on error', function(){
+  var a = loadApp(), saved = 0;
+  a.saveToCloud = function(cb){ saved++; cb && cb(null); };
+  var k = a.addOrGetKarigar('Ramesh'); a.addOrGetKarigar('Suresh');
+  var before = JSON.stringify(k);
+  assert(a.updateKarigarProfile(k.id, { name:'Ramesh', phone:'12345' }) !== '', 'bad phone refused');
+  assert(a.updateKarigarProfile(k.id, { name:' suresh ', phone:'' }) !== '', 'name clash refused (case/space-insensitive)');
+  assert(a.updateKarigarProfile(k.id, { name:'', phone:'' }) !== '', 'blank name refused');
+  assert(a.updateKarigarProfile('nope', { name:'X' }) !== '', 'unknown id -> error, no throw');
+  assert(JSON.stringify(k) === before && saved === 0, 'errors must not mutate or save');
+  assert(a.updateKarigarProfile(k.id, { name:'Ramesh Soni', phone:'+91 98765 43210', skills:' Kundan ', note:'20 yrs' }) === '', 'valid update');
+  assert(k.name === 'Ramesh Soni' && k.phone === '9876543210' && k.skills === 'Kundan' && k.note === '20 yrs' && saved === 1, JSON.stringify(k));
+  assert(a.updateKarigarProfile(k.id, { name:'Ramesh Soni', phone:'' }) === '' && k.phone === '', 'blank phone allowed');
+});
+
+test('29 Oct performance: karigarStats adds turnaround + per-metal shortfall keys, existing keys unchanged', function(){
+  var a = loadApp();
+  var k = a.addOrGetKarigar('Ramesh');
+  a.S.orders = [{ id:'o1', items:[
+    { metal:'gold', purity:'22K', estWt:10, qty:1, karigarStages:[{ karigarId:k.id, karigarPayMode:'cash', karigarCost:100, status:'submitted', assignedDate:'2026-10-01', submittedDate:'2026-10-07',
+        issued:[{wt:10,purity:'22K'}], receivedWt:8 }] },
+    { metal:'silver', purity:'925 Sterling', estWt:50, qty:1, karigarStages:[{ karigarId:k.id, karigarPayMode:'cash', karigarCost:50, status:'submitted', assignedDate:'2026-10-10', submittedDate:'2026-10-12',
+        issued:[{wt:50,purity:'925 Sterling'}], receivedWt:40 }] },
+    { metal:'gold', purity:'22K', estWt:5, qty:1, karigarStages:[{ karigarId:k.id, karigarPayMode:'cash', karigarCost:10, status:'submitted', submittedDate:'2026-10-12' }] }
+  ]}];
+  var s = a.karigarStats(k.id);
+  assert(s.piecesSubmitted === 3 && s.cash === 160, 'existing keys unchanged: ' + JSON.stringify(s));
+  assert(s.daysTotal === 8 && s.daysCount === 2, 'turnaround only where both dates exist: ' + JSON.stringify(s));
+  assert(approxEqual(s.shortGold, 2*0.916, 1e-9) && approxEqual(s.shortSilver, 10*0.925, 1e-9) && s.shortJobs === 2, 'gold and silver short kept apart: ' + JSON.stringify(s));
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

@@ -22,9 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. The 29 Oct Karigar Provenance & Profile build (claimed here on 29 Oct)
-> was interrupted: the working folder lost files and git objects. See the
-> 98th entry. The feature is PARTLY lost and needs rebuilding; nothing deployed.
+> Nobody. The Karigar Provenance rebuild (102nd entry) is done and committed on
+> `recovery/2026-10-30`; it is logic-verified only, not screen-verified, not deployed.
 
 ---
 
@@ -103,6 +102,42 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-30 (hundred-and-second entry) · Claude Code (Sonnet) — Karigar Provenance & Profile rebuilt on `recovery/2026-10-30` (logic-verified, not deployed, not screen-verified)
+
+**What survived vs. what I rebuilt.** Checking the recovered tree first: Tasks 1, 2, 3, 7, 8 and 9 of the 29 Oct plan
+were still in `js/00`, `js/01`, `js/03` and `js/05` (the 98th entry listed some of these as lost; they were not).
+What was truly gone was everything in `js/04-orders-detail.js`, plus **all** the `29 Oct` regression tests, plus
+**`assignOrderToKarigar` itself** (the 28 Oct / 97th-entry feature, never pushed, no git object left). Rebuilt in
+`js/04`: the `receipt` argument on `markStageSubmitted`, `logStageIssue`, `_issuedSummary`, `promptStageIssue`,
+`promptStageReceipt`, `_stageLinesHtml` (wired into `showOrderDetail`, replacing the old inline Mark Submitted
+button), and `assignOrderToKarigar` with the metal-handed-over prompts from plan Task 6.
+
+**`assignOrderToKarigar` is a reconstruction, not a restore.** I rebuilt it from the 97th entry's description plus
+plan Task 6. Prompt order is: karigar, task, `cash`/`wastage`, amount or wastage %, then one weight per item, then one
+purity if any weight was given. The original's exact wording may differ. The "Assign to Karigar" button in the
+Order Items header is also new code. I hid it for cancelled, delivered and billed orders and for non-managers; the
+original gate is unknown.
+
+**Tests.** Re-added 23 tests (plan Tasks 1-9 plus one for skipping already-busy items). Regression suite: **479 passed /
+0 failed** (was 456). `node --check` clean on all 11 files. `backup-check` and `roundtrip` clean (no new top-level key).
+`handlers`/`unescaped-ids`/`loadorder`: no new hits; `unquoted-args` shows two new sites on the numeric item index `n`
+(harmless). `jewelos-bug-pattern-reviewer`: no findings. `jewelos-test-runner` (independent): same 479/0.
+`checks/globals.json` gained the six new function names.
+
+**NOT verified.** Nothing was clicked in a browser (no screen walk of Tasks 5-9; the plan's Task 10 screen walk is
+still owed). `tests/e2e` was not re-run. The e2e suite has no spec for Orders/Karigars. Real-phone layout of the
+wrapped stage row is untested. Two failures are not from this change: `tests/cowork-live-check.js` fails on its GST-bill
+`recordSale()` (already logged in the 97th entry) and `tests/edge-functions.test.js` did not run (needs `sucrase`).
+Reviewer note, left as is: the new issued/receipt writes use `saveToCloud(function(){})`, so a failed save is not
+rolled back (same as `markStageSubmitted` before). Not run: the Opus final review and `jewelos-invariant-tester`
+(plan Task 10 step 3), and Task 10's live-DB count.
+
+**Deploy gate (plan Task 10 step 5).** B2 (`_allKarigarStageEntries`) lowers "Owed" for any shop with a billed order that
+carries a submitted stage. Do not deploy until Cowork has counted such shops.
+
+→ FOR COWORK: before any deploy of this branch, count shops where an order has `billedSaleId` set AND a `karigarStages` entry with `status:'submitted'` (B2 lowers their "Owed"); also note the 98th entry said Task 10's count was no longer needed — it is needed again now the feature is rebuilt.
+→ FOR TANISH: the feature is back in code but nobody has seen it on a screen yet — say when you want the screen walk done, and say if the Assign-to-Karigar prompts feel different from before.
 
 ### 2026-10-30 (hundred-and-first entry) · Claude Code (Sonnet) — ran check.bat and the e2e suite; fixed 8 stale e2e specs (test-side only, no app code)
 
