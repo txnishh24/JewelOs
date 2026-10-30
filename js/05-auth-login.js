@@ -1054,6 +1054,15 @@ function renderSettings(){
 // principle as pbSupplierLedgerHtml (09-purchases.js) -- nothing here is
 // kept pre-computed, karigarOwed/karigarStats/karigarQueue scan the real
 // records fresh every render.
+// First letter of up to two words, for the card avatar. Takes a whole code point
+// (an emoji is a surrogate pair -- charAt(0) would split it) and falls back to
+// "?" for a blank or whitespace-only name.
+function karigarInitials(name){
+  var words = String(name||'').trim().split(/\s+/).filter(Boolean).slice(0,2);
+  var out = words.map(function(w){ var m = w.match(/^[\uD800-\uDBFF][\uDC00-\uDFFF]|^[\s\S]/); return m ? m[0] : ''; }).join('').toUpperCase();
+  return out || '?';
+}
+
 function renderKarigarList(){
   var wrap = document.getElementById('karigar-list');
   if(!wrap) return;
@@ -1068,7 +1077,7 @@ function renderKarigarList(){
     var oweParts = [owed.cash>0?'You owe '+fmt(owed.cash):'', oweMetal?'You owe '+oweMetal:''].filter(Boolean);
     function stat(l, v){ return '<div class="kg-stat"><span>'+l+'</span><span>'+v+'</span></div>'; }
     return '<div class="kg-card">'+
-      '<div class="kg-head"><div class="kg-who"><div class="kg-avatar">'+escHtml(String(k.name||'?').trim().split(/\s+/).slice(0,2).map(function(w){ return w.charAt(0); }).join('').toUpperCase())+'</div><div>'+
+      '<div class="kg-head"><div class="kg-who"><div class="kg-avatar">'+escHtml(karigarInitials(k.name))+'</div><div>'+
         '<div class="kg-name">'+escHtml(k.name)+'</div>'+
         ((k.phone||k.skills) ? '<div class="kg-meta">'+[k.phone?escHtml(k.phone):'', k.skills?escHtml(k.skills):''].filter(Boolean).join(' · ')+'</div>' : '')+
       '</div></div><span class="kg-badge">'+queue.length+' in progress</span></div>'+
