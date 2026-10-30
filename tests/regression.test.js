@@ -6787,7 +6787,10 @@ test('renderKarigarList: escapes the karigar name and keeps cash/gold/silver owe
   var html = a.document.getElementById('karigar-list').innerHTML;
   assert(html.indexOf('<img src=x') === -1, 'raw unescaped name must not appear in innerHTML: ' + html);
   assert(/&lt;img/.test(html), 'name should be HTML-escaped: ' + html);
-  assert(/Owed cash/.test(html) && /Owed gold/.test(html), 'cash and gold/silver owed must render as separate buckets: ' + html);
+  // batch65 (30 Oct): cash owed now reads "You owe ₹300" on its own line; a metal
+  // line appears only when metal is owed, so cash-only must not show a gold/silver "You owe".
+  assert(/You owe[^<]*300/.test(html), 'cash owed must render as its own "You owe" line: ' + html);
+  assert(!/You owe[^<]*(gold|silver)/.test(html), 'cash-only debt must not render a metal owed line: ' + html);
 });
 
 // ── 29 Oct Karigar Provenance & Profile (restored 30 Oct after the folder loss;

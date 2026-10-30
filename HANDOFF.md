@@ -22,7 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. batch64 is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `f0455912-83df-4b98-abfa-d4c08cda55be`,
+> Nobody. batch65 (Karigars tab + stage box redesign) is built locally, awaiting Tanish's phone look before deploy — see the 119th entry. NOT deployed.
+> batch64 is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `f0455912-83df-4b98-abfa-d4c08cda55be`,
 > verified by `jewelos-deploy-verifier`). Local `main` is NOT pushed to GitHub.
 
 ---
@@ -102,6 +103,93 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-30 (hundred-and-nineteenth entry) · Claude Code (Sonnet) — batch65: Karigars tab + order-form stage box redesign (presentation only). Built and tested locally, NOT deployed (committed locally on main; awaiting Tanish's phone look)
+
+**What changed.** `js/05-auth-login.js` `renderKarigarList` (card rebuilt), `js/03-billing-numbers.js` stage row in `buildOrdItemRow` (labels above every input, one field per row at 375px), `index.html` (new `.kg-*` CSS block, tab subtitle), `tests/regression.test.js` (one assertion reworded: "Owed cash" → "You owe ₹300", same intent).
+- Card: name in serif, "N in progress" pill, a shaded panel with **Gold in hand / Silver in hand** in large type (0.00g shown, greyed), then "You owe ₹X" / "You owe Xg gold" in red or "✓ Settled — you owe nothing" in green. Primary gold button "Record payment". Everything else (this month, all time, average turnaround, "Returned less than allowed" — renamed from "Short beyond allowance", notes, Edit details + its form) sits behind a collapsed **Details**.
+- Tab subtitle: "Metal in hand, what you owe, and work in progress".
+- Stage box: Task / Karigar / How you pay / Wastage or Cash / Metal issued now (grams) / Purity — labels above, full width; tick-box text shortened and in sentence case.
+- No ids, handlers, stage fields, calculations or stored data changed.
+
+**Deliberately NOT done: the "Give metal" button.** No standalone give-metal flow exists; metal is issued only inside an order stage. A button needs new logic and a new data path, which breaks "presentation only". If Tanish wants it, it is its own batch.
+
+**Verified.** `node --check` all 11 files; regression 489 passed / 0 failed; scope, handlers, css, ids, loadorder, backup-check, roundtrip, making-basis, unescaped-ids all as before (backup-check and roundtrip clean); e2e 23 passed. Screenshots at 375px of the card (closed and Details open) and the stage box looked right.
+**Not verified.** A real phone. Desktop 1536px layout not looked at. Staff login not tried. The "Details" collapse is a native `<details>`; works in Chromium, not tried on an old Android WebView.
+
+→ FOR COWORK: nothing until Tanish has looked at it on a phone; after that, run the live karigar click test again once deployed.
+→ FOR TANISH: please look at the Karigars tab and an order's Karigar Stage box on your phone, then say deploy or what to change.
+
+### 2026-10-30 (hundred-and-eighteenth entry) · Cowork (Sonnet) — design brief: Karigars tab and order-form stage box look cheap and confusing (Tanish, 30 Oct, after the live test)
+
+**Why.** Tanish saw the live screens during the 117th-entry test and said the karigar module looks cheap, confusing and unprofessional. I looked at my two screenshots and agree. Logic is fine (12 of 13 PASS); presentation is the problem. Tanish has not yet approved the redesign itself; this is the brief he asked me to write. Do not start before his go.
+
+**What is wrong (observed on production, desktop 1536px and 375px).**
+1. Karigars tab, each card: a wall of small grey lines ("This month", "Lifetime", "Owed cash", "Owed gold · silver", "Avg turnaround", "Short beyond allowance 2.41g gold"). No hierarchy. The number a jeweller cares about most, metal held now (e.g. "Holding now: 2.75g gold"), is a single amber line in the middle, and it appears only on a karigar who holds metal.
+2. "Short beyond allowance" is jargon. "Owed cash ₹0" and "Owed gold 0.00g" are the same kind of fact in two places.
+3. Header says "Karigars" but the subtitle says "Work queue, stats & balances": the page does not say what it is for.
+4. Buttons ("Record Payment", "Edit details") are plain outlines; no primary action. There is no "Give metal" on the card.
+5. Order form at 375px: the stage box is cramped. Placeholders truncate ("% of w", "g (blank = r"), the "Metal issued now" label is tiny, and the tick-box sentence is long and all-caps ("KARIGAR KEEPS THE WASTAGE OUT OF THE METAL ISSUED (UNTICK IF YOU PAY WASTAGE SEPARATELY)").
+
+**Proposed design (Tanish to approve or change).**
+- Card top: karigar name (and phone if stored) with "In hand: X g gold" in large type, shown always, 0.00 g included.
+- Next line: one plain sentence for money: "You owe ₹X" or "Settled". Metal he owes you in the same style.
+- Action row: primary "Give metal", then "Record payment", then "Details".
+- Behind "Details" (collapsed): this-month and lifetime totals, average turnaround, short-beyond-allowance, edit.
+- Rename "Short beyond allowance" to plain words, e.g. "Returned less than allowed".
+- Tab subtitle: say what the page does in plain words, or drop it.
+- Order-form stage box at 375px: one field per row, full-width inputs, labels above the inputs instead of cut-off placeholders; a readable metal-issued label; tick-box text in sentence case and shorter.
+- Keep ES5 only. Keep all ids and data shapes. No change to calculations or stored data.
+
+**Rules for the build.** Presentation only. Sonnet is enough (MODEL-POLICY). Run the regression suite and e2e before handing back. A real phone has never been tested, so ask Tanish to look at it on one before any deploy. Deploy only on his go.
+
+→ FOR CLAUDE CODE: wait for Tanish's go on this design, then build it as batch65 (presentation only). Number note: I used 118 for this entry, so your next entry is the 119th.
+→ FOR TANISH: say go, or tell me what to change in the design list above. Still open: the staff-login test (the 13th check) needs you signed in as a staff user.
+
+### 2026-10-30 (hundred-and-seventeenth entry) · Cowork (Sonnet) — live karigar test of batch64 on production: 12 of 13 PASS, 1 NOT RUN, 0 FAIL
+
+**Read this first (deviations from the 115th entry).** (1) Tanish signed in to his **Lumineer demo shop (`65a3ce29`)**, not the E2E Test Shop, and said in chat that it is demo-only and to use it. I used it, not `77c4aefe`. The 115th entry's "never touch `65a3ce29`" rule was overridden by Tanish. (2) The app asks its karigar questions with native `prompt()`, which freezes browser control, so I answered them through a scripted stub of `window.prompt` inside the page. The app logic ran unchanged; a human at a real dialog was not tested. (3) Fields were filled by script; confirm dialogs and several buttons were real clicks. (4) The window could not be resized, so "375px" was emulated by loading the app in a 375px-wide frame (media queries fire at 375). Not a real phone. (5) Cowork signed in nowhere; the browser already held Tanish's session.
+
+| # | Result | What I saw |
+|---|---|---|
+| 1 | PASS | Desktop menu: Karigars between Orders and Girvi. Phone frame: More menu lists Karigars. Opens without error; cards show Record Payment and Edit details (once karigars existed). |
+| 2 | PASS | Order A saved. Tick-box shown and ticked by default. Detail: `Active: Gold work · Issued 6.00g (24K)` with Issue Metal, Mark Submitted; Assign to Karigar present. |
+| 3 | PASS | Order B: "Assigned 2 item(s)". Item 1 `Issued 3.00g (22K)`, item 2 active with nothing issued. Second click: "Every item already has a karigar working on it"; still 1 stage per item. |
+| 4 | PASS | +2 gives 8.00g. -1 shows the amber confirm, then 7.00g. -50 also shows the confirm; the refusal comes AFTER Confirm: "Correction is more than the 7.00g of 24K issued", nothing changed. (Checklist said refused; it is refused after the confirm.) |
+| 5 | PASS | Received 5: amber "Metal short by 2.41g fine ... wastage allowance 0.40g". After Confirm and note: `Gold work — received 5.00g · 2.41g fine short · <b>x</b>`, literal text, no bold element. |
+| 6 | PASS | Chain 4g at 22K, received 3.9: toast "Received — 0.09g fine short, within this stage's 0.32g wastage allowance". No warning dialog. (Toast colour not checked, only the text.) |
+| 7 | PASS | Ramesh: "Short beyond allowance: 2.41g gold", Avg turnaround. Suresh: turnaround, "Holding now 2.75g". Owed gold 0.00g for both. |
+| 8 | PASS | Phone `12345`: "Phone should be a 10-digit mobile number starting 6-9...", form stays open. `98765 43210` and skills `<i>x</i>` saved; card shows `9876543210 · <i>x</i>` as literal text. |
+| 9 | PASS | Order C, tick-box unticked, submitted with no prompts: Mohan Owed gold 0.40g. |
+| 10 | PASS | Order D cash 500: Owed cash 500. Deliver & Create Bill, then Record Sale (INV-188, full cash): still 500. Order E (Dashboard variant, left to Dashboard and back): Owed cash still 500, INV-189 has no stages on its lines. |
+| 11 | PASS (emulated) | In the 375px frame the Task box is full width (247px), Karigar name 139px, tick-box line visible and wrapping. Cosmetic only: the "% of weight" box is about 80px and its placeholder clips to "% of w". |
+| 12 | NOT RUN | Needs a staff sign-in, which I do not do. The demo shop has 2 non-owner users, so a staff test is possible if Tanish signs in as one. |
+| 13 | PASS | Ordinary custom cash sale INV-190 (₹28,700) saved. Day Book shows auto lines for INV-188, 189 and 190. Girvi opens (2 loans). No JavaScript console errors seen. |
+
+**Read-only database check (SELECT, shop `65a3ce29`).** Matches expectations: A `kept=true`, submitted, recv 5, issued log 6, +2, -1 (note `correction`); B Chain submitted recv 3.9, B Ring issued 3 at 22K still assigned; C `kept=false`; D and E cash, submitted. Sale lines: INV-188 has 1 stage copy on its line (billed straight from the order, no Dashboard trip), INV-189 and INV-190 have 0. Owed ignored the copy (still 500), as designed.
+
+**For Claude Code to look at (none are failures).** (a) The -50 refusal happens after the confirm, not before. (b) In test 5 received weight is valued at the item's purity (5g at 22K = 4.58g fine) against metal issued at 24K (6.99g fine); confirm that is the intended rule. (c) INV-188 keeps a stage copy on its sale line when billed without leaving the Sale tab; harmless to Owed, but a different shape from INV-189.
+
+**Left behind in the demo shop, all tagged `COWORK-LIVE-2026-10-30`, nothing deleted:** 5 orders (A to E), 5 karigars (Ramesh, Suresh, Mohan, Kamal, Lata), 3 sales (INV-188 ₹1,43,500, INV-189 ₹1,43,500, INV-190 ₹28,700, all cash), their Day Book lines, and today's dashboard figures now include them (Today's profit also shows -₹500 from the karigar cash cost). One unsaved test order form was abandoned. The browser is still signed in as Lumineer.
+
+→ FOR CLAUDE CODE: nothing blocking; batch64 behaves as specified on production for tests 1 to 11 and 13. Look at (a) to (c) above, and test 12 (staff) is still unverified. Next entry number is 118.
+→ FOR TANISH: the karigar feature works live. Two things for you: (1) the demo shop now has ₹3,15,700 of test sales and 5 test orders on today's date; delete them yourself if they should not stay in the demo's figures; (2) if you want the staff-login test, sign in as a staff user on the demo shop and tell Cowork the page is open, or run it yourself.
+
+### 2026-10-30 (hundred-and-sixteenth entry) · Cowork (Sonnet) — post-deploy checks done (all clear); the 115th entry's live click test NOT run: it needs a sign-in I do not do
+
+**Numbering.** Two entries were both numbered "hundred-and-fourteenth" (Claude Code's deploy entry and Cowork's brain-folder entry). Next entry should be the 117th. Nothing is lost; both are in the file.
+
+**Post-deploy checks from the 110th entry, item 4 (read-only, SELECT only, about 21:25 IST).**
+1. **Row sizes did not shrink.** `3720af09` Sri Sai 273,260 bytes (baseline ~273 KB, last save 23 Oct, unchanged); `65a3ce29` 175,684 bytes (baseline ~176 KB, last save 29 Oct); `77c4aefe` E2E test shop 201,588 bytes (baseline ~194 KB, it grew: 470 sales, 144 girvi, last save 30 Oct 14:59 UTC, consistent with test activity).
+2. **No burst of failed logins.** Last 24 h by UTC hour: 08:00 1 ok / 3 failed (1 email); 11:00 71 ok / 2 failed; 12:00 32 ok / 1 failed; 13:00 7 ok / 0 failed; 14:00 26 ok / 0 failed. No login attempt of any kind is logged after 14:59 UTC (20:29 IST). **Limit:** the deploy time is not recorded in HANDOFF, so I cannot isolate a clean "after deploy" window. If the deploy was after 20:29 IST, no one has logged in since, so this check proves nothing about the new build yet.
+3. **Sri Sai `3720af09`:** last successful login 23 Oct 15:17 UTC (20:47 IST), 0 attempts in the last 24 h. Not logged in since the deploy. Last save 23 Oct 16:06 UTC.
+
+**115th entry's live karigar test: NOT RUN (all 13 tests).** It needs a login to the E2E Test Shop, and my standing rule is that I never sign in or handle passwords. I also did not touch the database for it. Nothing was written anywhere.
+
+**To run it, one of these:** (a) Tanish signs in to the E2E Test Shop himself in the browser and tells Cowork the page is open; Cowork then drives the clicking and reports the table, never seeing or typing a password; or (b) Tanish or Claude Code runs the checklist and Cowork does only the read-only database check afterwards. Until then batch64 is live and verified only by byte match plus Tanish's own phone test, not by a click-through.
+
+→ FOR CLAUDE CODE: nothing blocking from the database side (sizes and logins look fine). The 115th checklist is still outstanding; see above. Next entry number is 117.
+→ FOR TANISH: to get the live test done, sign in to the E2E Test Shop in the browser and tell Cowork the page is open. Also still open: say whether to push `main` (the 115th entry says it was already pushed, `origin/main` = `af36d36`, so likely nothing to do).
 
 ### 2026-10-30 (hundred-and-fifteenth entry) · Claude Code (Sonnet) — TEST NOTE for Cowork: run the live karigar test on production and report back
 

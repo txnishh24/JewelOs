@@ -1447,32 +1447,41 @@ function buildOrdItemRow(i){
   // simply makes the next stage first-unsubmitted.
   var stagesWrap=document.createElement('div'); stagesWrap.className='fg'; stagesWrap.style.gridColumn='1 / -1';
   stagesWrap.innerHTML='<label>Karigar Stages</label>';
-  var stagesList=document.createElement('div'); stagesList.id='oi-stages-'+i; stagesList.style.cssText='display:flex;flex-direction:column;gap:6px;';
+  var stagesList=document.createElement('div'); stagesList.id='oi-stages-'+i; stagesList.style.cssText='display:flex;flex-direction:column;gap:12px;';
   function _renderStages(){
     stagesList.innerHTML='';
     (item.karigarStages||[]).forEach(function(stage, si){
-      var row=document.createElement('div'); row.style.cssText='display:flex;gap:6px;align-items:center;border:1px dashed var(--border-gold,#b39257);border-radius:8px;padding:6px 8px;';
-      var taskI=document.createElement('input'); taskI.type='text'; taskI.placeholder='Task (e.g. Gold work)';
-      taskI.value=stage.task||''; taskI.style.flex='1 1 130px'; taskI.style.minWidth='110px';
+      var row=document.createElement('div'); row.className='kg-stage';
+      // batch65 (30 Oct): every input gets a visible label above it (placeholders
+      // were truncating at 375px). Same handlers and stage fields as before.
+      function kgField(text, el, wide){
+        var d=document.createElement('div'); d.className='kg-f'+(wide?' wide':'');
+        var l=document.createElement('label'); l.className='kg-l'; l.textContent=text;
+        d.appendChild(l); d.appendChild(el); return d;
+      }
+      var taskI=document.createElement('input'); taskI.type='text'; taskI.placeholder='e.g. Gold work';
+      taskI.value=stage.task||'';
       (function(idx){taskI.oninput=function(){ordItems[i].karigarStages[idx].task=this.value;};})(si);
       var karI=document.createElement('input'); karI.type='text'; karI.placeholder='Karigar name';
-      karI.value=(findKarigar(stage.karigarId)||{}).name||''; karI.style.flex='1 1 130px'; karI.style.minWidth='110px';
+      karI.value=(findKarigar(stage.karigarId)||{}).name||'';
       (function(idx){karI.onchange=function(){
         // 30 Oct: a blank name must not create a nameless karigar -- clearing
         // the box un-assigns the stage (and saveOrder then drops the row).
         var nm=String(this.value||'').trim();
         ordItems[i].karigarStages[idx].karigarId=nm?addOrGetKarigar(nm).id:'';
       };})(si);
-      var modeSel=document.createElement('select'); modeSel.style.cssText='width:auto;padding:9px 28px 9px 8px;font-size:12px;';
-      [['','Not set'],['cash','Cash ₹'],['wastage','Wastage %']].forEach(function(o){var op=document.createElement('option');op.value=o[0];op.textContent=o[1];if(o[0]===(stage.karigarPayMode||''))op.selected=true;modeSel.appendChild(op);});
+      var modeSel=document.createElement('select');
+      [['','Not set'],['cash','Cash ₹ per piece'],['wastage','Wastage %']].forEach(function(o){var op=document.createElement('option');op.value=o[0];op.textContent=o[1];if(o[0]===(stage.karigarPayMode||''))op.selected=true;modeSel.appendChild(op);});
       var cashI=document.createElement('input'); cashI.type='text'; cashI.setAttribute('inputmode','decimal');
-      cashI.placeholder='₹ per piece'; cashI.value=stage.karigarCost>0?stage.karigarCost:''; cashI.style.cssText='width:80px;display:'+(stage.karigarPayMode==='cash'?'':'none');
+      cashI.placeholder='₹ per piece'; cashI.value=stage.karigarCost>0?stage.karigarCost:'';
       var wastI=document.createElement('input'); wastI.type='text'; wastI.setAttribute('inputmode','decimal');
-      wastI.placeholder='% of weight'; wastI.value=stage.karigarWastagePct>0?stage.karigarWastagePct:''; wastI.style.cssText='width:80px;display:'+(stage.karigarPayMode==='wastage'?'':'none');
+      wastI.placeholder='% of weight'; wastI.value=stage.karigarWastagePct>0?stage.karigarWastagePct:'';
+      var cashF=kgField('Cash per piece (₹)', cashI); cashF.style.display=stage.karigarPayMode==='cash'?'':'none';
+      var wastF=kgField('Wastage (% of weight)', wastI); wastF.style.display=stage.karigarPayMode==='wastage'?'':'none';
       (function(idx){modeSel.onchange=function(){
         ordItems[i].karigarStages[idx].karigarPayMode=this.value;
-        cashI.style.display=this.value==='cash'?'':'none';
-        wastI.style.display=this.value==='wastage'?'':'none';
+        cashF.style.display=this.value==='cash'?'':'none';
+        wastF.style.display=this.value==='wastage'?'':'none';
         if(typeof keepLine!=='undefined' && keepLine) keepLine.style.display=this.value==='wastage'?'flex':'none';
         calcOrdEst();
       };})(si);
@@ -1483,14 +1492,11 @@ function buildOrdItemRow(i){
         wastI.style.borderColor=(v>0&&(v<2||v>12))?'var(--warning)':'';
         calcOrdEst();
       };})(si);
-      var rmBtn=document.createElement('button'); rmBtn.type='button'; rmBtn.className='btn btn-sm btn-danger'; rmBtn.textContent='×';
+      var rmBtn=document.createElement('button'); rmBtn.type='button'; rmBtn.className='btn btn-sm btn-danger kg-rm'; rmBtn.textContent='×'; rmBtn.setAttribute('aria-label','Remove this stage');
       (function(idx){rmBtn.onclick=function(){ordItems[i].karigarStages.splice(idx,1);_renderStages();};})(si);
       // 29 Oct provenance: metal handed over with this stage (blank = none yet).
-      // Wraps to its own line so the row stays usable on a phone.
-      var issueLine=document.createElement('div'); issueLine.style.cssText='display:flex;gap:6px;align-items:center;flex-basis:100%;';
-      var issLbl=document.createElement('span'); issLbl.style.cssText='font-size:11px;color:var(--text3);'; issLbl.textContent='Metal issued now:';
-      var issW=document.createElement('input'); issW.type='text'; issW.setAttribute('inputmode','decimal'); issW.placeholder='g (blank = none)'; issW.style.width='110px';
-      var issP=document.createElement('select'); issP.style.cssText='width:auto;padding:9px 28px 9px 8px;font-size:12px;';
+      var issW=document.createElement('input'); issW.type='text'; issW.setAttribute('inputmode','decimal'); issW.placeholder='grams';
+      var issP=document.createElement('select');
       var _first=(stage.issued&&stage.issued[0])||null;
       issW.value=_first?_first.wt:'';
       Object.keys(PURITY_FINENESS[ordItems[i].metal==='silver'?'silver':'gold']).forEach(function(p){var op=document.createElement('option');op.value=p;op.textContent=p;if(p===((_first&&_first.purity)||ordItems[i].purity))op.selected=true;issP.appendChild(op);});
@@ -1501,16 +1507,17 @@ function buildOrdItemRow(i){
         }
         issW.oninput=sync; issP.onchange=sync;
       })(si);
-      issueLine.appendChild(issLbl); issueLine.appendChild(issW); issueLine.appendChild(issP);
       // 30 Oct: does the karigar keep the wastage out of the metal issued (so it
       // is NOT owed to him), or does the shop pay it separately? Per stage, so
       // a shop that does it both ways is covered.
-      var keepLine=document.createElement('label'); keepLine.style.cssText='display:'+(stage.karigarPayMode==='wastage'?'flex':'none')+';gap:6px;align-items:center;flex-basis:100%;font-size:11px;color:var(--text3);';
-      var keepCb=document.createElement('input'); keepCb.type='checkbox'; keepCb.checked=stage.wastageKept===true; keepCb.style.cssText='width:auto;margin:0;';
+      var keepLine=document.createElement('label'); keepLine.className='kg-keep'; keepLine.style.display=stage.karigarPayMode==='wastage'?'flex':'none';
+      var keepCb=document.createElement('input'); keepCb.type='checkbox'; keepCb.checked=stage.wastageKept===true; keepCb.style.cssText='width:auto;margin:3px 0 0;';
       (function(idx){keepCb.onchange=function(){ordItems[i].karigarStages[idx].wastageKept=this.checked;};})(si);
-      keepLine.appendChild(keepCb); keepLine.appendChild(document.createTextNode('Karigar keeps the wastage out of the metal issued (untick if you pay wastage separately)'));
-      row.style.flexWrap='wrap';
-      row.appendChild(taskI); row.appendChild(karI); row.appendChild(modeSel); row.appendChild(cashI); row.appendChild(wastI); row.appendChild(rmBtn); row.appendChild(issueLine); row.appendChild(keepLine);
+      keepLine.appendChild(keepCb); keepLine.appendChild(document.createTextNode('Karigar keeps the wastage from the metal issued. Untick if you pay it separately.'));
+      row.appendChild(kgField('Task', taskI)); row.appendChild(kgField('Karigar', karI));
+      row.appendChild(kgField('How you pay', modeSel)); row.appendChild(cashF); row.appendChild(wastF);
+      row.appendChild(kgField('Metal issued now (grams)', issW)); row.appendChild(kgField('Purity of metal issued', issP));
+      row.appendChild(keepLine); row.appendChild(rmBtn);
       stagesList.appendChild(row);
     });
   }

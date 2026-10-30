@@ -1064,34 +1064,40 @@ function renderKarigarList(){
     var life = karigarStats(k.id);
     var queue = karigarQueue(k.id);
     var held = karigarMetalHeld(k.id);
-    return '<div class="card" style="margin-bottom:12px;">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;">'+
-        '<strong>'+escHtml(k.name)+'</strong>'+
-        '<span style="font-size:12px;color:var(--text3);">'+queue.length+' in progress</span>'+
+    var oweMetal = [owed.gold>0?fmtW(owed.gold)+' gold':'', owed.silver>0?fmtW(owed.silver)+' silver':''].filter(Boolean).join(' + ');
+    var oweParts = [owed.cash>0?'You owe '+fmt(owed.cash):'', oweMetal?'You owe '+oweMetal:''].filter(Boolean);
+    function stat(l, v){ return '<div class="kg-stat"><span>'+l+'</span><span>'+v+'</span></div>'; }
+    return '<div class="kg-card">'+
+      '<div class="kg-head"><div>'+
+        '<div class="kg-name">'+escHtml(k.name)+'</div>'+
+        ((k.phone||k.skills) ? '<div class="kg-meta">'+[k.phone?escHtml(k.phone):'', k.skills?escHtml(k.skills):''].filter(Boolean).join(' · ')+'</div>' : '')+
+      '</div><span class="kg-badge">'+queue.length+' in progress</span></div>'+
+      '<div class="kg-hold">'+
+        '<div><div class="kg-hold-lbl">Gold in hand</div><div class="kg-hold-val'+(held.gold>0?'':' zero')+'">'+fmtW(held.gold)+'</div></div>'+
+        '<div><div class="kg-hold-lbl">Silver in hand</div><div class="kg-hold-val'+(held.silver>0?'':' zero')+'">'+fmtW(held.silver)+'</div></div>'+
       '</div>'+
-      ((k.phone||k.skills) ? '<div style="font-size:12px;color:var(--text3);margin-top:2px;">'+[k.phone?escHtml(k.phone):'', k.skills?escHtml(k.skills):''].filter(Boolean).join(' · ')+'</div>' : '')+
-      (k.note ? '<div style="font-size:12px;color:var(--text3);font-style:italic;">'+escHtml(k.note)+'</div>' : '')+
-      '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px;font-size:13px;">'+
-        '<div>This month: <b>'+month.piecesSubmitted+'</b> pieces, '+fmt(month.cash)+' cash, '+month.gold.toFixed(2)+'g gold, '+month.silver.toFixed(2)+'g silver</div>'+
-        '<div>Lifetime: <b>'+life.piecesSubmitted+'</b> pieces, '+fmt(life.cash)+' cash, '+life.gold.toFixed(2)+'g gold, '+life.silver.toFixed(2)+'g silver</div>'+
-        '<div style="color:'+(owed.cash>0?'var(--danger)':'var(--text2)')+';">Owed cash: '+fmt(owed.cash)+'</div>'+
-        '<div style="color:'+((owed.gold>0||owed.silver>0)?'var(--danger)':'var(--text2)')+';">Owed gold: '+owed.gold.toFixed(2)+'g · silver: '+owed.silver.toFixed(2)+'g</div>'+
+      (oweParts.length
+        ? oweParts.map(function(t){ return '<div class="kg-owe due">'+t+'</div>'; }).join('')
+        : '<div class="kg-owe ok">✓ Settled — you owe nothing</div>')+
+      '<div class="kg-actions">'+
+        '<button class="btn btn-gold" onclick="promptKarigarPayment(\''+jsAttrEsc(k.id)+'\')">Record payment</button>'+
       '</div>'+
-      ((held.gold>0||held.silver>0) ? '<div style="margin-top:6px;font-size:13px;color:var(--warning);font-weight:600;">Holding now: '+fmtW(held.gold)+' gold · '+fmtW(held.silver)+' silver (fine)</div>' : '')+
-      ((life.daysCount||life.shortJobs) ? '<div style="margin-top:4px;font-size:12px;color:var(--text3);">'+
-        [life.daysCount ? 'Avg turnaround: '+(life.daysTotal/life.daysCount).toFixed(1)+' days ('+life.daysCount+' jobs)' : '',
-         life.shortJobs ? 'Short beyond allowance: '+[life.shortGold>0?fmtW(life.shortGold)+' gold':'', life.shortSilver>0?fmtW(life.shortSilver)+' silver':''].filter(Boolean).join(' + ')+' ('+life.shortJobs+' jobs)' : ''
-        ].filter(Boolean).join(' · ')+'</div>' : '')+
-      '<button class="btn btn-sm" style="margin-top:8px;" onclick="promptKarigarPayment(\''+jsAttrEsc(k.id)+'\')">Record Payment</button>'+
-      '<button class="btn btn-sm" style="margin-top:8px;margin-left:6px;" onclick="toggleKarigarProfile(\''+jsAttrEsc(k.id)+'\')">Edit details</button>'+
-      '<div id="kp-form-'+escHtml(k.id)+'" style="display:none;margin-top:8px;gap:8px;">'+
-        ['name','phone','skills','note'].map(function(f){
-          var ph = {name:'Name', phone:'Phone (10-digit mobile)', skills:'Skills, e.g. Kundan setting', note:'Notes: experience, address...'}[f];
-          return '<input id="kp-'+f+'-'+escHtml(k.id)+'" type="text" placeholder="'+ph+'" value="'+escHtml(k[f]||'')+'" style="display:block;width:100%;margin-bottom:6px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;">';
-        }).join('')+
-        '<div style="display:flex;gap:8px;"><button class="btn" style="flex:1;" onclick="toggleKarigarProfile(\''+jsAttrEsc(k.id)+'\')">Cancel</button>'+
-        '<button class="btn btn-gold" style="flex:2;" onclick="saveKarigarProfileForm(\''+jsAttrEsc(k.id)+'\')">Save</button></div>'+
-      '</div>'+
+      '<details class="kg-more"><summary>Details</summary>'+
+        stat('This month', month.piecesSubmitted+' pieces · '+fmt(month.cash)+' · '+month.gold.toFixed(2)+'g gold · '+month.silver.toFixed(2)+'g silver')+
+        stat('All time', life.piecesSubmitted+' pieces · '+fmt(life.cash)+' · '+life.gold.toFixed(2)+'g gold · '+life.silver.toFixed(2)+'g silver')+
+        (life.daysCount ? stat('Average turnaround', (life.daysTotal/life.daysCount).toFixed(1)+' days ('+life.daysCount+' jobs)') : '')+
+        (life.shortJobs ? stat('Returned less than allowed', [life.shortGold>0?fmtW(life.shortGold)+' gold':'', life.shortSilver>0?fmtW(life.shortSilver)+' silver':''].filter(Boolean).join(' + ')+' ('+life.shortJobs+' jobs)') : '')+
+        (k.note ? stat('Notes', escHtml(k.note)) : '')+
+        '<div class="kg-actions"><button class="btn btn-sm" onclick="toggleKarigarProfile(\''+jsAttrEsc(k.id)+'\')">Edit details</button></div>'+
+        '<div id="kp-form-'+escHtml(k.id)+'" style="display:none;margin-top:8px;gap:8px;">'+
+          ['name','phone','skills','note'].map(function(f){
+            var ph = {name:'Name', phone:'Phone (10-digit mobile)', skills:'Skills, e.g. Kundan setting', note:'Notes: experience, address...'}[f];
+            return '<input id="kp-'+f+'-'+escHtml(k.id)+'" type="text" placeholder="'+ph+'" value="'+escHtml(k[f]||'')+'" style="display:block;width:100%;margin-bottom:6px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;">';
+          }).join('')+
+          '<div style="display:flex;gap:8px;"><button class="btn" style="flex:1;" onclick="toggleKarigarProfile(\''+jsAttrEsc(k.id)+'\')">Cancel</button>'+
+          '<button class="btn btn-gold" style="flex:2;" onclick="saveKarigarProfileForm(\''+jsAttrEsc(k.id)+'\')">Save</button></div>'+
+        '</div>'+
+      '</details>'+
     '</div>';
   }).join('') || '<div style="color:var(--text3);padding:12px;">No karigars yet — assign one from an order (Orders → open an order → Assign to Karigar).</div>';
   wrap.innerHTML = cards;
