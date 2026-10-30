@@ -1068,10 +1068,10 @@ function renderKarigarList(){
     var oweParts = [owed.cash>0?'You owe '+fmt(owed.cash):'', oweMetal?'You owe '+oweMetal:''].filter(Boolean);
     function stat(l, v){ return '<div class="kg-stat"><span>'+l+'</span><span>'+v+'</span></div>'; }
     return '<div class="kg-card">'+
-      '<div class="kg-head"><div>'+
+      '<div class="kg-head"><div class="kg-who"><div class="kg-avatar">'+escHtml(String(k.name||'?').trim().split(/\s+/).slice(0,2).map(function(w){ return w.charAt(0); }).join('').toUpperCase())+'</div><div>'+
         '<div class="kg-name">'+escHtml(k.name)+'</div>'+
         ((k.phone||k.skills) ? '<div class="kg-meta">'+[k.phone?escHtml(k.phone):'', k.skills?escHtml(k.skills):''].filter(Boolean).join(' · ')+'</div>' : '')+
-      '</div><span class="kg-badge">'+queue.length+' in progress</span></div>'+
+      '</div></div><span class="kg-badge">'+queue.length+' in progress</span></div>'+
       '<div class="kg-hold">'+
         '<div><div class="kg-hold-lbl">Gold in hand</div><div class="kg-hold-val'+(held.gold>0?'':' zero')+'">'+fmtW(held.gold)+'</div></div>'+
         '<div><div class="kg-hold-lbl">Silver in hand</div><div class="kg-hold-val'+(held.silver>0?'':' zero')+'">'+fmtW(held.silver)+'</div></div>'+

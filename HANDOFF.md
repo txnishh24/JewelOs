@@ -108,6 +108,7 @@ or re-add tier UI.
 
 **What changed.** `js/05-auth-login.js` `renderKarigarList` (card rebuilt), `js/03-billing-numbers.js` stage row in `buildOrdItemRow` (labels above every input, one field per row at 375px), `index.html` (new `.kg-*` CSS block, tab subtitle), `tests/regression.test.js` (one assertion reworded: "Owed cash" → "You owe ₹300", same intent).
 - Card: name in serif, "N in progress" pill, a shaded panel with **Gold in hand / Silver in hand** in large type (0.00g shown, greyed), then "You owe ₹X" / "You owe Xg gold" in red or "✓ Settled — you owe nothing" in green. Primary gold button "Record payment". Everything else (this month, all time, average turnaround, "Returned less than allowed" — renamed from "Short beyond allowance", notes, Edit details + its form) sits behind a collapsed **Details**.
+- **Follow-up polish (same day, Tanish asked for "rich and professional"):** each card now has a dark circle with the karigar's initials (e.g. RS) next to the name; the tab header icon and title sit on one line with the subtitle below. Presentation only.
 - Tab subtitle: "Metal in hand, what you owe, and work in progress".
 - Stage box: Task / Karigar / How you pay / Wastage or Cash / Metal issued now (grams) / Purity — labels above, full width; tick-box text shortened and in sentence case.
 - No ids, handlers, stage fields, calculations or stored data changed.
