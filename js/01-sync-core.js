@@ -1801,7 +1801,9 @@ function karigarStageGrams(item, stage){
 // readers return null/0, never a guessed number. None of this feeds
 // karigarStageCost/karigarOwed: issuance is custody, not pay.
 function karigarFineOf(metal, purity, grams){
-  var f = PURITY_FINENESS[metal === 'silver' ? 'silver' : 'gold'][purity];
+  var tbl = PURITY_FINENESS[metal === 'silver' ? 'silver' : 'gold'];
+  // own-property check: a purity named 'constructor' must not resolve to a function
+  var f = Object.prototype.hasOwnProperty.call(tbl, purity) ? tbl[purity] : null;
   if(!f) return null;
   var g = parseFloat(grams);
   // 29 Oct Opus review: a missing/corrupt weight must read as unknown, never

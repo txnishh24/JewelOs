@@ -3687,7 +3687,7 @@ test('restoring a backup cannot create or change a team member', function(){
   });
 });
 
-test('applyFeatureGates() hides the desktop tab at the right index -- the array must list all 9 tabs in DOM order', function(){
+test('applyFeatureGates() hides the desktop tab at the right index -- the array must list all 10 tabs in DOM order', function(){
   // Bug (Phase 0 audit, 2 Oct): this array was missing 'daybook' (8 entries for
   // 9 real .dtab elements), so every index from 'reports' on was off by one --
   // staff lost Day Book (hidden by the misindexed 'settings' lookup) and kept
@@ -3701,9 +3701,12 @@ test('applyFeatureGates() hides the desktop tab at the right index -- the array 
   var m = fn.match(/var tabs\s*=\s*\[([^\]]+)\]/);
   assert(m, 'applyFeatureGates() no longer defines the desktop tab-order array as expected');
   var tabs = m[1].split(',').map(function(s){ return s.trim().replace(/^'|'$/g, ''); });
-  var expected = ['dashboard','inventory','sales','orders','girvi','customers','reports','daybook','settings'];
+  // 30 Oct: compared against the REAL .dtab order in index.html, so adding a tab (Karigars) cannot silently shift it again
+  var html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf-8');
+  var expected = (html.match(/<button class="dtab[^"]*"[^>]*onclick="switchTab\('([a-z]+)'\)"/g) || []).map(function(x){ return x.match(/switchTab\('([a-z]+)'\)/)[1]; });
+  assert(expected.length === 10 && expected[4] === 'karigars', 'index.html desktop tab order not read as expected: ' + expected.join(','));
   assert(tabs.join(',') === expected.join(','),
-    'staff tab-hide index array does not match the real 9-tab desktop order: ' + tabs.join(','));
+    'staff tab-hide index array does not match the real 10-tab desktop order: ' + tabs.join(','));
 });
 
 // ── Bugs 7 and 8: dashboard profit colour, and stale chrome (17 Sep) ────

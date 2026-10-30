@@ -1600,7 +1600,7 @@ function saveOrder(_pastDateOk){
   validItems.forEach(function(it){ (it.karigarStages||[]).forEach(function(st){ (st.issued||[]).forEach(function(e){
     if(!_badIssue && karigarFineOf(it.metal||'gold', e.purity, 1)===null) _badIssue=it;
   }); }); });
-  if(_badIssue){toast('The metal-issued purity on "'+_badIssue.desc+'" does not match its metal ('+(_badIssue.metal||'gold')+') -- re-pick it in Karigar Stages.');return;}
+  if(_badIssue){toast('The metal-issued purity on "'+_badIssue.desc+'" does not match its metal ('+(_badIssue.metal||'gold')+') — re-pick it in Karigar Stages.');return;}
   // 30 Oct (Opus review): since B1 these numbers are saved, so check them here.
   var _badStage=null, _badStageMsg='';
   validItems.forEach(function(it){ (it.karigarStages||[]).forEach(function(st){
@@ -1608,7 +1608,7 @@ function saveOrder(_pastDateOk){
     var c=st.karigarCost, w=st.karigarWastagePct;
     if(st.karigarPayMode==='cash' && c!==undefined && (!isFinite(c) || c<0 || c>10000000)){ _badStage=it; _badStageMsg='cash amount'; }
     else if(st.karigarPayMode==='wastage' && w!==undefined && (!isFinite(w) || w<0 || w>=100)){ _badStage=it; _badStageMsg='wastage % (must be under 100)'; }
-    else if((st.issued||[]).length && karigarFineOf(it.metal||'gold', it.purity||'22K', 1)===null){ _badStage=it; _badStageMsg='metal issued -- plated items have no metal account, so clear the issued weight'; }
+    else if((st.issued||[]).length && karigarFineOf(it.metal||'gold', it.purity||'22K', 1)===null){ _badStage=it; _badStageMsg='metal issued — plated items cannot have metal issued, so clear the issued weight'; }
   }); });
   if(_badStage){toast('Karigar stage on "'+_badStage.desc+'": check the '+_badStageMsg+'.');return;}
   if(!_pastDateOk && delivery < dbDayKey(new Date())){

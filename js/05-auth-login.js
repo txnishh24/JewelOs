@@ -627,13 +627,13 @@ function applyFeatureGates(){
   // ── Staff role: hide restricted nav tabs ──────────────────────────────
   if(isStaff()){
     // Hide tabs staff cannot access
-    var staffHide = ['customers','reports','girvi','settings'];
+    var staffHide = ['customers','reports','girvi','settings','karigars'];
     staffHide.forEach(function(t){
       var btn = document.getElementById('bn-'+t);
       if(btn) btn.style.display = 'none';
       // Also hide desktop tab
       document.querySelectorAll('.dtab').forEach(function(el,i){
-        var tabs = ['dashboard','inventory','sales','orders','girvi','customers','reports','daybook','settings'];
+        var tabs = ['dashboard','inventory','sales','orders','karigars','girvi','customers','reports','daybook','settings'];
         if(tabs[i]===t) el.style.display='none';
       });
     });

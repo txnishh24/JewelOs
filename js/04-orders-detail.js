@@ -486,7 +486,7 @@ function assignOrderToKarigar(ordId){
   var cost = 0, pct = 0;
   if(mode === 'cash'){
     cost = parseFloat(prompt('Cash to pay per piece (₹)?', ''));
-    if(!(cost > 0) || !isFinite(cost)){ toast('Cancelled — enter a positive amount'); return false; }
+    if(!(cost > 0) || !isFinite(cost) || cost > 10000000){ toast('Cancelled — enter a positive amount'); return false; }
   } else {
     pct = parseFloat(prompt('Wastage allowed (% of item weight)?', ''));
     if(!(pct > 0) || !(pct < 100) || !isFinite(pct)){ toast('Cancelled — enter a wastage % between 0 and 100'); return false; }
@@ -525,7 +525,7 @@ function assignOrderToKarigar(ordId){
   });
   saveToCloud(function(){});
   showOrderDetail(ordId);
-  toast('✓ Assigned ' + targets.length + ' item(s) to ' + karigar.name + ' Karigar');
+  toast('✓ Assigned ' + targets.length + ' item(s) to ' + karigar.name);
   return true;
 }
 
