@@ -43,7 +43,7 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   **[Cowork 22 Oct: question 3 answered — NO live customer shop has staff logins; see 72nd entry.]**
   (4) Add the CSP-header stopgap (from the 69th LOG entry) to this effort, or track it
   separately? Not urgent to answer immediately, but blocks starting Batch 1.
-- **Backup of `public.store` (`tools/backup-store.js`, docs/BACKUP-SETUP.md) — deliberately postponed to the last day of launch (Tanish, 22 Oct).** Not an oversight, don't chase it early. Known cost, accepted: until then the Free-plan database has no backups, so Srisai's shop (`77c4aefe`, 411 sales, 124 girvi loans) is a single unbacked row. Do flag it again if a real shop starts billing heavily before launch day.
+- **Backup of `public.store` (`tools/backup-store.js`, docs/BACKUP-SETUP.md) — deliberately postponed to the last day of launch (Tanish, 22 Oct).** Not an oversight, don't chase it early. Known cost, accepted: until then the Free-plan database has no backups, so Sri Sai's shop (`3720af09`, 12 girvi loans, 0 sales, last save 23 Oct) is a single unbacked row. [Corrected 30 Oct, 108th/111th entry: this line used to name `77c4aefe` with 411 sales / 124 girvi loans, but that is the E2E test shop, not a customer.] Do flag it again if a real shop starts billing heavily before launch day.
 - **`RESEND_API_KEY` / domain — deliberately postponed to deployment day.** Tanish wants to buy a
   domain (picked `jewelos.co`, still unregistered), verify it in Resend, and set the two Supabase
   secrets (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`) all at once when he deploys. Not an oversight —
@@ -102,6 +102,52 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-30 (hundred-and-fourteenth entry) · Cowork (Sonnet) — brain folder `context/` brought up to the 30 Oct position
+
+Tanish asked for the brain folder to be made current. Rewrote or updated, in `jewelos-brain` (the backup-drive copy): `context/current-priorities.md` (fully rewritten, leads with open decisions), `context/work.md` (rewritten), `context/goals.md` and `context/market.md` (status notes added on top, original text kept), `projects/jewelos/README.md` (status header and life-stage paragraph). The versions they replace are in the brain's `archives/`. Nothing deleted.
+
+**Sources:** this file, the live database (read-only, 30 Oct), and Cowork's own notes. A few things are marked "not rechecked" in the brain on purpose: whether any shop has a `paidUntil`, the 20 Sep Day Book auto-posting bug, the legacy `main` row, and the market research (last refreshed 26 Sep). I did not edit the brain's `CLAUDE.md` (standing rule); it still says `Desktop\jewelos` and mentions the Control Room, both out of date.
+
+**Worth knowing, from writing it:** the 22 Oct decision to postpone backups to launch day and the 26 Oct council's "backup proven within 48 hours" gate disagree. I wrote it down as an open decision for Tanish rather than picking one. The council's "50 real sale-saves at Sri Sai" test cannot be met (0 sales, Girvi only); that is also in the brain as an item to replace.
+
+→ FOR CLAUDE CODE: nothing — FYI only. batch64 still waits on Tanish's GO.
+→ FOR TANISH: read `context/current-priorities.md` in the brain. The three calls only you can make: GO on batch64, backup now or on launch day, and the next launch date.
+
+### 2026-10-30 (hundred-and-thirteenth entry) · Cowork (Sonnet) — brain folder connected; karigar notes and two decisions written there
+
+Item 1 of the 110th entry is done. Tanish connected the brain folder (it sits at `E:\BACKUP C DRIVE\Desktop\Monkey-Chunky-master\jewelos-brain`, a copy on the backup drive, not on Desktop). Changes there are additions only, nothing removed:
+- `decisions/log.md`: two entries dated 30 Oct. The karigar keeps the wastage but it is an optional per-stage tick-box with no shop-wide default (106th entry). Staff may still issue metal and record receipts (112th entry).
+- `projects/jewelos/README.md`: a bullet on where karigar data lives (inside the shop blob, new stage fields, Owed counted from orders only).
+
+**Not done.** (1) Item 2, the skills: `jewelos-client-queries` and `jewelos-health` are account skills, so I cannot edit them from here; the instruction to read karigar data from `orders[].items[].karigarStages` only is recorded in the README for now. (2) The brain's other context files (`context/work.md`, `current-priorities.md`) still describe the 9 Sep state: Netlify as the live host, six shops, 14 batches. They are stale; I left them alone because bringing them current is a larger job than this note. (3) The post-deploy checks (item 4) wait for your deploy entry.
+
+→ FOR CLAUDE CODE: nothing — FYI only. Your build still waits on Tanish's GO.
+→ FOR TANISH: say if you want me to bring the brain's `context/` files up to date (live host, shop count, current batch, open priorities); the brain currently says things that stopped being true.
+
+### 2026-10-30 (hundred-and-twelfth entry) · Cowork (Sonnet) — Tanish's answer on staff permissions: YES, staff may issue metal and record receipts
+
+Tanish answered question (a) of the 109th entry (and the open question in the 110th) on 30 Oct, about 20:56 IST: yes. Staff keep the ability to Issue Metal, record receipts and edit karigar stages on the Orders tab. The Assign to Karigar button and the Karigars tab stay owner/manager only, as built in batch64. Nothing to change in `js/`.
+
+**Also from Tanish:** he wants Cowork to connect the `jewelos-brain` folder itself. Cowork could not find it under the root of `E:\`, Desktop, Documents or OneDrive, so the brain-folder update (110th entry, item 1) is still pending until the path is known.
+
+→ FOR CLAUDE CODE: staff permission question is closed, leave the gates as batch64 has them. Your build is still waiting only on Tanish's GO to deploy.
+→ FOR TANISH: nothing new. Tell Cowork the full path of `jewelos-brain` (or add it from the "+" menu) so the brain update can be done.
+
+### 2026-10-30 (hundred-and-eleventh entry) · Cowork (Sonnet) — corrected the `77c4aefe` shop label; confirmed Sri Sai is `3720af09`
+
+Answers items 3 of the 110th entry and the first FOR COWORK line of the 109th. Read-only on the live database; nothing written there.
+
+**Confirmed from `auth_store` (owner email to shop) and `store`:** Sri Sai Jewellers is shop `3720af09`: 12 girvi loans, 0 sales, last save 23 Oct 2026 21:36 IST. `77c4aefe` is the E2E test shop (all 16 karigars `E2E`-named; 461 sales, 80 orders), as the 108th entry said.
+
+**Fixed in this file (2 lines):** the WAITING ON TANISH backup bullet and the stored-XSS note ("every real shop...") both named `77c4aefe` as Sri Sai's. The backup warning now names `3720af09`, so the launch-day backup note points at the right row. Each fixed line carries a short "[Corrected 30 Oct ...]" tag.
+
+**Left alone, but wrong on the same premise:** the 74th-entry-era verification criterion "50 real sale-saves at Srisai" (around line 559) cannot happen, because Sri Sai has 0 sales and uses Girvi only. Tanish or Claude Code should decide what to replace it with; I did not rewrite another entry's criterion.
+
+**Not done:** item 1 (brain folder / memory update). The `jewelos-brain` folder is not connected to this session, so I could not write it. I will do it when that folder is connected. Item 2 (skills) is also pending. Post-deploy checks (item 4) wait for the deploy entry.
+
+→ FOR CLAUDE CODE: nothing blocking. Labels are fixed; your 109th entry's open item (b) is closed. Log your deploy result when Tanish says GO and I will run the post-deploy checks.
+→ FOR TANISH: nothing new. Build is still not live; it waits for your GO to Claude Code.
 
 ### 2026-10-30 (hundred-and-tenth entry) · Claude Code (Sonnet) — note for Cowork: what batch64 changes on your side (brain folder, queries, shop label, post-deploy checks)
 
@@ -887,7 +933,7 @@ Nothing was changed in the code or the database.
 Read-only SQL against `auth_store` (users and shops arrays) and `login_attempts`. Counted roles and login history only; no emails, hashes or passwords were read or copied here.
 
 - **Only 3 non-owner accounts exist in the whole database, and all 3 are Tanish's own test shops:** `lumineer jewelOs` (`65a3ce29`) has 1 manager + 1 staff, each logged in once, both in August; `Sai Sri Jewellers` (`232faaf2`, the dead test shop already logged) has 1 invited manager who never logged in and still has a `tempPassword` value on the account.
-- **Every real shop (incl. `77c4aefe` with 411 sales) has an owner account only.** So the stored-XSS surface (a staff account writing to the server directly) cannot be exercised in production today. It becomes live the day any real shop adds staff.
+- **Every real shop (today only Sri Sai, `3720af09`) has an owner account only. [Corrected 30 Oct: this used to cite `77c4aefe` with 411 sales, which is the E2E test shop.]** So the stored-XSS surface (a staff account writing to the server directly) cannot be exercised in production today. It becomes live the day any real shop adds staff.
 - **What this means for the plan:** question 3 resolves to "no staff today", so Batch 1 does not need to jump ahead of other launch items, but it should land before launch and before any shop is told it can add staff. Not an emergency.
 - **Side note, not acted on:** the `tempPassword` on the never-activated invited manager of `232faaf2` is worth clearing when that test shop is deleted (still undeleted; Tanish's say). I did not read its value.
 - Questions 1, 2 and 4 of the 71st entry are still Tanish's. Nothing was changed in the database or the code.
