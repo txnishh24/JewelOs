@@ -22,8 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. batch64 (Karigars tab + provenance + optional wastage-kept) is merged to local `main`
-> (`main` is ahead of `origin/main`, NOT pushed) and staged in `cf-deploy-stage/`. NOT DEPLOYED: waiting for Tanish's GO.
+> Nobody. batch64 is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `f0455912-83df-4b98-abfa-d4c08cda55be`,
+> verified by `jewelos-deploy-verifier`). Local `main` is NOT pushed to GitHub.
 
 ---
 
@@ -113,6 +113,19 @@ Tanish asked for the brain folder to be made current. Rewrote or updated, in `je
 
 → FOR CLAUDE CODE: nothing — FYI only. batch64 still waits on Tanish's GO.
 → FOR TANISH: read `context/current-priorities.md` in the brain. The three calls only you can make: GO on batch64, backup now or on launch day, and the next launch date.
+
+### 2026-10-30 (hundred-and-fourteenth entry) · Claude Code (Sonnet) — batch64 DEPLOYED to the Cloudflare worker and verified live
+
+**Deployed on Tanish's GO.** `npx wrangler deploy` from `cf-deploy-stage/` (built with `node build-cf-deploy-stage.js batch64` from local `main`, every staged file byte-identical to the repo): 8 files uploaded, 9 already present. Live at `https://jewelos.jewelos-e2e.workers.dev`, Version ID `f0455912-83df-4b98-abfa-d4c08cda55be`. Before deploying, `wrangler` was not logged in on this machine; Tanish approved the browser login (OAuth for his Cloudflare account) and it is now logged in here, so later deploys will not need that again until the token expires.
+
+**Verified live by `jewelos-deploy-verifier` (PASS).** index.html, sw.js, manifest.json and all 11 `js/` files fetched from the live URL are byte-identical (sha256) to the local copy, so HTML and JS are the same batch, not a half-upload. Markers present live: `assignOrderToKarigar`, `promptStageReceipt`, `karigarMetalHeld`, the `wastageKept === true` skip inside `karigarOwed`, `applyFeatureGates` tab array with `'karigars'` in position 5 and in `staffHide`, `panel-karigars` in index.html, and `/CHANGELOG.md` headed batch64. `/wrangler.jsonc`, `/.wrangler/`, `/.git/HEAD`, `/HANDOFF.md`, `/package.json`, `/COWORK-BRAIN.md` and other probes return real 404s; only the intended `/CHANGELOG.md` is public.
+
+**Not verified, plainly:** (1) the live Worker version number itself was not read back (needs wrangler/dashboard); the byte match is the evidence; (2) other edge locations and phones that already installed an older `sw.js` may serve a stale copy for a short while (the service worker is network-first, so online devices pick up the new files on next load); (3) nobody has clicked the live site: no staff login, no real phone, no Karigars tab walk on production (those were done only on the local build against the E2E shop); (4) the local test-login file was not probed for public reachability (a safety hook blocked that probe; the file is not in the served folder); (5) `git` could not be run by the verifier (dubious-ownership), so it did not confirm the deployed commit.
+
+**Rollback if anything looks wrong:** `git checkout batch63-live`, `node build-cf-deploy-stage.js batch63`, `npx wrangler deploy`, then return to `main`. Or `npx wrangler rollback` (unconfirmed that the previous version is still kept). **Local `main` has not been pushed to GitHub**; `origin/main` still stops at `6a74db4` (batch63). Tanish to say if I should push (the repo has been recovered from a folder loss once; an unpushed `main` is the single copy of this work, plus the backup copy of `.git` on E:).
+
+→ FOR COWORK: batch64 is live. Please run the three read-only post-deploy checks from the 110th entry item 4 (store row sizes for 77c4aefe / 65a3ce29 / 3720af09 not shrunk vs the 30 Oct scan; no burst of failed logins from real shops; note when Sri Sai `3720af09` next logs in) and write the result in your next entry.
+→ FOR TANISH: it is live. Please open the live site once on your phone (More menu: Karigars; an order: Assign to Karigar; Orders on a staff login if you have one) and tell me anything odd. Also say if I should push `main` to GitHub now: right now the only copy of this work is on this PC.
 
 ### 2026-10-30 (hundred-and-thirteenth entry) · Cowork (Sonnet) — brain folder connected; karigar notes and two decisions written there
 
