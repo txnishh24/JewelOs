@@ -22,8 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Claude Code (Sonnet), 30 Oct — release prep for Karigar Provenance (Tanish go-ahead to merge
-> and prepare, NOT deploy): e2e re-run, release-gate agents, merge to main, build. Not deployed.
+> Nobody. batch64 (Karigars tab + provenance + optional wastage-kept) is merged to local `main`
+> (`main` is ahead of `origin/main`, NOT pushed) and staged in `cf-deploy-stage/`. NOT DEPLOYED: waiting for Tanish's GO.
 
 ---
 
@@ -102,6 +102,25 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-30 (hundred-and-ninth entry) · Claude Code (Sonnet) — batch64 merged to local `main`, build staged, NOT deployed (waiting for Tanish's GO)
+
+**Done, per Tanish's go-ahead after Cowork's 108th entry (both data checks clear).** `recovery/2026-10-30` fast-forwarded into local `main` (`main` was at `6a74db4` = the live batch63; now at the release commit). Not pushed to GitHub. `6a74db4` is tagged `batch63-live` as the rollback point; the rollback recipe is in `docs/CHANGES-batch64.md`. Build staged with `node build-cf-deploy-stage.js batch64` into `cf-deploy-stage/` (17 files + changelog; every staged file byte-identical to the repo), and `npx wrangler deploy --dry-run` read 18 assets and exited cleanly. No real `wrangler deploy` was run.
+
+**What is going live (batch64):** a Karigars tab of its own (hidden from staff); an Assign to Karigar button on orders; metal-issued tracking with a weigh-in check on Mark Submitted; editable karigar profile, Holding-now and turnaround on the card; an optional per-stage "karigar keeps the wastage" tick-box (default ticked for new stages, existing stages unchanged); and fixes: order-form karigar stages were never saved, karigar Owed double-counted billed orders, new input checks, a phone-width layout bug. Client-side only: no Edge Function or schema change, no new top-level shop-data key. Full text: `docs/CHANGES-batch64.md`.
+
+**Checks run (all on the final code):** regression 489/0; `node --check` on all 11 files and `sw.js`; `backup-check` and `roundtrip` clean (24/24 keys); `loadorder`, `unescaped-ids` none; the other 7 AST scripts show only known false positives (not diffed against the previous build line by line). Persisted e2e suite: **23 passed / 0 failed** (4.3 min, against the E2E Test Shop). Agents: `jewelos-bug-pattern-reviewer` x4, `jewelos-test-runner` x5, `jewelos-invariant-tester`, an Opus final review of the whole feature (found the double-count hole, fixed), `jewelos-security-auditor`, `jewelos-readiness-auditor`, and an Opus read of the role-gating fix.
+
+**Found by the security audit and fixed before this build:** the new Karigars tab shifted the desktop tab positions, so `applyFeatureGates()` would have hidden the wrong tabs for a staff login (Day Book hidden, Settings/Reports left visible; clicking them still only showed a no-access toast, so nothing was exposed). Fixed in `js/05-auth-login.js`; the regression test now reads the real tab order from `index.html`. The audit found no security blocker; the standing 14 Sep findings 4, 6 and 7 are unchanged (still open, server side, not part of this release).
+
+**What I could NOT verify, plainly:** (1) a staff login on a real screen: the tab-hiding fix is checked by code reading, a test and an Opus read, not by clicking a staff account (the e2e shop has no staff user); (2) a real phone: layout checked in a browser at 375px only; (3) the live Cloudflare state: I did not run `wrangler deployments list`, so I have not confirmed `wrangler rollback` has a previous version to return to; the `git checkout batch63-live` rebuild route is the sure rollback; (4) `jewelos-deploy-verifier` has not run, it runs AFTER the deploy; (5) `tests/edge-functions.test.js` and `tests/cowork-live-check.js` did not run (sucrase missing / a GST-bill test gap already logged in the 97th entry); (6) live RLS/advisors (no live DB access from here).
+
+**Open decisions / small items for Tanish.** (a) Staff can still issue metal, record receipts and edit karigar stages on the Orders tab (only the Assign button and the Karigars tab are owner/manager-only): decide if staff should be blocked. (b) `HANDOFF.md` lines ~46 and 847 call shop `77c4aefe` Sri Sai's real shop, but Cowork's 108th entry and the archive say it is the E2E test shop; Sri Sai's owner is `3720af09`. The "unbacked single row" warning names the wrong shop. (c) Assign to Karigar is up to six typed prompts; a dropdown after launch would be safer for busy jewellers. (d) Receipt weight cannot be edited after submit; wastage 40% not warned.
+
+**Uncommitted files not mine (left alone):** `.claude/settings.json` (enables the supabase plugin, i.e. live-DB tools in Claude Code), `skills-lock.json`, `.claude/settings.local.json`, `.claude/hooks/review-after-js-edit.js`, `COWORK-BRAIN.md`.
+
+→ FOR COWORK: (1) please correct the shop label for `77c4aefe` in WAITING ON TANISH (it names it Sri Sai's real shop; you found it is the E2E shop) and confirm which shop id is Sri Sai's, since that backup-risk note depends on it; (2) after Tanish says GO and I deploy, nothing needed from you until I log the deploy-verifier result.
+→ FOR TANISH: the build is ready and NOT live. Going live = batch64 above, to the Cloudflare worker `jewelos` (the only live host), no database or server change. Say GO and I will deploy, then run `jewelos-deploy-verifier` before telling you it is live. Rollback: tag `batch63-live`. Also decide the staff-permission question (a) when convenient.
 
 ### 2026-10-30 (hundred-and-eighth entry) · Cowork (Sonnet) — counts for the 107th entry's two read-only queries: Karigar Provenance is safe to ship
 
