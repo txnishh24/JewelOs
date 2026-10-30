@@ -103,6 +103,43 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-30 (hundred-and-seventh entry) · Claude Code (Sonnet) — note for Cowork: Karigar Provenance is built but gated on one read-only data check from you
+
+**State.** The Karigar Provenance & Profile feature is rebuilt, reviewed (Opus + `jewelos-*` agents) and committed on branch `recovery/2026-10-30` (latest `c25f128`). It is NOT on `main`, NOT pushed, NOT deployed. Regression 489/0. The live site and every shop's data are unchanged.
+
+**Why I need you before it ships.** Two behaviour changes can move a number a live shop already sees. I cannot see the live database from here, so please run these two READ-ONLY queries on project `uluzuwomwqsqxtejgzmf` and report the counts in your next entry. Do not write anything.
+
+1. Shops whose "Owed" figure will DROP (a billed order carrying a submitted karigar stage was counted twice before):
+```sql
+select s.id as shop, count(*) as billed_submitted_stages
+from public.store s,
+  jsonb_array_elements(case when jsonb_typeof(s.data->'orders')='array' then s.data->'orders' else '[]'::jsonb end) o,
+  jsonb_array_elements(case when jsonb_typeof(o->'items')='array' then o->'items' else '[]'::jsonb end) i,
+  jsonb_array_elements(case when jsonb_typeof(i->'karigarStages')='array' then i->'karigarStages' else '[]'::jsonb end) st
+where coalesce(o->>'billedSaleId','') <> '' and st->>'status' = 'submitted'
+group by s.id;
+```
+2. Shops where a SALE carries karigar stages that no order accounts for (these stop counting entirely after this change, so they would vanish from Owed/queue/stats):
+```sql
+select s.id as shop, sa->>'id' as sale_id, count(*) as stages
+from public.store s,
+  jsonb_array_elements(case when jsonb_typeof(s.data->'sales')='array' then s.data->'sales' else '[]'::jsonb end) sa,
+  jsonb_array_elements(case when jsonb_typeof(sa->'items')='array' then sa->'items' else '[]'::jsonb end) it,
+  jsonb_array_elements(case when jsonb_typeof(it->'karigarStages')='array' then it->'karigarStages' else '[]'::jsonb end) st
+where not exists (
+  select 1 from jsonb_array_elements(case when jsonb_typeof(s.data->'orders')='array' then s.data->'orders' else '[]'::jsonb end) o
+  where o->>'billedSaleId' = sa->>'id')
+group by s.id, sa->>'id';
+```
+**How to read the results.** Query 1 returns rows: those shops will see a smaller (possibly negative = overpaid) karigar balance after deploy, so Tanish should warn them first. Query 1 returns nothing: no live shop is affected by that change. Query 2 returns rows: tell me before deploy, because that data would silently disappear from the karigar views and I would change the fix. Query 2 returns nothing: safe. (From earlier health scans only one outside shop, Sri Sai `3720af09`, is actively used and it has 0 sales, so I expect both to come back empty or tiny, but I have not seen the data.)
+
+**Also useful, optional.** One-line confirmation whether any live shop has any `karigars` or `karigarStages` data at all; if none, the feature has no live data to disturb.
+
+**Not for you to do.** Do not deploy, merge, or push this branch; do not touch `js/`. Tanish decides the merge and deploy. Open items still on my side: persisted e2e re-run, real-phone check, release-gate agents (security, readiness, deploy-verifier).
+
+→ FOR COWORK: run the two read-only queries above and write the counts (or "both empty") into your next HANDOFF entry, ending with `→ FOR CLAUDE CODE:`.
+→ FOR TANISH: nothing new; once Cowork reports, tell me if you want me to merge to `main` and prepare the deploy.
+
 ### 2026-10-30 (hundred-and-sixth entry) · Claude Code (Sonnet) — wastage convention answered by Tanish: karigar keeps the wastage, made optional per stage
 
 **Tanish's answer (30 Oct):** the karigar keeps the wastage out of the metal issued, but it must be optional because he does not know how other jewellers treat their karigars. Built as a per-stage flag `wastageKept` (nested on `karigarStages`, no new top-level key, so backup/roundtrip are unchanged): `karigarOwed` (js/01) skips the wastage grams of a stage with `wastageKept === true`. **Absent or false = old behaviour (wastage still owed)**, so no existing shop's number moves. New stages default to kept: the order form has a tick-box (shown only for Wastage % pay, ticked by default, untick if the shop pays wastage separately) and the Assign to Karigar pay prompt now accepts `cash`, `wastage` (he keeps it) or `wastage-paid` (shop pays separately). Profit (`karigarStageCost`/`karigarCostOf`), stats, queue and the receipt check are untouched. A shop-wide default setting was NOT built (it would be a new top-level key); say if you want it.
