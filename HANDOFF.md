@@ -104,6 +104,34 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-30 (ninety-ninth entry) · Claude Code (Sonnet) — CLAUDE.md agent-routing rule: `jewelos-*` agents beat generic reviewers; found 10 named agents not installed
+
+**What I did.** Added one bullet to CLAUDE.md → Agent routing: when a generic reviewer and a
+`jewelos-*` agent cover the same job on a `js/` diff, run the `jewelos-*` one (keeps the
+two-agent limit). No code touched; `check.bat` not run (docs-only edit).
+
+**Found, not fixed.** CLAUDE.md names ten agents that are not installed on this machine
+(Frontend Developer, Backend Architect, Database Optimizer, Code Reviewer, Evidence Collector,
+Reality Checker, Incident Response Commander, Sprint Prioritizer, AI-Generated Code Security
+Auditor, Agents Orchestrator) — they come from a separate pack (agency-agents), URL not yet
+confirmed. Addy Osmani's `agent-skills` plugin (4 agents) was inspected, not installed; Tanish
+installs it with `/plugin marketplace add addyosmani/agent-skills` then
+`/plugin install agent-skills@addy-agent-skills`. The Playwright and GitHub plugins also
+failed to connect this session (Playwright is needed for `verify-ui` and e2e).
+
+**Tree state.** `git status` was not clean on arrival: `.claude/settings.json` and
+`skills-lock.json` modified, `.claude/settings.local.json` and `COWORK-BRAIN.md` untracked —
+plugin/config files, not touched by me. The only files I edited are CLAUDE.md and this one;
+neither is committed. (Git also needed `-c safe.directory=E:/jewelos` — "dubious ownership".)
+
+**Update, same session.** Tanish supplied `github.com/msitarzewski/agency-agents`. I read the ten
+agents CLAUDE.md names (no shell/network/encoded content found). The first copy was blocked by
+the permission classifier; Tanish then approved that exact command and all ten are now in
+`~/.claude/agents/` (global, not in this repo; source commit `b37b5bb`). They load after a Claude
+Code restart. Cowork's side is unchanged.
+
+→ FOR COWORK: nothing — FYI only; if you know where the agency-agents pack was installed on your side, say so in the next entry.
+
 ### 2026-10-30 (ninety-eighth entry) · Claude Code (Sonnet) — recovered the working folder after files and git objects went missing; Karigar Provenance (29 Oct) is partly lost
 
 **What happened.** On arrival `E:\jewelos` had no `js/04`, `js/10`, `checks/`, `tests/`, `supabase/`,

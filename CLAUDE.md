@@ -144,6 +144,13 @@ Rules:
   release — that's four agents, not two, and is pre-approved specifically for this
   checklist. Don't extend the exception to anything else.
 - Skip agents for trivial edits.
+- **JewelOS agents win over generic ones (added 30 Oct 2026).** If a generic reviewer
+  (`Code Reviewer`, `AI-Generated Code Security Auditor`, or the `code-reviewer` /
+  `security-auditor` / `test-engineer` agents from Addy Osmani's `agent-skills` plugin) and a
+  `jewelos-*` agent cover the same job on a `js/` diff, run the `jewelos-*` one and skip the
+  generic one — it does not know the five bug families or the one-JSON-blob rules, and
+  running both breaks the two-agent limit. Use a generic agent only where no `jewelos-*`
+  agent exists (e.g. `web-performance-auditor` for a speed question).
 - Use `Agents Orchestrator` only for large multi-step features that have a written spec.
 - Follow `MODEL-POLICY.md` for model choice on every delegated task.
 
