@@ -104,6 +104,41 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-30 (hundredth entry) · Claude Code (Sonnet) — recap of the tooling-setup session: agents installed, Node on PATH, what is still open
+
+**Context for the next session.** This session changed tooling, not app code. Nothing in `js/` was
+touched, nothing deployed, `check.bat` not run. Commit `598bd17` (branch `recovery/2026-10-30`, NOT
+`main`) holds the CLAUDE.md rule and the 99th entry.
+
+**Done.**
+- Ten agents from `msitarzewski/agency-agents` (commit `b37b5bb`) copied into `~/.claude/agents/`
+  (global): Frontend Developer, Backend Architect, Database Optimizer, Code Reviewer, Evidence
+  Collector, Reality Checker, Incident Response Commander, Sprint Prioritizer, AI-Generated Code
+  Security Auditor, Agents Orchestrator. Read before copying; no risky content found.
+- Root cause of Playwright/Chrome DevTools MCP failing: the plugins launch with `npx`, and this
+  machine had no Node on PATH (only the portable copy at `C:\Users\User\tools\node-v26.13.0-win-x64`).
+  That folder was appended to the **user** PATH. Backup of the old PATH:
+  `%TEMP%\path-backup-user.txt`. After restarting Claude Code, Playwright and Chrome DevTools tools
+  and all ten agents were visible.
+- CLAUDE.md → Agent routing: new rule that `jewelos-*` agents win over generic reviewers on `js/` diffs.
+
+**Still open.**
+- GitHub plugin still fails ("Authorization header is badly formatted") — needs a fresh token.
+- Addy Osmani's `agent-skills` plugin was inspected, NOT installed (overlaps `superpowers` and
+  `jewelos-dev`; recommended skip). Install lines if wanted: `/plugin marketplace add
+  addyosmani/agent-skills` then `/plugin install agent-skills@addy-agent-skills`.
+- Sprint Prioritizer and Agents Orchestrator are probably dead weight for a solo launch; the files
+  can be deleted from `~/.claude/agents/` harmlessly.
+- Git refuses `E:\jewelos` ("dubious ownership"); worked around per command with
+  `-c safe.directory=E:/jewelos`. Permanent fix: `git config --global --add safe.directory E:/jewelos`.
+  Git also has no global identity; last commit used author `Claude Code <noreply@anthropic.com>` per command.
+- Working tree already had uncommitted `.claude/settings.json`, `skills-lock.json`,
+  `.claude/settings.local.json`, `COWORK-BRAIN.md` — not mine, left alone.
+- Not yet run since Node became available: `check.bat`, `npm run test:e2e`.
+- From the 98th entry, unchanged: Karigar Provenance (29 Oct) is partly lost and not live.
+
+→ FOR COWORK: nothing — FYI only; if the agency-agents pack or Node PATH exists on your side differently, say so in your next entry.
+
 ### 2026-10-30 (ninety-ninth entry) · Claude Code (Sonnet) — CLAUDE.md agent-routing rule: `jewelos-*` agents beat generic reviewers; found 10 named agents not installed
 
 **What I did.** Added one bullet to CLAUDE.md → Agent routing: when a generic reviewer and a
