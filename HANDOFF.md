@@ -103,6 +103,51 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-30 (hundred-and-fifteenth entry) · Claude Code (Sonnet) — TEST NOTE for Cowork: run the live karigar test on production and report back
+
+**Why.** batch64 is live (114th entry) and was byte-verified, but nobody has driven the Karigars section on the LIVE site. Tanish says he ran a live test but gave no results, so please run the checklist below yourself and write the result in your next entry. Also: `main` was pushed to GitHub on 30 Oct (`origin/main` = `af36d36`) and the `batch63-live` rollback tag is on GitHub too; the 114th entry still says "not pushed", this supersedes it.
+
+**Rules (read first).**
+- Use ONLY the E2E Test Shop ("E2E Test Shop (do not delete)", shop id `77c4aefe`), live at `https://jewelos.jewelos-e2e.workers.dev`. NEVER log in to or touch a real shop (`3720af09` Sri Sai, `65a3ce29`). Ask Tanish for the test shop login if you do not have it, and never write a password, PIN or token into HANDOFF.md or any report.
+- Tag everything you create so it is findable: customer names and karigar names start with `COWORK-LIVE-<date>`. Leaving the tagged records behind is fine (same as the e2e suite); do not delete anything.
+- Database access is READ-ONLY (SELECT). Do not write to any table.
+- Do not deploy, merge, or edit `js/`. If something fails, stop that test, screenshot it, and move on; do not try to fix it.
+- Do the phone-width tests with a 375px-wide window (Chrome device toolbar, or resize), the rest on desktop.
+
+**The checklist (live site, E2E shop, owner login).**
+1. **Tab exists.** Desktop: the left menu has Karigars between Orders and Girvi. Phone width: More menu has Karigars. Click it: the list renders (the shop already has many `E2E...` karigars) without an error toast. Expected: PASS = opens, cards show Record Payment and Edit details buttons.
+2. **Order with a stage and metal issued.** Orders > + New Order: customer `COWORK-LIVE-<date> A`, phone 9876543210, delivery date 2099-01-01, item description `Ring`, est. weight 10. Click + Add Karigar Stage: task `Gold work`, karigar `COWORK-LIVE-<date> Ramesh`, pay mode Wastage %, 4. Expect: a tick-box line "Karigar keeps the wastage out of the metal issued..." appears, already TICKED. In "Metal issued now" type 6 and pick 24K. Save. Open the order. Expect: the item shows `Active: Gold work · Issued 6.00g (24K)` with Issue Metal and Mark Submitted buttons, and an "Assign to Karigar" button in the Order Items header.
+3. **Assign to Karigar.** New order `COWORK-LIVE-<date> B` with TWO items (Ring, Chain, est. weights 5 and 8, no stages). Open it, click Assign to Karigar and answer the prompts: karigar `COWORK-LIVE-<date> Suresh`, task `Polish`, pay `wastage`, 4, weight for item 1 `3`, item 2 blank, purity blank. Expect: toast "Assigned 2 item(s) to ...", item 1 shows `Issued 3.00g (22K)`, item 2 shows an active stage with nothing issued. Then click Assign to Karigar again: expect a message that every item already has a karigar (no second stage stacked).
+4. **Issue Metal top-up and correction.** On order A item: Issue Metal, `2`, `24K`: line reads 8.00g. Again with `-1`, `24K`: an amber confirm appears; confirm: line reads 7.00g. Then try `-50`, `24K`: refused with a message and nothing changes.
+5. **Short receipt.** On order A (cash stage not needed; this stage is wastage 4% of 10g, kept): Mark Submitted, received weight `5`, leftover blank. Expect: a shortfall warning (amber confirm) naming grams short; confirm and type the note `<b>x</b>`. Expect: a red receipt line `Gold work - received 5.00g ... fine short` and the note shows as the literal text `<b>x</b>` (not bold).
+6. **Within allowance.** On order B item 2 (wastage 4% of 8g = 0.32g allowance, nothing issued): Issue Metal 4 at 22K, then Mark Submitted with received `3.9`: expect a green toast "within this stage's ... wastage allowance" and no warning dialog.
+7. **Karigars tab numbers.** Open Karigars. For your tagged karigars expect: Ramesh shows "Short beyond allowance" and Avg turnaround; Suresh shows turnaround. Because the wastage tick-box was ticked (karigar keeps it), **Owed gold must be 0.00g for both** (this is the new rule; before batch64 it would show the wastage as owed).
+8. **Edit details.** On Ramesh: Edit details, phone `12345`, Save: refused with a phone message and the form stays. Then phone `98765 43210` and skills `<i>x</i>`, Save: the card shows the skills as literal text `<i>x</i>` (not italic).
+9. **Wastage-paid (untick) path.** New order `COWORK-LIVE-<date> C`, one item (est. weight 10), stage with karigar `COWORK-LIVE-<date> Mohan`, Wastage % 4, UNTICK the keep box, save, Mark Submitted (no metal issued, so it submits at once). Karigars tab: Mohan Owed gold must be 0.40g for a 10g item (shop pays wastage separately). This proves the option is really optional.
+10. **Billing does not double Owed (the batch64 fix).** Note Ramesh's Owed. On an order with a submitted CASH stage (new order D, stage cash 500, submit it): Karigars tab shows Owed cash 500. Open order D > Deliver & Create Bill > confirm, then Record Sale with the full amount. Expect Owed cash still 500 (not 1000). Variant: repeat with a new order E but after "Deliver & Create Bill" click the Dashboard tab and come back to Sale before Record Sale; Owed must still be 500.
+11. **Phone width (375px).** In the New Order form, add a stage: the Task and Karigar name boxes must be readable (about a third of the row each, wrapping), not squeezed to a sliver; the "Karigar keeps the wastage" tick-box line is visible when pay mode is Wastage %.
+12. **Staff login (only if the E2E shop has a staff user; otherwise write NOT RUN).** Desktop: Karigars, Girvi, Customers, Reports, Settings hidden; Day Book still visible; Orders still open and Issue Metal / Mark Submitted still work (Tanish decided staff may do those).
+13. **Nothing else broke.** Record one ordinary cash sale from the Sale tab (custom item, any weight, full cash payment): it saves and appears in Day Book. Open Girvi: opens.
+
+**Read-only database check after the clicking** (project `uluzuwomwqsqxtejgzmf`, SELECT only):
+```sql
+select o->>'ordNo' as ord, o->>'customer' as cust, i->>'desc' as item,
+  st->>'task' as task, st->>'karigarPayMode' as mode, st->>'wastageKept' as kept,
+  st->>'status' as status, st->'issued' as issued, st->>'receivedWt' as recv
+from public.store s,
+  jsonb_array_elements(case when jsonb_typeof(s.data->'orders')='array' then s.data->'orders' else '[]'::jsonb end) o,
+  jsonb_array_elements(case when jsonb_typeof(o->'items')='array' then o->'items' else '[]'::jsonb end) i,
+  jsonb_array_elements(case when jsonb_typeof(i->'karigarStages')='array' then i->'karigarStages' else '[]'::jsonb end) st
+where s.id = '77c4aefe-9ab6-4045-8b34-6b7b7f3e3b45' and o->>'customer' like 'COWORK-LIVE-%'
+order by o->>'ordNo';
+```
+Expected: stages from steps 2/3/5/6 show `kept = true`, the step 9 stage shows `kept = false`, order A's stage shows `status = submitted` with `recv = 5` and the issued list with the 6, +2 and -1 entries (the -1 has `note: correction`); order B item 1 has issued 3 at `22K`. Also confirm the sales you billed in step 10 have NO `karigarStages` on the sale lines that were billed after leaving the Sale tab (Dashboard variant).
+
+**How to report.** A table in your next entry, one row per test number: PASS / FAIL / NOT RUN, what you actually saw in a short sentence, and for every FAIL the exact on-screen message plus a screenshot path. Say plainly which tests you could not run and why (for example no staff user, no phone). Do not say PASS from the database alone for a click test. End with `→ FOR CLAUDE CODE:` (fixes needed, or nothing) and `→ FOR TANISH:` (anything he must decide or retry). If three or more tests FAIL, say so first in the entry: Tanish may want the rollback (`git checkout batch63-live`, rebuild, `npx wrangler deploy`), but that is his and Claude Code's call, not yours.
+
+→ FOR COWORK: run the checklist above on the live E2E Test Shop and write the results table in your next entry.
+→ FOR TANISH: nothing; if your own live test found something, tell Claude Code or Cowork what it was so it goes in the same report.
+
 ### 2026-10-30 (hundred-and-fourteenth entry) · Cowork (Sonnet) — brain folder `context/` brought up to the 30 Oct position
 
 Tanish asked for the brain folder to be made current. Rewrote or updated, in `jewelos-brain` (the backup-drive copy): `context/current-priorities.md` (fully rewritten, leads with open decisions), `context/work.md` (rewritten), `context/goals.md` and `context/market.md` (status notes added on top, original text kept), `projects/jewelos/README.md` (status header and life-stage paragraph). The versions they replace are in the brain's `archives/`. Nothing deleted.
