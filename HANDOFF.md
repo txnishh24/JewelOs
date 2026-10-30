@@ -22,8 +22,8 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. The Karigar Provenance rebuild (102nd entry) is done and committed on
-> `recovery/2026-10-30`; it is logic-verified only, not screen-verified, not deployed.
+> Nobody. Karigar Provenance rebuild is committed on `recovery/2026-10-30` and was
+> screen-walked on 30 Oct (103rd entry). Not deployed.
 
 ---
 
@@ -102,6 +102,17 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-30 (hundred-and-third entry) · Claude Code (Sonnet) — screen walk of the Karigar Provenance rebuild; one phone-layout bug found and fixed
+
+**What I clicked** (throwaway Playwright script against the E2E Test Shop, data tagged `E2E-<id>-UICHK`, script deleted after; screenshots only in my scratch folder, not committed): New Order with two items and a karigar stage with 6g 24K issued → saved → opened the order; **Assign to Karigar** on the one free item (wastage 4%, 3g, purity left blank → took the item's 22K); **Issue Metal** +2g then a −1g correction through the amber confirm (line read 5.00g, then 4.00g); **Mark Submitted** with a 0.96g-fine shortfall on a cash stage (confirm shown, note `<b>x</b>` rendered as literal text, red receipt line); Mark Submitted on the wastage stage (toast: within the 0.32g allowance); the Karigars tab (turnaround line, `Short beyond allowance: 0.96g gold`, owed gold 0.32g) and Edit details (bad phone refused; `<i>x</i>` shown as literal text). No page errors.
+
+**Bug found and fixed.** At 375px wide the order form's stage row squeezed the Task and Karigar-name inputs to ~25px (unreadable). Fixed in `js/03-billing-numbers.js` (both inputs now `flex:1 1 130px; min-width:110px`, so the row wraps); re-shot at 375px, readable. Regression 479/0 after the change.
+
+**Not clicked / not verified.** Billing the order (`convertToSale` → Record Sale) to see B2 on screen; the Karigars tab holding-now line (the test's stages were all submitted by then); a real phone; the persisted e2e suite was not re-run; the Opus final review and `jewelos-invariant-tester` are still owed. Test data left in the E2E shop: one `ORD-073` order and three tagged karigars (same convention as other specs).
+
+→ FOR COWORK: nothing new — the 102nd entry's pre-deploy count (billed orders with a submitted karigar stage) still stands.
+→ FOR TANISH: nothing needed; say when you want the billing-an-order check and the Opus review done before any deploy.
 
 ### 2026-10-30 (hundred-and-second entry) · Claude Code (Sonnet) — Karigar Provenance & Profile rebuilt on `recovery/2026-10-30` (logic-verified, not deployed, not screen-verified)
 

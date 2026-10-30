@@ -1453,10 +1453,10 @@ function buildOrdItemRow(i){
     (item.karigarStages||[]).forEach(function(stage, si){
       var row=document.createElement('div'); row.style.cssText='display:flex;gap:6px;align-items:center;border:1px dashed var(--border-gold,#b39257);border-radius:8px;padding:6px 8px;';
       var taskI=document.createElement('input'); taskI.type='text'; taskI.placeholder='Task (e.g. Gold work)';
-      taskI.value=stage.task||''; taskI.style.flex='1';
+      taskI.value=stage.task||''; taskI.style.flex='1 1 130px'; taskI.style.minWidth='110px';
       (function(idx){taskI.oninput=function(){ordItems[i].karigarStages[idx].task=this.value;};})(si);
       var karI=document.createElement('input'); karI.type='text'; karI.placeholder='Karigar name';
-      karI.value=(findKarigar(stage.karigarId)||{}).name||''; karI.style.flex='1';
+      karI.value=(findKarigar(stage.karigarId)||{}).name||''; karI.style.flex='1 1 130px'; karI.style.minWidth='110px';
       (function(idx){karI.onchange=function(){ordItems[i].karigarStages[idx].karigarId=addOrGetKarigar(this.value).id;};})(si);
       var modeSel=document.createElement('select'); modeSel.style.cssText='width:auto;padding:9px 28px 9px 8px;font-size:12px;';
       [['','Not set'],['cash','Cash ₹'],['wastage','Wastage %']].forEach(function(o){var op=document.createElement('option');op.value=o[0];op.textContent=o[1];if(o[0]===(stage.karigarPayMode||''))op.selected=true;modeSel.appendChild(op);});
