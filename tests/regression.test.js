@@ -7072,6 +7072,100 @@ test('29 Oct performance: karigarStats adds turnaround + per-metal shortfall key
   assert(approxEqual(s.shortGold, 2*0.916, 1e-9) && approxEqual(s.shortSilver, 10*0.925, 1e-9) && s.shortJobs === 2, 'gold and silver short kept apart: ' + JSON.stringify(s));
 });
 
+// ── 30 Oct invariant-tester additions for Karigar Provenance (spec section 6) ──
+
+test('30 Oct invariant 2/4: issuance, receipt, shortfall and metal-held never change karigarOwed or karigarStats cash/gold/silver', function(){
+  var a = loadApp();
+  var k = a.addOrGetKarigar('Ramesh');
+  var build = function(rich){
+    var extra = rich ? { issued:[{date:'2026-10-29',wt:50,purity:'24K'}], receivedWt:1, receivedScrapWt:0, receiptNote:'very short' } : {};
+    var mk = function(base){ for(var p in extra) base[p] = extra[p]; return base; };
+    return [{ id:'o1', items:[
+      { metal:'gold',   purity:'22K', estWt:10, qty:2, karigarStages:[mk({ karigarId:k.id, karigarPayMode:'wastage', karigarWastagePct:4, status:'submitted' })] },
+      { metal:'silver', purity:'925 Sterling', estWt:50, qty:1, karigarStages:[mk({ karigarId:k.id, karigarPayMode:'wastage', karigarWastagePct:3, status:'submitted' })] },
+      { metal:'gold',   purity:'22K', estWt:5, qty:1, karigarStages:[mk({ karigarId:k.id, karigarPayMode:'cash', karigarCost:700, status:'submitted' })] }
+    ]}];
+  };
+  a.S.karigarPayments = [{ id:'p1', karigarId:k.id, type:'cash', amount:200 }];
+  a.S.orders = build(false);
+  var owed0 = JSON.stringify(a.karigarOwed(k.id)), st0 = a.karigarStats(k.id);
+  a.S.orders = build(true);
+  assert(JSON.stringify(a.karigarOwed(k.id)) === owed0, 'karigarOwed moved with provenance fields: ' + owed0 + ' vs ' + JSON.stringify(a.karigarOwed(k.id)));
+  var st1 = a.karigarStats(k.id);
+  assert(st1.cash === st0.cash && st1.gold === st0.gold && st1.silver === st0.silver && st1.piecesSubmitted === st0.piecesSubmitted,
+    'stats pay buckets moved: ' + JSON.stringify(st0) + ' vs ' + JSON.stringify(st1));
+  assert(a.karigarOwed(k.id).cash === 500, 'shortfall must never be auto-subtracted or added; cash owed = 700 - 200 payment, got ' + JSON.stringify(a.karigarOwed(k.id)));
+  assert(a.S.karigarPayments.length === 1, 'no payment row may be auto-created for a shortfall');
+});
+
+test('30 Oct invariant 3: B2 dedupe hides only the sale an order was billed into -- unbilled orders and unlinked sales still count', function(){
+  var a = loadApp();
+  var k = a.addOrGetKarigar('Ramesh');
+  var stg = function(){ return [{ karigarId:k.id, karigarPayMode:'cash', karigarCost:100, status:'submitted', submittedDate:'2026-10-20' }]; };
+  var line = function(){ return { metal:'gold', weight:5, qty:1, karigarStages:stg() }; };
+  // unbilled order (no billedSaleId) + a sale with a different id: both must count.
+  a.S.orders = [{ id:'o1', items:[ { metal:'gold', estWt:5, qty:1, karigarStages:stg() } ] }];
+  a.S.sales  = [{ id:'s9', items:[ line() ] }];
+  assert(a.karigarStats(k.id).piecesSubmitted === 2 && a.karigarOwed(k.id).cash === 200, 'unbilled order + unlinked sale must both count: ' + JSON.stringify(a.karigarStats(k.id)));
+  // order billed into s1: an unrelated sale s2 is NOT hidden.
+  a.S.orders[0].billedSaleId = 's1';
+  a.S.sales = [{ id:'s1', items:[ line() ] }, { id:'s2', items:[ line() ] }];
+  assert(a.karigarStats(k.id).piecesSubmitted === 2, 'only s1 hidden; order stage + s2 stage = 2, got ' + a.karigarStats(k.id).piecesSubmitted);
+  // empty/undefined billedSaleId must never match a sale with a missing id.
+  a.S.orders[0].billedSaleId = '';
+  a.S.sales = [{ items:[ line() ] }];
+  assert(a.karigarStats(k.id).piecesSubmitted === 2, 'blank billedSaleId must not hide an id-less sale: ' + a.karigarStats(k.id).piecesSubmitted);
+  // order billed into a sale that no longer exists: the order stage still counts once.
+  a.S.orders[0].billedSaleId = 'gone';
+  a.S.sales = [];
+  assert(a.karigarStats(k.id).piecesSubmitted === 1 && a.karigarOwed(k.id).cash === 100, 'order is canonical even if its sale is missing');
+});
+
+test('30 Oct invariant 6/7: karigarFineOf and metal-held treat missing/corrupt/non-finite weight as unknown, never 0 or NaN', function(){
+  var a = loadApp();
+  assert(a.karigarFineOf('gold','22K',undefined) === null, 'undefined weight -> null');
+  assert(a.karigarFineOf('gold','22K','') === null, 'blank weight -> null');
+  assert(a.karigarFineOf('gold','22K','abc') === null, 'text weight -> null');
+  assert(a.karigarFineOf('gold','22K',Infinity) === null, 'Infinity weight -> null');
+  assert(a.karigarFineOf('gold','22K',NaN) === null, 'NaN weight -> null');
+  assert(a.karigarFineOf('gold','22K',0) === 0, '0 is a real weight');
+  var k = a.addOrGetKarigar('Ramesh');
+  a.S.orders = [{ id:'o1', items:[{ metal:'gold', purity:'22K', karigarStages:[
+    { karigarId:k.id, status:'assigned', issued:[{wt:10,purity:'24K'},{wt:Infinity,purity:'24K'}] },
+    { karigarId:k.id, status:'assigned', issued:[{wt:'abc',purity:'24K'}] } ] }] }];
+  var h = a.karigarMetalHeld(k.id);
+  assert(h.gold === 0 && h.silver === 0 && !isNaN(h.gold), 'corrupt entries must be skipped whole, not guessed or NaN: ' + JSON.stringify(h));
+  var item = { metal:'gold', purity:'22K', estWt:10, qty:1 };
+  assert(a.karigarReceiptCheck(item, { issued:[{wt:10,purity:'22K'}] }, Infinity) === null, 'Infinity received -> null');
+  assert(a.karigarReceiptCheck(item, { issued:[{wt:10,purity:'22K'}] }, 'abc') === null, 'text received -> null');
+  assert(a.karigarReceiptCheck(item, { issued:[{wt:10,purity:'22K'}] }, 9, Infinity) === null, 'Infinity scrap -> null, not a number');
+  assert(a.karigarReceiptCheck(item, { issued:[{wt:undefined,purity:'22K'}] }, 9) === null, 'issued entry with no weight -> null');
+  var s = a.karigarStats(k.id);
+  assert(!isNaN(s.shortGold) && !isNaN(s.shortSilver), 'stats shortfall never NaN');
+});
+
+test('30 Oct invariant 7: promptStageReceipt refuses Infinity / NaN / negative weigh-ins and scrap, nothing written or saved', function(){
+  var t = _karigarUiApp({ status:'assigned', karigarPayMode:'cash', issued:[{wt:10,purity:'22K'}] });
+  t.q.push('Infinity');       t.a.promptStageReceipt('o1', 0);
+  t.q.push('abc');            t.a.promptStageReceipt('o1', 0);
+  t.q.push('10', '-1');       t.a.promptStageReceipt('o1', 0);
+  t.q.push('10', 'Infinity'); t.a.promptStageReceipt('o1', 0);
+  t.q.push('10', 'abc');      t.a.promptStageReceipt('o1', 0);
+  t.q.push('10', null);       t.a.promptStageReceipt('o1', 0);
+  assert(t.stage().status === 'assigned' && !('receivedWt' in t.stage()) && !('receivedScrapWt' in t.stage()) && t.saved() === 0,
+    'no refused input may reach storage: ' + JSON.stringify(t.stage()));
+  assert(t.confirms.length === 0, 'refusals must not open the shortfall confirm');
+});
+
+test('30 Oct invariant 7: promptStageIssue refuses Infinity / NaN / zero weights, nothing appended', function(){
+  var t = _karigarUiApp({ status:'assigned', issued:[{wt:10,purity:'24K'}] });
+  t.q.push('Infinity', '24K'); t.a.promptStageIssue('o1', 0);
+  t.q.push('abc', '24K');      t.a.promptStageIssue('o1', 0);
+  t.q.push('0', '24K');        t.a.promptStageIssue('o1', 0);
+  t.q.push('5', '925');        t.a.promptStageIssue('o1', 0);
+  assert(t.stage().issued.length === 1 && t.saved() === 0 && t.confirms.length === 0, 'issued log must be unchanged: ' + JSON.stringify(t.stage().issued));
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

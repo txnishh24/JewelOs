@@ -103,6 +103,24 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-30 (hundred-and-fourth entry) · Claude Code (Sonnet) — Opus review + invariant tests of Karigar Provenance: NOT ready to deploy, 6 confirmed findings, none fixed yet
+
+**Ran:** `jewelos-invariant-tester` (added 5 regression tests, committed; suite now 484/0), an Opus final review of the whole feature, `jewelos-bug-pattern-reviewer` + `jewelos-test-runner` on the `js/03` layout fix (clean), and an on-screen billing check (karigar owed stayed ₹500 before and after billing an order, no page errors).
+
+**Opus CONFIRMED findings (nothing fixed yet):**
+1. **HIGH — B2 does not cover every case.** If the owner converts an order to a sale, switches tab, and comes back to Record, `renderTab` has cleared `_pendingOrderConversion` (js/02:98) but `customSaleItems` still carry the stage copies (js/04:594). The sale saves with stages while the order has no `billedSaleId`, so owed doubles (₹1000 instead of ₹500; probe by the reviewer), the sale-copy stage stays in the queue, and the order can be billed a second time. Pre-existing, but B2 does not fix it. Suggested fix: stop scanning `S.sales` in `_allKarigarStageEntries` (stages only start on orders), or stamp `sourceOrderId` on the lines; and make the tab-switch also clear the carried stages.
+2. **MEDIUM — order form saves unchecked cost/wastage** (js/03:1473/1475, no sign/finite check) now that B1 keeps them: `-5` or `Infinity` reaches owed/profit (spec invariant 7).
+3. **MEDIUM-LOW — blank karigar name** creates a nameless karigar that survives the B1 filter (js/03:1460, js/01:1025).
+4. **LOW-MEDIUM — plated item** can carry issued metal via the order form (select falls back to 24K); the receipt is then never checked.
+5. **LOW — band edges at exactly ±tolerance** depend on floating-point rounding (`0.05000000000000071` falls in 'short'); fix with `+1e-9` or rounding in `karigarReceiptCheck`.
+6. **LOW — typing `24` instead of `24K`** is rejected and cancels the whole assign chain.
+
+**Needs Tanish's answer (money):** under the 'karigar returns all metal, wastage paid separately' convention, a shortfall inside the wastage allowance means the karigar keeps the wastage and is also owed it again, with only a green toast. The spec leaves this convention open.
+Smaller: assign prompt says 'per item' but cost is multiplied by qty (say 'per piece'); a mistyped receipt weight cannot be corrected; wastage 40% is accepted silently; offline replay can leave a duplicate unlinked sale.
+
+→ FOR COWORK: the pre-deploy count must also include sales that carry `karigarStages` whose id is not any order's `billedSaleId`, not only billed orders with a submitted stage.
+→ FOR TANISH: the feature is not safe to deploy until finding 1 is fixed; tell me to fix findings 1-6, and answer the wastage convention question.
+
 ### 2026-10-30 (hundred-and-third entry) · Claude Code (Sonnet) — screen walk of the Karigar Provenance rebuild; one phone-layout bug found and fixed
 
 **What I clicked** (throwaway Playwright script against the E2E Test Shop, data tagged `E2E-<id>-UICHK`, script deleted after; screenshots only in my scratch folder, not committed): New Order with two items and a karigar stage with 6g 24K issued → saved → opened the order; **Assign to Karigar** on the one free item (wastage 4%, 3g, purity left blank → took the item's 22K); **Issue Metal** +2g then a −1g correction through the amber confirm (line read 5.00g, then 4.00g); **Mark Submitted** with a 0.96g-fine shortfall on a cash stage (confirm shown, note `<b>x</b>` rendered as literal text, red receipt line); Mark Submitted on the wastage stage (toast: within the 0.32g allowance); the Karigars tab (turnaround line, `Short beyond allowance: 0.96g gold`, owed gold 0.32g) and Edit details (bad phone refused; `<i>x</i>` shown as literal text). No page errors.
