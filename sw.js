@@ -1,9 +1,9 @@
-var CACHE='jewelos-v20';
+var CACHE='jewelos-v21';
 var SHELL=['./','manifest.json','icon-192.png','icon-512.png',
   'js/00-config-state.js','js/01-sync-core.js','js/02-ui-inactivity-modals.js',
   'js/03-billing-numbers.js','js/04-orders-detail.js','js/05-auth-login.js',
   'js/06-inventory-stock.js','js/07-settings-plans.js','js/08-girvi-viewmode.js',
-  'js/09-purchases.js','js/10-daybook.js'];
+  'js/09-purchases.js','js/10-daybook.js','js/11-karigar.js'];
 self.addEventListener('install',function(e){
   e.waitUntil(caches.open(CACHE).then(function(ca){return ca.addAll(SHELL);}));
   self.skipWaiting();

@@ -1681,6 +1681,29 @@ tr:hover td{background:var(--bg2);}
 }
 /* batch65 (30 Oct): Karigars tab cards + order-form stage box. Presentation only. */
 .kg-sub{font-family:var(--font-body);font-size:var(--text-sm);font-weight:400;color:var(--ink4);}
+.kg2-nav,.kg2-row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;}
+.kg2-head{margin-bottom:6px;}.kg2-title{font-weight:700;font-size:16px;color:var(--text);}
+.kg2-new{font-size:10px;font-weight:700;background:var(--gold);color:#fff;border-radius:8px;padding:1px 6px;vertical-align:middle;}
+.kg2-sub,.kg2-hint{font-size:11px;color:var(--text3);margin-top:2px;}
+.kg2-sec{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin:14px 0 6px;}
+.kg2-empty{color:var(--text3);padding:10px 0;font-size:13px;}
+.kg2-line{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+.kg2-click{cursor:pointer;}.kg2-struck{opacity:.5;text-decoration:line-through;}
+.kg2-right{text-align:right;display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;align-items:center;}
+.kg2-num{font-weight:700;font-variant-numeric:tabular-nums;}.kg2-num.warn,.warn{color:var(--danger);}
+.kg2-badge{font-size:10px;font-weight:600;border-radius:8px;padding:1px 7px;background:var(--surface2);color:var(--text3);}
+.kg2-badge.ok{background:rgba(22,163,74,.12);color:#15803d;}.kg2-badge.warn{background:rgba(220,38,38,.1);color:var(--danger);}
+.kg2-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:10px 0;}
+.kg2-cell{border:1px solid var(--border);border-radius:var(--radius-lg);padding:8px 10px;display:flex;flex-direction:column;gap:2px;}
+.kg2-cell span{font-size:10px;color:var(--text3);}.kg2-cell b{font-size:15px;font-variant-numeric:tabular-nums;}
+.kg2-cell.due{border-color:var(--gold);}.kg2-cell.ok b{color:#15803d;}.kg2-cell.warn b{color:var(--danger);}
+.kg2-note{font-size:12px;color:var(--text3);margin:6px 0;}.kg2-note.warn{color:var(--danger);}
+.kg2-sel{width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border);margin:6px 0;}
+.kg2-ov{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;}
+.kg2-box{background:var(--surface);border-radius:var(--radius-lg);padding:16px;width:100%;max-width:420px;max-height:90vh;overflow:auto;}
+.kg2-f{margin-top:10px;}.kg2-f label{display:block;font-size:12px;color:var(--text3);margin-bottom:3px;}
+.kg2-f input[type=text],.kg2-f select{width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border);box-sizing:border-box;}
+.kg2-prev{margin-top:10px;font-size:13px;min-height:18px;}.kg2-err{color:var(--danger);font-size:12px;min-height:16px;margin-top:6px;}
 .kg-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:var(--space-3);margin-bottom:var(--space-3);}
 .kg-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-2);}
 .kg-who{display:flex;align-items:center;gap:var(--space-3);min-width:0;}
@@ -2601,6 +2624,9 @@ tr:hover td{background:var(--bg2);}
       <span class="kg-sub">Metal in hand, what you owe, and work in progress</span>
     </div>
     <div id="karigar-list"></div>
+  </div>
+  <div class="card" id="kg2-card">
+    <div id="kg2-root"></div>
   </div>
 </div>
 
@@ -3585,6 +3611,7 @@ tr:hover td{background:var(--bg2);}
   <script src="js/08-girvi-viewmode.js"></script>
   <script src="js/09-purchases.js"></script>
   <script src="js/10-daybook.js"></script>
+  <script src="js/11-karigar.js"></script>
   <!-- Paints every static [data-icon] span above (nav, header) now that
        svgIcon() exists -- UI/UX audit, 15 Oct, Phase 3 item 5. -->
   <script>paintStaticIcons();</script>

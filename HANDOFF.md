@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. batch65 (Karigars tab + stage box redesign) is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`, verified by `jewelos-deploy-verifier`). Previous live = tag `batch64-live`. `main` pushed to GitHub (30 Oct, at 125904b).
+> Nobody. Karigar V2 is BUILT in the repo but NOT deployed and NOT committed (git unusable from the session: "dubious ownership"). batch65 is LIVE: (Karigars tab + stage box redesign) is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`, verified by `jewelos-deploy-verifier`). Previous live = tag `batch64-live`. `main` pushed to GitHub (30 Oct, at 125904b).
 > batch64 is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `f0455912-83df-4b98-abfa-d4c08cda55be`,
 > verified by `jewelos-deploy-verifier`). `main` pushed to GitHub (30 Oct, at 125904b).
 
@@ -103,6 +103,20 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-31 (hundred-and-twenty-second entry) · Claude Code (Sonnet) — Karigar V2 BUILT (fine-gold jobs, khata, salary register); not committed, not deployed
+
+**What changed.** New `js/11-karigar.js` (Tanish said "think according to you and build it", which I took as the sign-off CLAUDE.md asks for before a new module file). Wired into: `00-config-state.js` (S.kgJobs, kgLedger, kgSalary, nextKgJobNo), `01-sync-core.js` (cloud load + save payload), `04-orders-detail.js` (saveCache, loadCache, `normaliseData` calls `kgNormalise`), `05-auth-login.js` (backup export/restore; `renderKarigarList` ends by calling `renderKgV2`), `index.html` (script tag, `#kg2-root` card inside the Karigars tab, `.kg2-*` CSS; file is CRLF and was kept CRLF), `sw.js` (shell list, cache v20 to v21), `check.bat`, `tests/regression.test.js` (file list), `checks/roundtrip.js` (fixture). New: `tests/karigar-v2.test.js` (37 tests). V1 karigar code (karigarStages, karigarOwed, profit engine) is untouched and still runs; V2 is a separate section under it.
+
+**Rules built in (Tanish's answers).** Weights integer mg, money integer paise. 999 counts 100%; 995 counts 99.5% unless the issue is ticked "count as 24K"; 22K receipt fineness optional 91.6 to 92.0 (blank = 91.6), each entry stores its own purity/fineness. Wastage karigar keeps 4% (editable, owner only) of fine gold ISSUED; job snapshots the % at creation. Unexplained shortage is never turned into wastage or loss: the job just shows what is still with the karigar and Close is refused until it is zero. Loss needs a reason; a manager can only propose, the owner approves. Ledger is append-only (REVERSAL entries, never deletes). Salary register is a separate array and separate screen, owner only.
+
+**Verified.** `node --check` all 12 js files; `tests/karigar-v2.test.js` 37/37 (breaking the wastage formula makes 9 fail, so the tests do bite); `tests/regression.test.js` 489/489; checks: loadorder none, backup-check and roundtrip clean (backup now has kgJobs/kgLedger/kgSalary/nextKgJobNo), unescaped-ids none, making-basis pass. `unquoted-args` shows 14 sites against 13 before: the one new line is `kg2Q()` which wraps the id in jsAttrEsc, same false-positive family as the old ones. A throwaway offline browser run (headless Chromium at phone width, network blocked, fake owner) clicked terms, job, issue, receipt with bad then good weight, scrap, loss, khata, salary, manager and staff views with zero page errors; screenshots looked right.
+
+**NOT verified.** `tests/e2e/*` was NOT run (it logs into the live test shop and writes to production). Nothing was tried on a real phone, on a real signed-in session, or against the real Supabase save/conflict path (rollback is unit-tested with a fake `saveToCloud`). `store-proxy` was only read to line 41; I did not confirm it passes unknown blob keys through, so check that a V2 entry survives a real save and reload before trusting it. The agents CLAUDE.md routes to (jewelos-bug-pattern-reviewer, jewelos-test-runner) were not run; I ran the suites by hand. Not built from the plan: migration/import of old karigarStages into V2 jobs (V1 and V2 show side by side, nothing converted), Day Book integration, extra reports beyond khata/statement, and a screen to add custom purity tables (use the "Other" purity with a typed fineness instead).
+
+**Open decisions for Tanish.** (1) Should V1 stage-based gold tracking be retired once V2 is trusted? (2) Salary is owner-only for now. (3) Q6-Q24 in the plan doc (`Documents/JewelOS-Karigar-V2-Plan.md`) are still unanswered: half-day pay, reversal window for managers (today only), where V1 payments should go. (4) Blob size: each ledger line is about 250 bytes; watch the 2.5 MB warning.
+
+→ FOR COWORK: nothing yet, but once Tanish has tried V2 in the app, check in the live Supabase `store` blob that `kgLedger` entries persist after a save and reload (one real entry on a test shop). Do not deploy until `git` ownership is fixed (`git config --global --add safe.directory E:/jewelos`) and the work is committed.
 
 ### 2026-10-31 (hundred-and-twenty-first entry) · Claude Code (Sonnet) — setup review fixes: Cloudflare wording in two agents, Stop hook committed (no `js/` change, nothing deployed)
 
