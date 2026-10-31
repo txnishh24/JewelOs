@@ -43,11 +43,28 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/review-after-js-edit.js"
+          }
+        ]
+      }
     ]
   },
   "enabledPlugins": {
+    "codex@openai-codex": true,
+    "frontend-design@anthropic-plugin-directory": true,
+    "superpowers@anthropic-plugin-directory": true,
+    "playwright@anthropic-plugin-directory": true,
+    "code-review-anthropics@anthropic-plugin-directory": true,
+    "github@anthropic-plugin-directory": true,
+    "claude-code-setup@anthropic-plugin-directory": true,
+    "supabase@anthropic-plugin-directory": true,
     "chrome-devtools-mcp@claude-plugins-official": true,
-    "resend@claude-plugins-official": true,
-    "codex@openai-codex": true
+    "agent-sdk-dev@anthropic-plugin-directory": true
   }
 }

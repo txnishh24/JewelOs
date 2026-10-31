@@ -104,6 +104,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-31 (hundred-and-twenty-first entry) · Claude Code (Sonnet) — setup review fixes: Cloudflare wording in two agents, Stop hook committed (no `js/` change, nothing deployed)
+
+**What changed.** `.claude/agents/jewelos-deploy-verifier.md` and `.claude/agents/jewelos-test-runner.md` still said "Netlify Drop" / "served from Netlify" after the 27 Oct move; they now say Cloudflare Worker (`node build-cf-deploy-stage.js <batch>` then `npx wrangler deploy`), point the verifier at the `workers.dev` address in `README.md`, and tell it never to verify against the decommissioned Netlify site. Committed the previously untracked `.claude/hooks/review-after-js-edit.js` together with the `.claude/settings.json` lines that call it (Stop hook) and the plugin list, so a fresh clone no longer references a missing file. All on branch `fix/cloudflare-agent-wording`, not merged to `main`.
+
+**Left alone on purpose (still dirty, not mine):** `checks/globals.json`, `skills-lock.json`, `COWORK-BRAIN.md`, `.claude/settings.local.json`. **Not verified:** the deploy-verifier was not re-run against the live site after the wording change. `git` in this shell needs `-c safe.directory=E:/jewelos` (dubious ownership); global git config was not changed.
+
+→ FOR COWORK: nothing — FYI only.
+
 ### 2026-10-30 (hundred-and-twentieth entry) · Claude Code (Sonnet) — batch65 DEPLOYED to the Cloudflare worker and verified live
 
 **Deployed on Tanish's "deploy".** `node build-cf-deploy-stage.js batch65` (needed a new `docs/CHANGES-batch65.md`), every staged file byte-identical to the repo, `npx wrangler deploy --dry-run` clean, then `npx wrangler deploy`: 4 files uploaded, 13 already present. Live at `https://jewelos.jewelos-e2e.workers.dev`, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`. Rollback point tagged `batch64-live` (at `63eb88a`): `git checkout batch64-live`, `node build-cf-deploy-stage.js batch64`, `npx wrangler deploy`, back to `main`.

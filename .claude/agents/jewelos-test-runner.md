@@ -26,7 +26,7 @@ You verify JewelOS changes are actually safe to hand back — you do not estimat
 ## What this does NOT cover
 
 - No browser automation, no DOM/UI test coverage — this only proves the logic. Say plainly that visual/UI behavior is unverified; that's `verify-ui`'s job, not this one.
-- Passing this suite proves the **local folder** is correct. It says nothing about what's actually served from Netlify — a build has shipped new JS on old HTML before and this suite did not catch it. That's `jewelos-deploy-verifier`'s job, after a real deploy.
+- Passing this suite proves the **local folder** is correct. It says nothing about what's actually served from the live Cloudflare Worker — a build has shipped new JS on old HTML before and this suite did not catch it. That's `jewelos-deploy-verifier`'s job, after a real deploy.
 
 ## Report format
 
