@@ -142,6 +142,7 @@ function loadFromCloud(callback, skipPush){
     if(Array.isArray(record.kgSalary)) S.kgSalary = record.kgSalary;
     if(Array.isArray(record.kgPurities)) S.kgPurities = record.kgPurities;
     if(Array.isArray(record.kgAgreements)) S.kgAgreements = record.kgAgreements;
+    if(Array.isArray(record.kgRoutes)) S.kgRoutes = record.kgRoutes;
     if(record.nextKgJobNo > 0) S.nextKgJobNo = record.nextKgJobNo;
     if(Array.isArray(record.purchaseAuditLog)) S.purchaseAuditLog = record.purchaseAuditLog;
     // F2: these were saved but never read back, so a fresh device started
@@ -313,6 +314,7 @@ function saveToCloud(callback){
     kgSalary: S.kgSalary || [],
     kgPurities: S.kgPurities || [],
     kgAgreements: S.kgAgreements || [],
+    kgRoutes: S.kgRoutes || [],
     nextKgJobNo: S.nextKgJobNo || 1,
     purchaseAuditLog: S.purchaseAuditLog || [],
     // FIX: previously never sent to the cloud at all (see removed no-op

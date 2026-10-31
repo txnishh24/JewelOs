@@ -104,6 +104,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-31 (hundred-and-twenty-fifth entry) · Claude Code (Sonnet) — Karigar 2.0 phase 4 (job management + Today dashboard) BUILT on branch `karigar-2-phase4`; NOT deployed
+
+**What changed (client only).** `js/11-karigar.js`: job lines (pieces to make, voidable with reason), owner-defined routes per product category (`S.kgRoutes`, wired through all six touchpoints + roundtrip; NO default stages are invented), stages per job (start/done in order, owner undo, a 'who' label, append-only log), in-house/external + workshop name, due date, owner cancel (only while no gold issued). New Karigar 2.0 navigation: Today (KPIs: fine gold with karigars, open jobs, overdue, awaiting approval, plus a Needs-attention list) / Jobs (filters) / Karigars (terms, touches, routes) / Khata / Reports / Salary. Closing a job with unfinished stages asks first (logic does not block). New CSS `.kg2-kpi/.kg2-chip/.kg2-steps` in index.html. Status chips carry a word and a mark, not colour alone.
+
+**Verified.** 66 V2 tests (10 new; two mutation checks fail as they should), regression 489/489, checks clean (`unquoted-args` 17 sites, same kg2Q false-positive family), headless-browser run at 400px and 1280px (routes, new job with past-date refusal, stages, piece, issue, close confirm, Today attention, Jobs, role views) with zero page errors; screenshots reviewed.
+
+**Deliberately NOT built, and why.** Job split/merge and multi-karigar custody: they move gold between jobs/karigars, so they need transfer journals (phase 6) and unanswered rules (Q10). A stage's 'who' is a LABEL only; gold stays with the job's karigar. External workshop is a label, not a separate ledger party (Q7). QC is phase 8. Not on a phone. Not deployed; not merged to main.
+
+→ FOR COWORK: nothing — FYI only.
+
 ### 2026-10-31 (hundred-and-twenty-fourth entry) · Claude Code (Sonnet) — Karigar 2.0 phase 3 (agreements) BUILT on branch `karigar-2-phase3`; NOT deployed
 
 **What changed (client only, no backend).** `js/11-karigar.js`: versioned compensation agreements with effective dates (`S.kgAgreements`, wired through all six touchpoints + roundtrip fixture); `kgSetTerms` now creates an agreement. Per Tanish's answers: each karigar is EITHER wastage OR fixed salary; wastage = % of fine gold issued (default 4) + optional fixed gold per JOB + optional per-gram labour on NET or FINE weight; earnings are final when the JOB CLOSES (earnings frozen on `job.earnings`, labour posted to the salary register as `JOB_LABOUR`, reversed automatically if the owner reopens the job). A job copies the terms in force the day it is created. Terms form, job note, report line updated. 56 V2 tests (12 new, two mutation checks make them fail), regression 489/489, checks clean, headless browser smoke clean.

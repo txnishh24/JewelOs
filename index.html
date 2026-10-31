@@ -1704,6 +1704,20 @@ tr:hover td{background:var(--bg2);}
 .kg2-f{margin-top:10px;}.kg2-f label{display:block;font-size:12px;color:var(--text3);margin-bottom:3px;}
 .kg2-f input[type=text],.kg2-f select{width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border);box-sizing:border-box;}
 .kg2-prev{margin-top:10px;font-size:13px;min-height:18px;}.kg2-err{color:var(--danger);font-size:12px;min-height:16px;margin-top:6px;}
+.kg2-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0;}
+@media (min-width:640px){.kg2-kpis{grid-template-columns:repeat(4,minmax(0,1fr));}}
+.kg2-kpi{border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 12px;background:var(--surface);display:flex;flex-direction:column;gap:2px;}
+.kg2-kpi span{font-size:11px;color:var(--text3);}.kg2-kpi b{font-size:22px;font-variant-numeric:tabular-nums;line-height:1.2;}
+.kg2-kpi.due{border-color:var(--gold-line);}.kg2-kpi.warn b{color:var(--danger);}
+.kg2-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;background:var(--surface2);color:var(--text2);white-space:nowrap;}
+.kg2-chip.ok{background:rgba(22,163,74,.12);color:#15803d;}.kg2-chip.warn{background:rgba(220,38,38,.1);color:var(--danger);}
+.kg2-steps{list-style:none;margin:6px 0;padding:0;}
+.kg2-step{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}
+.kg2-dot{flex:0 0 28px;height:28px;border-radius:50%;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--text3);}
+.kg2-step.st-active .kg2-dot{border-color:var(--gold);color:var(--gold-dark);background:var(--gold-bg);}
+.kg2-step.st-done .kg2-dot{border-color:#15803d;color:#fff;background:#15803d;}
+.kg2-stepbody{flex:1;min-width:0;}
+.kg2-click:focus-visible,.kg2-nav .btn:focus-visible{outline:2px solid var(--gold-dark);outline-offset:2px;}
 .kg-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:var(--space-3);margin-bottom:var(--space-3);}
 .kg-head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-2);}
 .kg-who{display:flex;align-items:center;gap:var(--space-3);min-width:0;}

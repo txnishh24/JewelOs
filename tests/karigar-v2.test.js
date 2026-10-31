@@ -407,7 +407,7 @@ test('V2 data is stored in the cloud payload and the local cache', function(){
   var sync = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');
   var orders = fs.readFileSync(path.join(__dirname, '..', 'js', '04-orders-detail.js'), 'utf8');
   var auth = fs.readFileSync(path.join(__dirname, '..', 'js', '05-auth-login.js'), 'utf8');
-  ['kgJobs', 'kgLedger', 'kgSalary', 'kgPurities', 'kgAgreements', 'nextKgJobNo'].forEach(function(key){
+  ['kgJobs', 'kgLedger', 'kgSalary', 'kgPurities', 'kgAgreements', 'kgRoutes', 'nextKgJobNo'].forEach(function(key){
     ok(new RegExp('record\\.' + key).test(sync), key + ' loaded from cloud');
     ok(new RegExp(key + ':\\s*S\\.' + key).test(sync), key + ' in save payload');
     ok(new RegExp(key + ':S\\.' + key).test(orders), key + ' in saveCache');
@@ -633,6 +633,141 @@ test('report counts fixed gold of jobs closed in the period', function(){
   var d = a.kgToday(); eq(a.kgReport(d, d).wastage[0].fixedFine, 0, 'not closed yet');
   call(function(cb){ a.kgCloseJob(j.id, cb); });
   var w = a.kgReport(d, d).wastage[0]; eq(w.fixedFine, 2000); eq(w.keptFine, 4000);
+});
+
+console.log('\nKarigar 2.0 phase 4 - routes, stages, lines, due date, cancel, dashboard');
+
+function setRoute(a, cat, text){ return call(function(cb){ a.kgSetRoute(cat, text, cb); }); }
+function newJob(a, k, fields){
+  var f = {karigarId:k.id, title:'Test job'}; Object.keys(fields || {}).forEach(function(x){ f[x] = fields[x]; });
+  return call(function(cb){ a.kgCreateJob(f, op(), cb); });
+}
+function stage(a, j, idx, action, arg){ return call(function(cb){ a.kgStageAction(j.id, j.stages[idx].id, action, arg || '', cb); }); }
+function future(a, days){ var d = new Date(Date.parse(a.kgToday() + 'T00:00:00Z') + days * 86400000); return d.toISOString().slice(0, 10); }
+
+test('routes: owner defines stages per category; list is parsed, trimmed, de-duplicated and limited', function(){
+  var a = fresh('owner');
+  ok(!setRoute(a, 'Rings', 'Casting, Filing ,Setting\nPolish').err);
+  eq(JSON.stringify(a.S.kgRoutes), JSON.stringify([{category:'Rings', stages:['Casting', 'Filing', 'Setting', 'Polish']}]));
+  ok(setRoute(a, 'Rings', 'Casting, casting').err, 'repeat');
+  ok(setRoute(a, 'Rings', 'a,b,c,d,e,f,g,h,i,j,k,l,m').err, 'more than 12');
+  ok(setRoute(a, 'Rings', new Array(32).join('x')).err, 'name over 30 letters');
+  ok(setRoute(a, 'Spaceships', 'a,b').err, 'unknown category'); ok(setRoute(a, 'All', 'a,b').err, 'All is not a category');
+  ok(!setRoute(a, '*', 'Make, Finish').err);
+  ok(!setRoute(a, 'Rings', '').err); eq(a.S.kgRoutes.length, 1, 'empty list removes the route'); eq(a.S.kgRoutes[0].category, '*');
+  a.SAAS.user.role = 'manager'; ok(setRoute(a, 'Rings', 'a,b').err, 'manager cannot change routes');
+  a.SAAS.user.role = 'owner'; a.saveToCloud = function(cb){ cb(new Error('network')); };
+  ok(setRoute(a, 'Chains', 'a,b').err); eq(a.S.kgRoutes.length, 1, 'rolled back');
+});
+test('a new job gets the stages of its category route, else the any-category route, else none (none are invented)', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'});
+  setRoute(a, 'Rings', 'Casting, Setting'); setRoute(a, '*', 'Make');
+  var j1 = newJob(a, k, {category:'Rings'}).v, j2 = newJob(a, k, {category:'Chains'}).v, j3 = newJob(a, k, {}).v;
+  eq(j1.stages.map(function(x){ return x.name; }).join(','), 'Casting,Setting'); eq(j1.stages[0].status, 'pending');
+  eq(j2.stages.length, 1); eq(j2.stages[0].name, 'Make'); eq(j3.stages.length, 0, 'no category: no stages');
+  setRoute(a, 'Rings', 'Totally, Different');
+  eq(j1.stages.length, 2); eq(j1.stages[0].name, 'Casting', 'existing job keeps its own stages');
+  var a2 = fresh('owner'); var k2 = karigar(a2, 'T', {kind:'wastage', wastagePct:'4'});
+  eq(newJob(a2, k2, {category:'Rings'}).v.stages.length, 0, 'no routes at all: no stages');
+});
+test('job options: in-house / external, workshop name, due date and category are validated', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'});
+  var j = newJob(a, k, {mode:'external', workshop:'  Sharma Workshop ', dueDate:future(a, 5), category:'Rings'}).v;
+  eq(j.mode, 'external'); eq(j.workshop, 'Sharma Workshop'); eq(j.dueDate, future(a, 5)); eq(j.category, 'Rings');
+  var h = newJob(a, k, {mode:'inhouse', workshop:'ignored'}).v; eq(h.workshop, '', 'workshop only for external'); eq(h.mode, 'inhouse');
+  eq(newJob(a, k, {}).v.mode, 'inhouse', 'default in-house');
+  ok(newJob(a, k, {mode:'moon'}).err); ok(newJob(a, k, {dueDate:'2020-01-01'}).err, 'past'); ok(newJob(a, k, {dueDate:'soon'}).err);
+  ok(newJob(a, k, {mode:'external', workshop:new Array(50).join('w')}).err); ok(newJob(a, k, {category:new Array(50).join('c')}).err);
+});
+test('job lines: add with validation, void with reason, manager can, others cannot, closed job locked', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'}); var j = newJob(a, k).v;
+  function add(f, o){ return call(function(cb){ a.kgAddLine(j.id, f, o || op(), cb); }); }
+  var r = add({desc:'Necklace set', qty:'2', targetGrams:'45.5'}); ok(!r.err);
+  eq(j.lines[0].qty, 2); eq(j.lines[0].targetMg, 45500); eq(add({desc:'Ring', qty:'1'}).v.targetMg, 0);
+  ok(add({desc:'', qty:1}).err); ok(add({desc:'x', qty:0}).err); ok(add({desc:'x', qty:'1.5'}).err); ok(add({desc:'x', qty:1, targetGrams:'1.2345'}).err);
+  ok(add({desc:new Array(70).join('d'), qty:1}).err);
+  var same = op(); add({desc:'Once', qty:1}, same); eq(add({desc:'Once', qty:1}, same).dup, true); eq(j.lines.length, 3, 'same operation id stored once');
+  var lid = j.lines[0].id;
+  ok(call(function(cb){ a.kgVoidLine(j.id, lid, 'no', cb); }).err, 'short reason');
+  ok(!call(function(cb){ a.kgVoidLine(j.id, lid, 'customer cancelled it', cb); }).err); ok(j.lines[0].void && j.lines[0].void.reason === 'customer cancelled it');
+  ok(call(function(cb){ a.kgVoidLine(j.id, lid, 'again please', cb); }).err, 'only once'); eq(j.lines.length, 3, 'never deleted');
+  a.SAAS.user.role = 'staff'; ok(add({desc:'x', qty:1}).err);
+  a.SAAS.user.role = 'owner'; call(function(cb){ a.kgCloseJob(j.id, cb); }); ok(add({desc:'late', qty:1}).err, 'closed job');
+});
+test('stages move in order: start, done; cannot skip ahead; owner undo; who label; every action logged', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'}); setRoute(a, 'Rings', 'Casting, Setting, Polish');
+  var j = newJob(a, k, {category:'Rings'}).v;
+  ok(stage(a, j, 1, 'start').err, 'cannot start Setting before Casting is done');
+  ok(stage(a, j, 0, 'done').err, 'cannot finish what has not started');
+  ok(!stage(a, j, 0, 'start').err); eq(j.stages[0].status, 'active'); ok(stage(a, j, 0, 'start').err, 'already started');
+  ok(stage(a, j, 1, 'start').err, 'previous stage not done yet');
+  ok(!stage(a, j, 0, 'done').err); eq(j.stages[0].status, 'done'); ok(j.stages[0].doneAt);
+  ok(!stage(a, j, 1, 'start').err);
+  ok(stage(a, j, 0, 'undo').err, 'cannot undo Casting while Setting is running');
+  ok(!stage(a, j, 1, 'undo').err); eq(j.stages[1].status, 'pending'); ok(!('startedAt' in j.stages[1]));
+  ok(!stage(a, j, 0, 'undo').err); eq(j.stages[0].status, 'active');
+  ok(stage(a, j, 2, 'undo').err, 'nothing to undo');
+  ok(!stage(a, j, 0, 'who', k.id).err); eq(j.stages[0].who, k.id); ok(stage(a, j, 0, 'who', 'nobody').err); ok(!stage(a, j, 0, 'who', '').err); eq(j.stages[0].who, '');
+  ok(stage(a, j, 0, 'jump').err, 'unknown action');
+  ok(j.stages[0].log.length >= 5 && j.stages[0].log.every(function(l){ return l.action && l.at && l.by; }), 'append-only log');
+  a.SAAS.user.role = 'manager'; ok(stage(a, j, 0, 'undo').err, 'manager cannot undo'); ok(!stage(a, j, 0, 'done').err, 'manager can mark done');
+  a.SAAS.user.role = 'staff'; ok(stage(a, j, 1, 'start').err);
+});
+test('a failed save rolls a stage action back', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'}); setRoute(a, 'Rings', 'Casting, Setting');
+  var j = newJob(a, k, {category:'Rings'}).v;
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  ok(stage(a, j, 0, 'start').err); eq(j.stages[0].status, 'pending'); eq(j.stages[0].log.length, 0); ok(!('startedAt' in j.stages[0]));
+});
+test('stage summary and the dashboard: overdue, awaiting approval, surplus, ready to close, gold with karigars', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'}); setRoute(a, 'Rings', 'Cast, Polish');
+  var j1 = newJob(a, k, {category:'Rings'}).v;                       // 2 stages, will be fully done and balanced
+  metal(a, j1, 'ISSUE', 100000, '999'); metal(a, j1, 'SCRAP', 96000, '999', {kind:'scrap'});
+  stage(a, j1, 0, 'start'); stage(a, j1, 0, 'done'); stage(a, j1, 1, 'start');
+  eq(a.kgStagesSummary(j1).done, 1); eq(a.kgStagesSummary(j1).active.name, 'Polish'); eq(a.kgStagesSummary(j1).total, 2);
+  stage(a, j1, 1, 'done');
+  var j2 = newJob(a, k, {dueDate:future(a, 3)}).v; metal(a, j2, 'ISSUE', 50000, '999');
+  j2.dueDate = '2020-01-01';                                          // simulate time passing
+  var j3 = newJob(a, k, {}).v; metal(a, j3, 'ISSUE', 10000, '999'); metal(a, j3, 'SCRAP', 10000, '999', {kind:'scrap'});   // 9.6 g due -> surplus 0.4 g
+  a.SAAS.user.role = 'manager';
+  var j4 = newJob(a, k, {}).v; metal(a, j4, 'ISSUE', 10000, '999');
+  call(function(cb){ a.kgAddEntry({type:'LOSS', opId:op(), jobId:j4.id, karigarId:k.id, fineMg:100, category:'filing', reason:'filing loss', proposed:true}, cb); });
+  a.SAAS.user.role = 'owner';
+  var d = a.kgDashboard();
+  eq(d.openJobs, 4); eq(d.overdue.length, 1); eq(d.overdue[0].job.id, j2.id); ok(d.overdue[0].days > 1000);
+  eq(d.pendingApprovals.length, 1); eq(d.pendingApprovals[0].fine, 100);
+  eq(d.surplus.length, 1); eq(d.surplus[0].job.id, j3.id); eq(d.surplus[0].fine, 400);
+  eq(d.readyToClose.length, 1); eq(d.readyToClose[0].job.id, j1.id); eq(d.readyToClose[0].openFine, 0);
+  eq(d.withKarigarFine, (50000 - 2000) + (10000 - 400), 'only jobs with gold still out (j2, j4)');
+  call(function(cb){ a.kgCloseJob(j1.id, cb); }); eq(a.kgDashboard().openJobs, 3, 'closed jobs leave the dashboard');
+});
+test('overdue days: only open jobs with a past due date', function(){
+  var a = fresh('owner'); var t = a.kgToday();
+  eq(a.kgJobOverdueDays({status:'open', dueDate:''}, t), 0); eq(a.kgJobOverdueDays({status:'open', dueDate:t}, t), 0, 'due today is not late');
+  eq(a.kgJobOverdueDays({status:'open', dueDate:'2026-10-01'}, '2026-10-04'), 3);
+  eq(a.kgJobOverdueDays({status:'closed', dueDate:'2026-10-01'}, '2026-10-04'), 0); eq(a.kgJobOverdueDays(null, t), 0);
+});
+test('cancel: owner only, reason required, only when no gold has been issued; then the job is out of khata and dashboard', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'});
+  var j = newJob(a, k).v, g = newJob(a, k).v; var i = metal(a, g, 'ISSUE', 1000, '999').v;
+  function cancel(job, why){ return call(function(cb){ a.kgCancelJob(job.id, why, cb); }); }
+  ok(cancel(g, 'customer changed mind').err, 'gold issued: cannot cancel');
+  ok(cancel(j, 'no').err, 'reason too short');
+  a.SAAS.user.role = 'manager'; ok(cancel(j, 'customer changed mind').err, 'manager cannot cancel'); a.SAAS.user.role = 'owner';
+  ok(!cancel(j, 'customer changed mind').err); eq(j.status, 'cancelled'); eq(j.cancelReason, 'customer changed mind');
+  ok(cancel(j, 'twice please').err);
+  ok(metal(a, j, 'ISSUE', 1000, '999').err, 'no entries on a cancelled job');
+  eq(a.kgKhata(k.id).jobs, 1, 'cancelled job not in khata'); eq(a.kgDashboard().openJobs, 1);
+  call(function(cb){ a.kgAddEntry({type:'REVERSAL', opId:op(), jobId:g.id, karigarId:k.id, reversesId:i.id, reason:'issued by mistake'}, cb); });
+  ok(!cancel(g, 'issued by mistake').err, 'after the issue is reversed the job can be cancelled');
+});
+test('closing never blocks on stages in the logic (the screen asks first); existing jobs without the new fields still work', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'}); setRoute(a, 'Rings', 'Cast');
+  var j = newJob(a, k, {category:'Rings'}).v; ok(!call(function(cb){ a.kgCloseJob(j.id, cb); }).err);
+  var old = {id:'old1', jobNo:'KJ-9999', karigarId:k.id, title:'old', kind:'wastage', wastageBp:400, status:'open', createdAt:'2026-10-01T00:00:00Z'};
+  a.S.kgJobs.push(old);
+  eq(a.kgStagesSummary(old).total, 0); eq(a.kgJobOverdueDays(old, a.kgToday()), 0); ok(a.kgDashboard().openJobs >= 1);
+  ok(!call(function(cb){ a.kgAddLine(old.id, {desc:'Ring', qty:1}, op(), cb); }).err, 'a job saved before phase 4 can take lines'); eq(old.lines.length, 1);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

@@ -264,6 +264,165 @@ function kgAddPurity(pctText, done){
   }, function(err){ done(err, added); });
 }
 
+// \u2500\u2500 JOB MANAGEMENT (Karigar 2.0, phase 4) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// Job lines (the pieces to make), a route of stages per product category (owner-defined, no
+// default stages are invented), in-house/external, due date, cancel. Stages track PROGRESS.
+// Gold custody stays on the job's karigar until phase 6 (transfers) -- a stage's "who" is a label.
+var KG_MODES = ['inhouse', 'external'];
+function kgRouteFor(category){
+  var r = S.kgRoutes || [], any = null;
+  for(var i = 0; i < r.length; i++){
+    if(r[i].category === category) return r[i];
+    if(r[i].category === '*') any = r[i];
+  }
+  return any;
+}
+function kgParseStages(text){
+  var parts = String(text == null ? '' : text).split(/[,\n]/), out = [], seen = {};
+  for(var i = 0; i < parts.length; i++){
+    var n = parts[i].trim(); if(!n) continue;
+    if(n.length > 30) return {error:'A stage name is too long (30 letters at most)'};
+    var key = n.toLowerCase();
+    if(seen[key]) return {error:'Stage "' + n + '" is repeated'};
+    seen[key] = 1; out.push(n);
+  }
+  if(out.length > 12) return {error:'At most 12 stages in a route'};
+  return {stages:out};
+}
+// category: a product category from CATS, or '*' for "any other category". Empty stages removes the route.
+function kgSetRoute(category, stagesText, done){
+  var u = kgUser(), before = JSON.stringify(S.kgRoutes || []), auditId = null;
+  kgTxn('routes', function(){
+    if(u.role !== 'owner') return 'Only the owner can change routes';
+    if(category !== '*' && (CATS.indexOf(category) === -1 || category === 'All')) return 'Choose a product category';
+    var p = kgParseStages(stagesText);
+    if(p.error) return p.error;
+    S.kgRoutes = (S.kgRoutes || []).filter(function(r){ return r.category !== category; });
+    if(p.stages.length) S.kgRoutes.push({category:category, stages:p.stages});
+    auditId = kgAudit('kg_route', 'kgRoute', category, p.stages.join(' > ') || 'removed');
+    return '';
+  }, function(){ S.kgRoutes = JSON.parse(before); kgUndoAudit(auditId); }, function(err){ done(err); });
+}
+function kgAddLine(jobId, f, opId, done){
+  var job = kgFindJob(jobId), u = kgUser(), line = null, auditId = null;
+  if(job){ var all = job.lines || []; for(var i = 0; i < all.length; i++) if(all[i].opId === opId){ done(null, all[i], true); return; } }
+  kgTxn('job:' + jobId, function(){
+    if(!job) return 'Job not found';
+    if(!kgCan(u.role, 'manager')) return 'Only owner or manager can edit a job';
+    if(job.status !== 'open') return 'Job is ' + job.status;
+    var desc = String(f.desc || '').trim();
+    if(!desc || desc.length > 60) return 'Describe the piece (60 letters at most)';
+    if(!/^\d{1,4}$/.test(String(f.qty == null ? '' : f.qty).trim()) || parseInt(f.qty, 10) < 1) return 'Quantity must be 1 or more';
+    var tg = String(f.targetGrams == null ? '' : f.targetGrams).trim(), tmg = 0;
+    if(tg !== ''){ tmg = kgParseMg(tg); if(tmg === null) return 'Target weight is not valid (grams, up to 3 decimals)'; }
+    line = {id:kgNewId(), opId:opId, desc:desc, qty:parseInt(f.qty, 10), targetMg:tmg, void:null, at:new Date().toISOString(), by:u.name};
+    job.lines = (job.lines || []).concat([line]);
+    auditId = kgAudit('kg_line_add', 'kgJob', jobId, desc + ' x' + line.qty);
+    return '';
+  }, function(){ job.lines = job.lines.filter(function(x){ return x.id !== line.id; }); kgUndoAudit(auditId); }, function(err){ done(err, line, false); });
+}
+function kgVoidLine(jobId, lineId, reason, done){
+  var job = kgFindJob(jobId), u = kgUser(), line = null, auditId = null;
+  kgTxn('job:' + jobId, function(){
+    if(!job) return 'Job not found';
+    if(!kgCan(u.role, 'manager')) return 'Only owner or manager can edit a job';
+    if(job.status !== 'open') return 'Job is ' + job.status;
+    (job.lines || []).forEach(function(l){ if(l.id === lineId) line = l; });
+    if(!line) return 'Line not found';
+    if(line.void) return 'Already removed';
+    if(String(reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
+    line.void = {reason:String(reason).trim(), by:u.name, at:new Date().toISOString()};
+    auditId = kgAudit('kg_line_void', 'kgJob', jobId, line.desc);
+    return '';
+  }, function(){ line.void = null; kgUndoAudit(auditId); }, function(err){ done(err); });
+}
+// action: 'start' | 'done' | 'undo' (owner) | 'who' (arg = karigar id or '')
+function kgStageAction(jobId, stageId, action, arg, done){
+  var job = kgFindJob(jobId), u = kgUser(), st = null, snap = null, auditId = null;
+  kgTxn('job:' + jobId, function(){
+    if(!job) return 'Job not found';
+    if(!kgCan(u.role, 'manager')) return 'Only owner or manager can update a job';
+    if(job.status !== 'open') return 'Job is ' + job.status;
+    var stages = job.stages || [], at = -1;
+    stages.forEach(function(x, i){ if(x.id === stageId){ st = x; at = i; } });
+    if(!st) return 'Stage not found';
+    snap = JSON.stringify(st);
+    var now = new Date().toISOString(), j;
+    if(action === 'start'){
+      if(st.status !== 'pending') return 'This stage was already started';
+      for(j = 0; j < at; j++) if(stages[j].status !== 'done') return 'Finish "' + stages[j].name + '" first';
+      st.status = 'active'; st.startedAt = now;
+    } else if(action === 'done'){
+      if(st.status !== 'active') return 'Start this stage first';
+      st.status = 'done'; st.doneAt = now;
+    } else if(action === 'undo'){
+      if(u.role !== 'owner') return 'Only the owner can undo a stage';
+      for(j = at + 1; j < stages.length; j++) if(stages[j].status !== 'pending') return 'Undo "' + stages[j].name + '" first';
+      if(st.status === 'done'){ st.status = 'active'; delete st.doneAt; }
+      else if(st.status === 'active'){ st.status = 'pending'; delete st.startedAt; }
+      else return 'Nothing to undo';
+    } else if(action === 'who'){
+      if(arg && !findKarigar(arg)) return 'Karigar not found';
+      st.who = arg || '';
+    } else return 'Unknown stage action';
+    st.log = (st.log || []).concat([{action:action, at:now, by:u.name, arg:(action === 'who' ? (arg || '') : '')}]);
+    auditId = kgAudit('kg_stage_' + action, 'kgJob', jobId, job.jobNo + ' ' + st.name);
+    return '';
+  }, function(){
+    var old = JSON.parse(snap);
+    Object.keys(st).forEach(function(x){ if(!(x in old)) delete st[x]; });
+    Object.keys(old).forEach(function(x){ st[x] = old[x]; });
+    kgUndoAudit(auditId);
+  }, function(err){ done(err); });
+}
+// Only a job with no gold out can be cancelled; otherwise it must be returned and closed.
+function kgCancelJob(jobId, reason, done){
+  var job = kgFindJob(jobId), u = kgUser(), auditId = null;
+  kgTxn('job:' + jobId, function(){
+    if(!job) return 'Job not found';
+    if(u.role !== 'owner') return 'Only the owner can cancel a job';
+    if(job.status !== 'open') return 'Job is ' + job.status;
+    if(String(reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
+    var b = kgJobBalance(job, S.kgLedger || []);
+    if(b.issuedFine !== 0) return 'Gold has been issued on this job - return it and close the job instead';
+    if(b.pendingLoss > 0) return 'A proposed loss is waiting - reject it first';
+    job.status = 'cancelled'; job.cancelledAt = new Date().toISOString(); job.cancelledBy = u.name; job.cancelReason = String(reason).trim();
+    auditId = kgAudit('kg_job_cancel', 'kgJob', jobId, job.jobNo + ': ' + job.cancelReason);
+    return '';
+  }, function(){ job.status = 'open'; delete job.cancelledAt; delete job.cancelledBy; delete job.cancelReason; kgUndoAudit(auditId); },
+  function(err){ done(err); });
+}
+function kgJobOverdueDays(job, today){
+  if(!job || job.status !== 'open' || !job.dueDate || job.dueDate >= today) return 0;
+  return Math.round((Date.parse(today + 'T00:00:00Z') - Date.parse(job.dueDate + 'T00:00:00Z')) / 86400000);
+}
+function kgStagesSummary(job){
+  var st = job.stages || [], t = {total:st.length, done:0, active:null, next:null};
+  st.forEach(function(x){
+    if(x.status === 'done') t.done++;
+    else if(x.status === 'active' && !t.active) t.active = x;
+    else if(x.status === 'pending' && !t.next) t.next = x;
+  });
+  return t;
+}
+// Everything the Today screen shows, derived on read.
+function kgDashboard(){
+  var led = S.kgLedger || [], today = kgToday();
+  var d = {withKarigarFine:0, openJobs:0, overdue:[], pendingApprovals:[], surplus:[], readyToClose:[]};
+  (S.kgJobs || []).forEach(function(j){
+    if(j.status !== 'open') return;
+    d.openJobs++;
+    var b = kgJobBalance(j, led), od = kgJobOverdueDays(j, today), sm = kgStagesSummary(j);
+    if(b.openFine > 0) d.withKarigarFine += b.openFine;
+    if(od > 0) d.overdue.push({job:j, days:od});
+    if(b.pendingLoss > 0) d.pendingApprovals.push({job:j, fine:b.pendingLoss});
+    if(b.state === 'surplus') d.surplus.push({job:j, fine:-b.openFine});
+    if(sm.total > 0 && sm.done === sm.total) d.readyToClose.push({job:j, openFine:b.openFine});
+  });
+  d.overdue.sort(function(a, b){ return b.days - a.days; });
+  return d;
+}
+
 function kgSalaryBalance(karigarId){
   var rev = {}, t = {accrued:0, deducted:0, advanced:0, paid:0};
   (S.kgSalary || []).forEach(function(e){ if(e.type === 'REVERSAL') rev[e.reversesId] = true; });
@@ -443,11 +602,22 @@ function kgCreateJob(fields, opId, done){
     if(src.kind !== 'wastage' && src.kind !== 'salary') return 'Set this karigar\'s terms (wastage or salary) first';
     var title = String(fields.title || '').trim();
     if(!title || title.length > 80) return 'Give the job a short title';
+    var mode = fields.mode || 'inhouse';
+    if(KG_MODES.indexOf(mode) === -1) return 'Choose in-house or external';
+    var ws = (mode === 'external') ? String(fields.workshop || '').trim() : '';
+    if(ws.length > 40) return 'Workshop name is too long';
+    var due = String(fields.dueDate || '').trim();
+    if(due){ if(!kgValidDateKey(due)) return 'Due date must be a real date (YYYY-MM-DD)'; if(due < kgToday()) return 'Due date is in the past'; }
+    var cat = String(fields.category || '').trim();
+    if(cat.length > 40) return 'Category is too long';
+    var route = cat ? kgRouteFor(cat) : null;
     var no = String(prevNo); while(no.length < 4) no = '0' + no;
     job = {id:kgNewId(), opId:opId, jobNo:'KJ-' + no, karigarId:k.id, title:title,
            kind:src.kind, wastageBp:(src.kind === 'wastage' ? (src.wastageBp != null ? src.wastageBp : KG_DEFAULT_WASTAGE_BP) : 0),
            fixedMg:(src.kind === 'wastage' ? (src.fixedMg || 0) : 0), labour:(src.kind === 'wastage' && src.labour ? src.labour : null),
            agreementId:(ag ? ag.id : null),
+           category:cat, mode:mode, workshop:ws, dueDate:due, lines:[],
+           stages:(route ? route.stages.map(function(n){ return {id:kgNewId(), name:n, status:'pending', who:'', log:[]}; }) : []),
            status:'open', orderRef:(fields.orderId ? {orderId:fields.orderId} : null),
            createdAt:new Date().toISOString(), createdBy:u.name};
     S.kgJobs.push(job);
@@ -527,7 +697,7 @@ function kgSetTerms(karigarId, terms, done){
   kgAddAgreement(karigarId, terms, kgToday(), terms.opId || kgNewId(), function(err){ done(err); });
 }
 
-// ── AGREEMENTS (Karigar 2.0, phase 3) ────────────────────────────────
+// \u2500\u2500 AGREEMENTS (Karigar 2.0, phase 3) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 // Versioned compensation terms with an effective date. A version is never edited: a newer
 // one supersedes it from its date (same-day replacements: the later one wins). A job copies
 // the terms in force the day it is created, so changing terms never touches work already
@@ -651,6 +821,7 @@ function kgAddSalary(entry, done){
 function kgNormalise(){
   if(typeof S === 'undefined' || !S) return;
   if(!Array.isArray(S.kgPurities)) S.kgPurities = [];
+  if(!Array.isArray(S.kgRoutes)) S.kgRoutes = [];
   ['kgJobs', 'kgLedger', 'kgSalary', 'kgAgreements'].forEach(function(key){
     if(!Array.isArray(S[key])) S[key] = [];
     var seen = {};
@@ -691,55 +862,111 @@ function renderKgV2(){
   else if(_kg2.view === 'khata') html = kg2KhataHtml();
   else if(_kg2.view === 'reports') html = kg2ReportsHtml();
   else if(_kg2.view === 'salary') html = kg2SalaryHtml();
-  else { _kg2.view = 'home'; html = kg2HomeHtml(); }
+  else if(_kg2.view === 'jobs') html = kg2JobsHtml();
+  else if(_kg2.view === 'karigars') html = kg2KarigarsHtml();
+  else { _kg2.view = 'home'; html = kg2TodayHtml(); }
   root.innerHTML = html;
 }
 
 function kg2NavHtml(){
-  return '<div class="kg2-nav">' +
-    kg2Btn('Jobs', 'kg2Go(\'home\')', _kg2.view === 'home' ? 'btn-gold' : '') +
-    kg2Btn('Fine-gold khata', 'kg2Go(\'khata\')', _kg2.view === 'khata' ? 'btn-gold' : '') +
-    kg2Btn('Reports', 'kg2Go(\'reports\')', _kg2.view === 'reports' ? 'btn-gold' : '') +
-    (kgUser().role === 'owner' ? kg2Btn('Salary', 'kg2Go(\'salary\')', _kg2.view === 'salary' ? 'btn-gold' : '') : '') +
-  '</div>';
+  function tab(label, view){ return kg2Btn(label, 'kg2Go(\'' + view + '\')', _kg2.view === view ? 'btn-gold' : ''); }
+  return '<div class="kg2-nav" role="navigation" aria-label="Karigar sections">' + tab('Today', 'home') + tab('Jobs', 'jobs') + tab('Karigars', 'karigars') +
+    tab('Khata', 'khata') + tab('Reports', 'reports') + (kgUser().role === 'owner' ? tab('Salary', 'salary') : '') + '</div>';
 }
 
-function kg2HomeHtml(){
-  var u = kgUser(), html = '<div class="kg2-head"><div class="kg2-title">Fine-gold jobs <span class="kg2-new">new</span></div>' +
-    '<div class="kg2-sub">Gold is counted in fine grams. Each job has its own balance.</div></div>' + kg2NavHtml();
-  html += '<div class="kg2-row">' + kg2Btn('+ New job', 'kg2NewJob()', 'btn-gold') + (u.role === 'owner' ? kg2Btn('+ Add touch (92, 95, 96...)', 'kg2AddTouch()') : '') + '</div>';
+function kg2Chip(label, kind, mark){
+  return '<span class="kg2-chip ' + (kind || '') + '"><span aria-hidden="true">' + (mark || '') + '</span> ' + escHtml(label) + '</span>';
+}
+function kg2TodayHtml(){
+  var u = kgUser(), d = kgDashboard();
+  var html = '<div class="kg2-head"><div class="kg2-title">Karigar <span class="kg2-new">2.0</span></div>' +
+    '<div class="kg2-sub">Fine gold, jobs and what needs you today.</div></div>' + kg2NavHtml();
+  function kpi(label, value, cls){ return '<div class="kg2-kpi ' + (cls || '') + '"><span>' + label + '</span><b>' + value + '</b></div>'; }
+  html += '<div class="kg2-kpis">' + kpi('Fine gold with karigars', kgFmtG(d.withKarigarFine), d.withKarigarFine > 0 ? 'due' : '') +
+    kpi('Open jobs', String(d.openJobs)) + kpi('Overdue', String(d.overdue.length), d.overdue.length ? 'warn' : '') +
+    kpi('Awaiting approval', String(d.pendingApprovals.length), d.pendingApprovals.length ? 'warn' : '') + '</div>';
+  html += '<div class="kg2-row">' + kg2Btn('+ New job', 'kg2NewJob()', 'btn-gold') + '</div>';
+  html += '<div class="kg2-sec">Needs attention</div>';
+  var n = 0;
+  function line(job, chip, text){
+    n++;
+    var k = findKarigar(job.karigarId);
+    html += '<div class="kg2-line kg2-click" role="button" tabindex="0" onclick="kg2OpenJob(' + kg2Q(job.id) + ')"><div><b>' + escHtml(job.jobNo) + ' &middot; ' + escHtml(job.title) + '</b>' +
+      '<div class="kg2-sub">' + escHtml(k ? k.name : '?') + ' &middot; ' + text + '</div></div><div class="kg2-right">' + chip + '</div></div>';
+  }
+  d.pendingApprovals.forEach(function(x){ line(x.job, kg2Chip('Needs approval', 'warn', '!'), 'proposed loss ' + kgFmtG(x.fine) + ' fine' + (u.role === 'owner' ? '' : ' (owner decides)')); });
+  d.overdue.forEach(function(x){ line(x.job, kg2Chip(x.days + ' day' + (x.days === 1 ? '' : 's') + ' late', 'warn', '!'), 'was due ' + escHtml(x.job.dueDate)); });
+  d.surplus.forEach(function(x){ line(x.job, kg2Chip('Surplus', 'warn', '!'), 'returned ' + kgFmtG(x.fine) + ' fine more than due'); });
+  d.readyToClose.forEach(function(x){ line(x.job, kg2Chip(x.openFine === 0 ? 'Ready to close' : 'Stages done', x.openFine === 0 ? 'ok' : '', x.openFine === 0 ? '\u2713' : '\u2022'),
+    x.openFine === 0 ? 'all stages done, gold balanced' : 'all stages done, ' + kgFmtG(x.openFine) + ' fine still with karigar'); });
+  if(!n) html += '<div class="kg2-empty">\u2713 All clear. Nothing is overdue or waiting for you.</div>';
+  return html;
+}
+
+function kg2JobsHtml(){
+  var f = _kg2.jobFilter || 'open', today = kgToday();
+  var html = '<div class="kg2-head"><div class="kg2-title">Jobs</div></div>' + kg2NavHtml();
+  html += '<div class="kg2-row">' + kg2Btn('+ New job', 'kg2NewJob()', 'btn-gold') + '</div><div class="kg2-row" role="group" aria-label="Filter jobs">' +
+    ['open', 'closed', 'cancelled', 'all'].map(function(x){ return kg2Btn(x.charAt(0).toUpperCase() + x.slice(1), 'kg2Filter(\'' + x + '\')', f === x ? 'btn-gold' : ''); }).join('') + '</div>';
+  var jobs = (S.kgJobs || []).filter(function(j){ return f === 'all' || j.status === f; })
+    .sort(function(a, b){ return String(b.createdAt).localeCompare(String(a.createdAt)); });
+  if(!jobs.length) html += '<div class="kg2-empty">No ' + (f === 'all' ? '' : f + ' ') + 'jobs.</div>';
+  jobs.forEach(function(j){
+    var b = kgJobBalance(j, S.kgLedger || []), k = findKarigar(j.karigarId), sm = kgStagesSummary(j), od = kgJobOverdueDays(j, today);
+    var prog = sm.total ? sm.done + '/' + sm.total + (sm.active ? ' &middot; ' + escHtml(sm.active.name) : (sm.next && j.status === 'open' ? ' &middot; next: ' + escHtml(sm.next.name) : '')) : '';
+    html += '<div class="kg2-line kg2-click" role="button" tabindex="0" onclick="kg2OpenJob(' + kg2Q(j.id) + ')"><div><b>' + escHtml(j.jobNo) + ' &middot; ' + escHtml(j.title) + '</b>' +
+      '<div class="kg2-sub">' + escHtml(k ? k.name : '?') + (j.mode === 'external' ? ' &middot; external' + (j.workshop ? ' (' + escHtml(j.workshop) + ')' : '') : '') +
+      (j.category ? ' &middot; ' + escHtml(j.category) : '') + (prog ? ' &middot; ' + prog : '') + '</div></div><div class="kg2-right">' +
+      (od > 0 ? kg2Chip(od + 'd late', 'warn', '!') : '') + kg2Chip(j.status, j.status === 'open' ? 'ok' : '', j.status === 'open' ? '\u2022' : (j.status === 'closed' ? '\u2713' : '\u00d7')) +
+      '<div class="kg2-num ' + (b.state === 'surplus' ? 'warn' : '') + '">' + kgFmtG(b.openFine) + '</div></div></div>';
+  });
+  return html;
+}
+function kg2Filter(x){ _kg2.jobFilter = x; renderKgV2(); }
+
+function kg2KarigarsHtml(){
+  var u = kgUser();
+  var html = '<div class="kg2-head"><div class="kg2-title">Karigars</div><div class="kg2-sub">Terms, touches and routes.</div></div>' + kg2NavHtml();
+  if(u.role === 'owner') html += '<div class="kg2-row">' + kg2Btn('+ Add touch (92, 95, 96...)', 'kg2AddTouch()') + kg2Btn('+ Route for a category', 'kg2Route()') + '</div>';
   var ks = S.karigars || [];
-  html += '<div class="kg2-sec">Karigar terms</div>';
+  html += '<div class="kg2-sec">Terms</div>';
   if(!ks.length) html += '<div class="kg2-empty">No karigars yet - add one by assigning from an order, then set terms here.</div>';
   ks.forEach(function(k){
-    var kh = kgKhata(k.id);
-    var terms = kgAgreementText(kgAgreementFor(k.id, kgToday()) || k);
+    var kh = kgKhata(k.id), terms = kgAgreementText(kgAgreementFor(k.id, kgToday()) || k);
     html += '<div class="kg2-line"><div><b>' + escHtml(k.name) + '</b><div class="kg2-sub">' + escHtml(terms) + ' &middot; ' +
       kh.openJobs + ' open job' + (kh.openJobs === 1 ? '' : 's') + ' &middot; with karigar ' + kgFmtG(kh.openFine) + ' fine</div></div>' +
       (u.role === 'owner' ? kg2Btn(k.kind ? 'Change terms' : 'Set terms', 'kg2Terms(' + kg2Q(k.id) + ')') : '') + '</div>';
   });
-  html += '<div class="kg2-sec">Jobs</div>';
-  var jobs = (S.kgJobs || []).slice().sort(function(a, b){
-    if(a.status !== b.status) return a.status === 'open' ? -1 : 1;
-    return String(b.createdAt).localeCompare(String(a.createdAt));
-  });
-  if(!jobs.length) html += '<div class="kg2-empty">No jobs yet.</div>';
-  jobs.forEach(function(j){
-    var b = kgJobBalance(j, S.kgLedger || []), k = findKarigar(j.karigarId);
-    html += '<div class="kg2-line kg2-click" onclick="kg2OpenJob(' + kg2Q(j.id) + ')"><div><b>' + escHtml(j.jobNo) + ' &middot; ' + escHtml(j.title) + '</b>' +
-      '<div class="kg2-sub">' + escHtml(k ? k.name : '?') + ' &middot; ' + escHtml(j.kind) + '</div></div><div class="kg2-right">' +
-      kg2Badge(j.status, j.status === 'open' ? 'ok' : '') + '<div class="kg2-num ' + (b.state === 'surplus' ? 'warn' : '') + '">' + kgFmtG(b.openFine) + '</div></div></div>';
+  html += '<div class="kg2-sec">Routes (stages per product category)</div>';
+  var routes = S.kgRoutes || [];
+  if(!routes.length) html += '<div class="kg2-empty">No routes yet. A job made with no route has no stages.</div>';
+  routes.forEach(function(r){
+    html += '<div class="kg2-line"><div><b>' + escHtml(r.category === '*' ? 'Any other category' : r.category) + '</b><div class="kg2-sub">' + r.stages.map(escHtml).join(' &rarr; ') + '</div></div>' +
+      (u.role === 'owner' ? kg2Btn('Edit', 'kg2Route(' + kg2Q(r.category) + ')') : '') + '</div>';
   });
   return html;
+}
+function kg2Route(category){
+  var r = category ? kgRouteFor(category) : null;
+  var cats = [['*', 'Any other category']].concat(CATS.filter(function(c){ return c !== 'All'; }).map(function(c){ return [c, c]; }));
+  kgForm({title:'Route for a category', submitLabel:'Save route', doneToast:'\u2713 Route saved',
+    fields:[
+      {id:'cat', label:'Product category', type:'select', options:cats, value:category || '*'},
+      {id:'stages', label:'Stages in order, separated by commas', value:(r && r.category === (category || '*')) ? r.stages.join(', ') : '', hint:'Example: Casting, Filing, Setting, Polish. Leave empty to remove the route.'}],
+    onSubmit:function(v, fin){ kgSetRoute(v.cat, v.stages, function(err){ fin(err); }); }});
 }
 
 function kg2JobHtml(job){
   var u = kgUser(), k = findKarigar(job.karigarId), led = S.kgLedger || [], idx = kgIndex(led), b = kgJobBalance(job, led);
-  var html = '<div class="kg2-row">' + kg2Btn('\u2190 All jobs', 'kg2Go(\'home\')') + '</div>' +
+  var html = '<div class="kg2-row">' + kg2Btn('\u2190 All jobs', 'kg2Go(\'jobs\')') + '</div>' +
     '<div class="kg2-head"><div class="kg2-title">' + escHtml(job.jobNo) + ' &middot; ' + escHtml(job.title) + '</div>' +
     '<div class="kg2-sub">' + escHtml(k ? k.name : '?') + ' &middot; ' + escHtml(job.kind) +
     (job.kind === 'wastage' ? ' ' + (job.wastageBp / 100) + '%' : '') + ' &middot; ' + escHtml(job.status) +
-    (job.orderRef ? ' &middot; linked to order' : '') + '</div></div>';
+    (job.orderRef ? ' &middot; linked to order' : '') + (job.category ? ' &middot; ' + escHtml(job.category) : '') +
+    (job.mode === 'external' ? ' &middot; external' + (job.workshop ? ' (' + escHtml(job.workshop) + ')' : '') : ' &middot; in-house') +
+    (job.dueDate ? ' &middot; due ' + escHtml(job.dueDate) : '') + '</div>' +
+    (kgJobOverdueDays(job, kgToday()) > 0 ? '<div>' + kg2Chip(kgJobOverdueDays(job, kgToday()) + ' days late', 'warn', '!') + '</div>' : '') +
+    (job.status === 'cancelled' ? '<div class="kg2-note warn">Cancelled: ' + escHtml(job.cancelReason || '') + '</div>' : '') + '</div>';
   function cell(l, v, cls){ return '<div class="kg2-cell ' + (cls || '') + '"><span>' + l + '</span><b>' + v + '</b></div>'; }
   html += '<div class="kg2-grid">' +
     cell('Issued (fine)', kgFmtG(b.issuedFine)) +
@@ -759,10 +986,12 @@ function kg2JobHtml(job){
       kg2Btn('Receive piece', 'kg2Receipt(' + kg2Q(job.id) + ')') + kg2Btn('Scrap / dust', 'kg2Scrap(' + kg2Q(job.id) + ')') +
       kg2Btn(u.role === 'owner' ? 'Record loss' : 'Propose loss', 'kg2Loss(' + kg2Q(job.id) + ')') +
       (u.role === 'owner' ? kg2Btn('Adjust', 'kg2Adjust(' + kg2Q(job.id) + ')') : '') +
-      kg2Btn('Close job', 'kg2Close(' + kg2Q(job.id) + ')') + '</div>';
+      kg2Btn('Close job', 'kg2Close(' + kg2Q(job.id) + ')') +
+      (u.role === 'owner' && b.issuedFine === 0 ? kg2Btn('Cancel job', 'kg2Cancel(' + kg2Q(job.id) + ')') : '') + '</div>';
   } else if(job.status === 'closed' && u.role === 'owner'){
     html += '<div class="kg2-row">' + kg2Btn('Reopen job', 'kg2Reopen(' + kg2Q(job.id) + ')') + '</div>';
   }
+  html += kg2JobStagesHtml(job) + kg2JobLinesHtml(job);
   html += '<div class="kg2-sec">Entries</div>';
   var rows = led.filter(function(e){ return e.jobId === job.id; });
   if(!rows.length) html += '<div class="kg2-empty">Nothing recorded yet.</div>';
@@ -1033,10 +1262,18 @@ function kg2Reverse(jobId, entryId){
     }});
 }
 function kg2Close(jobId){
-  kgCloseJob(jobId, function(err){
-    if(err){ toast(err.message); return; }
-    renderKgV2(); toast('\u2713 Job closed');
-  });
+  var job = kgFindJob(jobId), sm = job ? kgStagesSummary(job) : null;
+  function go(){
+    kgCloseJob(jobId, function(err){
+      if(err){ toast(err.message); return; }
+      renderKgV2(); toast('\u2713 Job closed');
+    });
+  }
+  if(sm && sm.total > sm.done){
+    safeConfirm('Close with unfinished stages?', (sm.total - sm.done) + ' of ' + sm.total + ' stages are not marked done. Closing makes the earnings final.', go, 'warn');
+    return;
+  }
+  go();
 }
 function kg2Reopen(jobId){
   kgReopenJob(jobId, function(err){
@@ -1045,16 +1282,25 @@ function kg2Reopen(jobId){
   });
 }
 function kg2NewJob(){
-  var ks = (S.karigars || []).filter(function(k){ return k.kind === 'wastage' || k.kind === 'salary'; });
+  var ks = (S.karigars || []).filter(function(k){ return k.kind === 'wastage' || k.kind === 'salary' || kgAgreementFor(k.id, kgToday()); });
   if(!ks.length){ toast('Set a karigar\'s terms (wastage or salary) first'); return; }
   var orders = (S.orders || []).filter(function(o){ return o.status !== 'cancelled' && o.status !== 'delivered'; });
+  var cats = [['', 'None']].concat(CATS.filter(function(c){ return c !== 'All'; }).map(function(c){ return [c, c]; }));
   kgForm({title:'New job', submitLabel:'Create job', doneToast:'\u2713 Job created',
     fields:[
-      {id:'k', label:'Karigar', type:'select', options:ks.map(function(k){ return [k.id, k.name + ' (' + k.kind + ')']; }), value:ks[0].id},
+      {id:'k', label:'Karigar', type:'select', options:ks.map(function(k){ return [k.id, k.name + ' (' + (kgAgreementFor(k.id, kgToday()) || k).kind + ')']; }), value:ks[0].id},
       {id:'title', label:'Job title (e.g. 22K necklace set)'},
+      {id:'cat', label:'Product category (sets the stages)', type:'select', options:cats, value:''},
+      {id:'mode', label:'Made', type:'select', options:[['inhouse', 'In-house'], ['external', 'External workshop']], value:'inhouse'},
+      {id:'ws', label:'Workshop name (optional)', show:function(v){ return v.mode === 'external'; }},
+      {id:'due', label:'Due date (YYYY-MM-DD, optional)'},
       {id:'ord', label:'Link to customer order (optional)', type:'select', options:[['', 'None']].concat(orders.map(function(o){ return [o.id, o.ordNo + ' - ' + (o.customer || '')]; })), value:''}],
+    preview:function(v){
+      var r = v.cat ? kgRouteFor(v.cat) : null;
+      return r ? 'Stages: ' + r.stages.map(escHtml).join(' &rarr; ') : '';
+    },
     onSubmit:function(v, fin){
-      kgCreateJob({karigarId:v.k, title:v.title, orderId:v.ord}, v.opId, function(err, job){
+      kgCreateJob({karigarId:v.k, title:v.title, orderId:v.ord, category:v.cat, mode:v.mode, workshop:v.ws, dueDate:v.due}, v.opId, function(err, job){
         if(!err && job){ _kg2.view = 'job'; _kg2.jobId = job.id; }
         fin(err);
       });
@@ -1064,7 +1310,7 @@ function kg2Terms(karigarId){
   var k = findKarigar(karigarId); if(!k) return;
   var cur = kgAgreementFor(karigarId, kgToday()) || k;
   var hist = kgAgreementHistory(karigarId).map(function(a){ return a.effectiveFrom + ': ' + kgAgreementText(a); }).join(' | ');
-  kgForm({title:'Terms for ' + k.name, submitLabel:'Save terms', doneToast:'✓ Terms saved',
+  kgForm({title:'Terms for ' + k.name, submitLabel:'Save terms', doneToast:'\u2713 Terms saved',
     fields:[
       {id:'from', label:'Effective from (YYYY-MM-DD)', value:kgToday(), hint: hist ? 'History: ' + hist : 'A new version never changes earlier ones.'},
       {id:'kind', label:'Type', type:'select', options:[['wastage', 'Wastage (keeps a share of the gold)'], ['salary', 'Fixed salary (no gold earning)']], value:cur.kind || 'wastage'},
@@ -1072,11 +1318,11 @@ function kg2Terms(karigarId){
         hint:'Applies to jobs created from the date above. Existing jobs keep their own terms.', show:function(v){ return v.kind === 'wastage'; }},
       {id:'fixed', label:'Extra fixed gold per job, grams (optional)', value:(cur.fixedMg ? String(cur.fixedMg / 1000) : ''), mode:'decimal',
         hint:'Counted from the first issue, final when the job closes.', show:function(v){ return v.kind === 'wastage'; }},
-      {id:'lab', label:'Labour per gram, ₹ (optional)', value:(cur.labour ? String(cur.labour.perGramPaise / 100) : ''), mode:'decimal', show:function(v){ return v.kind === 'wastage'; }},
+      {id:'lab', label:'Labour per gram, \u20b9 (optional)', value:(cur.labour ? String(cur.labour.perGramPaise / 100) : ''), mode:'decimal', show:function(v){ return v.kind === 'wastage'; }},
       {id:'labBase', label:'Labour is on', type:'select', options:[['net', 'Net weight of finished pieces'], ['fine', 'Fine weight of finished pieces']], value:(cur.labour && cur.labour.base) || 'net',
         show:function(v){ return v.kind === 'wastage' && String(v.lab || '').trim() !== ''; }},
       {id:'mode', label:'Salary is', type:'select', options:[['monthly', 'Monthly'], ['daily', 'Daily']], value:(cur.salary && cur.salary.mode) || 'monthly', show:function(v){ return v.kind === 'salary'; }},
-      {id:'rate', label:'Salary rate (₹ per month / per day)', value:(cur.salary ? String(cur.salary.ratePaise / 100) : ''), mode:'decimal', show:function(v){ return v.kind === 'salary'; }}],
+      {id:'rate', label:'Salary rate (\u20b9 per month / per day)', value:(cur.salary ? String(cur.salary.ratePaise / 100) : ''), mode:'decimal', show:function(v){ return v.kind === 'salary'; }}],
     onSubmit:function(v, fin){
       var w = v.kind === 'wastage';
       kgAddAgreement(karigarId, {kind:v.kind, wastagePct:v.pct, fixedGrams:(w ? v.fixed : ''), labourRate:(w ? v.lab : ''), labourBase:v.labBase,
@@ -1166,4 +1412,62 @@ function kg2AddTouch(){
   kgForm({title:'Add a gold touch', submitLabel:'Add touch', doneToast:'\u2713 Touch added',
     fields:[{id:'pct', label:'Touch / fineness % (e.g. 92, 95, 96)', mode:'decimal', hint: have ? 'Saved: ' + have : 'It then appears in the Purity list when you issue or receive gold.'}],
     onSubmit:function(v, fin){ kgAddPurity(v.pct, function(err){ fin(err); }); }});
+}
+
+function kg2JobStagesHtml(job){
+  var st = job.stages || [], u = kgUser(), open = job.status === 'open';
+  if(!st.length) return '';
+  var html = '<div class="kg2-sec">Stages</div><ol class="kg2-steps">';
+  st.forEach(function(x, i){
+    var who = x.who ? findKarigar(x.who) : null, mark = x.status === 'done' ? '\u2713' : String(i + 1);
+    var acts = '';
+    if(open){
+      if(x.status === 'pending') acts += kg2Btn('Start', 'kg2Stage(' + kg2Q(job.id) + ',' + kg2Q(x.id) + ',\'start\')');
+      if(x.status === 'active') acts += kg2Btn('Done', 'kg2Stage(' + kg2Q(job.id) + ',' + kg2Q(x.id) + ',\'done\')', 'btn-gold');
+      if(x.status !== 'pending' && u.role === 'owner') acts += kg2Btn('Undo', 'kg2Stage(' + kg2Q(job.id) + ',' + kg2Q(x.id) + ',\'undo\')');
+      acts += kg2Btn(who ? 'Change who' : 'Who?', 'kg2StageWho(' + kg2Q(job.id) + ',' + kg2Q(x.id) + ')');
+    }
+    html += '<li class="kg2-step st-' + escHtml(x.status) + '"><span class="kg2-dot" aria-hidden="true">' + mark + '</span><div class="kg2-stepbody"><b>' + escHtml(x.name) + '</b> ' +
+      kg2Chip(x.status === 'done' ? 'Done' : (x.status === 'active' ? 'In progress' : 'Waiting'), x.status === 'done' ? 'ok' : '', '') +
+      '<div class="kg2-sub">' + (who ? escHtml(who.name) : 'no one assigned') + (x.doneAt ? ' &middot; finished ' + escHtml(String(x.doneAt).slice(0, 10)) : (x.startedAt ? ' &middot; started ' + escHtml(String(x.startedAt).slice(0, 10)) : '')) + '</div></div>' +
+      '<div class="kg2-right">' + acts + '</div></li>';
+  });
+  return html + '</ol><div class="kg2-hint">A stage\'s person is a label for now. Gold stays with the job\'s karigar until transfers are added.</div>';
+}
+function kg2JobLinesHtml(job){
+  var lines = job.lines || [], open = job.status === 'open';
+  var html = '<div class="kg2-sec">Pieces to make</div>';
+  if(!lines.length) html += '<div class="kg2-empty">No pieces listed.</div>';
+  lines.forEach(function(l){
+    html += '<div class="kg2-line' + (l.void ? ' kg2-struck' : '') + '"><div><b>' + escHtml(l.desc) + '</b> x' + l.qty +
+      '<div class="kg2-sub">' + (l.targetMg ? 'target ' + kgFmtG(l.targetMg) : 'no target weight') + (l.void ? ' &middot; removed: ' + escHtml(l.void.reason) : '') + '</div></div>' +
+      '<div class="kg2-right">' + (open && !l.void ? kg2Btn('Remove', 'kg2VoidLine(' + kg2Q(job.id) + ',' + kg2Q(l.id) + ')') : '') + '</div></div>';
+  });
+  if(open) html += '<div class="kg2-row">' + kg2Btn('+ Add piece', 'kg2AddLine(' + kg2Q(job.id) + ')') + '</div>';
+  return html;
+}
+function kg2Stage(jobId, stageId, action){
+  kgStageAction(jobId, stageId, action, '', function(err){ if(err){ toast(err.message); return; } renderKgV2(); });
+}
+function kg2StageWho(jobId, stageId){
+  var opts = [['', 'No one']].concat((S.karigars || []).map(function(k){ return [k.id, k.name]; }));
+  kgForm({title:'Who is doing this stage?', submitLabel:'Save', doneToast:'\u2713 Saved',
+    fields:[{id:'who', label:'Karigar', type:'select', options:opts, value:''}],
+    onSubmit:function(v, fin){ kgStageAction(jobId, stageId, 'who', v.who, function(err){ fin(err); }); }});
+}
+function kg2AddLine(jobId){
+  kgForm({title:'Add a piece to make', submitLabel:'Add piece', doneToast:'\u2713 Piece added',
+    fields:[{id:'desc', label:'Piece (e.g. necklace set)'}, {id:'qty', label:'Quantity', value:'1', mode:'numeric'},
+            {id:'tg', label:'Target weight in grams (optional)', mode:'decimal'}],
+    onSubmit:function(v, fin){ kgAddLine(jobId, {desc:v.desc, qty:v.qty, targetGrams:v.tg}, v.opId, function(err){ fin(err); }); }});
+}
+function kg2VoidLine(jobId, lineId){
+  kgForm({title:'Remove this piece', submitLabel:'Remove', doneToast:'Piece removed',
+    fields:[{id:'reason', label:'Reason (required)'}],
+    onSubmit:function(v, fin){ kgVoidLine(jobId, lineId, v.reason, function(err){ fin(err); }); }});
+}
+function kg2Cancel(jobId){
+  kgForm({title:'Cancel this job', submitLabel:'Cancel job', doneToast:'Job cancelled',
+    fields:[{id:'reason', label:'Reason (required)', hint:'Only possible while no gold has been issued on it.'}],
+    onSubmit:function(v, fin){ kgCancelJob(jobId, v.reason, function(err){ fin(err); }); }});
 }
