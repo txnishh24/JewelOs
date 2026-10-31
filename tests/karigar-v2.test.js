@@ -407,7 +407,7 @@ test('V2 data is stored in the cloud payload and the local cache', function(){
   var sync = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');
   var orders = fs.readFileSync(path.join(__dirname, '..', 'js', '04-orders-detail.js'), 'utf8');
   var auth = fs.readFileSync(path.join(__dirname, '..', 'js', '05-auth-login.js'), 'utf8');
-  ['kgJobs', 'kgLedger', 'kgSalary', 'kgPurities', 'nextKgJobNo'].forEach(function(key){
+  ['kgJobs', 'kgLedger', 'kgSalary', 'kgPurities', 'kgAgreements', 'nextKgJobNo'].forEach(function(key){
     ok(new RegExp('record\\.' + key).test(sync), key + ' loaded from cloud');
     ok(new RegExp(key + ':\\s*S\\.' + key).test(sync), key + ' in save payload');
     ok(new RegExp(key + ':S\\.' + key).test(orders), key + ' in saveCache');
@@ -499,6 +499,140 @@ test('Day Book: cash salary payment is money out on its day; UPI is non-cash; re
   call(function(cb){ a.kgAddSalary({type:'REVERSAL', opId:op(), karigarId:k.id, reversesId:pay.id, reason:'paid twice by mistake'}, cb); });
   var after = a.dbAutoLines(d).filter(function(l){ return l.src === 'karigar' && !l.nonCash; });
   eq(after.length, 2); eq(after[0].dir === 'out' && after[1].dir === 'in' || after[0].dir === 'in' && after[1].dir === 'out', true);
+});
+
+console.log('\nKarigar 2.0 phase 3 - agreements, fixed gold per job, labour, earnings final at close');
+
+function agree(a, k, terms, from){
+  var r = call(function(cb){ a.kgAddAgreement(k.id, terms, from || a.kgToday(), op(), cb); });
+  return r;
+}
+function wastageKarigar(a, name, terms){
+  var k = a.addOrGetKarigar(name);
+  var r = agree(a, k, terms);
+  ok(!r.err, 'agreement: ' + (r.err && r.err.message));
+  return k;
+}
+
+test('wastage % + fixed gold per job: job copies the agreement, fixed counts from the first issue', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'Test-A', {kind:'wastage', wastagePct:'4', fixedGrams:'2'});
+  var j = job(a, k);
+  eq(j.wastageBp, 400); eq(j.fixedMg, 2000); eq(typeof j.agreementId, 'string');
+  eq(bal(a, j).earnedFine, 0, 'nothing issued: nothing earned (no negative open balance)');
+  metal(a, j, 'ISSUE', 100000, '999');
+  var b = bal(a, j);
+  eq(b.percentFine, 4000); eq(b.fixedFine, 2000); eq(b.earnedFine, 6000); eq(b.accountable, 94000);
+  metal(a, j, 'ISSUE', 50000, '999');
+  eq(bal(a, j).fixedFine, 2000, 'fixed is per job, a second issue does not add another');
+  eq(bal(a, j).percentFine, 6000);
+});
+test('closing freezes earnings; per-gram labour on NET weight posts to the salary register, separate from gold', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'Test-A', {kind:'wastage', wastagePct:'4', fixedGrams:'2', labourRate:'100', labourBase:'net'});
+  var j = job(a, k); metal(a, j, 'ISSUE', 100000, '999');
+  ok(!receipt(a, j, 100000, 'other', {pct:'94'}).err);                       // 100 g net, 94% => 94.000 g fine
+  eq(bal(a, j).openFine, 0);
+  ok(!call(function(cb){ a.kgCloseJob(j.id, cb); }).err);
+  var e = j.earnings;
+  eq(e.earnedFine, 6000); eq(e.percentFine, 4000); eq(e.fixedFine, 2000); eq(e.netMg, 100000); eq(e.fineMg, 94000);
+  eq(e.labourBase, 'net'); eq(e.labourPaise, 1000000, 'Rs 100/g x 100 g');
+  eq(a.kgSalaryBalance(k.id).accrued, 1000000); eq(a.kgSalaryBalance(k.id).payable, 1000000);
+  var jl = a.S.kgSalary.filter(function(x){ return x.type === 'JOB_LABOUR'; });
+  eq(jl.length, 1); eq(jl[0].jobId, j.id);
+  eq(bal(a, j).openFine, 0, 'gold side untouched by labour');
+});
+test('per-gram labour on FINE weight', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'Test-A', {kind:'wastage', wastagePct:'4', labourRate:'100', labourBase:'fine'});
+  var j = job(a, k); metal(a, j, 'ISSUE', 100000, '999');
+  receipt(a, j, 100000, 'other', {pct:'96'});                                 // 96.000 g fine = exactly the 96 g due
+  ok(!call(function(cb){ a.kgCloseJob(j.id, cb); }).err);
+  eq(j.earnings.labourBase, 'fine'); eq(j.earnings.labourPaise, 960000, 'Rs 100/g x 96 g fine');
+});
+test('no labour terms: closing posts no labour; zero-weight rounding never posts a 0 entry', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'});
+  var j = job(a, k); metal(a, j, 'ISSUE', 100000, '999'); metal(a, j, 'SCRAP', 96000, '999', {kind:'scrap'});
+  ok(!call(function(cb){ a.kgCloseJob(j.id, cb); }).err);
+  eq(j.earnings.labourPaise, 0); eq(a.S.kgSalary.length, 0);
+  eq(j.earnings.fixedFine, 0);
+});
+test('job labour cannot be reversed by hand; reopening reverses it once and keeps the old earnings in a log', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'Test-A', {kind:'wastage', wastagePct:'4', labourRate:'50', labourBase:'net'});
+  var j = job(a, k); metal(a, j, 'ISSUE', 100000, '999'); receipt(a, j, 100000, 'other', {pct:'96'});
+  call(function(cb){ a.kgCloseJob(j.id, cb); });
+  eq(a.kgSalaryBalance(k.id).payable, 500000);
+  var jl = a.S.kgSalary.filter(function(x){ return x.type === 'JOB_LABOUR'; })[0];
+  ok(call(function(cb){ a.kgAddSalary({type:'REVERSAL', opId:op(), karigarId:k.id, reversesId:jl.id, reason:'manual attempt'}, cb); }).err, 'manual reversal refused');
+  ok(!call(function(cb){ a.kgReopenJob(j.id, cb); }).err);
+  eq(a.kgSalaryBalance(k.id).payable, 0); eq(j.earnings, null); eq(j.earningsLog.length, 1); eq(j.earningsLog[0].labourPaise, 500000);
+  ok(!call(function(cb){ a.kgCloseJob(j.id, cb); }).err);
+  eq(a.kgSalaryBalance(k.id).payable, 500000, 'closing again posts the labour once, not twice');
+});
+test('a failed save while closing leaves the job open with no earnings and no labour entry', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'Test-A', {kind:'wastage', wastagePct:'4', labourRate:'50', labourBase:'net'});
+  var j = job(a, k); metal(a, j, 'ISSUE', 100000, '999'); receipt(a, j, 100000, 'other', {pct:'96'});
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  ok(call(function(cb){ a.kgCloseJob(j.id, cb); }).err);
+  eq(j.status, 'open'); ok(!('earnings' in j), 'earnings removed'); eq(a.S.kgSalary.length, 0);
+});
+test('agreement versions: effective dates, same-day replacement, no backdating, future version leaves today alone', function(){
+  var a = fresh('owner'); var k = a.addOrGetKarigar('Test-A');
+  ok(!agree(a, k, {kind:'wastage', wastagePct:'4'}, '2026-10-01').err);
+  ok(!agree(a, k, {kind:'wastage', wastagePct:'3'}, '2026-11-01').err);
+  ok(agree(a, k, {kind:'wastage', wastagePct:'5'}, '2026-09-15').err, 'cannot be dated before the latest version');
+  eq(a.kgAgreementFor(k.id, '2026-09-30'), null, 'before the first version: none');
+  eq(a.kgAgreementFor(k.id, '2026-10-01').wastageBp, 400);
+  eq(a.kgAgreementFor(k.id, '2026-10-31').wastageBp, 400);
+  eq(a.kgAgreementFor(k.id, '2026-11-01').wastageBp, 300);
+  eq(a.kgAgreementFor(k.id, '2027-01-01').wastageBp, 300);
+  eq(a.kgAgreementHistory(k.id).length, 2);
+  ok(!agree(a, k, {kind:'wastage', wastagePct:'3.5'}, '2026-11-01').err, 'same-day replacement allowed');
+  eq(a.kgAgreementFor(k.id, '2026-11-01').wastageBp, 350, 'the later entry wins the tie');
+  eq(a.kgAgreementHistory(k.id).length, 3, 'old versions are kept');
+});
+test('a job keeps the terms in force when it was created, even after new terms start', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'});
+  var j1 = job(a, k);
+  ok(!agree(a, k, {kind:'wastage', wastagePct:'3', fixedGrams:'1'}).err);
+  var j2 = job(a, k);
+  eq(j1.wastageBp, 400); eq(j1.fixedMg, 0); eq(j2.wastageBp, 300); eq(j2.fixedMg, 1000);
+  metal(a, j1, 'ISSUE', 100000, '999'); eq(bal(a, j1).earnedFine, 4000);
+  metal(a, j2, 'ISSUE', 100000, '999'); eq(bal(a, j2).earnedFine, 3000 + 1000);
+  eq(a.S.karigars[0].wastageBp, 300, 'karigar record mirrors the terms in force');
+});
+test('a future-dated version does not apply today', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'});
+  ok(!agree(a, k, {kind:'wastage', wastagePct:'2'}, '2099-01-01').err);
+  eq(job(a, k).wastageBp, 400); eq(k.wastageBp, 400);
+});
+test('agreement rules: salary karigars have no gold or labour, bad input and non-owners refused, failed save rolls back', function(){
+  var a = fresh('owner'); var k = a.addOrGetKarigar('Test-B');
+  ok(agree(a, k, {kind:'salary', salaryMode:'monthly', rate:'30000', fixedGrams:'1'}).err, 'salary + fixed gold');
+  ok(agree(a, k, {kind:'salary', salaryMode:'monthly', rate:'30000', labourRate:'10'}).err, 'salary + labour');
+  ok(agree(a, k, {kind:'salary', salaryMode:'yearly', rate:'30000'}).err); ok(agree(a, k, {kind:'salary', salaryMode:'daily', rate:'0'}).err);
+  ok(agree(a, k, {kind:'wastage', wastagePct:'60'}).err, 'over 50%'); ok(agree(a, k, {kind:'wastage', wastagePct:'-1'}).err);
+  ok(agree(a, k, {kind:'wastage', wastagePct:'4', fixedGrams:'1.2345'}).err, 'four decimals');
+  ok(agree(a, k, {kind:'wastage', wastagePct:'4', labourRate:'100'}).err, 'labour without net/fine');
+  ok(agree(a, k, {kind:'wastage', wastagePct:'4', labourRate:'100', labourBase:'gross'}).err, 'gross not offered');
+  ok(agree(a, k, {kind:'other'}).err);
+  ok(agree(a, k, {kind:'wastage', wastagePct:'4'}, '2026-13-45').err, 'impossible date'); ok(agree(a, k, {kind:'wastage', wastagePct:'4'}, 'yesterday').err);
+  eq(a.S.kgAgreements.length, 0, 'nothing written by the refusals');
+  ok(!agree(a, k, {kind:'salary', salaryMode:'monthly', rate:'30000'}).err);
+  eq(k.kind, 'salary'); eq(k.salary.ratePaise, 3000000);
+  a.SAAS.user.role = 'manager'; ok(agree(a, k, {kind:'wastage', wastagePct:'4'}).err, 'manager refused');
+  a.SAAS.user.role = 'owner'; a.saveToCloud = function(cb){ cb(new Error('network')); };
+  ok(agree(a, k, {kind:'wastage', wastagePct:'4'}).err); eq(a.S.kgAgreements.length, 1); eq(k.kind, 'salary', 'karigar record restored');
+});
+test('same agreement submitted twice (same operation id) is stored once', function(){
+  var a = fresh('owner'); var k = a.addOrGetKarigar('Test-A');
+  var o = 'agr-op'; call(function(cb){ a.kgAddAgreement(k.id, {kind:'wastage', wastagePct:'4'}, a.kgToday(), o, cb); });
+  var r = call(function(cb){ a.kgAddAgreement(k.id, {kind:'wastage', wastagePct:'4'}, a.kgToday(), o, cb); });
+  eq(r.dup, true); eq(a.S.kgAgreements.length, 1);
+});
+test('report counts fixed gold of jobs closed in the period', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'Test-A', {kind:'wastage', wastagePct:'4', fixedGrams:'2'});
+  var j = job(a, k); metal(a, j, 'ISSUE', 100000, '999'); receipt(a, j, 100000, 'other', {pct:'94'});
+  var d = a.kgToday(); eq(a.kgReport(d, d).wastage[0].fixedFine, 0, 'not closed yet');
+  call(function(cb){ a.kgCloseJob(j.id, cb); });
+  var w = a.kgReport(d, d).wastage[0]; eq(w.fixedFine, 2000); eq(w.keptFine, 4000);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

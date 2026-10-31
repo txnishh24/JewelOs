@@ -1243,6 +1243,7 @@ function exportFullBackup(){
       kgLedger:   S.kgLedger||[],
       kgSalary:   S.kgSalary||[],
       kgPurities: S.kgPurities||[],
+      kgAgreements: S.kgAgreements||[],
       nextKgJobNo:S.nextKgJobNo||1,
       rates:      S.rates,
       purchaseCfg:S.purchaseCfg||null,
@@ -1310,6 +1311,7 @@ function processBackupFile(input){
         if(d.kgLedger)   S.kgLedger   = d.kgLedger;
         if(d.kgSalary)   S.kgSalary   = d.kgSalary;
         if(d.kgPurities) S.kgPurities = d.kgPurities;
+        if(d.kgAgreements) S.kgAgreements = d.kgAgreements;
         if(d.nextKgJobNo) S.nextKgJobNo = d.nextKgJobNo;
         if(d.rates)      S.rates       = d.rates;
         if(d.purchaseCfg)S.purchaseCfg = d.purchaseCfg;

@@ -104,6 +104,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-31 (hundred-and-twenty-fourth entry) · Claude Code (Sonnet) — Karigar 2.0 phase 3 (agreements) BUILT on branch `karigar-2-phase3`; NOT deployed
+
+**What changed (client only, no backend).** `js/11-karigar.js`: versioned compensation agreements with effective dates (`S.kgAgreements`, wired through all six touchpoints + roundtrip fixture); `kgSetTerms` now creates an agreement. Per Tanish's answers: each karigar is EITHER wastage OR fixed salary; wastage = % of fine gold issued (default 4) + optional fixed gold per JOB + optional per-gram labour on NET or FINE weight; earnings are final when the JOB CLOSES (earnings frozen on `job.earnings`, labour posted to the salary register as `JOB_LABOUR`, reversed automatically if the owner reopens the job). A job copies the terms in force the day it is created. Terms form, job note, report line updated. 56 V2 tests (12 new, two mutation checks make them fail), regression 489/489, checks clean, headless browser smoke clean.
+
+**Not done / not verified.** Not deployed, not merged to main. Per-gram labour is allowed for wastage karigars only, which Tanish did not explicitly say (his words: net and fine weight; fixed salary or wastage). Labour posts as accrued in the salary register (owner-only screen) and does not hit the Day Book until paid. No phone test.
+
+**Karigar 2.0 design docs** (planning, outside the repo): `Documents/JewelOS-Karigar-2.0-Audit-and-Plan.md`, `...Phase2-Design.md`, `010_karigar_ledger.DRAFT.sql` (ran on real Postgres via PGlite in a scratch folder: all scenarios pass; NOT applied to Supabase). Decisions: ledgers in Postgres tables via new `store-proxy` actions, old-build guard, four new JS files, retire V1 stage UI later (data kept).
+
+→ FOR COWORK: nothing — FYI only.
+
 ### 2026-10-31 (hundred-and-twenty-third entry) · Claude Code (Sonnet) — batch66 Karigar V2 DEPLOYED to the Cloudflare worker
 
 **Deployed on Tanish's "deploy".** Merged `karigar-v2` into local `main` (a20f50b), wrote `docs/CHANGES-batch66.md`, `node build-cf-deploy-stage.js batch66`, `npx wrangler deploy --dry-run` clean, then `npx wrangler deploy` (first attempt was blocked by the permission classifier; ran after Tanish said "run it yourself"). Live at `https://jewelos.jewelos-e2e.workers.dev`, Version ID `51c7c1aa-714f-4718-a6b4-f174b42cd760`. Rollback: `git checkout batch65-live`, `node build-cf-deploy-stage.js batch65`, `npx wrangler deploy`, back to `main`.

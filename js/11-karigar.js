@@ -159,7 +159,10 @@ function kgJobBalance(job, ledger){
   });
   b.returnedFine = b.receiptFine + b.scrapFine;
   // The wastage share is of fine gold ISSUED, never of the finished weight.
-  b.earnedFine = (job.kind === 'wastage') ? Math.round(b.issuedFine * (job.wastageBp || 0) / 10000) : 0;
+  b.percentFine = (job.kind === 'wastage') ? Math.round(b.issuedFine * (job.wastageBp || 0) / 10000) : 0;
+  // Fixed gold per job (owner, 31 Oct): counted from the first issue, final when the job closes.
+  b.fixedFine = (job.kind === 'wastage' && b.issuedFine > 0) ? (job.fixedMg || 0) : 0;
+  b.earnedFine = b.percentFine + b.fixedFine;
   b.accountable = b.issuedFine - b.earnedFine;
   b.openFine = b.accountable - b.returnedFine - b.approvedLoss - b.adjust;
   b.state = b.openFine > 0 ? 'open' : (b.openFine < 0 ? 'surplus' : 'balanced');
@@ -219,9 +222,16 @@ function kgReport(from, to){
   var byK = {};
   Object.keys(perJob).forEach(function(jid){
     var job = kgFindJob(jid); if(!job || job.kind !== 'wastage') return;
-    var t = byK[job.karigarId] || (byK[job.karigarId] = {karigarId:job.karigarId, issuedFine:0, keptFine:0});
+    var t = byK[job.karigarId] || (byK[job.karigarId] = {karigarId:job.karigarId, issuedFine:0, keptFine:0, fixedFine:0});
     t.issuedFine += perJob[jid];
     t.keptFine += Math.round(perJob[jid] * (job.wastageBp || 0) / 10000);
+  });
+  (S.kgJobs || []).forEach(function(j){
+    if(j.status !== 'closed' || !j.earnings || !(j.earnings.fixedFine > 0)) return;
+    var day = String(j.closedAt || '').slice(0, 10);
+    if(day < from || day > to) return;
+    var t = byK[j.karigarId] || (byK[j.karigarId] = {karigarId:j.karigarId, issuedFine:0, keptFine:0, fixedFine:0});
+    t.fixedFine += j.earnings.fixedFine;
   });
   Object.keys(byK).forEach(function(k){ r.wastage.push(byK[k]); });
   (S.kgJobs || []).forEach(function(j){
@@ -259,7 +269,7 @@ function kgSalaryBalance(karigarId){
   (S.kgSalary || []).forEach(function(e){ if(e.type === 'REVERSAL') rev[e.reversesId] = true; });
   (S.kgSalary || []).forEach(function(e){
     if(e.karigarId !== karigarId || e.type === 'REVERSAL' || rev[e.id]) return;
-    if(e.type === 'ACCRUAL') t.accrued += e.amountPaise;
+    if(e.type === 'ACCRUAL' || e.type === 'JOB_LABOUR') t.accrued += e.amountPaise;
     else if(e.type === 'DEDUCTION') t.deducted += e.amountPaise;
     else if(e.type === 'ADVANCE') t.advanced += e.amountPaise;
     else if(e.type === 'PAYMENT') t.paid += e.amountPaise;
@@ -339,6 +349,7 @@ function kgValidateSalary(e, ctx){
     var tgt = null, already = false;
     all.forEach(function(x){ if(x.id === e.reversesId) tgt = x; if(x.type === 'REVERSAL' && x.reversesId === e.reversesId) already = true; });
     if(!tgt || tgt.karigarId !== k.id || tgt.type === 'REVERSAL') return 'Entry not found';
+    if(tgt.type === 'JOB_LABOUR') return 'Reopen the job to reverse its labour';
     if(already) return 'Already reversed';
     if(String(e.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
     return '';
@@ -428,12 +439,15 @@ function kgCreateJob(fields, opId, done){
   kgTxn('newjob', function(){
     if(!kgCan(u.role, 'manager')) return 'Only owner or manager can create a job';
     if(!k) return 'Choose a karigar';
-    if(k.kind !== 'wastage' && k.kind !== 'salary') return 'Set this karigar\'s terms (wastage or salary) first';
+    var ag = kgAgreementFor(k.id, kgToday()), src = ag || k;
+    if(src.kind !== 'wastage' && src.kind !== 'salary') return 'Set this karigar\'s terms (wastage or salary) first';
     var title = String(fields.title || '').trim();
     if(!title || title.length > 80) return 'Give the job a short title';
     var no = String(prevNo); while(no.length < 4) no = '0' + no;
     job = {id:kgNewId(), opId:opId, jobNo:'KJ-' + no, karigarId:k.id, title:title,
-           kind:k.kind, wastageBp:(k.kind === 'wastage' ? (k.wastageBp != null ? k.wastageBp : KG_DEFAULT_WASTAGE_BP) : 0),
+           kind:src.kind, wastageBp:(src.kind === 'wastage' ? (src.wastageBp != null ? src.wastageBp : KG_DEFAULT_WASTAGE_BP) : 0),
+           fixedMg:(src.kind === 'wastage' ? (src.fixedMg || 0) : 0), labour:(src.kind === 'wastage' && src.labour ? src.labour : null),
+           agreementId:(ag ? ag.id : null),
            status:'open', orderRef:(fields.orderId ? {orderId:fields.orderId} : null),
            createdAt:new Date().toISOString(), createdBy:u.name};
     S.kgJobs.push(job);
@@ -448,7 +462,7 @@ function kgCreateJob(fields, opId, done){
 }
 
 function kgCloseJob(jobId, done){
-  var job = kgFindJob(jobId), u = kgUser(), auditId = null;
+  var job = kgFindJob(jobId), u = kgUser(), auditId = null, labourEntry = null;
   kgTxn('job:' + jobId, function(){
     if(!job) return 'Job not found';
     if(!kgCan(u.role, 'manager')) return 'Only owner or manager can close a job';
@@ -456,55 +470,159 @@ function kgCloseJob(jobId, done){
     var b = kgJobBalance(job, S.kgLedger || []);
     if(b.pendingLoss > 0) return 'A proposed loss is waiting for owner approval';
     if(b.openFine !== 0) return 'Balance is ' + kgFmtG(b.openFine) + ' fine - record the metal, an owner-approved loss or an owner adjustment first';
+    // Earnings are final from here (owner, 31 Oct: "when the job closes"). Net and fine weight
+    // of the finished pieces are summed once and frozen on the job.
+    var idx = kgIndex(S.kgLedger || []), net = 0, fineRet = 0;
+    (S.kgLedger || []).forEach(function(e){
+      if(e.jobId === job.id && e.type === 'RECEIPT' && !idx.reversed[e.id]){ net += e.mg; fineRet += e.fineMg; }
+    });
+    var lab = job.labour, labourPaise = 0;
+    if(lab && lab.perGramPaise > 0) labourPaise = Math.round(lab.perGramPaise * (lab.base === 'fine' ? fineRet : net) / 1000);
     job.status = 'closed'; job.closedAt = new Date().toISOString(); job.closedBy = u.name;
-    auditId = kgAudit('kg_job_close', 'kgJob', jobId, job.jobNo);
+    job.earnings = {at:job.closedAt, by:u.name, issuedFine:b.issuedFine, percentFine:b.percentFine, fixedFine:b.fixedFine,
+                    earnedFine:b.earnedFine, netMg:net, fineMg:fineRet, labourBase:(lab ? lab.base : ''), labourPaise:labourPaise};
+    if(labourPaise > 0){
+      S.kgSalary = S.kgSalary || [];
+      labourEntry = kgStamp({type:'JOB_LABOUR', opId:'jl-' + kgNewId(), karigarId:job.karigarId, jobId:job.id, amountPaise:labourPaise, base:lab.base});
+      S.kgSalary.push(labourEntry);
+    }
+    auditId = kgAudit('kg_job_close', 'kgJob', jobId, job.jobNo + (labourPaise > 0 ? ' labour ' + kgFmtRs(labourPaise) : ''));
     return '';
   }, function(){
-    job.status = 'open'; delete job.closedAt; delete job.closedBy; kgUndoAudit(auditId);
+    job.status = 'open'; delete job.closedAt; delete job.closedBy; delete job.earnings;
+    if(labourEntry) S.kgSalary = S.kgSalary.filter(function(x){ return x.id !== labourEntry.id; });
+    kgUndoAudit(auditId);
   }, function(err){ done(err); });
 }
 function kgReopenJob(jobId, done){
-  var job = kgFindJob(jobId), u = kgUser(), auditId = null;
+  var job = kgFindJob(jobId), u = kgUser(), auditId = null, oldEarnings = null, reversal = null;
   kgTxn('job:' + jobId, function(){
     if(!job) return 'Job not found';
     if(u.role !== 'owner') return 'Only the owner can reopen a job';
     if(job.status !== 'closed') return 'Job is not closed';
+    oldEarnings = job.earnings || null;
+    var sal = S.kgSalary || [], gone = {};
+    sal.forEach(function(x){ if(x.type === 'REVERSAL') gone[x.reversesId] = true; });
+    var jl = null;
+    sal.forEach(function(x){ if(x.type === 'JOB_LABOUR' && x.jobId === job.id && !gone[x.id]) jl = x; });
+    if(jl){
+      reversal = kgStamp({type:'REVERSAL', opId:'jr-' + kgNewId(), karigarId:job.karigarId, reversesId:jl.id, reason:'Job reopened'});
+      S.kgSalary.push(reversal);
+    }
+    job.earningsLog = (job.earningsLog || []).concat(oldEarnings ? [oldEarnings] : []);
+    job.earnings = null;
     job.status = 'open'; job.reopenedAt = new Date().toISOString();
     auditId = kgAudit('kg_job_reopen', 'kgJob', jobId, job.jobNo);
     return '';
-  }, function(){ job.status = 'closed'; delete job.reopenedAt; kgUndoAudit(auditId); },
-  function(err){ done(err); });
+  }, function(){
+    job.status = 'closed'; delete job.reopenedAt; job.earnings = oldEarnings;
+    if(oldEarnings) job.earningsLog = job.earningsLog.slice(0, -1);
+    if(reversal) S.kgSalary = S.kgSalary.filter(function(x){ return x.id !== reversal.id; });
+    kgUndoAudit(auditId);
+  }, function(err){ done(err); });
 }
 
 // terms: {kind:'wastage'|'salary', wastagePct:'4', salaryMode:'monthly'|'daily', rate:'30000'}
 function kgSetTerms(karigarId, terms, done){
-  var k = findKarigar(karigarId), u = kgUser(), before = k ? JSON.stringify(k) : null, auditId = null;
+  kgAddAgreement(karigarId, terms, kgToday(), terms.opId || kgNewId(), function(err){ done(err); });
+}
+
+// ── AGREEMENTS (Karigar 2.0, phase 3) ────────────────────────────────
+// Versioned compensation terms with an effective date. A version is never edited: a newer
+// one supersedes it from its date (same-day replacements: the later one wins). A job copies
+// the terms in force the day it is created, so changing terms never touches work already
+// handed out. Each karigar is EITHER wastage OR fixed salary (owner, 31 Oct), never both.
+//   wastage: percent of fine gold issued (default 4) + optional fixed gold per job
+//            + optional per-gram labour on net or fine weight of the finished pieces
+//   salary : monthly or daily rate; no gold earning and no per-gram labour
+function kgValidDateKey(t){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(t || ''))) return false;
+  var d = new Date(t + 'T00:00:00Z');
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === t;
+}
+function kgAgreementFor(karigarId, dateKey){
+  var best = null;
+  (S.kgAgreements || []).forEach(function(a){
+    if(!a || a.karigarId !== karigarId || a.effectiveFrom > dateKey) return;
+    if(!best || a.effectiveFrom >= best.effectiveFrom) best = a;
+  });
+  return best;
+}
+function kgAgreementHistory(karigarId){
+  return (S.kgAgreements || []).filter(function(a){ return a && a.karigarId === karigarId; })
+    .sort(function(a, b){ return a.effectiveFrom < b.effectiveFrom ? -1 : (a.effectiveFrom > b.effectiveFrom ? 1 : 0); });
+}
+function kgAgreementText(a){
+  if(!a || (a.kind !== 'wastage' && a.kind !== 'salary')) return 'Terms not set';
+  if(a.kind === 'salary') return 'Salary ' + (a.salary ? a.salary.mode + ' ' + kgFmtRs(a.salary.ratePaise) : '');
+  var t = 'Wastage ' + ((a.wastageBp != null ? a.wastageBp : KG_DEFAULT_WASTAGE_BP) / 100) + '%';
+  if(a.fixedMg > 0) t += ' + ' + kgFmtG(a.fixedMg) + ' per job';
+  if(a.labour && a.labour.perGramPaise > 0) t += ' + labour ' + kgFmtRs(a.labour.perGramPaise) + '/g on ' + a.labour.base + ' weight';
+  return t;
+}
+// terms: {kind, wastagePct, fixedGrams, labourRate, labourBase, salaryMode, rate}. Returns {error} or the fields.
+function kgParseAgreementTerms(terms){
+  if(terms.kind === 'wastage'){
+    var txt = String(terms.wastagePct == null ? '' : terms.wastagePct).trim(), bp = KG_DEFAULT_WASTAGE_BP;
+    if(txt !== ''){
+      if(!/^\d{1,2}(\.\d{1,2})?$/.test(txt)) return {error:'Wastage % is not valid'};
+      bp = Math.round(parseFloat(txt) * 100);
+    }
+    if(bp < 0 || bp > 5000) return {error:'Wastage % must be 0 to 50'};
+    var fixedMg = 0, ft = String(terms.fixedGrams == null ? '' : terms.fixedGrams).trim();
+    if(ft !== ''){ fixedMg = kgParseMg(ft); if(fixedMg === null) return {error:'Fixed gold per job is not valid (grams, up to 3 decimals)'}; }
+    var labour = null, lt = String(terms.labourRate == null ? '' : terms.labourRate).trim();
+    if(lt !== ''){
+      var pg = kgParsePaise(lt);
+      if(pg === null) return {error:'Labour per gram is not valid'};
+      if(terms.labourBase !== 'net' && terms.labourBase !== 'fine') return {error:'Choose net or fine weight for the labour'};
+      labour = {perGramPaise:pg, base:terms.labourBase};
+    }
+    return {kind:'wastage', wastageBp:bp, fixedMg:fixedMg, labour:labour, salary:null};
+  }
+  if(terms.kind === 'salary'){
+    if(String(terms.fixedGrams || '').trim() !== '' || String(terms.labourRate || '').trim() !== '') return {error:'A salary karigar has no gold earning or per-gram labour'};
+    if(terms.salaryMode !== 'monthly' && terms.salaryMode !== 'daily') return {error:'Choose monthly or daily'};
+    var paise = kgParsePaise(terms.rate);
+    if(paise === null) return {error:'Salary rate is not valid'};
+    return {kind:'salary', wastageBp:null, fixedMg:0, labour:null, salary:{mode:terms.salaryMode, ratePaise:paise}};
+  }
+  return {error:'Choose wastage or salary'};
+}
+// keep the karigar record showing the terms in force today (older screens and V1 read these)
+function kgMirrorTerms(k, a){
+  if(!a) return;
+  k.kind = a.kind;
+  if(a.kind === 'wastage'){ k.wastageBp = a.wastageBp; k.fixedMg = a.fixedMg; k.labour = a.labour; delete k.salary; }
+  else { k.salary = a.salary; delete k.wastageBp; delete k.fixedMg; delete k.labour; }
+}
+function kgAddAgreement(karigarId, terms, effectiveFrom, opId, done){
+  S.kgAgreements = S.kgAgreements || [];
+  for(var i = 0; i < S.kgAgreements.length; i++){
+    if(S.kgAgreements[i].opId === opId){ done(null, S.kgAgreements[i], true); return; }
+  }
+  var k = findKarigar(karigarId), u = kgUser(), before = k ? JSON.stringify(k) : null, ag = null, auditId = null;
   kgTxn('karigar:' + karigarId, function(){
     if(u.role !== 'owner') return 'Only the owner can change compensation terms';
     if(!k) return 'Karigar not found';
-    if(terms.kind === 'wastage'){
-      var txt = String(terms.wastagePct == null ? '' : terms.wastagePct).trim();
-      var bp = KG_DEFAULT_WASTAGE_BP;
-      if(txt !== ''){
-        if(!/^\d{1,2}(\.\d{1,2})?$/.test(txt)) return 'Wastage % is not valid';
-        bp = Math.round(parseFloat(txt) * 100);
-      }
-      if(bp < 0 || bp > 5000) return 'Wastage % must be 0 to 50';
-      k.kind = 'wastage'; k.wastageBp = bp; delete k.salary;
-    } else if(terms.kind === 'salary'){
-      if(terms.salaryMode !== 'monthly' && terms.salaryMode !== 'daily') return 'Choose monthly or daily';
-      var paise = kgParsePaise(terms.rate);
-      if(paise === null) return 'Salary rate is not valid';
-      k.kind = 'salary'; k.salary = {mode:terms.salaryMode, ratePaise:paise}; delete k.wastageBp;
-    } else return 'Choose wastage or salary';
-    auditId = kgAudit('kg_terms', 'karigar', karigarId, k.kind);
+    if(!kgValidDateKey(effectiveFrom)) return 'Effective date must be a real date (YYYY-MM-DD)';
+    var p = kgParseAgreementTerms(terms);
+    if(p.error) return p.error;
+    var prev = kgAgreementHistory(karigarId).pop();
+    if(prev && effectiveFrom < prev.effectiveFrom) return 'Effective date is before the current version (' + prev.effectiveFrom + ')';
+    ag = {id:kgNewId(), opId:opId, karigarId:karigarId, effectiveFrom:effectiveFrom, kind:p.kind, wastageBp:p.wastageBp,
+          fixedMg:p.fixedMg, labour:p.labour, salary:p.salary, createdAt:new Date().toISOString(), createdBy:u.name};
+    S.kgAgreements.push(ag);
+    kgMirrorTerms(k, kgAgreementFor(karigarId, kgToday()));
+    auditId = kgAudit('kg_agreement', 'karigar', karigarId, kgAgreementText(ag) + ' from ' + effectiveFrom);
     return '';
   }, function(){
+    S.kgAgreements = S.kgAgreements.filter(function(x){ return x.id !== ag.id; });
     var old = JSON.parse(before);
     Object.keys(k).forEach(function(x){ if(!(x in old)) delete k[x]; });
     Object.keys(old).forEach(function(x){ k[x] = old[x]; });
     kgUndoAudit(auditId);
-  }, function(err){ done(err); });
+  }, function(err){ done(err, ag, false); });
 }
 
 // entry: {type, karigarId, amountPaise?, period?, mode?, note?, reversesId?, reason?, opId}
@@ -533,7 +651,7 @@ function kgAddSalary(entry, done){
 function kgNormalise(){
   if(typeof S === 'undefined' || !S) return;
   if(!Array.isArray(S.kgPurities)) S.kgPurities = [];
-  ['kgJobs', 'kgLedger', 'kgSalary'].forEach(function(key){
+  ['kgJobs', 'kgLedger', 'kgSalary', 'kgAgreements'].forEach(function(key){
     if(!Array.isArray(S[key])) S[key] = [];
     var seen = {};
     S[key] = S[key].filter(function(e){
@@ -595,8 +713,7 @@ function kg2HomeHtml(){
   if(!ks.length) html += '<div class="kg2-empty">No karigars yet - add one by assigning from an order, then set terms here.</div>';
   ks.forEach(function(k){
     var kh = kgKhata(k.id);
-    var terms = k.kind === 'wastage' ? 'Wastage ' + ((k.wastageBp != null ? k.wastageBp : KG_DEFAULT_WASTAGE_BP) / 100) + '%'
-              : k.kind === 'salary' ? 'Salary ' + (k.salary ? k.salary.mode + ' ' + kgFmtRs(k.salary.ratePaise) : '') : 'Terms not set';
+    var terms = kgAgreementText(kgAgreementFor(k.id, kgToday()) || k);
     html += '<div class="kg2-line"><div><b>' + escHtml(k.name) + '</b><div class="kg2-sub">' + escHtml(terms) + ' &middot; ' +
       kh.openJobs + ' open job' + (kh.openJobs === 1 ? '' : 's') + ' &middot; with karigar ' + kgFmtG(kh.openFine) + ' fine</div></div>' +
       (u.role === 'owner' ? kg2Btn(k.kind ? 'Change terms' : 'Set terms', 'kg2Terms(' + kg2Q(k.id) + ')') : '') + '</div>';
@@ -632,6 +749,9 @@ function kg2JobHtml(job){
     (b.adjust ? cell('Owner adjustment', kgFmtG(b.adjust)) : '') +
     cell(b.state === 'surplus' ? 'Surplus' : 'Still with karigar', kgFmtG(Math.abs(b.openFine)), b.state === 'surplus' ? 'warn' : (b.openFine > 0 ? 'due' : 'ok')) +
   '</div>';
+  if(job.earnings) html += '<div class="kg2-note">Final at close: karigar keeps ' + kgFmtG(job.earnings.earnedFine) + ' fine' +
+    (job.earnings.fixedFine ? ' (' + kgFmtG(job.earnings.percentFine) + ' percentage + ' + kgFmtG(job.earnings.fixedFine) + ' fixed)' : '') +
+    (job.earnings.labourPaise ? ' &middot; labour ' + kgFmtRs(job.earnings.labourPaise) + ' on ' + kgFmtG(job.earnings.labourBase === 'fine' ? job.earnings.fineMg : job.earnings.netMg) + ' ' + escHtml(job.earnings.labourBase) + ' weight' : '') + '</div>';
   if(b.pendingLoss > 0) html += '<div class="kg2-note warn">A loss of ' + kgFmtG(b.pendingLoss) + ' fine is waiting for owner approval.</div>';
   if(b.openFine > 0 && job.status === 'open') html += '<div class="kg2-note">Any metal not yet returned stays on the karigar. It is never counted as wastage or loss on its own.</div>';
   if(job.status === 'open'){
@@ -730,7 +850,7 @@ function kg2SalaryHtml(){
       '<div class="kg2-sub">' + escHtml(e.date) + (e.period ? ' &middot; ' + escHtml(e.period) : '') + (e.days ? ' &middot; ' + e.days + ' day(s)' : '') +
       (e.mode ? ' &middot; ' + escHtml(e.mode) : '') + (e.note ? ' &middot; ' + escHtml(e.note) : '') + (e.reason ? ' &middot; ' + escHtml(e.reason) : '') + '</div></div>' +
       '<div class="kg2-right">' + (isRev ? '' : '<div class="kg2-num">' + kgFmtRs(e.amountPaise) + '</div>') +
-      (!isRev && !gone ? kg2Btn('Reverse', 'kg2ReverseSalary(' + kg2Q(k.id) + ',' + kg2Q(e.id) + ')') : '') + '</div></div>';
+      (!isRev && !gone && e.type !== 'JOB_LABOUR' ? kg2Btn('Reverse', 'kg2ReverseSalary(' + kg2Q(k.id) + ',' + kg2Q(e.id) + ')') : '') + '</div></div>';
   });
   return html;
 }
@@ -942,15 +1062,25 @@ function kg2NewJob(){
 }
 function kg2Terms(karigarId){
   var k = findKarigar(karigarId); if(!k) return;
-  kgForm({title:'Terms for ' + k.name, submitLabel:'Save terms', doneToast:'\u2713 Terms saved',
+  var cur = kgAgreementFor(karigarId, kgToday()) || k;
+  var hist = kgAgreementHistory(karigarId).map(function(a){ return a.effectiveFrom + ': ' + kgAgreementText(a); }).join(' | ');
+  kgForm({title:'Terms for ' + k.name, submitLabel:'Save terms', doneToast:'✓ Terms saved',
     fields:[
-      {id:'kind', label:'Type', type:'select', options:[['wastage', 'Wastage (keeps a % of fine gold issued)'], ['salary', 'Salary (no gold earning)']], value:k.kind || 'wastage'},
-      {id:'pct', label:'Wastage % of fine gold issued', value:String((k.wastageBp != null ? k.wastageBp : KG_DEFAULT_WASTAGE_BP) / 100), mode:'decimal',
-        hint:'Applies to new jobs only. Existing jobs keep their own %.', show:function(v){ return v.kind === 'wastage'; }},
-      {id:'mode', label:'Salary is', type:'select', options:[['monthly', 'Monthly'], ['daily', 'Daily']], value:(k.salary && k.salary.mode) || 'monthly', show:function(v){ return v.kind === 'salary'; }},
-      {id:'rate', label:'Salary rate (\u20b9 per month / per day)', value:(k.salary ? String(k.salary.ratePaise / 100) : ''), mode:'decimal', show:function(v){ return v.kind === 'salary'; }}],
+      {id:'from', label:'Effective from (YYYY-MM-DD)', value:kgToday(), hint: hist ? 'History: ' + hist : 'A new version never changes earlier ones.'},
+      {id:'kind', label:'Type', type:'select', options:[['wastage', 'Wastage (keeps a share of the gold)'], ['salary', 'Fixed salary (no gold earning)']], value:cur.kind || 'wastage'},
+      {id:'pct', label:'Wastage % of fine gold issued', value:String((cur.wastageBp != null ? cur.wastageBp : KG_DEFAULT_WASTAGE_BP) / 100), mode:'decimal',
+        hint:'Applies to jobs created from the date above. Existing jobs keep their own terms.', show:function(v){ return v.kind === 'wastage'; }},
+      {id:'fixed', label:'Extra fixed gold per job, grams (optional)', value:(cur.fixedMg ? String(cur.fixedMg / 1000) : ''), mode:'decimal',
+        hint:'Counted from the first issue, final when the job closes.', show:function(v){ return v.kind === 'wastage'; }},
+      {id:'lab', label:'Labour per gram, ₹ (optional)', value:(cur.labour ? String(cur.labour.perGramPaise / 100) : ''), mode:'decimal', show:function(v){ return v.kind === 'wastage'; }},
+      {id:'labBase', label:'Labour is on', type:'select', options:[['net', 'Net weight of finished pieces'], ['fine', 'Fine weight of finished pieces']], value:(cur.labour && cur.labour.base) || 'net',
+        show:function(v){ return v.kind === 'wastage' && String(v.lab || '').trim() !== ''; }},
+      {id:'mode', label:'Salary is', type:'select', options:[['monthly', 'Monthly'], ['daily', 'Daily']], value:(cur.salary && cur.salary.mode) || 'monthly', show:function(v){ return v.kind === 'salary'; }},
+      {id:'rate', label:'Salary rate (₹ per month / per day)', value:(cur.salary ? String(cur.salary.ratePaise / 100) : ''), mode:'decimal', show:function(v){ return v.kind === 'salary'; }}],
     onSubmit:function(v, fin){
-      kgSetTerms(karigarId, {kind:v.kind, wastagePct:v.pct, salaryMode:v.mode, rate:v.rate}, function(err){ fin(err); });
+      var w = v.kind === 'wastage';
+      kgAddAgreement(karigarId, {kind:v.kind, wastagePct:v.pct, fixedGrams:(w ? v.fixed : ''), labourRate:(w ? v.lab : ''), labourBase:v.labBase,
+        salaryMode:v.mode, rate:v.rate}, String(v.from || '').trim(), v.opId, function(err){ fin(err); });
     }});
 }
 function kg2Accrue(karigarId){
@@ -1004,7 +1134,7 @@ function kg2ReportsHtml(){
   html += '<div class="kg2-sec">Wastage kept by karigars</div>';
   if(!r.wastage.length) html += '<div class="kg2-empty">No gold issued to wastage karigars this month.</div>';
   r.wastage.forEach(function(w){
-    html += '<div class="kg2-line"><div><b>' + name(w.karigarId) + '</b><div class="kg2-sub">issued ' + kgFmtG(w.issuedFine) + ' fine</div></div><div class="kg2-num">' + kgFmtG(w.keptFine) + '</div></div>';
+    html += '<div class="kg2-line"><div><b>' + name(w.karigarId) + '</b><div class="kg2-sub">issued ' + kgFmtG(w.issuedFine) + ' fine' + (w.fixedFine ? ' &middot; plus ' + kgFmtG(w.fixedFine) + ' fixed (jobs closed)' : '') + '</div></div><div class="kg2-num">' + kgFmtG(w.keptFine + (w.fixedFine || 0)) + '</div></div>';
   });
   html += '<div class="kg2-sec">Manufacturing loss register (approved)</div>';
   if(!r.losses.length) html += '<div class="kg2-empty">No approved loss this month.</div>';
