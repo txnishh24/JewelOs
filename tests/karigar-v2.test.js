@@ -417,5 +417,32 @@ test('V2 data is stored in the cloud payload and the local cache', function(){
   });
 });
 
+console.log('\nKarigar V2 - reports');
+
+test('report: wastage kept is on fine issued in the period, losses and scrap are totalled, only approved losses count', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'}); var j = job(a, k);
+  var k2 = karigar(a, 'Test-B', {kind:'salary', salaryMode:'monthly', rate:'1000'}); var j2 = job(a, k2);
+  metal(a, j, 'ISSUE', 100000, '999'); metal(a, j2, 'ISSUE', 50000, '999');
+  metal(a, j, 'SCRAP', 3000, '995', {kind:'dust'}); metal(a, j2, 'SCRAP', 1000, '999', {kind:'scrap'});
+  call(function(cb){ a.kgAddEntry({type:'LOSS', opId:op(), jobId:j2.id, karigarId:k2.id, fineMg:300, category:'filing', reason:'filing loss', proposed:false, approvedBy:'Tester'}, cb); });
+  a.SAAS.user.role = 'manager';
+  call(function(cb){ a.kgAddEntry({type:'LOSS', opId:op(), jobId:j2.id, karigarId:k2.id, fineMg:900, category:'polishing', reason:'polish loss', proposed:true}, cb); });
+  a.SAAS.user.role = 'owner';
+  var today = a.kgToday(), r = a.kgReport(today, today);
+  eq(r.wastage.length, 1, 'salary karigar has no wastage row'); eq(r.wastage[0].issuedFine, 100000); eq(r.wastage[0].keptFine, 4000);
+  eq(r.lossTotal, 300, 'pending loss excluded'); eq(r.lossByCategory.filing, 300); eq(r.losses[0].approvedBy, 'Tester');
+  eq(r.scrapTotal, 2985 + 1000); eq(r.scrapByKind.dust, 2985);
+  eq(r.open.length, 2);
+  var none = a.kgReport('2000-01-01', '2000-01-31');
+  eq(none.wastage.length, 0); eq(none.lossTotal, 0); eq(none.scrapTotal, 0); eq(none.open.length, 2, 'open jobs are not date-bound');
+});
+test('report: reversed entries are left out and a surplus job is listed on its own', function(){
+  var a = fresh(); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'}); var j = job(a, k);
+  var i1 = metal(a, j, 'ISSUE', 100000, '999').v; metal(a, j, 'SCRAP', 96200, '999', {kind:'scrap'});
+  var d = a.kgToday(); eq(a.kgReport(d, d).surplus.length, 1); eq(a.kgReport(d, d).open.length, 0);
+  call(function(cb){ a.kgAddEntry({type:'REVERSAL', opId:op(), jobId:j.id, karigarId:k.id, reversesId:i1.id, reason:'wrong issue'}, cb); });
+  eq(a.kgReport(d, d).wastage.length, 0, 'reversed issue not counted');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }

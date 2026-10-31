@@ -181,6 +181,41 @@ function kgStatement(karigarId){
   return rows;
 }
 
+// Period report over the gold ledger. from/to are 'YYYY-MM-DD' (inclusive).
+// Wastage kept is worked out per job on the fine gold ISSUED in the period, so a
+// job issued across two months is split by when the metal actually went out.
+function kgReport(from, to){
+  var led = S.kgLedger || [], idx = kgIndex(led);
+  var r = {wastage:[], losses:[], lossByCategory:{}, lossTotal:0, scrapByKind:{}, scrapTotal:0, open:[], surplus:[]};
+  var perJob = {};
+  led.forEach(function(e){
+    if(idx.reversed[e.id] || e.date < from || e.date > to) return;
+    if(e.type === 'ISSUE') perJob[e.jobId] = (perJob[e.jobId] || 0) + e.fineMg;
+    else if(e.type === 'SCRAP') { r.scrapByKind[e.kind] = (r.scrapByKind[e.kind] || 0) + e.fineMg; r.scrapTotal += e.fineMg; }
+    else if(e.type === 'LOSS' && kgLossState(e, idx) === 'approved'){
+      var job = kgFindJob(e.jobId);
+      r.losses.push({date:e.date, jobNo:job ? job.jobNo : '?', karigarId:e.karigarId, category:e.category, fineMg:e.fineMg, reason:e.reason, approvedBy:e.approvedBy || ''});
+      r.lossByCategory[e.category] = (r.lossByCategory[e.category] || 0) + e.fineMg;
+      r.lossTotal += e.fineMg;
+    }
+  });
+  var byK = {};
+  Object.keys(perJob).forEach(function(jid){
+    var job = kgFindJob(jid); if(!job || job.kind !== 'wastage') return;
+    var t = byK[job.karigarId] || (byK[job.karigarId] = {karigarId:job.karigarId, issuedFine:0, keptFine:0});
+    t.issuedFine += perJob[jid];
+    t.keptFine += Math.round(perJob[jid] * (job.wastageBp || 0) / 10000);
+  });
+  Object.keys(byK).forEach(function(k){ r.wastage.push(byK[k]); });
+  (S.kgJobs || []).forEach(function(j){
+    if(j.status !== 'open') return;
+    var b = kgJobBalance(j, led);
+    if(b.state === 'open' && b.openFine > 0) r.open.push({job:j, openFine:b.openFine});
+    else if(b.state === 'surplus') r.surplus.push({job:j, openFine:b.openFine});
+  });
+  return r;
+}
+
 function kgSalaryBalance(karigarId){
   var rev = {}, t = {accrued:0, deducted:0, advanced:0, paid:0};
   (S.kgSalary || []).forEach(function(e){ if(e.type === 'REVERSAL') rev[e.reversesId] = true; });
@@ -497,6 +532,7 @@ function renderKgV2(){
   var html = '';
   if(_kg2.view === 'job' && kgFindJob(_kg2.jobId)) html = kg2JobHtml(kgFindJob(_kg2.jobId));
   else if(_kg2.view === 'khata') html = kg2KhataHtml();
+  else if(_kg2.view === 'reports') html = kg2ReportsHtml();
   else if(_kg2.view === 'salary') html = kg2SalaryHtml();
   else { _kg2.view = 'home'; html = kg2HomeHtml(); }
   root.innerHTML = html;
@@ -506,6 +542,7 @@ function kg2NavHtml(){
   return '<div class="kg2-nav">' +
     kg2Btn('Jobs', 'kg2Go(\'home\')', _kg2.view === 'home' ? 'btn-gold' : '') +
     kg2Btn('Fine-gold khata', 'kg2Go(\'khata\')', _kg2.view === 'khata' ? 'btn-gold' : '') +
+    kg2Btn('Reports', 'kg2Go(\'reports\')', _kg2.view === 'reports' ? 'btn-gold' : '') +
     (kgUser().role === 'owner' ? kg2Btn('Salary', 'kg2Go(\'salary\')', _kg2.view === 'salary' ? 'btn-gold' : '') : '') +
   '</div>';
 }
@@ -914,4 +951,42 @@ function kg2ReverseSalary(karigarId, entryId){
     onSubmit:function(v, fin){
       kgAddSalary({type:'REVERSAL', opId:v.opId, karigarId:karigarId, reversesId:entryId, reason:String(v.reason || '').trim()}, function(err){ fin(err); });
     }});
+}
+
+var _kg2Month = '';
+function kg2SetMonth(inp){ _kg2Month = inp.value; renderKgV2(); }
+function kg2ReportsHtml(){
+  var month = /^\d{4}-\d{2}$/.test(_kg2Month) ? _kg2Month : kgToday().slice(0, 7);
+  var r = kgReport(month + '-01', month + '-31');
+  function name(id){ var k = findKarigar(id); return escHtml(k ? k.name : '?'); }
+  var html = '<div class="kg2-head"><div class="kg2-title">Reports</div><div class="kg2-sub">Fine gold only. Pick a month.</div></div>' + kg2NavHtml() +
+    '<input type="text" class="kg2-sel" value="' + escHtml(month) + '" placeholder="YYYY-MM" onchange="kg2SetMonth(this)">';
+  html += '<div class="kg2-sec">Wastage kept by karigars</div>';
+  if(!r.wastage.length) html += '<div class="kg2-empty">No gold issued to wastage karigars this month.</div>';
+  r.wastage.forEach(function(w){
+    html += '<div class="kg2-line"><div><b>' + name(w.karigarId) + '</b><div class="kg2-sub">issued ' + kgFmtG(w.issuedFine) + ' fine</div></div><div class="kg2-num">' + kgFmtG(w.keptFine) + '</div></div>';
+  });
+  html += '<div class="kg2-sec">Manufacturing loss register (approved)</div>';
+  if(!r.losses.length) html += '<div class="kg2-empty">No approved loss this month.</div>';
+  r.losses.forEach(function(l){
+    html += '<div class="kg2-line"><div><b>' + escHtml(l.category) + '</b> &middot; ' + name(l.karigarId) + '<div class="kg2-sub">' + escHtml(l.date) + ' &middot; ' + escHtml(l.jobNo) +
+      ' &middot; ' + escHtml(l.reason) + ' &middot; approved by ' + escHtml(l.approvedBy) + '</div></div><div class="kg2-num">' + kgFmtG(l.fineMg) + '</div></div>';
+  });
+  if(r.losses.length) html += '<div class="kg2-line"><b>Total loss</b><div class="kg2-num">' + kgFmtG(r.lossTotal) + '</div></div>';
+  html += '<div class="kg2-sec">Scrap and dust recovered</div>';
+  var kinds = Object.keys(r.scrapByKind);
+  if(!kinds.length) html += '<div class="kg2-empty">None this month.</div>';
+  kinds.forEach(function(kd){ html += '<div class="kg2-line"><div>' + escHtml(kd) + '</div><div class="kg2-num">' + kgFmtG(r.scrapByKind[kd]) + '</div></div>'; });
+  html += '<div class="kg2-sec">Gold still with karigars (open jobs)</div>';
+  if(!r.open.length) html += '<div class="kg2-empty">Nothing outstanding.</div>';
+  r.open.forEach(function(o){
+    html += '<div class="kg2-line kg2-click" onclick="kg2OpenJob(' + kg2Q(o.job.id) + ')"><div><b>' + escHtml(o.job.jobNo) + '</b> &middot; ' + name(o.job.karigarId) + '</div><div class="kg2-num">' + kgFmtG(o.openFine) + '</div></div>';
+  });
+  if(r.surplus.length){
+    html += '<div class="kg2-sec">Jobs where karigar returned MORE than due</div>';
+    r.surplus.forEach(function(o){
+      html += '<div class="kg2-line kg2-click" onclick="kg2OpenJob(' + kg2Q(o.job.id) + ')"><div><b>' + escHtml(o.job.jobNo) + '</b> &middot; ' + name(o.job.karigarId) + '</div><div class="kg2-num warn">' + kgFmtG(-o.openFine) + '</div></div>';
+    });
+  }
+  return html;
 }
