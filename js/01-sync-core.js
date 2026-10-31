@@ -300,6 +300,7 @@ function saveToCloud(callback){
   if(_cacheOk){ try{ localStorage.setItem(_unsyncedKey(), JSON.stringify({v:callVersion, id:saveId})); }catch(e){} }
   var dataPayload = {
     _saveId:     saveId,
+    _build:      APP_BUILD,
     products:    S.products,
     sales:       S.sales,
     orders:      S.orders    || [],

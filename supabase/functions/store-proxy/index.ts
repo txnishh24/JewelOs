@@ -42,6 +42,91 @@ const ALLOWED_COUNTERS = new Set([
   "inv_no", "girvi_no", "ord_no", "prod_no", "purchase_no",
 ]);
 
+// ── Karigar 2.0 ledger (supabase/migrations/010_karigar_ledger.sql) ──
+// The shop id is NEVER read from the request: it is the tenant resolved from the session
+// token, exactly like the blob. Only owner and manager may touch the ledger; ADJUST and
+// OPENING are owner-only. Staff and readonly are refused.
+const KG_TYPES = new Set([
+  "ISSUE", "RETURN", "RECEIPT", "SCRAP", "LOSS", "TRANSFER_OUT", "TRANSFER_IN",
+  "ENTITLEMENT_ACCRUE", "ENTITLEMENT_SETTLE", "LABOUR_ACCRUE", "LABOUR_PAY", "ADJUST", "OPENING", "REVERSAL",
+]);
+const KG_OWNER_ONLY = new Set(["ADJUST", "OPENING"]);
+const KG_ACCOUNTS = new Set([
+  "VAULT", "KCUST", "WIP", "FG", "SCRAP", "LOSS", "TRANSIT", "ENT", "EARNED", "PAYOUT", "OPENING", "ADJ",
+]);
+const KG_ROLES = new Set(["owner", "manager"]);
+// Optional old-build guard. Unset or 0 = off. Set MIN_CLIENT_BUILD to refuse saves and ledger
+// posts from app builds older than that number (a stale phone would otherwise save the shop
+// blob without newer keys and erase them). The client sends its build as _build.
+const MIN_CLIENT_BUILD = Number(Deno.env.get("MIN_CLIENT_BUILD") ?? "0") || 0;
+const buildOf = (v: unknown) => (typeof v === "number" && isFinite(v) ? v : 0);
+const isInt = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v);
+const isStr = (v: unknown, max: number) => typeof v === "string" && v.length <= max;
+
+// Returns an error string, or the RPC arguments. Shape and size limits only: the balance rules
+// (sum to zero, no negative custody, exact mirror reversals) are enforced inside the database.
+function checkKgJournal(b: Record<string, unknown>, role: string, userId: string):
+  | string
+  | { op: string; type: string; job: string | null; voucher: string | null; reverses: number | null;
+      date: string; note: string; approved: string | null; meta: Record<string, string>;
+      lines: unknown[]; labour: unknown[] } {
+  const op = b.op_id;
+  if (typeof op !== "string" || !/^[A-Za-z0-9:_.-]{8,64}$/.test(op)) return "op_id must be 8 to 64 safe characters";
+  const type = b.type;
+  if (typeof type !== "string" || !KG_TYPES.has(type)) return "unknown journal type";
+  if (KG_OWNER_ONLY.has(type) && role !== "owner") return "owner only";
+  const job = b.job_id == null || b.job_id === "" ? null : b.job_id;
+  const voucher = b.voucher_id == null || b.voucher_id === "" ? null : b.voucher_id;
+  if (job !== null && !isStr(job, 64)) return "job_id too long";
+  if (voucher !== null && !isStr(voucher, 64)) return "voucher_id too long";
+  const reverses = b.reverses_id == null ? null : b.reverses_id;
+  if (reverses !== null && !isInt(reverses)) return "reverses_id must be an integer";
+  if (type === "REVERSAL" && reverses === null) return "a reversal must name the journal it reverses";
+  if (type !== "REVERSAL" && reverses !== null) return "only a reversal may name a journal";
+  const date = b.business_date;
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(Date.parse(date + "T00:00:00Z"))) return "business_date must be YYYY-MM-DD";
+  const note = b.note == null ? "" : b.note;
+  if (!isStr(note, 200)) return "note too long";
+  const lines = b.lines == null ? [] : b.lines;
+  const labour = b.labour == null ? [] : b.labour;
+  if (!Array.isArray(lines) || !Array.isArray(labour)) return "lines and labour must be lists";
+  if (lines.length > 20 || labour.length > 20) return "too many lines";
+  if (lines.length === 0 && labour.length === 0) return "a journal needs at least one line";
+  const outLines: unknown[] = [];
+  for (const l of lines as Record<string, unknown>[]) {
+    if (!l || typeof l !== "object") return "bad line";
+    if (typeof l.account !== "string" || !KG_ACCOUNTS.has(l.account)) return "unknown account";
+    const ref = l.owner_ref == null ? "" : l.owner_ref;
+    if (!isStr(ref, 64)) return "owner_ref too long";
+    if (!isInt(l.fine_mg) || l.fine_mg === 0 || Math.abs(l.fine_mg as number) > 1e12) return "fine_mg must be a non-zero whole number";
+    if (l.gross_mg != null && (!isInt(l.gross_mg) || Math.abs(l.gross_mg as number) > 1e12)) return "gross_mg invalid";
+    if (l.permille != null && (!isInt(l.permille) || (l.permille as number) < 1 || (l.permille as number) > 1000)) return "permille invalid";
+    outLines.push({ account: l.account, owner_ref: ref, fine_mg: l.fine_mg, gross_mg: l.gross_mg ?? null, permille: l.permille ?? null });
+  }
+  const outLabour: unknown[] = [];
+  for (const l of labour as Record<string, unknown>[]) {
+    if (!l || typeof l !== "object") return "bad labour line";
+    if (!isStr(l.karigar_id, 64) || !l.karigar_id) return "karigar_id required";
+    if (!isInt(l.amount_paise) || l.amount_paise === 0 || Math.abs(l.amount_paise as number) > 1e12) return "amount_paise must be a non-zero whole number";
+    if (l.mode != null && !isStr(l.mode, 20)) return "mode too long";
+    outLabour.push({ karigar_id: l.karigar_id, amount_paise: l.amount_paise, mode: l.mode ?? null });
+  }
+  const meta: Record<string, string> = {};
+  if (b.meta && typeof b.meta === "object") {
+    const keys = Object.keys(b.meta as object);
+    if (keys.length > 10) return "meta too large";
+    for (const k of keys) {
+      const v = (b.meta as Record<string, unknown>)[k];
+      if (!/^[a-z_]{1,24}$/.test(k) || !isStr(v, 120)) return "meta invalid";
+      meta[k] = v as string;
+    }
+  }
+  // approval is stamped by the server from the real session, never taken from the body
+  const approved = role === "owner" && (b.approve === true || KG_OWNER_ONLY.has(type)) ? userId : null;
+  return { op, type, job: job as string | null, voucher: voucher as string | null, reverses: reverses as number | null,
+    date, note: note as string, approved, meta, lines: outLines, labour: outLabour };
+}
+
 // Roles as actually issued by auth-gateway: owner (at signup), and
 // manager | staff | readonly (add-staff ALLOWED_ROLES).
 // readonly may load the shop but must not write anything.
@@ -273,6 +358,9 @@ Deno.serve(async (req) => {
     if (!body.data || typeof body.data !== "object") {
       return json({ error: "body.data is required" }, 400, origin);
     }
+    if (MIN_CLIENT_BUILD > 0 && buildOf((body.data as Record<string, unknown>)._build) < MIN_CLIENT_BUILD) {
+      return json({ error: "client_outdated", message: "Please reload the app to update." }, 409, origin);
+    }
     const expectedVersion = typeof body.expectedVersion === "number" ? body.expectedVersion : 0;
 
     const { data: rpcRows, error: rpcError } = await supabase.rpc("store_cas_write", {
@@ -317,6 +405,48 @@ Deno.serve(async (req) => {
         return json({ error: "counter failed" }, 500, origin);
       }
       return json({ ok: true, val }, 200, origin);
+    }
+
+    // ── Karigar 2.0 ledger ───────────────────────────────
+    if (typeof body.action === "string" && body.action.startsWith("kg_")) {
+      if (!KG_ROLES.has(role)) return json({ error: "forbidden" }, 403, origin);
+      const kb = body as Record<string, unknown>;
+      if (MIN_CLIENT_BUILD > 0 && buildOf(kb._build) < MIN_CLIENT_BUILD) {
+        return json({ error: "client_outdated", message: "Please reload the app to update." }, 409, origin);
+      }
+      if (body.action === "kg_post") {
+        const j = checkKgJournal(kb, role, session.userId);
+        if (typeof j === "string") return json({ error: "invalid_journal", message: j }, 400, origin);
+        const { data: rows, error: kerr } = await supabase.rpc("kg_post_journal", {
+          p_shop_id: shopKey, p_op_id: j.op, p_type: j.type, p_job_id: j.job, p_voucher_id: j.voucher,
+          p_reverses_id: j.reverses, p_business_date: j.date, p_note: j.note,
+          p_by_user: session.userId, p_by_role: role, p_approved_by: j.approved, p_meta: j.meta,
+          p_lines: j.lines, p_labour: j.labour,
+        });
+        if (kerr) {
+          console.error("[store-proxy] kg_post failed:", kerr.message);
+          return json({ error: "kg_post failed" }, 500, origin);
+        }
+        const r = (Array.isArray(rows) ? rows[0] : rows) as { ok: boolean; duplicate: boolean; journal_id: number | null; error: string | null } | null;
+        if (!r) return json({ error: "kg_post failed" }, 500, origin);
+        // a refusal by the ledger rules is a normal answer (422), not a server fault
+        if (!r.ok) return json({ ok: false, error: "rejected", message: r.error }, 422, origin);
+        return json({ ok: true, duplicate: !!r.duplicate, journal_id: r.journal_id }, 200, origin);
+      }
+      if (body.action === "kg_balances") {
+        const { data, error: berr } = await supabase.rpc("kg_balances", { p_shop_id: shopKey });
+        if (berr) { console.error("[store-proxy] kg_balances failed:", berr.message); return json({ error: "kg_balances failed" }, 500, origin); }
+        return json({ ok: true, balances: data ?? [] }, 200, origin);
+      }
+      if (body.action === "kg_journal_list" || body.action === "kg_export") {
+        const exporting = body.action === "kg_export";
+        const after = isInt(kb.after) && (kb.after as number) >= 0 ? (kb.after as number) : 0;
+        const limit = exporting ? 100000 : (isInt(kb.limit) ? Math.min(Math.max(kb.limit as number, 1), 1000) : 200);
+        const { data, error: lerr } = await supabase.rpc("kg_journal_list", { p_shop_id: shopKey, p_after: after, p_limit: limit });
+        if (lerr) { console.error("[store-proxy] kg list failed:", lerr.message); return json({ error: "kg list failed" }, 500, origin); }
+        return json({ ok: true, journals: data ?? [] }, 200, origin);
+      }
+      return json({ error: "unknown action" }, 400, origin);
     }
 
     return json({ error: "unknown action" }, 400, origin);

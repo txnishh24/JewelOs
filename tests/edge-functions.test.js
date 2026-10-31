@@ -167,6 +167,9 @@ function makeClient(db) {
         if (ex) ex.data = nd; else db.store.push({ id: args.p_shop_id, data: nd, updated_at: new Date().toISOString() });
         return Promise.resolve({ data: [{ ok: true, conflict: false, new_data: nd, current_data: null }], error: null });
       }
+      if (name === 'kg_post_journal') return Promise.resolve({ data: [db.kgReply || { ok: true, duplicate: false, journal_id: 7, error: null }], error: null });
+      if (name === 'kg_balances') return Promise.resolve({ data: db.kgBal || [], error: null });
+      if (name === 'kg_journal_list') return Promise.resolve({ data: db.kgJournals || [], error: null });
       if (name === 'increment_shop_counter') { var k = args.p_shop_id + '_' + args.p_counter; db.counters[k] = (db.counters[k] || 0) + 1; return Promise.resolve({ data: db.counters[k], error: null }); }
       return Promise.resolve({ data: null, error: { message: 'unknown rpc ' + name } });
     },
@@ -224,6 +227,7 @@ async function test(name, fn) {
   try { await fn(); results.push(['PASS', name]); }
   catch (e) { results.push(['FAIL', name + '\n        ' + e.message]); }
 }
+function ok(c, what) { if (!c) throw new Error(what || 'assertion failed'); }
 function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JSON.stringify(b) + ', got ' + JSON.stringify(a)); }
 
 (async function () {
@@ -972,6 +976,133 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     eq((await call(auth, 'update-shop', { sessionToken: t, city: 'Vizag' })).status, 401, 'the pre-change token is rejected, not silently still valid');
     eq((await call(auth, 'update-shop', { sessionToken: changed.body.sessionToken, city: 'Vizag' })).status, 200, 'the fresh token from change-password works immediately');
     eq((await call(auth, 'login', { email: 'owner@shop.in', password: 'wrong' })).status, 401, 'wrong password');
+  });
+
+  // ---- store-proxy: Karigar 2.0 ledger actions (supabase/migrations/010_karigar_ledger.sql)
+  var kgGood = function (over) {
+    var b = { action: 'kg_post', op_id: 'op-issue-0001', type: 'ISSUE', job_id: 'J1', business_date: '2026-10-31', note: 'issue',
+              lines: [{ account: 'VAULT', owner_ref: '', fine_mg: -100000 }, { account: 'KCUST', owner_ref: 'k1', fine_mg: 100000, gross_mg: 100000, permille: 1000 }] };
+    Object.keys(over || {}).forEach(function (k) { b[k] = over[k]; });
+    return b;
+  };
+  var kgCalls = function () { return db.rpcCalls.filter(function (c) { return c.name === 'kg_post_journal'; }); };
+  // earlier tests changed the owner's password, which retires old tokens: sign in again
+  ownerTok = (await call(auth, 'login', { email: 'owner@shop.in', password: 'final-pass-77' })).body.sessionToken;
+  var kgStaffAdd = await call(auth, 'add-staff', { sessionToken: ownerTok, name: 'Kg Staff', email: 'kgstaff@shop.in', role: 'staff' });
+  var kgStaffTok = (await call(auth, 'login', { email: 'kgstaff@shop.in', password: kgStaffAdd.body.tempPassword })).body.sessionToken;
+  var mgrAdd = await call(auth, 'add-staff', { sessionToken: ownerTok, name: 'Kg Mgr', email: 'kgmgr@shop.in', role: 'manager' });
+  var mgrTok = (await call(auth, 'login', { email: 'kgmgr@shop.in', password: mgrAdd.body.tempPassword })).body.sessionToken;
+  var roAdd = await call(auth, 'add-staff', { sessionToken: ownerTok, name: 'Kg Ro', email: 'kgro@shop.in', role: 'readonly' });
+  var roTok = (await call(auth, 'login', { email: 'kgro@shop.in', password: roAdd.body.tempPassword })).body.sessionToken;
+
+  await test('ledger: the owner posts a journal; the shop and the user come from the session token, never from the body', async function () {
+    db.rpcCalls.length = 0;
+    var r = await sp(ownerTok, 'POST', kgGood({ shop_id: 'someone-else', p_shop_id: 'someone-else', by_user: 'forged', by_role: 'owner' }));
+    eq(r.status, 200, 'status'); eq(r.body.ok, true, 'ok'); eq(r.body.duplicate, false, 'not a duplicate'); eq(typeof r.body.journal_id, 'number', 'journal id');
+    var c = kgCalls()[0].args;
+    var shopRow = db.store.length ? null : null;
+    ok(c.p_shop_id !== 'someone-else', 'body shop ignored'); ok(/^[0-9a-f-]{36}$/i.test(c.p_shop_id), 'the real shop row key was used');
+    ok(c.p_by_user !== 'forged', 'body user ignored'); eq(c.p_by_role, 'owner', 'role from the account');
+    eq(c.p_lines.length, 2, 'lines forwarded'); eq(c.p_lines[0].fine_mg, -100000, 'weights forwarded as integers');
+  });
+  await test('ledger: manager may post, staff and readonly may not (post, balances, list, export)', async function () {
+    eq((await sp(mgrTok, 'POST', kgGood({ op_id: 'op-mgr-00001' }))).status, 200, 'manager posts');
+    db.rpcCalls.length = 0;
+    var acts = [kgGood(), { action: 'kg_balances' }, { action: 'kg_journal_list' }, { action: 'kg_export' }];
+    for (var i = 0; i < acts.length; i++) {
+      eq((await sp(kgStaffTok, 'POST', acts[i])).status, 403, 'staff ' + acts[i].action);
+      eq((await sp(roTok, 'POST', acts[i])).status, 403, 'readonly ' + acts[i].action);
+    }
+    eq(db.rpcCalls.length, 0, 'the database was never called for a refused role');
+    eq((await call(proxy, '', kgGood(), {}, 'POST')).status, 401, 'no token');
+  });
+  await test('ledger: ADJUST and OPENING are owner-only; approval is stamped from the real session, not the body', async function () {
+    var adj = { type: 'ADJUST', op_id: 'op-adj-000001', lines: [{ account: 'KCUST', owner_ref: 'k1', fine_mg: 50 }, { account: 'ADJ', owner_ref: '', fine_mg: -50 }] };
+    var opn = { type: 'OPENING', op_id: 'op-open-00001', lines: [{ account: 'VAULT', owner_ref: '', fine_mg: 5000 }, { account: 'OPENING', owner_ref: '', fine_mg: -5000 }] };
+    eq((await sp(mgrTok, 'POST', kgGood(adj))).status, 400, 'manager ADJUST'); eq((await sp(mgrTok, 'POST', kgGood(opn))).status, 400, 'manager OPENING');
+    db.rpcCalls.length = 0;
+    eq((await sp(ownerTok, 'POST', kgGood(adj))).status, 200, 'owner ADJUST');
+    ok(kgCalls()[0].args.p_approved_by, 'owner action carries an approver');
+    var loss = { type: 'LOSS', op_id: 'op-loss-000001', lines: [{ account: 'KCUST', owner_ref: 'k1', fine_mg: -400 }, { account: 'LOSS', owner_ref: 'k1', fine_mg: 400 }] };
+    db.rpcCalls.length = 0;
+    await sp(mgrTok, 'POST', kgGood(Object.assign({ approve: true, approved_by: 'owner' }, loss, { op_id: 'op-loss-000002' })));
+    eq(kgCalls()[0].args.p_approved_by, null, 'a manager cannot approve by sending approve:true');
+    db.rpcCalls.length = 0;
+    await sp(ownerTok, 'POST', kgGood(Object.assign({ approve: true }, loss, { op_id: 'op-loss-000003' })));
+    ok(kgCalls()[0].args.p_approved_by, 'an owner approval is recorded');
+    db.rpcCalls.length = 0;
+    await sp(ownerTok, 'POST', kgGood(Object.assign({}, loss, { op_id: 'op-loss-000004' })));
+    eq(kgCalls()[0].args.p_approved_by, null, 'no approval unless asked');
+  });
+  await test('ledger: malformed journals are refused with 400 before the database is touched', async function () {
+    var bad = [
+      ['op_id too short', { op_id: 'x' }], ['op_id bad characters', { op_id: 'has space 12345' }], ['unknown type', { type: 'STEAL' }],
+      ['unknown account', { lines: [{ account: 'MINT', fine_mg: 5 }, { account: 'KCUST', fine_mg: -5 }] }],
+      ['fractional weight', { lines: [{ account: 'VAULT', fine_mg: -1.5 }, { account: 'KCUST', fine_mg: 1.5 }] }],
+      ['string weight', { lines: [{ account: 'VAULT', fine_mg: '-5' }, { account: 'KCUST', fine_mg: '5' }] }],
+      ['zero weight', { lines: [{ account: 'VAULT', fine_mg: 0 }, { account: 'KCUST', fine_mg: 0 }] }],
+      ['absurd weight', { lines: [{ account: 'VAULT', fine_mg: -1e15 }, { account: 'KCUST', fine_mg: 1e15 }] }],
+      ['bad permille', { lines: [{ account: 'VAULT', fine_mg: -5, permille: 0 }, { account: 'KCUST', fine_mg: 5 }] }],
+      ['21 lines', { lines: new Array(21).fill({ account: 'KCUST', owner_ref: 'k', fine_mg: 1 }) }],
+      ['no lines at all', { lines: [] }], ['lines not a list', { lines: 'x' }],
+      ['reversal without target', { type: 'REVERSAL' }], ['target on a non-reversal', { reverses_id: 4 }],
+      ['bad date', { business_date: '31/10/2026' }], ['impossible date', { business_date: '2026-13-45' }],
+      ['note too long', { note: new Array(250).join('n') }], ['job id too long', { job_id: new Array(80).join('j') }],
+      ['bad meta key', { meta: { 'Bad Key': 'x' } }], ['long meta value', { meta: { label: new Array(200).join('v') } }],
+      ['labour zero', { lines: [], labour: [{ karigar_id: 'k1', amount_paise: 0 }] }], ['labour no karigar', { lines: [], labour: [{ amount_paise: 5 }] }]
+    ];
+    db.rpcCalls.length = 0;
+    for (var i = 0; i < bad.length; i++) {
+      var r = await sp(ownerTok, 'POST', kgGood(Object.assign({ op_id: 'op-bad-' + (1000 + i) }, bad[i][1])));
+      eq(r.status, 400, bad[i][0]); eq(r.body.error, 'invalid_journal', bad[i][0]);
+    }
+    eq(kgCalls().length, 0, 'no refused journal reached the database');
+  });
+  await test('ledger: labour-only journal is accepted; a reversal names its target', async function () {
+    db.rpcCalls.length = 0;
+    eq((await sp(ownerTok, 'POST', kgGood({ type: 'LABOUR_ACCRUE', op_id: 'op-lab-000001', lines: [], labour: [{ karigar_id: 'k1', amount_paise: 250000 }] }))).status, 200, 'labour only');
+    eq(kgCalls()[0].args.p_labour[0].amount_paise, 250000, 'paise forwarded');
+    eq((await sp(ownerTok, 'POST', kgGood({ type: 'REVERSAL', op_id: 'op-rev-000001', reverses_id: 12 }))).status, 200, 'reversal');
+    eq(kgCalls()[1].args.p_reverses_id, 12, 'target forwarded');
+  });
+  await test('ledger: a refusal by the ledger rules is a 422 with its reason; a repeat is reported as a duplicate; a database fault is a 500 with no detail', async function () {
+    db.kgReply = { ok: false, duplicate: false, journal_id: null, error: 'account KCUST k1 would go negative (-5)' };
+    var r = await sp(ownerTok, 'POST', kgGood({ op_id: 'op-neg-000001' }));
+    eq(r.status, 422, 'status'); eq(r.body.error, 'rejected', 'error'); ok(/negative/.test(r.body.message), 'reason is passed on');
+    db.kgReply = { ok: true, duplicate: true, journal_id: 3, error: null };
+    var d = await sp(ownerTok, 'POST', kgGood({ op_id: 'op-dup-000001' }));
+    eq(d.status, 200, 'dup status'); eq(d.body.duplicate, true, 'dup flag'); eq(d.body.journal_id, 3, 'same journal id');
+    db.kgReply = null; db.fail['rpc:kg_post_journal'] = true;
+    var e = await sp(ownerTok, 'POST', kgGood({ op_id: 'op-err-000001' }));
+    eq(e.status, 500, 'fault'); ok(JSON.stringify(e.body).indexOf('injected') === -1, 'no internal detail leaked');
+  });
+  await test('ledger: balances, list and export use the session shop; list is paged and clamped; export is everything', async function () {
+    db.rpcCalls.length = 0;
+    var b = await sp(ownerTok, 'POST', { action: 'kg_balances' });
+    eq(b.status, 200, 'balances'); ok(Array.isArray(b.body.balances), 'balances list');
+    var l = await sp(mgrTok, 'POST', { action: 'kg_journal_list', after: 5, limit: 99999, p_shop_id: 'other' });
+    eq(l.status, 200, 'list'); var lc = db.rpcCalls.filter(function (c) { return c.name === 'kg_journal_list'; })[0].args;
+    eq(lc.p_after, 5, 'after'); eq(lc.p_limit, 1000, 'limit clamped to 1000'); ok(lc.p_shop_id !== 'other', 'shop from the token');
+    await sp(ownerTok, 'POST', { action: 'kg_journal_list', after: -3, limit: 'x' });
+    var l2 = db.rpcCalls.filter(function (c) { return c.name === 'kg_journal_list'; })[1].args; eq(l2.p_after, 0, 'negative after becomes 0'); eq(l2.p_limit, 200, 'default limit');
+    await sp(ownerTok, 'POST', { action: 'kg_export' });
+    var l3 = db.rpcCalls.filter(function (c) { return c.name === 'kg_journal_list'; })[2].args; eq(l3.p_after, 0, 'export from the start'); eq(l3.p_limit, 100000, 'export limit');
+    eq((await sp(ownerTok, 'POST', { action: 'kg_delete_everything' })).status, 400, 'unknown kg action');
+  });
+  await test('old-build guard: off by default; when MIN_CLIENT_BUILD is set, old builds are refused for blob saves and ledger posts but can still read', async function () {
+    var on = load(SP, db, { MIN_CLIENT_BUILD: '5' });
+    var spOn = function (token, method, body) { return call(on, '', body, { 'x-session-token': token }, method); };
+    var v = ((await spOn(ownerTok, 'GET')).body.data || {})._v || 0;
+    var old = await spOn(ownerTok, 'PUT', { data: { a: 1 }, expectedVersion: v });
+    eq(old.status, 409, 'save without a build number'); eq(old.body.error, 'client_outdated', 'reason');
+    eq((await spOn(ownerTok, 'PUT', { data: { a: 1, _build: 4 }, expectedVersion: v })).status, 409, 'save from build 4');
+    eq((await spOn(ownerTok, 'GET')).status, 200, 'an old build can still read');
+    eq((await spOn(ownerTok, 'POST', kgGood({ op_id: 'op-old-000001' }))).status, 409, 'ledger post without a build number');
+    eq((await spOn(ownerTok, 'POST', kgGood({ op_id: 'op-old-000002', _build: 4 }))).status, 409, 'ledger post from build 4');
+    eq((await spOn(ownerTok, 'POST', kgGood({ op_id: 'op-new-000001', _build: 5 }))).status, 200, 'ledger post from build 5');
+    eq((await spOn(ownerTok, 'PUT', { data: { a: 1, _build: 5 }, expectedVersion: v })).status, 200, 'save from build 5');
+    eq((await spOn(ownerTok, 'POST', { action: 'increment_counter', counter: 'inv_no' })).status, 200, 'counters are not blocked');
+    eq((await sp(ownerTok, 'POST', kgGood({ op_id: 'op-def-000001' }))).status, 200, 'default proxy (guard off) still accepts a build-less post');
   });
 
   var failed = 0;
