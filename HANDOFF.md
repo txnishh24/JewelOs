@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. Karigar V2 is BUILT in the repo but NOT deployed and NOT committed (git unusable from the session: "dubious ownership"). batch65 is LIVE: (Karigars tab + stage box redesign) is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`, verified by `jewelos-deploy-verifier`). Previous live = tag `batch64-live`. `main` pushed to GitHub (30 Oct, at 125904b).
+> Nobody. batch66 (Karigar V2) is LIVE on the Cloudflare worker (deployed 31 Oct, Version ID `51c7c1aa-714f-4718-a6b4-f174b42cd760`, rollback tag `batch65-live` at 18212bd). Before it: batch65 is LIVE: (Karigars tab + stage box redesign) is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`, verified by `jewelos-deploy-verifier`). Previous live = tag `batch64-live`. `main` pushed to GitHub (30 Oct, at 125904b).
 > batch64 is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `f0455912-83df-4b98-abfa-d4c08cda55be`,
 > verified by `jewelos-deploy-verifier`). `main` pushed to GitHub (30 Oct, at 125904b).
 
@@ -103,6 +103,16 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-31 (hundred-and-twenty-third entry) · Claude Code (Sonnet) — batch66 Karigar V2 DEPLOYED to the Cloudflare worker
+
+**Deployed on Tanish's "deploy".** Merged `karigar-v2` into local `main` (a20f50b), wrote `docs/CHANGES-batch66.md`, `node build-cf-deploy-stage.js batch66`, `npx wrangler deploy --dry-run` clean, then `npx wrangler deploy` (first attempt was blocked by the permission classifier; ran after Tanish said "run it yourself"). Live at `https://jewelos.jewelos-e2e.workers.dev`, Version ID `51c7c1aa-714f-4718-a6b4-f174b42cd760`. Rollback: `git checkout batch65-live`, `node build-cf-deploy-stage.js batch65`, `npx wrangler deploy`, back to `main`.
+
+**Verified live (by hand, not the deploy-verifier agent).** sha256 of index.html (followed redirect), sw.js, 01-sync-core, 05-auth-login, 10-daybook and 11-karigar.js match local; `/CHANGELOG.md` headed batch66; wrangler.jsonc, .git/HEAD, HANDOFF.md, package.json all 404.
+
+**Not verified, plainly.** No V2 entry has been saved on the live site, so the real save/reload of the new blob keys is untested (source read says it works). `tests/e2e` not run. Nobody has used it on a phone. **Risk: a device still running the old JS saves the blob without kgJobs/kgLedger/kgSalary/kgPurities and wipes V2 data. Reopen the app on every device before recording anything in V2.** Local `main` is NOT pushed to GitHub (branch `karigar-v2` also local).
+
+→ FOR COWORK: once Tanish has recorded one real test entry in V2, confirm in the live `store` blob that `kgLedger` is present and survived a reload; nothing else needed.
 
 ### 2026-10-31 (hundred-and-twenty-second entry) · Claude Code (Sonnet) — Karigar V2 BUILT (fine-gold jobs, khata, salary register); not committed, not deployed
 
