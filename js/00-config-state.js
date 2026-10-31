@@ -77,7 +77,7 @@ var S = {
   products:[], sales:[], orders:[], girvi:[], customers:[],
   purchases:[], suppliers:[], purchaseAuditLog:[],
   karigars:[], karigarPayments:[],
-  kgJobs:[], kgLedger:[], kgSalary:[], kgPurities:[], nextKgJobNo:1,   // Karigar V2 (js/11-karigar.js)
+  kgJobs:[], kgLedger:[], kgSalary:[], kgPurities:[], kgAgreements:[], kgRoutes:[], nextKgJobNo:1,   // Karigar V2 (js/11-karigar.js)
   rates:{g24:7800,g22:7200,g18:5900,g14:4600,sil:95},
   nextId:1, nextSaleId:1, nextInvNo:1, nextOrdId:1, nextGirviId:1, nextPurchaseId:1, nextPurchaseBillNo:1,
   purchaseCfg:{gst:true, goldRate:false, stone:false, hallmark:false, credit:false, timeline:false},
