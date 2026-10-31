@@ -407,7 +407,7 @@ test('V2 data is stored in the cloud payload and the local cache', function(){
   var sync = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');
   var orders = fs.readFileSync(path.join(__dirname, '..', 'js', '04-orders-detail.js'), 'utf8');
   var auth = fs.readFileSync(path.join(__dirname, '..', 'js', '05-auth-login.js'), 'utf8');
-  ['kgJobs', 'kgLedger', 'kgSalary', 'nextKgJobNo'].forEach(function(key){
+  ['kgJobs', 'kgLedger', 'kgSalary', 'kgPurities', 'nextKgJobNo'].forEach(function(key){
     ok(new RegExp('record\\.' + key).test(sync), key + ' loaded from cloud');
     ok(new RegExp(key + ':\\s*S\\.' + key).test(sync), key + ' in save payload');
     ok(new RegExp(key + ':S\\.' + key).test(orders), key + ' in saveCache');
@@ -442,6 +442,63 @@ test('report: reversed entries are left out and a surplus job is listed on its o
   var d = a.kgToday(); eq(a.kgReport(d, d).surplus.length, 1); eq(a.kgReport(d, d).open.length, 0);
   call(function(cb){ a.kgAddEntry({type:'REVERSAL', opId:op(), jobId:j.id, karigarId:k.id, reversesId:i1.id, reason:'wrong issue'}, cb); });
   eq(a.kgReport(d, d).wastage.length, 0, 'reversed issue not counted');
+});
+
+console.log('\nKarigar V2 - touches (92 / 95 / 96) and Day Book');
+
+test('owner can save a touch; it resolves to its own fineness and is usable on issue, receipt and scrap', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'}); var j = job(a, k);
+  var r = call(function(cb){ a.kgAddPurity('92', cb); });
+  ok(!r.err, r.err && r.err.message); eq(r.v.key, 'T920'); eq(r.v.permille, 920);
+  ok(!call(function(cb){ a.kgAddPurity('95', cb); }).err); ok(!call(function(cb){ a.kgAddPurity('96', cb); }).err);
+  eq(a.S.kgPurities.length, 3);
+  eq(a.kgResolvePermille('T960', '').permille, 960);
+  ok(!metal(a, j, 'ISSUE', 100000, 'T920').err);
+  var b = bal(a, j);
+  eq(b.issuedFine, 92000, '100 g of 92 touch is 92 g fine'); eq(b.earnedFine, 3680, '4% of the fine gold issued'); eq(b.accountable, 88320);
+  eq(a.S.kgLedger[0].permille, 920, 'the touch is stored on the entry');
+  ok(!receipt(a, j, 10000, 'T950').err); eq(a.S.kgLedger[1].fineMg, 9500);
+  ok(!metal(a, j, 'SCRAP', 1000, 'T960', {kind:'scrap'}).err);
+});
+test('a touch cannot be added twice, duplicate a built-in, be out of range, or be added by a manager', function(){
+  var a = fresh('owner');
+  ok(!call(function(cb){ a.kgAddPurity('92', cb); }).err);
+  ok(call(function(cb){ a.kgAddPurity('92', cb); }).err, 'twice');
+  ok(call(function(cb){ a.kgAddPurity('92.0', cb); }).err, 'same value');
+  ok(call(function(cb){ a.kgAddPurity('99.5', cb); }).err, 'already built in as 995');
+  ['', 'abc', '0', '5', '101', '-3', '9.999'].forEach(function(bad){ ok(call(function(cb){ a.kgAddPurity(bad, cb); }).err, bad); });
+  a.SAAS.user.role = 'manager'; ok(call(function(cb){ a.kgAddPurity('96', cb); }).err);
+});
+test('changing the touch list never changes old entries; a failed save rolls the touch back', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'}); var j = job(a, k);
+  call(function(cb){ a.kgAddPurity('92', cb); }); metal(a, j, 'ISSUE', 100000, 'T920');
+  a.S.kgPurities = [];                       // list lost or edited
+  eq(bal(a, j).issuedFine, 92000, 'history is unchanged');
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  ok(call(function(cb){ a.kgAddPurity('96', cb); }).err); eq(a.S.kgPurities.length, 0);
+});
+test('other purity with a typed fineness works as a one-off', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-A', {kind:'wastage', wastagePct:'4'}); var j = job(a, k);
+  ok(!metal(a, j, 'ISSUE', 50000, 'other', {pct:'93.5'}).err); eq(a.S.kgLedger[0].fineMg, 46750);
+  var bad = a.kgResolvePermille('other', ''); ok(bad.error);
+});
+test('Day Book: cash salary payment is money out on its day; UPI is non-cash; reversal puts it back IN; gold and accruals never appear', function(){
+  var a = fresh('owner'); var k = karigar(a, 'Test-B', {kind:'salary', salaryMode:'monthly', rate:'30000'});
+  var d = a.kgToday();
+  function sal(e){ e.opId = op(); e.karigarId = k.id; return call(function(cb){ a.kgAddSalary(e, cb); }).v; }
+  sal({type:'ACCRUAL', period:'2026-10', amountPaise:3000000});
+  var pay = sal({type:'PAYMENT', amountPaise:1000000, mode:'cash'});
+  sal({type:'ADVANCE', amountPaise:200000, mode:'upi', note:'festival advance'});
+  sal({type:'DEDUCTION', amountPaise:50000, note:'tool damage'});
+  var j = job(a, k); metal(a, j, 'ISSUE', 10000, '999');
+  var lines = a.dbAutoLines(d).filter(function(l){ return l.src === 'karigar'; });
+  eq(lines.length, 2, 'only payment and advance'); 
+  var cash = lines.filter(function(l){ return !l.nonCash; })[0], upi = lines.filter(function(l){ return l.nonCash; })[0];
+  eq(cash.dir, 'out'); eq(cash.amount, 10000); eq(upi.amount, 2000); eq(upi.mode, 'upi');
+  var tot = a.dbAutoTotals(d); ok(tot.out >= 10000, 'cash counted in totals');
+  call(function(cb){ a.kgAddSalary({type:'REVERSAL', opId:op(), karigarId:k.id, reversesId:pay.id, reason:'paid twice by mistake'}, cb); });
+  var after = a.dbAutoLines(d).filter(function(l){ return l.src === 'karigar' && !l.nonCash; });
+  eq(after.length, 2); eq(after[0].dir === 'out' && after[1].dir === 'in' || after[0].dir === 'in' && after[1].dir === 'out', true);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

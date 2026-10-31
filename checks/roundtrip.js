@@ -19,6 +19,7 @@ const before = {
   kgJobs: [{ id: 'kj1', jobNo: 'KJ-0001', karigarId: 1, title: 'Test job', kind: 'wastage', wastageBp: 400, status: 'open' }],
   kgLedger: [{ id: 'kl1', opId: 'op1', type: 'ISSUE', jobId: 'kj1', karigarId: 1, mg: 100000, purityKey: '999', permille: 1000, fineMg: 100000 }],
   kgSalary: [{ id: 'ks1', opId: 'op2', type: 'ACCRUAL', karigarId: 1, period: '2026-10', amountPaise: 3000000 }],
+  kgPurities: [{ key: 'T920', label: '92 touch', permille: 920, custom: true }],
   nextKgJobNo: 2,
   rates: { g24: 7800, g22: 7200 },
   purchaseCfg: { showWastage: false },

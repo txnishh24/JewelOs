@@ -58,8 +58,24 @@ function kgPctToPermille(v){
 }
 function kgFineMg(mg, permille){ return Math.round(mg * permille / 1000); }
 
-function kgPurityDef(key){
+// Built-in purities plus the touches the owner added (S.kgPurities, e.g. 92, 95, 96).
+// Entries copy the permille at write time, so editing this list never changes history.
+function kgPurityList(){
+  var out = [], seen = {};
+  KG_PURITIES.forEach(function(d){ if(d.key !== 'other'){ out.push(d); seen[d.key] = 1; } });
+  (S.kgPurities || []).forEach(function(d){ if(d && d.key && !seen[d.key]){ out.push(d); seen[d.key] = 1; } });
+  out.push(kgPurityDefBuiltin('other'));
+  return out;
+}
+function kgPurityDefBuiltin(key){
   for(var i = 0; i < KG_PURITIES.length; i++) if(KG_PURITIES[i].key === key) return KG_PURITIES[i];
+  return null;
+}
+function kgPurityDef(key){
+  var b = kgPurityDefBuiltin(key);
+  if(b) return b;
+  var c = S.kgPurities || [];
+  for(var i = 0; i < c.length; i++) if(c[i] && c[i].key === key) return c[i];
   return null;
 }
 // Resolve the fineness actually used. Returns {permille, as24k} or {error}.
@@ -67,6 +83,7 @@ function kgResolvePermille(key, pctText, as24k){
   var def = kgPurityDef(key);
   if(!def) return {error:'Unknown purity'};
   var hasPct = String(pctText == null ? '' : pctText).trim() !== '';
+  if(def.custom) return {permille:def.permille, as24k:false};
   if(key === '999') return {permille:1000, as24k:false};
   if(key === '995') return {permille: as24k ? 1000 : 995, as24k: !!as24k};
   if(key === '18K') return {permille:750, as24k:false};
@@ -214,6 +231,27 @@ function kgReport(from, to){
     else if(b.state === 'surplus') r.surplus.push({job:j, openFine:b.openFine});
   });
   return r;
+}
+
+// Save a gold touch the shop gives out often (92, 95, 96 ...). Owner only.
+function kgAddPurity(pctText, done){
+  var u = kgUser(), added = null, auditId = null;
+  kgTxn('purities', function(){
+    if(u.role !== 'owner') return 'Only the owner can add a touch';
+    var pm = kgPctToPermille(pctText);
+    if(pm === null || pm < 100 || pm > 1000) return 'Touch must be between 10 and 100';
+    var key = 'T' + pm;
+    if(kgPurityDef(key)) return 'That touch already exists';
+    for(var i = 0; i < KG_PURITIES.length; i++) if(KG_PURITIES[i].permille === pm && KG_PURITIES[i].key !== 'other') return 'Already available as ' + KG_PURITIES[i].label;
+    added = {key:key, label:(pm / 10) + ' touch', permille:pm, custom:true};
+    S.kgPurities = S.kgPurities || [];
+    S.kgPurities.push(added);
+    auditId = kgAudit('kg_purity_add', 'kgPurity', key, added.label);
+    return '';
+  }, function(){
+    S.kgPurities = S.kgPurities.filter(function(x){ return x.key !== added.key; });
+    kgUndoAudit(auditId);
+  }, function(err){ done(err, added); });
 }
 
 function kgSalaryBalance(karigarId){
@@ -494,6 +532,7 @@ function kgAddSalary(entry, done){
 // repeat an opId; keep the first, drop the rest. Orphans are never deleted.
 function kgNormalise(){
   if(typeof S === 'undefined' || !S) return;
+  if(!Array.isArray(S.kgPurities)) S.kgPurities = [];
   ['kgJobs', 'kgLedger', 'kgSalary'].forEach(function(key){
     if(!Array.isArray(S[key])) S[key] = [];
     var seen = {};
@@ -550,7 +589,7 @@ function kg2NavHtml(){
 function kg2HomeHtml(){
   var u = kgUser(), html = '<div class="kg2-head"><div class="kg2-title">Fine-gold jobs <span class="kg2-new">new</span></div>' +
     '<div class="kg2-sub">Gold is counted in fine grams. Each job has its own balance.</div></div>' + kg2NavHtml();
-  html += '<div class="kg2-row">' + kg2Btn('+ New job', 'kg2NewJob()', 'btn-gold') + '</div>';
+  html += '<div class="kg2-row">' + kg2Btn('+ New job', 'kg2NewJob()', 'btn-gold') + (u.role === 'owner' ? kg2Btn('+ Add touch (92, 95, 96...)', 'kg2AddTouch()') : '') + '</div>';
   var ks = S.karigars || [];
   html += '<div class="kg2-sec">Karigar terms</div>';
   if(!ks.length) html += '<div class="kg2-empty">No karigars yet - add one by assigning from an order, then set terms here.</div>';
@@ -761,7 +800,7 @@ function kgForm(opts){
 }
 function kg2Err(msg, finish){ finish(new Error(msg)); }
 
-var KG2_PUR_OPTS = KG_PURITIES.map(function(p){ return [p.key, p.label]; });
+function kg2PurOpts(){ return kgPurityList().map(function(p){ return [p.key, p.label + (p.custom ? '' : '')]; }); }
 
 // preview line shared by issue / receipt / scrap forms
 function kg2FinePreview(v, label){
@@ -784,8 +823,9 @@ function kg2Issue(jobId){
   kgForm({title:'Issue gold to karigar', submitLabel:'Record issue', doneToast:'\u2713 Gold issue recorded',
     fields:[
       {id:'wt', label:'Weight (grams)', mode:'decimal'},
-      {id:'pur', label:'Purity', type:'select', options:[['999', '999 (counted 100%)'], ['995', '995 (counted 99.5%)']], value:'999'},
+      {id:'pur', label:'Purity', type:'select', options:kg2PurOpts(), value:'999'},
       {id:'as24k', label:'Count 995 as 24K (100%)', type:'check', show:function(v){ return v.pur === '995'; }},
+      {id:'pct', label:'Fineness % (type it for Other; 22K optional 91.6 to 92)', mode:'decimal', show:function(v){ return v.pur === '22K' || v.pur === 'other'; }},
       {id:'note', label:'Note (optional)'}],
     preview:function(v){ return kg2FinePreview(v, 'Fine gold issued'); },
     onSubmit:function(v, fin){
@@ -800,7 +840,7 @@ function kg2Receipt(jobId){
       {id:'qty', label:'Quantity', value:'1', mode:'numeric'},
       {id:'wt', label:'Gross metal weight (grams)', mode:'decimal'},
       {id:'stone', label:'Stone weight in grams (info only, optional)', mode:'decimal'},
-      {id:'pur', label:'Purity', type:'select', options:KG2_PUR_OPTS.filter(function(o){ return o[0] !== '995'; }), value:'22K'},
+      {id:'pur', label:'Purity', type:'select', options:kg2PurOpts(), value:'22K'},
       {id:'pct', label:'Fineness % (22K: optional, 91.6 to 92)', mode:'decimal', hint:'Leave blank for the default. Each receipt keeps its own value.',
         show:function(v){ return v.pur === '22K' || v.pur === 'other'; }}],
     preview:function(v){ return kg2FinePreview(v, 'Fine gold credited'); },
@@ -819,7 +859,7 @@ function kg2Scrap(jobId){
     fields:[
       {id:'kind', label:'Kind', type:'select', options:KG_SCRAP_KINDS.map(function(x){ return [x, x]; }), value:'scrap'},
       {id:'wt', label:'Weight (grams)', mode:'decimal'},
-      {id:'pur', label:'Purity', type:'select', options:KG2_PUR_OPTS, value:'999'},
+      {id:'pur', label:'Purity', type:'select', options:kg2PurOpts(), value:'999'},
       {id:'as24k', label:'Count 995 as 24K (100%)', type:'check', show:function(v){ return v.pur === '995'; }},
       {id:'pct', label:'Fineness % (22K: optional, 91.6 to 92)', mode:'decimal', show:function(v){ return v.pur === '22K' || v.pur === 'other'; }}],
     preview:function(v){ return kg2FinePreview(v, 'Fine gold credited back'); },
@@ -989,4 +1029,11 @@ function kg2ReportsHtml(){
     });
   }
   return html;
+}
+
+function kg2AddTouch(){
+  var have = (S.kgPurities || []).map(function(d){ return d.label; }).join(', ');
+  kgForm({title:'Add a gold touch', submitLabel:'Add touch', doneToast:'\u2713 Touch added',
+    fields:[{id:'pct', label:'Touch / fineness % (e.g. 92, 95, 96)', mode:'decimal', hint: have ? 'Saved: ' + have : 'It then appears in the Purity list when you issue or receive gold.'}],
+    onSubmit:function(v, fin){ kgAddPurity(v.pct, function(err){ fin(err); }); }});
 }

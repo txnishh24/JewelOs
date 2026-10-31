@@ -892,7 +892,12 @@
   "kg2ReverseSalary",
   "_kg2Month",
   "kg2SetMonth",
-  "kg2ReportsHtml"
+  "kg2ReportsHtml",
+  "kgPurityList",
+  "kgPurityDefBuiltin",
+  "kgAddPurity",
+  "kg2PurOpts",
+  "kg2AddTouch"
  ],
  "allDeclared": [
   "SB_URL",
@@ -3428,7 +3433,20 @@
   "er",
   "owner",
   "daily",
-  "kinds"
+  "kinds",
+  "kgPurityList",
+  "kgPurityDefBuiltin",
+  "kgAddPurity",
+  "kg2PurOpts",
+  "kg2AddTouch",
+  "_kgS",
+  "_kgById",
+  "kname",
+  "kdir",
+  "kcat",
+  "klabel",
+  "kmode",
+  "have"
  ],
  "implicit": [
   "opts",
