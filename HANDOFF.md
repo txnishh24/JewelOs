@@ -104,6 +104,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-10-31 (hundred-and-twenty-seventh entry) · Claude Code (Sonnet) — Karigar 2.0 ledger migration 010 applied to a NEW TEST Supabase project and verified; production untouched
+
+**What was done.** Free plan allows 2 active projects, both were taken (production `uluzuwomwqsqxtejgzmf` and `jewelos-ops`). Tanish chose to pause `jewelos-ops` after being told it holds an unrelated AI photo app (12 tables incl. credit wallets and payment tables); it was PAUSED (reversible, restore from the dashboard). Created `jewelos-test` (`mdqgbrcueedbieawxild`, ap-south-1, free), applied 010 there, ran the ledger scenarios as SQL, checked privileges and the security advisor (details in `docs/KARIGAR-2-LEDGER-ROLLOUT.md`). Small fix made along the way: `kg_block_mutation` now has `set search_path = ''` (migration file and test project updated).
+
+**Verified on the real database.** idempotent op_id, balanced-only, no negative custody, exact-mirror single reversal, UPDATE/DELETE/TRUNCATE blocked, tenant separation by shop id, anon/authenticated have no access, service_role can run the functions, RLS on.
+
+**NOT done.** `store-proxy` not deployed (neither test nor production); no concurrency test; production migration NOT applied; no screen uses the ledger yet (phase 5b). **Open:** is `jewelos-ops` still needed? Paused now.
+
+→ FOR COWORK: if you use `jewelos-ops` (project `bnwfuukflsxphlcsqcsr`), it is paused; tell Tanish to restore it or free a slot. Nothing else.
+
 ### 2026-10-31 (hundred-and-twenty-sixth entry) · Claude Code (Sonnet) — Karigar 2.0 phase 5a (immutable ledger: SQL + store-proxy + client) BUILT on branch `karigar-2-phase5a`; NOTHING applied or deployed
 
 **What changed.** (1) `supabase/migrations/010_karigar_ledger.sql`: `kg_journal` / `kg_journal_line` / `kg_labour_line` / `kg_shop_setting`, one write path `kg_post_journal` (idempotent by op_id, every journal sums to zero, custody never negative, exact-mirror single reversal, UPDATE/DELETE/TRUNCATE blocked by triggers, RLS locked, service_role only) + `kg_balances` + `kg_journal_list`. (2) `supabase/functions/store-proxy/index.ts`: new POST actions `kg_post`, `kg_balances`, `kg_journal_list`, `kg_export` (owner/manager only, ADJUST/OPENING owner-only, shop and user from the session token, strict shape and size checks, 422 for ledger refusals, 500 without detail) and an OPTIONAL old-build guard (`MIN_CLIENT_BUILD` secret, off when unset). (3) `js/12-karigar-data.js` (new file, approved as D2): journal builders for every event, validator, mirror reversals, localStorage outbox with replay, `kgRemote/kgPostJournal/kgOutboxFlush`. (4) `APP_BUILD` constant (67) sent as `_build` with every blob save; regression test exempts `_build` like `_saveId`. sw.js cache v22. `docs/KARIGAR-2-LEDGER-ROLLOUT.md` has the runbook.

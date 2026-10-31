@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════
--- 010_karigar_ledger.sql  —  Karigar 2.0 immutable ledger. NOT YET APPLIED to any Supabase project.
+-- 010_karigar_ledger.sql  —  Karigar 2.0 immutable ledger. applied to the TEST project jewelos-test only (31 Oct 2026); NOT applied to production.
 -- Karigar 2.0 immutable metal/labour journal. Design: JewelOS-Karigar-2.0-Phase2-Design.md
 --
 -- Pattern copied from 001_lockdown_rls.sql + 002_atomic_transactions.sql:
@@ -81,7 +81,7 @@ create index if not exists kg_labour_karigar on public.kg_labour_line (karigar_i
 
 -- ── immutability: posted rows can never change or disappear ───────────
 create or replace function public.kg_block_mutation() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = '' as $$
 begin
   raise exception 'kg ledger rows are immutable; post a REVERSAL journal instead';
 end $$;
