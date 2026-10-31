@@ -51,3 +51,6 @@ Thumbs.db
 .claude/skills/vercel-react-view-transitions/
 .claude/skills/web-design-guidelines/
 .claude/skills/writing-guidelines/
+
+# Per-machine Claude Code permissions/plugins
+.claude/settings.local.json
