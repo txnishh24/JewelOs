@@ -137,6 +137,11 @@ function loadFromCloud(callback, skipPush){
     if(Array.isArray(record.suppliers))  S.suppliers   = record.suppliers;
     if(Array.isArray(record.karigars))        S.karigars        = record.karigars;
     if(Array.isArray(record.karigarPayments))  S.karigarPayments = record.karigarPayments;
+    if(Array.isArray(record.kgJobs))   S.kgJobs   = record.kgJobs;
+    if(Array.isArray(record.kgLedger)) S.kgLedger = record.kgLedger;
+    if(Array.isArray(record.kgSalary)) S.kgSalary = record.kgSalary;
+    if(Array.isArray(record.kgPurities)) S.kgPurities = record.kgPurities;
+    if(record.nextKgJobNo > 0) S.nextKgJobNo = record.nextKgJobNo;
     if(Array.isArray(record.purchaseAuditLog)) S.purchaseAuditLog = record.purchaseAuditLog;
     // F2: these were saved but never read back, so a fresh device started
     // empty and its first save wiped them for the whole shop. A blob without
@@ -302,6 +307,11 @@ function saveToCloud(callback){
     suppliers:   S.suppliers || [],
     karigars:        S.karigars || [],
     karigarPayments: S.karigarPayments || [],
+    kgJobs:   S.kgJobs   || [],
+    kgLedger: S.kgLedger || [],
+    kgSalary: S.kgSalary || [],
+    kgPurities: S.kgPurities || [],
+    nextKgJobNo: S.nextKgJobNo || 1,
     purchaseAuditLog: S.purchaseAuditLog || [],
     // FIX: previously never sent to the cloud at all (see removed no-op
     // wrapper in 05-auth-login.js and the rewritten auditLog() function

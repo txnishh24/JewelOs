@@ -1110,6 +1110,7 @@ function renderKarigarList(){
     '</div>';
   }).join('') || '<div style="color:var(--text3);padding:12px;">No karigars yet — assign one from an order (Orders → open an order → Assign to Karigar).</div>';
   wrap.innerHTML = cards;
+  if(typeof renderKgV2 === "function") renderKgV2();   // Karigar V2 section (js/11-karigar.js)
 }
 
 function toggleKarigarProfile(id){
@@ -1238,6 +1239,11 @@ function exportFullBackup(){
       suppliers:  S.suppliers||[],
       karigars:        S.karigars||[],
       karigarPayments: S.karigarPayments||[],
+      kgJobs:     S.kgJobs||[],
+      kgLedger:   S.kgLedger||[],
+      kgSalary:   S.kgSalary||[],
+      kgPurities: S.kgPurities||[],
+      nextKgJobNo:S.nextKgJobNo||1,
       rates:      S.rates,
       purchaseCfg:S.purchaseCfg||null,
       waRules:    S.waRules||null,
@@ -1298,6 +1304,13 @@ function processBackupFile(input){
         if(d.suppliers)  S.suppliers   = d.suppliers;
         if(d.karigars)        S.karigars        = d.karigars;
         if(d.karigarPayments) S.karigarPayments = d.karigarPayments;
+        // Karigar V2: an older backup has none of these, and then the current
+        // V2 records are kept rather than blanked.
+        if(d.kgJobs)     S.kgJobs     = d.kgJobs;
+        if(d.kgLedger)   S.kgLedger   = d.kgLedger;
+        if(d.kgSalary)   S.kgSalary   = d.kgSalary;
+        if(d.kgPurities) S.kgPurities = d.kgPurities;
+        if(d.nextKgJobNo) S.nextKgJobNo = d.nextKgJobNo;
         if(d.rates)      S.rates       = d.rates;
         if(d.purchaseCfg)S.purchaseCfg = d.purchaseCfg;
         if(d.waRules)    S.waRules     = d.waRules;

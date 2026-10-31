@@ -36,7 +36,8 @@ var DB_AUTO_ICONS = {
   sale:     {icon:'💎', color:'var(--gold-dark)'},
   purchase: {icon:'📥', color:'var(--text2)'},
   girvi:    {icon:'🪙', color:'var(--gold)'},
-  order:    {icon:'📝', color:'var(--text2)'}
+  order:    {icon:'📝', color:'var(--text2)'},
+  karigar:  {icon:'👤', color:'var(--text2)'}
 };
 
 // Icon+color for any Day Book line (manual, via DB_CATS; auto, via
@@ -278,6 +279,25 @@ function dbAutoLines(dateKey){
       }
     }
     // D3 o.advance (scalar) is a derived cache when o.ledger exists — never posted directly.
+  });
+
+  // ── E. Karigar V2 salary register (js/11-karigar.js) ────────────────
+  // An ADVANCE or PAYMENT is money out on the day it was recorded; reversing it
+  // puts the money back IN on the day of the reversal (never rewrites the
+  // original day). ACCRUAL and DEDUCTION move no money. Gold never appears here.
+  var _kgS = S.kgSalary || [], _kgById = {};
+  _kgS.forEach(function(e){ _kgById[e.id] = e; });
+  _kgS.forEach(function(e){
+    var base = (e.type === 'REVERSAL') ? _kgById[e.reversesId] : e;
+    if(!base || (base.type !== 'ADVANCE' && base.type !== 'PAYMENT')) return;
+    if(dbDayKey(e.date || e.ts) !== dateKey || !(base.amountPaise > 0)) return;
+    var rev = (e.type === 'REVERSAL'), kname = (findKarigar(base.karigarId) || {}).name || '';
+    var kdir = rev ? 'in' : 'out';
+    var kcat = rev ? 'karigar-salary-reversal' : 'karigar-salary';
+    var klabel = 'Karigar ' + (base.type === 'ADVANCE' ? 'advance' : 'salary') + (kname ? ' - ' + kname : '') + (rev ? ' (reversed)' : '');
+    var kmode = base.mode || 'cash';
+    if(!dbIsCash(kmode)) lines.push({dir:kdir, nonCash:true, mode:kmode, amount:dbRound(base.amountPaise/100), cat:kcat, label:klabel, src:'karigar', srcId:base.karigarId, ref:e.id});
+    else lines.push({dir:kdir, amount:dbRound(base.amountPaise/100), cat:kcat, label:klabel, src:'karigar', srcId:base.karigarId, ref:e.id});
   });
 
   return lines;
