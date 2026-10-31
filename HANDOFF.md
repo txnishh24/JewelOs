@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. batch66 (Karigar V2) is LIVE on the Cloudflare worker (deployed 31 Oct, Version ID `51c7c1aa-714f-4718-a6b4-f174b42cd760`, rollback tag `batch65-live` at 18212bd). Before it: batch65 is LIVE: (Karigars tab + stage box redesign) is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`, verified by `jewelos-deploy-verifier`). Previous live = tag `batch64-live`. `main` pushed to GitHub (30 Oct, at 125904b).
+> Nobody. batch67 (Karigar 2.0 phases 3-4) is LIVE on the Cloudflare worker (deployed 31 Oct, Version ID `9bb23a74-04ab-463a-a296-e588478b3837`, rollback tag `batch66-live`). Before it: batch66 (Karigar V2) was live (Version ID `51c7c1aa-714f-4718-a6b4-f174b42cd760`). Before that: batch65 is LIVE: (Karigars tab + stage box redesign) is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`, verified by `jewelos-deploy-verifier`). Previous live = tag `batch64-live`. `main` pushed to GitHub (30 Oct, at 125904b).
 > batch64 is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `f0455912-83df-4b98-abfa-d4c08cda55be`,
 > verified by `jewelos-deploy-verifier`). `main` pushed to GitHub (30 Oct, at 125904b).
 
@@ -103,6 +103,16 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-10-31 (hundred-and-twenty-eighth entry) · Claude Code (Sonnet) — batch67 (Karigar 2.0 phases 3-4) DEPLOYED to the Cloudflare worker and verified
+
+**Deployed on Tanish's "merge and deploy phases 3 and 4".** Tagged `batch66-live`, merged `karigar-2-phase4` into local `main` (6c097a9; phase 5a ledger branch `karigar-2-phase5a` deliberately NOT merged), wrote `docs/CHANGES-batch67.md`, `node build-cf-deploy-stage.js batch67`, `npx wrangler deploy --dry-run` clean, `npx wrangler deploy`. Live at `https://jewelos.jewelos-e2e.workers.dev`, Version ID `9bb23a74-04ab-463a-a296-e588478b3837`. Rollback: `git checkout batch66-live`, `node build-cf-deploy-stage.js batch66`, `npx wrangler deploy`, back to `main`.
+
+**Verified live (by hand).** sha256 of index.html (redirect followed), sw.js, 00, 01, 04, 05, 10 and 11 js match local; `/CHANGELOG.md` headed batch67; `js/12-karigar-data.js`, wrangler.jsonc, .git/HEAD, HANDOFF.md and the migration all 404. Before deploy: karigar-v2 66/66, regression 489/489, checks clean, headless browser run clean.
+
+**Not verified, plainly.** No real phone; no signed-in session on the live site; `tests/e2e` not run; new keys `kgAgreements`/`kgRoutes` never saved on the live blob. **Risk: a device still on the old JS erases `kgAgreements`/`kgRoutes` on its next save. Reopen the app on every device before setting terms or routes.** Local `main` is NOT pushed to GitHub.
+
+→ FOR COWORK: after Tanish sets one agreement and one route on the live app, confirm in the live `store` blob that `kgAgreements` and `kgRoutes` survive a reload.
 
 ### 2026-10-31 (hundred-and-twenty-fifth entry) · Claude Code (Sonnet) — Karigar 2.0 phase 4 (job management + Today dashboard) BUILT on branch `karigar-2-phase4`; NOT deployed
 
