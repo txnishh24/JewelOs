@@ -104,6 +104,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-03 (hundred-and-thirtieth entry) · Claude Code (Sonnet) — Karigar 2.0 audit + remaining-phases PLAN written; no code changed
+
+Tanish pasted a "complete rebuild" brief. Audit shows phases 1-4 are live and the 5a ledger (branch `karigar-2-phase5a`, test project only) already has most of the requested accounts, so the plan extends rather than rebuilds. Plan: `docs/superpowers/plans/2026-11-03-karigar-2-remaining-phases.md` (12 tasks). Not on the launch gate, so recommended post-launch except Tasks 1-2. Blocked on Tanish's answers: Q7 (external workshop), Q10 (transfers/split rules). Nothing merged, applied or deployed. Not verified: the plan's claims about `exportFullBackup` location and per-piece labour (flagged inside Task 1/12).
+
+**Tanish decided (3 Nov): execute subagent-driven, but only AFTER launch. Do not start any task of this plan before the launch gate is green.**
+
+→ FOR COWORK: nothing — FYI only. Do not start Karigar 2.0 plan tasks before launch.
+**Answered 3 Nov: Q7 yes (outside workshop = own party/khata); Q10 gold may move, owner or any available manager confirms.** Recorded in the plan. Q6, Q8-Q9, Q11-Q24 still open.
+→ FOR TANISH: nothing now; the plan starts after launch.
+
 ### 2026-11-03 (hundred-and-twenty-ninth entry) · Claude Code (Sonnet) — launch-readiness pass: XSS Batch 1 found already done; batch68 security headers COMMITTED, NOT deployed; backup rehearsal passed
 
 **Launch gate agreed with Tanish (3 Nov):** XSS Batch 1, backup rehearsal, security headers. Everything else is post-launch. Launch date = "when the gate is green".
