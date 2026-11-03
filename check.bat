@@ -43,6 +43,8 @@ node tests\regression.test.js
 if errorlevel 1 set FAILED=1
 node tests\karigar-v2.test.js
 if errorlevel 1 set FAILED=1
+node tests\karigar-ledger-client.test.js
+if errorlevel 1 set FAILED=1
 
 echo.
 echo [3/3] Looking for things the code refers to that were never created...

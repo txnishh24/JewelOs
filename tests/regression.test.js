@@ -2395,7 +2395,7 @@ test('every bare string-id spliced into an inline onclick="...(\'+X+\')" across 
   var RAW_PATTERN = /\\''\+([A-Za-z_][\w.\[\]]*)\+'\\'/g;
   var files = ['00-config-state.js','01-sync-core.js','02-ui-inactivity-modals.js','03-billing-numbers.js',
     '04-orders-detail.js','05-auth-login.js','06-inventory-stock.js','07-settings-plans.js',
-    '08-girvi-viewmode.js','09-purchases.js','10-daybook.js','11-karigar.js'];
+    '08-girvi-viewmode.js','09-purchases.js','10-daybook.js','11-karigar.js','12-karigar-data.js'];
   var offenders = [];
   files.forEach(function(f){
     var src = fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf-8');
@@ -6537,6 +6537,7 @@ testAsync('every key saveToCloud sends comes back on a fresh device via loadFrom
     return flushAll().then(function(){
       var lost = Object.keys(sent).filter(function(k){
         var v = sent[k];
+        if(k === '_build') return false; // transport metadata for the server's old-build guard, like _saveId
         if(Array.isArray(v)) return !Array.isArray(b.S[k]) || !v.every(function(x, i){ return b.S[k][i] && b.S[k][i].id === x.id; });
         if(typeof v === 'number') return b.S[k] !== v;
         return false; // objects (rates, purchaseCfg, dayBook) are merged/normalised on load

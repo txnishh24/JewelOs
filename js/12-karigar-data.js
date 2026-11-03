@@ -1,0 +1,206 @@
+// ═══════════════════════════════════════════════════════════════════
+// KARIGAR 2.0 — ledger client (phase 5a). Talks to the immutable journal in Postgres through
+// store-proxy (supabase/migrations/010_karigar_ledger.sql). NOT yet used by any screen: the
+// live V2 screens still read and write the shop blob. Screens switch over (phase 5b) only after
+// the migration has been applied to a test project and you approve.
+//
+// Units: fine gold in integer MILLIGRAMS, labour in integer PAISE. A journal is a set of signed
+// lines that must sum to zero, so metal can never be created or destroyed by one posting.
+//   issue            VAULT -x          KCUST[k] +x
+//   return           KCUST[k] -x       VAULT +x
+//   receive piece    KCUST[k] -y       FG[job] +y
+//   scrap            KCUST[k] -s       SCRAP[k] +s
+//   approved loss    KCUST[k] -l       LOSS[k] +l
+//   transfer         KCUST[a] -t  TRANSIT[v] +t   then   TRANSIT[v] -t  KCUST[b] +t
+//   entitlement      accrue  ENT[k] +e  EARNED[k] -e
+//                    settle  KCUST[k] -e  PAYOUT[k] +e  ENT[k] -e  EARNED[k] +e
+//   opening / adjust VAULT +x OPENING -x   /   KCUST[k] +-a  ADJ[k] -+a
+// Every journal carries a client-made op_id: re-sending it can never post twice.
+// ═══════════════════════════════════════════════════════════════════
+
+// APP_BUILD (js/00-config-state.js) is bumped on every deploy; the server can refuse older builds (MIN_CLIENT_BUILD).
+var KG_J_TYPES = ['ISSUE', 'RETURN', 'RECEIPT', 'SCRAP', 'LOSS', 'TRANSFER_OUT', 'TRANSFER_IN',
+  'ENTITLEMENT_ACCRUE', 'ENTITLEMENT_SETTLE', 'LABOUR_ACCRUE', 'LABOUR_PAY', 'ADJUST', 'OPENING', 'REVERSAL'];
+var KG_J_OWNER_ONLY = ['ADJUST', 'OPENING'];
+var KG_J_ACCOUNTS = ['VAULT', 'KCUST', 'WIP', 'FG', 'SCRAP', 'LOSS', 'TRANSIT', 'ENT', 'EARNED', 'PAYOUT', 'OPENING', 'ADJ'];
+
+function kgJLine(account, ownerRef, fineMg, grossMg, permille){
+  var l = {account:account, owner_ref:ownerRef || '', fine_mg:fineMg};
+  if(grossMg != null) l.gross_mg = grossMg;
+  if(permille != null) l.permille = permille;
+  return l;
+}
+function kgJournalSum(lines){
+  var t = 0; (lines || []).forEach(function(l){ t += l.fine_mg; }); return t;
+}
+
+// Shape + balance check, same limits as the server. Returns '' when fine.
+function kgValidateJournal(j, role){
+  if(!j || typeof j !== 'object') return 'No journal';
+  if(typeof j.op_id !== 'string' || !/^[A-Za-z0-9:_.-]{8,64}$/.test(j.op_id)) return 'Operation id is not valid';
+  if(KG_J_TYPES.indexOf(j.type) === -1) return 'Unknown journal type';
+  if(role && KG_J_OWNER_ONLY.indexOf(j.type) !== -1 && role !== 'owner') return 'Only the owner can post this';
+  if(!kgValidDateKey(j.business_date)) return 'Date is not valid';
+  if(j.type === 'REVERSAL' && !(Math.floor(j.reverses_id) === j.reverses_id)) return 'A reversal must name the journal it reverses';
+  if(j.type !== 'REVERSAL' && j.reverses_id != null) return 'Only a reversal may name a journal';
+  var lines = j.lines || [], labour = j.labour || [];
+  if(lines.length > 20 || labour.length > 20) return 'Too many lines';
+  if(!lines.length && !labour.length) return 'A journal needs at least one line';
+  for(var i = 0; i < lines.length; i++){
+    var l = lines[i];
+    if(KG_J_ACCOUNTS.indexOf(l.account) === -1) return 'Unknown account ' + l.account;
+    if(!(Math.floor(l.fine_mg) === l.fine_mg) || l.fine_mg === 0 || Math.abs(l.fine_mg) > 1e12) return 'Every line needs a non-zero whole-milligram weight';
+    if(l.permille != null && !(Math.floor(l.permille) === l.permille && l.permille >= 1 && l.permille <= 1000)) return 'Fineness is not valid';
+  }
+  if(kgJournalSum(lines) !== 0) return 'Journal does not balance (' + kgFmtG(kgJournalSum(lines)) + ' fine out of balance)';
+  for(var k = 0; k < labour.length; k++){
+    var b = labour[k];
+    if(!b.karigar_id || !(Math.floor(b.amount_paise) === b.amount_paise) || b.amount_paise === 0) return 'Every labour line needs a karigar and a non-zero amount in paise';
+  }
+  return '';
+}
+
+// ── builders: one per event in the table above ──────────────────────
+// o: {opId, date?, jobId?, voucherId?, note?, karigarId, mg?, fineMg?, permille?, ...}
+function kgJHead(type, o){
+  return {op_id:o.opId, type:type, job_id:o.jobId || null, voucher_id:o.voucherId || null, reverses_id:null,
+          business_date:o.date || kgToday(), note:o.note || '', lines:[], labour:[]};
+}
+function kgFineOf(o){
+  if(o.mg != null && o.permille != null){
+    var f = kgFineMg(o.mg, o.permille);
+    if(o.fineMg != null && o.fineMg !== f) return -1;
+    return f;
+  }
+  return o.fineMg;
+}
+// Returns {journal} or {error}.
+function kgBuildJournal(type, o){
+  var j = kgJHead(type, o), f = kgFineOf(o), k = o.karigarId || '';
+  if(f === -1) return {error:'Fine weight does not match weight and purity'};
+  var need = {ISSUE:1, RETURN:1, RECEIPT:1, SCRAP:1, LOSS:1, TRANSFER_OUT:1, TRANSFER_IN:1, ENTITLEMENT_ACCRUE:1, ENTITLEMENT_SETTLE:1, ADJUST:1, OPENING:1};
+  if(need[type] && !(Math.floor(f) === f) ) return {error:'Weight is required'};
+  if((type !== 'ADJUST') && need[type] && !(f > 0)) return {error:'Weight must be more than zero'};
+  var gm = o.mg != null ? o.mg : null, pm = o.permille != null ? o.permille : null;
+  if(type === 'ISSUE')        j.lines = [kgJLine('VAULT', '', -f), kgJLine('KCUST', k, f, gm, pm)];
+  else if(type === 'RETURN')  j.lines = [kgJLine('KCUST', k, -f, gm, pm), kgJLine('VAULT', '', f)];
+  else if(type === 'RECEIPT') j.lines = [kgJLine('KCUST', k, -f), kgJLine('FG', o.jobId || '', f, gm, pm)];
+  else if(type === 'SCRAP')   j.lines = [kgJLine('KCUST', k, -f), kgJLine('SCRAP', k, f, gm, pm)];
+  else if(type === 'LOSS')    j.lines = [kgJLine('KCUST', k, -f), kgJLine('LOSS', k, f)];
+  else if(type === 'TRANSFER_OUT'){ if(!o.voucherId) return {error:'A transfer needs a voucher'}; j.lines = [kgJLine('KCUST', o.fromKarigarId || k, -f), kgJLine('TRANSIT', o.voucherId, f)]; }
+  else if(type === 'TRANSFER_IN'){  if(!o.voucherId) return {error:'A transfer needs a voucher'}; j.lines = [kgJLine('TRANSIT', o.voucherId, -f), kgJLine('KCUST', o.toKarigarId || k, f)]; }
+  else if(type === 'ENTITLEMENT_ACCRUE') j.lines = [kgJLine('ENT', k, f), kgJLine('EARNED', k, -f)];
+  else if(type === 'ENTITLEMENT_SETTLE'){
+    var src = o.from === 'vault' ? kgJLine('VAULT', '', -f) : kgJLine('KCUST', k, -f);
+    j.lines = [src, kgJLine('PAYOUT', k, f), kgJLine('ENT', k, -f), kgJLine('EARNED', k, f)];
+  }
+  else if(type === 'OPENING') j.lines = [kgJLine('VAULT', '', f), kgJLine('OPENING', '', -f)];
+  else if(type === 'ADJUST'){
+    if(!(f && Math.floor(f) === f)) return {error:'Adjustment weight is not valid'};
+    if(String(o.note || '').trim().length < 5) return {error:'A reason (at least 5 letters) is required'};
+    j.lines = [kgJLine('KCUST', k, f), kgJLine('ADJ', k, -f)];
+  }
+  else if(type === 'LABOUR_ACCRUE' || type === 'LABOUR_PAY'){
+    if(!(Math.floor(o.amountPaise) === o.amountPaise) || !(o.amountPaise > 0)) return {error:'Amount is not valid'};
+    j.labour = [{karigar_id:k, amount_paise:(type === 'LABOUR_PAY' ? -o.amountPaise : o.amountPaise), mode:o.mode || null}];
+  }
+  else return {error:'Cannot build a ' + type + ' journal here'};
+  if(o.approve) j.approve = true;
+  return {journal:j};
+}
+// Exact mirror of a journal as the server returned it (lines negated). The database refuses anything else.
+function kgBuildReversal(original, opId, reason, date){
+  if(!original || original.type === 'REVERSAL') return {error:'This journal cannot be reversed'};
+  if(String(reason || '').trim().length < 5) return {error:'A reason (at least 5 letters) is required'};
+  var j = {op_id:opId, type:'REVERSAL', job_id:original.job_id || null, voucher_id:original.voucher_id || null, reverses_id:original.id,
+           business_date:date || kgToday(), note:String(reason).trim(), lines:[], labour:[]};
+  (original.lines || []).forEach(function(l){ j.lines.push(kgJLine(l.account, l.owner_ref, -Number(l.fine_mg), l.gross_mg != null ? -Number(l.gross_mg) : null, l.permille)); });
+  (original.labour || []).forEach(function(b){ j.labour.push({karigar_id:b.karigar_id, amount_paise:-Number(b.amount_paise), mode:b.mode || null}); });
+  return {journal:j};
+}
+
+// ── server calls ─────────────────────────────────────────────────────
+// cb(err, body, status). err is a network failure (retryable); a server answer, even a refusal,
+// arrives as body/status with err null.
+function kgRemote(body, cb){
+  var timer = null, done = false;
+  function finish(a, b, c){ if(done) return; done = true; clearTimeout(timer); cb(a, b, c); }
+  timer = setTimeout(function(){ finish(new Error('timeout')); }, 20000);
+  var payload = {}; Object.keys(body).forEach(function(x){ payload[x] = body[x]; });
+  payload._build = APP_BUILD;
+  fetch(SB_FUNCTIONS + '/store-proxy', {
+    method:'POST',
+    headers:Object.assign({}, SB_HEADERS, {'x-session-token':(typeof SAAS !== 'undefined' && SAAS.sessionToken) || ''}),
+    body:JSON.stringify(payload)
+  }).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(b){ finish(null, b, r.status); });
+  }).catch(function(e){ finish(e || new Error('network')); });
+}
+
+// ── offline outbox: a journal is stored here BEFORE it is sent ──────────
+// Replays are safe: the server ignores an op_id it has already posted.
+function kgOutboxKey(){ return shopScopedKey('kg_outbox'); }
+function kgRejectedKey(){ return shopScopedKey('kg_outbox_rejected'); }
+function kgLsGet(key){ try{ var v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v : []; }catch(e){ return []; } }
+function kgLsSet(key, list){ try{ localStorage.setItem(key, JSON.stringify(list)); return true; }catch(e){ return false; } }
+function kgOutboxList(){ return kgLsGet(kgOutboxKey()); }
+function kgOutboxAdd(j){
+  var list = kgOutboxList();
+  for(var i = 0; i < list.length; i++) if(list[i].op_id === j.op_id) return true;
+  list.push(j);
+  return kgLsSet(kgOutboxKey(), list);
+}
+function kgOutboxRemove(opId){
+  kgLsSet(kgOutboxKey(), kgOutboxList().filter(function(x){ return x.op_id !== opId; }));
+}
+function kgRejectedList(){ return kgLsGet(kgRejectedKey()); }
+function kgRejectedAdd(j, why){
+  var list = kgRejectedList(); list.push({journal:j, why:why, at:new Date().toISOString()});
+  kgLsSet(kgRejectedKey(), list.slice(-50));
+}
+
+// Sends one journal. cb(err, result):
+//   err null, result {ok, duplicate, journal_id}   posted (or already posted)
+//   err.code 'rejected'  the ledger refused it (message says why); removed from the outbox, kept in the rejected list
+//   err.code 'invalid'   caught before sending
+//   err.code 'offline'   saved in the outbox and will be retried
+//   err.code 'outdated'  this app build is too old: reload
+//   err.code 'forbidden' your role cannot post
+function kgSendJournal(j, cb){
+  kgRemote(Object.assign({action:'kg_post'}, j), function(err, body, status){
+    if(err) return cb(Object.assign(new Error('Not sent yet - it is saved and will be retried'), {code:'offline'}));
+    if(status === 200 && body && body.ok){ kgOutboxRemove(j.op_id); return cb(null, body); }
+    if(status === 409 && body && body.error === 'client_outdated') return cb(Object.assign(new Error('Please reload the app to update'), {code:'outdated'}));
+    if(status === 401) return cb(Object.assign(new Error('Please sign in again'), {code:'offline'}));
+    if(status === 403) { kgOutboxRemove(j.op_id); return cb(Object.assign(new Error('Your account cannot post to the ledger'), {code:'forbidden'})); }
+    if(status === 422 || status === 400){
+      kgOutboxRemove(j.op_id);
+      var why = (body && (body.message || body.error)) || 'refused';
+      kgRejectedAdd(j, why);
+      return cb(Object.assign(new Error(why), {code:'rejected'}));
+    }
+    cb(Object.assign(new Error('Server problem - saved and will be retried'), {code:'offline'}));
+  });
+}
+function kgPostJournal(j, cb){
+  var u = kgUser(), bad = kgValidateJournal(j, u.role);
+  if(bad) return cb(Object.assign(new Error(bad), {code:'invalid'}));
+  if(!kgOutboxAdd(j)) return cb(Object.assign(new Error('This device has no room to keep the entry safely - free some storage'), {code:'invalid'}));
+  kgSendJournal(j, cb);
+}
+// Replays everything waiting, oldest first, one at a time. A network failure stops the run.
+var _kgFlushing = false;
+function kgOutboxFlush(cb){
+  if(_kgFlushing){ if(cb) cb(null, {sent:0, left:kgOutboxList().length, busy:true}); return; }
+  _kgFlushing = true;
+  var sent = 0;
+  (function next(){
+    var list = kgOutboxList();
+    if(!list.length){ _kgFlushing = false; if(cb) cb(null, {sent:sent, left:0}); return; }
+    kgSendJournal(list[0], function(err){
+      if(err && (err.code === 'offline' || err.code === 'outdated')){ _kgFlushing = false; if(cb) cb(err, {sent:sent, left:kgOutboxList().length}); return; }
+      sent++;
+      next();
+    });
+  })();
+}
