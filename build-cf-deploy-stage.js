@@ -31,6 +31,8 @@ files.forEach(function (rel) {
   fs.copyFileSync(path.join(root, rel), dest);
 });
 fs.copyFileSync(changesDoc, path.join(stageDir, 'CHANGELOG.md'));
+// Cloudflare static-assets response headers (security headers). Not a servable page.
+fs.copyFileSync(path.join(root, '_headers'), path.join(stageDir, '_headers'));
 
-console.log('staged ' + (files.length + 1) + ' files into ' + stageDir);
+console.log('staged ' + (files.length + 2) + ' files into ' + stageDir);
 console.log('next: npx wrangler deploy --dry-run   (then without --dry-run once checked)');
