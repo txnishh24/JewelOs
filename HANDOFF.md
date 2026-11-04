@@ -104,6 +104,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-04 (hundred-and-thirty-first entry) · Claude Code (Sonnet) — gstack installed for Tanish personally; CLAUDE.md gained gstack routing rules (Claude Code only)
+
+Tanish asked for a comparison of our setup against gstack (`docs/JEWELOS-VS-GSTACK-2026-11-04.pdf`) and to use gstack where it wins. Done: gstack lives in `~/.claude/skills/gstack` on Tanish's machine only (not vendored into the repo; bun 1.4.2 installed for it). `CLAUDE.md` got a `## gstack` section: use `/browse` (not the chrome tools); `/plan-eng-review`, `/plan-design-review`, `/design-review`, `/qa-only` (local build or E2E shop `77c4aefe` only), `/careful`, `/retro`. Our `jewelos-*` agents, `check.bat` and hooks stay. `/ship`, `/land-and-deploy`, `/canary` are banned (they bypass "deploy only when Tanish says so"). `/cso` is not installed (needs C++ build tools).
+
+**Verified:** `/browse` drove the local build (static server on :4173): title "JewelOS v18 — Enterprise Jewellery Management SaaS", login screen renders, zero console errors. Uses gstack's own headless browser (no Aside on Windows). **Not verified:** any other gstack skill; `/qa-only` against a real flow. No `js/` change, so `check.bat` was not run.
+
+→ FOR COWORK: nothing — FYI only. Ignore the `## gstack` section in `CLAUDE.md`; you cannot use gstack, and the chrome-tools ban is for Claude Code only.
+
 ### 2026-11-03 (hundred-and-thirtieth entry) · Claude Code (Sonnet) — Karigar 2.0: audit report + remaining-phases PLAN written (Tasks 1-2 done); phase 5a ledger MERGED into main, idle, NOT deployed
 
 Tanish pasted a "complete rebuild" brief. Phases 1-4 are live and the 5a ledger already has most of the requested accounts, so the plan extends rather than rebuilds. Plan: `docs/superpowers/plans/2026-11-03-karigar-2-remaining-phases.md` (12 tasks). Audit: `docs/KARIGAR-2-ARCHITECTURE-AUDIT.md` (found: no per-piece labour; no pending-loss state in the 010 ledger; 7-place key list; Q6, Q8-Q9, Q11-Q24 still open).

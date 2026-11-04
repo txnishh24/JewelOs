@@ -173,3 +173,30 @@ matching file in this folder's `.claude/agents/` directly instead of invoking it
 agent. For its own research-heavy or multi-file work (competitive research, a live-site
 audit, searching across many files), Cowork uses its own available agent types (e.g.
 general-purpose, Explore) at its own discretion, same standing-rule logic.
+
+## gstack
+
+Use the `/browse` skill from gstack for all web browsing. Never use `mcp__claude-in-chrome__*` tools.
+
+**gstack routing (Claude Code only, added 4 Nov 2026 from `docs/JEWELOS-VS-GSTACK-2026-11-04.pdf`).**
+gstack is installed for Tanish personally, not for the repo. Cowork cannot use it. Where a gstack
+skill beat our own in that comparison, use it, same standing rule as the agent table (decide
+yourself, don't ask which):
+
+| Job | Use | Instead of |
+|---|---|---|
+| Plan a 🔴 task or a new feature, before code | `/plan-eng-review` (Opus, per `MODEL-POLICY.md`) | planning ad hoc |
+| Plan or review UI work | `/plan-design-review`, then `/design-review` after | `Frontend Developer` for review only |
+| Find new bugs in a real browser | `/qa-only` against a **local build or the E2E test shop `77c4aefe`**, never a customer shop | nothing (our e2e specs stay too) |
+| Destructive work: migration, deploy, `store-proxy`/DB changes | `/careful` first | nothing |
+| Before launch, and monthly | `/retro` | nothing (HANDOFF stays the record) |
+
+Still ours, do not swap: `jewelos-bug-pattern-reviewer`, `jewelos-invariant-tester`,
+`jewelos-security-auditor`, `jewelos-test-runner`, `jewelos-deploy-verifier`, `jewelos-handoff-writer`,
+`check.bat`, the hooks. They know the five bug families and the one-JSON-blob rules.
+
+Never run `/ship`, `/land-and-deploy` or `/canary`: they bypass "deploy only when Tanish says so",
+the HANDOFF claim, and `jewelos-deploy-verifier`. `/cso` is not installed (needs C++ build tools).
+gstack skills are not agents, so they do not count toward the two-agent limit. If one spawns agents
+of its own, count those. Any gstack skill that edits files still follows the clean-tree rule and
+`check.bat` before hand-back.
