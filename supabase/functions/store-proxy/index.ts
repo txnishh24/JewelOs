@@ -45,12 +45,13 @@ const ALLOWED_COUNTERS = new Set([
 // ── Karigar 2.0 ledger (supabase/migrations/010_karigar_ledger.sql) ──
 // The shop id is NEVER read from the request: it is the tenant resolved from the session
 // token, exactly like the blob. Only owner and manager may touch the ledger; ADJUST and
-// OPENING are owner-only. Staff and readonly are refused.
+// OPENING and ENTITLEMENT_ACCRUE are owner-only (migration 011 enforces this in the database too).
+// Staff and readonly are refused.
 const KG_TYPES = new Set([
   "ISSUE", "RETURN", "RECEIPT", "SCRAP", "LOSS", "TRANSFER_OUT", "TRANSFER_IN",
   "ENTITLEMENT_ACCRUE", "ENTITLEMENT_SETTLE", "LABOUR_ACCRUE", "LABOUR_PAY", "ADJUST", "OPENING", "REVERSAL",
 ]);
-const KG_OWNER_ONLY = new Set(["ADJUST", "OPENING"]);
+const KG_OWNER_ONLY = new Set(["ADJUST", "OPENING", "ENTITLEMENT_ACCRUE"]);
 const KG_ACCOUNTS = new Set([
   "VAULT", "KCUST", "WIP", "FG", "SCRAP", "LOSS", "TRANSIT", "ENT", "EARNED", "PAYOUT", "OPENING", "ADJ",
 ]);
@@ -100,7 +101,8 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
     if (!l || typeof l !== "object") return "bad line";
     if (typeof l.account !== "string" || !KG_ACCOUNTS.has(l.account)) return "unknown account";
     const ref = l.owner_ref == null ? "" : l.owner_ref;
-    if (!isStr(ref, 64)) return "owner_ref too long";
+    // plain ids only (letters, digits, _ and -): the database applies the same rule per account
+    if (!isStr(ref, 64) || !/^[A-Za-z0-9_-]*$/.test(ref as string)) return "owner_ref invalid";
     if (!isInt(l.fine_mg) || l.fine_mg === 0 || Math.abs(l.fine_mg as number) > 1e12) return "fine_mg must be a non-zero whole number";
     if (l.gross_mg != null && (!isInt(l.gross_mg) || Math.abs(l.gross_mg as number) > 1e12)) return "gross_mg invalid";
     if (l.permille != null && (!isInt(l.permille) || (l.permille as number) < 1 || (l.permille as number) > 1000)) return "permille invalid";

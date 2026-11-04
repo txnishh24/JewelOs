@@ -71,7 +71,7 @@ ok(await bal('A', 'PAYOUT', 'k1') === 4000 && await bal('A', 'KCUST', 'k1') === 
 r = await post('A', 'TRANSFER_OUT', [L('KCUST', 'k1', -10000), L('TRANSIT', 'TV1', 10000)], { voucher: 'TV1' }); ok(r.ok, 'transfer out');
 r = await post('A', 'TRANSFER_IN', [L('TRANSIT', 'TV1', -10000), L('KCUST', 'k2', 10000)], { voucher: 'TV1' }); ok(r.ok, 'transfer in');
 ok(await bal('A', 'TRANSIT', 'TV1') === 0 && await bal('A', 'KCUST', 'k2') === 10000, 'in-transit clears, receiver holds it');
-r = await post('A', 'TRANSFER_IN', [L('TRANSIT', 'TV1', -10000), L('KCUST', 'k2', 10000)]);
+r = await post('A', 'TRANSFER_IN', [L('TRANSIT', 'TV1', -10000), L('KCUST', 'k2', 10000)], { voucher: 'TV1' });
 ok(!r.ok && /negative/.test(r.error), 'a voucher cannot be confirmed twice');
 
 // 8 reversal: exact mirror only, once only
@@ -296,6 +296,49 @@ for (const [t, role, label] of [[null, 'owner', 'type'], ['ISSUE', null, 'role']
     ['V', 'nullchk-' + label, t, 'J1', null, null, ist(0), '', 'tester', role, null, '{}', JSON.stringify([L('VAULT', '', -1), L('KCUST', 'k1', 1)]), '[]']);
   ok(!q.rows[0].ok && /required/.test(q.rows[0].error), 'D2: a missing ' + label + ' is refused');
 }
+
+
+// ── 17 third audit, decisions D1 (reference rules) and D3 (reversal authority) ──
+// D1: a karigar reference must be a plain id (letters, digits, _ and -): no spaces, no invisible characters
+await db.query("insert into kg_shop_setting (shop_id, vault_tracked) values ('W', true)");
+await post('W', 'OPENING', [L('VAULT', '', 20000), L('OPENING', '', -20000)]);
+for (const [ref, label] of [['k1 ', 'trailing space'], [' ', 'a space'], ['K1​', 'zero-width space'], ['k 1', 'non-breaking space'], ['a/b', 'a slash']]) {
+  r = await post('W', 'ISSUE', [L('VAULT', '', -100), L('KCUST', ref, 100)], { role: 'manager' });
+  ok(!r.ok && /owner reference/.test(r.error), 'D1: karigar reference with ' + label + ' is refused');
+}
+r = await post('W', 'ISSUE', [L('VAULT', '', -100), L('KCUST', 'kar1730000000000123', 100)], { role: 'manager' });
+ok(r.ok, 'D1: a real karigar id (kar + digits) is accepted');
+r = await post('W', 'ISSUE', [L('VAULT', '', -100), L('KCUST', '3f2b8c1e-9a4d-4e6b-8f10-2c7d5a9e0b11', 100)], { role: 'manager', job: 'x' });
+ok(r.ok, 'D1: a UUID karigar id is accepted');
+
+// D1: scrap and loss name the same karigar as the custody they come out of
+await post('W', 'ISSUE', [L('VAULT', '', -1000), L('KCUST', 'ka', 1000)]);
+r = await post('W', 'SCRAP', [L('KCUST', 'ka', -50), L('SCRAP', 'kb', 50)], { role: 'manager' });
+ok(!r.ok && /same karigar/.test(r.error), 'D1: scrap cannot be booked against a different karigar');
+r = await post('W', 'LOSS', [L('KCUST', 'ka', -50), L('LOSS', 'kb', 50)], { approved: 'owner1' });
+ok(!r.ok && /same karigar/.test(r.error), 'D1: a loss cannot be booked against a different karigar');
+r = await post('W', 'SCRAP', [L('KCUST', 'ka', -50), L('SCRAP', 'ka', 50)], { role: 'manager' }); ok(r.ok, 'D1: scrap for the same karigar posts');
+
+// D1: a transit line belongs to its voucher
+r = await post('W', 'TRANSFER_OUT', [L('KCUST', 'ka', -100), L('TRANSIT', '', 100)], { role: 'manager' });
+ok(!r.ok && /voucher/.test(r.error), 'D1: a transfer into a blank transit pool is refused');
+r = await post('W', 'TRANSFER_OUT', [L('KCUST', 'ka', -100), L('TRANSIT', 'TV9', 100)], { role: 'manager' });
+ok(!r.ok && /voucher/.test(r.error), 'D1: a transfer with no voucher id is refused');
+r = await post('W', 'TRANSFER_OUT', [L('KCUST', 'ka', -100), L('TRANSIT', 'TV9', 100)], { role: 'manager', voucher: 'TV9' }); ok(r.ok, 'D1: a transfer out with its voucher posts');
+r = await post('W', 'TRANSFER_IN', [L('TRANSIT', 'TV9', -100), L('KCUST', 'kc', 100)], { role: 'manager', voucher: 'OTHER' });
+ok(!r.ok && /voucher/.test(r.error), 'D1: a transfer in cannot name a different voucher than its transit line');
+r = await post('W', 'TRANSFER_IN', [L('TRANSIT', 'TV9', -100), L('KCUST', 'kc', 100)], { role: 'manager', voucher: 'TV9' }); ok(r.ok, 'D1: the matching transfer in posts');
+
+// D3: a reversal of anything that carries an approver needs the owner; ordinary journals can still be reversed by a manager
+await post('K', 'ISSUE', [L('VAULT', '', -1000), L('KCUST', 'kk', 1000)], { op: 'k-issue-1' });
+r = await post('K', 'LOSS', [L('KCUST', 'kk', -100), L('LOSS', 'kk', 100)], { approved: 'owner1', op: 'k-loss-01' });
+const kLoss = r.journal_id;
+r = await post('K', 'REVERSAL', [L('KCUST', 'kk', 100), L('LOSS', 'kk', -100)], { reverses: kLoss, role: 'manager' });
+ok(!r.ok && /owner/.test(r.error), 'D3: a manager cannot reverse an owner-approved loss');
+r = await post('K', 'REVERSAL', [L('KCUST', 'kk', 100), L('LOSS', 'kk', -100)], { reverses: kLoss }); ok(r.ok, 'D3: the owner can reverse it');
+const kIssue = (await db.query("select id from kg_journal where shop_id='K' and op_id='k-issue-1'")).rows[0].id;
+r = await post('K', 'REVERSAL', [L('VAULT', '', 1000), L('KCUST', 'kk', -1000)], { reverses: kIssue, role: 'manager' });
+ok(r.ok, 'D3: a manager can still reverse an ordinary journal that had no approver');
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);

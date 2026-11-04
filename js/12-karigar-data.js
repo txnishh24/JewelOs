@@ -21,7 +21,7 @@
 // APP_BUILD (js/00-config-state.js) is bumped on every deploy; the server can refuse older builds (MIN_CLIENT_BUILD).
 var KG_J_TYPES = ['ISSUE', 'RETURN', 'RECEIPT', 'SCRAP', 'LOSS', 'TRANSFER_OUT', 'TRANSFER_IN',
   'ENTITLEMENT_ACCRUE', 'ENTITLEMENT_SETTLE', 'LABOUR_ACCRUE', 'LABOUR_PAY', 'ADJUST', 'OPENING', 'REVERSAL'];
-var KG_J_OWNER_ONLY = ['ADJUST', 'OPENING'];
+var KG_J_OWNER_ONLY = ['ADJUST', 'OPENING', 'ENTITLEMENT_ACCRUE'];
 var KG_J_ACCOUNTS = ['VAULT', 'KCUST', 'WIP', 'FG', 'SCRAP', 'LOSS', 'TRANSIT', 'ENT', 'EARNED', 'PAYOUT', 'OPENING', 'ADJ'];
 
 function kgJLine(account, ownerRef, fineMg, grossMg, permille){

@@ -72,6 +72,7 @@ begin
   end if;
   for v_line in select * from jsonb_array_elements(p_lines) loop
     if jsonb_typeof(v_line) <> 'object'
+       or coalesce(jsonb_typeof(v_line->'owner_ref'), 'string') not in ('string', 'null')
        or coalesce(jsonb_typeof(v_line->'account'), '') <> 'string'
        or coalesce(jsonb_typeof(v_line->'fine_mg'), '') <> 'number'
        or (v_line->>'fine_mg') !~ '^-?[0-9]{1,15}$' or (v_line->>'fine_mg') ~ '^-?0+$'
@@ -124,7 +125,10 @@ begin
       -- owner references (D2): the shop vault and the OPENING account have none; karigar accounts must name a karigar.
       -- Without this, metal can be parked under a made-up vault name that no screen reads.
       if ((v_line->>'account') in ('VAULT', 'OPENING') and coalesce(v_line->>'owner_ref', '') <> '')
-         or ((v_line->>'account') in ('KCUST', 'ENT', 'EARNED', 'PAYOUT') and coalesce(v_line->>'owner_ref', '') = '') then
+         or ((v_line->>'account') in ('KCUST', 'ENT', 'EARNED', 'PAYOUT', 'SCRAP', 'LOSS')
+             and coalesce(v_line->>'owner_ref', '') !~ '^[A-Za-z0-9_-]{1,64}$') then
+        -- a karigar reference is a plain id (existing ids are "kar" + digits or a UUID): no spaces, no
+        -- look-alike or invisible characters. The database has no karigar list, so a well-formed made-up id still passes.
         return query select false, false, null::bigint,
           'owner reference does not fit account ' || (v_line->>'account'); return;
       end if;
@@ -133,6 +137,17 @@ begin
     -- the accounts being allowed is not enough: the lines must have the exact shape of the event
     if jsonb_array_length(p_lines) = 0 and p_type not in ('LABOUR_ACCRUE', 'LABOUR_PAY') then
       return query select false, false, null::bigint, 'a journal needs at least one line'; return;
+    end if;
+    -- a transit line belongs to its own voucher; scrap and loss come out of the same karigar's custody
+    if exists (select 1 from jsonb_array_elements(p_lines) l where l->>'account' = 'TRANSIT'
+               and (p_voucher_id is null or coalesce(l->>'owner_ref', '') = '' or l->>'owner_ref' <> p_voucher_id)) then
+      return query select false, false, null::bigint, 'a transit line must carry the id of its own voucher'; return;
+    end if;
+    if p_type in ('SCRAP', 'LOSS') and not exists (
+         select 1 from jsonb_array_elements(p_lines) a, jsonb_array_elements(p_lines) b
+         where a->>'account' = 'KCUST' and b->>'account' = p_type
+           and coalesce(a->>'owner_ref', '') = coalesce(b->>'owner_ref', '')) then
+      return query select false, false, null::bigint, 'a scrap or loss must name the same karigar as the custody it comes from'; return;
     end if;
     -- accrue: ENT +e and EARNED -e, same karigar, nothing else
     if p_type = 'ENTITLEMENT_ACCRUE' and not (jsonb_array_length(p_lines) = 2 and exists (
@@ -197,7 +212,8 @@ begin
     if not found then return query select false, false, null::bigint, 'reversal target not found'; return; end if;
     if v_target.type = 'REVERSAL' then return query select false, false, null::bigint, 'cannot reverse a reversal'; return; end if;
     -- a reversal needs the authority of the original (the line check above also catches old rows)
-    if p_by_role <> 'owner' and v_target.type in ('ADJUST', 'OPENING', 'ENTITLEMENT_ACCRUE') then
+    -- (anything the owner approved, such as an approved loss, can only be undone by the owner)
+    if p_by_role <> 'owner' and (v_target.type in ('ADJUST', 'OPENING', 'ENTITLEMENT_ACCRUE') or v_target.approved_by is not null) then
       return query select false, false, null::bigint, 'owner only'; return;
     end if;
     -- metal lines must mirror the target exactly: same accounts and owners, fine_mg negated, same count
