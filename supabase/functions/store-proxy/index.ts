@@ -117,7 +117,8 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
     if (keys.length > 10) return "meta too large";
     for (const k of keys) {
       const v = (b.meta as Record<string, unknown>)[k];
-      if (!/^[a-z_]{1,24}$/.test(k) || !isStr(v, 120)) return "meta invalid";
+      // "h" is the server's own op_id fingerprint (migration 011); a client may not set it
+      if (k === "h" || !/^[a-z_]{1,24}$/.test(k) || !isStr(v, 120)) return "meta invalid";
       meta[k] = v as string;
     }
   }

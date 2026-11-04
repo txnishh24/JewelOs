@@ -43,9 +43,9 @@ begin
   v_labour := case when p_labour is null or jsonb_typeof(p_labour) = 'null' then '[]'::jsonb else p_labour end;
 
   -- D9: fingerprint of what this call asks for (not note/meta, which may legitimately differ)
-  v_hash := md5(concat_ws('|', coalesce(p_type,''), coalesce(p_job_id,''), coalesce(p_voucher_id,''),
-                          coalesce(p_reverses_id::text,''), coalesce(p_business_date::text,''),
-                          coalesce(p_lines::text,''), v_labour::text));
+  -- built as a JSON array so where one field ends is never ambiguous (a plain '|' join is)
+  v_hash := md5(jsonb_build_array(coalesce(p_type,''), p_job_id, p_voucher_id, p_reverses_id,
+                                  p_business_date, p_lines, v_labour)::text);
 
   select id, meta->>'h' into v_existing, v_oldhash from kg_journal where shop_id = p_shop_id and op_id = p_op_id;
   if v_existing is not null then
@@ -117,6 +117,49 @@ begin
           'account ' || (v_line->>'account') || ' is not allowed in a ' || p_type || ' journal in that direction'; return;
       end if;
     end loop;
+
+    -- the accounts being allowed is not enough: the lines must have the exact shape of the event
+    if jsonb_array_length(p_lines) = 0 and p_type not in ('LABOUR_ACCRUE', 'LABOUR_PAY') then
+      return query select false, false, null::bigint, 'a journal needs at least one line'; return;
+    end if;
+    -- accrue: ENT +e and EARNED -e, same karigar, nothing else
+    if p_type = 'ENTITLEMENT_ACCRUE' and not (jsonb_array_length(p_lines) = 2 and exists (
+         select 1 from jsonb_array_elements(p_lines) a, jsonb_array_elements(p_lines) b
+         where a->>'account' = 'ENT' and b->>'account' = 'EARNED'
+           and coalesce(a->>'owner_ref','') = coalesce(b->>'owner_ref','')
+           and (a->>'fine_mg')::bigint = -(b->>'fine_mg')::bigint)) then
+      return query select false, false, null::bigint, 'an entitlement accrual must be exactly ENT +e and EARNED -e for one karigar'; return;
+    end if;
+    -- settle: source -e (that karigar's KCUST, or the VAULT), PAYOUT +e, ENT -e, EARNED +e, one karigar, nothing else
+    if p_type = 'ENTITLEMENT_SETTLE' and not (jsonb_array_length(p_lines) = 4 and exists (
+         select 1 from jsonb_array_elements(p_lines) pay
+         where pay->>'account' = 'PAYOUT' and (pay->>'fine_mg')::bigint > 0
+           and (select count(*) from jsonb_array_elements(p_lines) x where x->>'account' = 'PAYOUT') = 1
+           and (select count(*) from jsonb_array_elements(p_lines) x
+                where x->>'account' = 'ENT' and coalesce(x->>'owner_ref','') = coalesce(pay->>'owner_ref','')
+                  and (x->>'fine_mg')::bigint = -(pay->>'fine_mg')::bigint) = 1
+           and (select count(*) from jsonb_array_elements(p_lines) x
+                where x->>'account' = 'EARNED' and coalesce(x->>'owner_ref','') = coalesce(pay->>'owner_ref','')
+                  and (x->>'fine_mg')::bigint = (pay->>'fine_mg')::bigint) = 1
+           and (select count(*) from jsonb_array_elements(p_lines) x
+                where ((x->>'account' = 'KCUST' and coalesce(x->>'owner_ref','') = coalesce(pay->>'owner_ref',''))
+                       or (x->>'account' = 'VAULT' and coalesce(x->>'owner_ref','') = ''))
+                  and (x->>'fine_mg')::bigint = -(pay->>'fine_mg')::bigint) = 1)) then
+      return query select false, false, null::bigint, 'an entitlement settlement must be exactly: source -e, PAYOUT +e, ENT -e, EARNED +e, for one karigar'; return;
+    end if;
+    -- labour lines must fit the type and direction: accrue adds to what is owed, pay reduces it, metal journals carry none
+    if (p_type = 'LABOUR_ACCRUE' and (jsonb_array_length(v_labour) = 0
+          or exists (select 1 from jsonb_array_elements(v_labour) b where (b->>'amount_paise')::bigint < 0)))
+       or (p_type = 'LABOUR_PAY' and (jsonb_array_length(v_labour) = 0
+          or exists (select 1 from jsonb_array_elements(v_labour) b where (b->>'amount_paise')::bigint > 0)))
+       or (p_type not in ('LABOUR_ACCRUE', 'LABOUR_PAY') and jsonb_array_length(v_labour) > 0) then
+      return query select false, false, null::bigint, 'labour lines do not fit a ' || p_type || ' journal'; return;
+    end if;
+  end if;
+
+  -- only a reversal may name a journal (store-proxy checks this too; the database must not rely on it)
+  if p_type <> 'REVERSAL' and p_reverses_id is not null then
+    return query select false, false, null::bigint, 'only a reversal may name a journal to reverse'; return;
   end if;
 
   -- owner only: ADJUST / OPENING, and any line on the ADJ / OPENING accounts (also in a reversal)
@@ -201,7 +244,7 @@ begin
                                        from jsonb_array_elements(p_lines) a)
     group by l.account, l.owner_ref
   loop
-    if r.bal < 0 and r.account in ('KCUST','WIP','FG','SCRAP','TRANSIT')
+    if r.bal < 0 and r.account in ('KCUST','WIP','FG','SCRAP','TRANSIT','ENT')
        or (r.bal < 0 and r.account = 'VAULT' and v_vault) then
       raise exception 'account % % would go negative (%)', r.account, r.owner_ref, r.bal
         using errcode = 'KG001';

@@ -210,5 +210,53 @@ r = await post('G', 'SCRAP', [L('KCUST', 'kg', -1), L('SCRAP', 'kg', 1)], { role
 r = await post('G', 'SCRAP', [L('KCUST', 'kg', -1), L('SCRAP', 'kg', 1)], { role: 'manager', date: ist(0) }); ok(r.ok, 'D10: today is allowed');
 r = await post('G', 'SCRAP', [L('KCUST', 'kg', -1), L('SCRAP', 'kg', 1)], { role: 'owner', date: ist(-30) }); ok(r.ok, 'D10: the owner may back-date');
 
+// ── 15 audit follow-up (4 Nov): settlement shape, labour template, cross-shop reverses_id, fingerprint, empty journals ──
+// a manager must not be able to write off custody or empty a tracked vault through an ENTITLEMENT_SETTLE
+await post('H', 'ISSUE', [L('VAULT', '', -50000), L('KCUST', 'kh', 50000)]);
+r = await post('H', 'ENTITLEMENT_SETTLE', [L('KCUST', 'kh', -20000), L('PAYOUT', 'kh', 20000)], { role: 'manager' });
+ok(!r.ok && /settlement/.test(r.error), 'audit1: a settlement without ENT/EARNED cannot write off custody');
+r = await post('H', 'ENTITLEMENT_SETTLE', [L('KCUST', 'kh', -1000), L('EARNED', 'zz', 1000)], { role: 'manager' });
+ok(!r.ok && /settlement/.test(r.error), 'audit1: a settlement that pays nobody is refused');
+r = await post('H', 'ENTITLEMENT_SETTLE', [L('ENT', 'kh', -7), L('PAYOUT', 'kh', 7)], { role: 'manager' });
+ok(!r.ok && /settlement/.test(r.error), 'audit1: ENT cannot be driven negative by a two-line settlement');
+r = await post('H', 'ENTITLEMENT_SETTLE', [L('KCUST', 'kh', -500), L('PAYOUT', 'kh', 500), L('ENT', 'kx', -500), L('EARNED', 'kh', 500)], { role: 'manager' });
+ok(!r.ok && /settlement/.test(r.error), 'audit1: a settlement must be for one karigar');
+r = await post('H', 'ENTITLEMENT_ACCRUE', [L('ENT', 'kh', 100), L('EARNED', 'zz', -100)], { role: 'manager' });
+ok(!r.ok && /one karigar/.test(r.error), 'audit1: an accrual must clear against the same karigar');
+r = await post('H', 'ENTITLEMENT_ACCRUE', [L('ENT', 'kh', 100), L('EARNED', 'kh', -100)], { role: 'manager' }); ok(r.ok, 'audit1: a proper accrual posts');
+r = await post('H', 'ENTITLEMENT_SETTLE', [L('KCUST', 'kh', -200), L('PAYOUT', 'kh', 200), L('ENT', 'kh', -200), L('EARNED', 'kh', 200)], { role: 'manager' });
+ok(!r.ok && /negative/.test(r.error), 'audit1: a settlement cannot pay out more than was accrued (ENT never below zero)');
+r = await post('H', 'ENTITLEMENT_SETTLE', [L('KCUST', 'kh', -100), L('PAYOUT', 'kh', 100), L('ENT', 'kh', -100), L('EARNED', 'kh', 100)], { role: 'manager' });
+ok(r.ok, 'audit1: a settlement up to the accrued amount posts');
+await db.query("insert into kg_shop_setting (shop_id, vault_tracked) values ('I', true)");
+await post('I', 'OPENING', [L('VAULT', '', 9000), L('OPENING', '', -9000)]);
+r = await post('I', 'ENTITLEMENT_SETTLE', [L('VAULT', '', -9000), L('PAYOUT', 'x', 9000)], { role: 'manager' });
+ok(!r.ok && /settlement/.test(r.error) && await bal('I', 'VAULT', '') === 9000, 'audit1: a manager cannot empty a tracked vault through a settlement');
+
+// labour lines must fit the journal type and direction
+r = await post('H', 'LABOUR_PAY', [], { role: 'manager', labour: [{ karigar_id: 'kh', amount_paise: 999999 }] });
+ok(!r.ok && /labour/.test(r.error), 'audit2: LABOUR_PAY must reduce what is owed (negative)');
+r = await post('H', 'LABOUR_ACCRUE', [], { role: 'manager', labour: [{ karigar_id: 'kh', amount_paise: -5 }] });
+ok(!r.ok && /labour/.test(r.error), 'audit2: LABOUR_ACCRUE must add to what is owed (positive)');
+r = await post('H', 'ISSUE', [L('VAULT', '', -1), L('KCUST', 'kh', 1)], { role: 'manager', labour: [{ karigar_id: 'kh', amount_paise: -5000 }] });
+ok(!r.ok && /labour/.test(r.error), 'audit2: a metal journal cannot carry labour lines (no quiet erasing of a payable)');
+r = await post('H', 'LABOUR_ACCRUE', [], { role: 'manager', labour: [] });
+ok(!r.ok && /labour/.test(r.error), 'audit2: a labour journal with no labour is refused');
+r = await post('H', 'LABOUR_PAY', [], { role: 'manager', labour: [{ karigar_id: 'kh', amount_paise: -300 }] }); ok(r.ok, 'audit2: a proper labour payment posts');
+
+// only a reversal may name a journal, enforced in the database
+const anyA = (await db.query("select id from kg_journal where shop_id='A' limit 1")).rows[0].id;
+r = await post('B', 'LABOUR_ACCRUE', [], { reverses: anyA, labour: [{ karigar_id: 'kb', amount_paise: 1 }] });
+ok(!r.ok && /reverse/.test(r.error), 'audit6: a non-reversal cannot name a journal (so it cannot use up another shop\'s reversal slot)');
+
+// the fingerprint is unambiguous about where one field ends
+r = await post('J', 'ISSUE', [L('VAULT', '', -10), L('KCUST', 'kj', 10)], { op: 'fp-sep-01', job: 'a|b' }); ok(r.ok, 'audit5: seed');
+r = await post('J', 'ISSUE', [L('VAULT', '', -10), L('KCUST', 'kj', 10)], { op: 'fp-sep-01', job: 'a', voucher: 'b|' });
+ok(!r.ok && /different content/.test(r.error), 'audit5: job a|b and job a + voucher b| are different content');
+
+// an empty metal journal is not a journal
+r = await post('J', 'ISSUE', []);
+ok(!r.ok && /at least one line/.test(r.error), 'a metal journal with no lines is refused');
+
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);
