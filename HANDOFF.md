@@ -104,6 +104,18 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-04 (hundred-and-forty-second entry) · Claude Code (Sonnet) — Opus review of the merged Task 2.5 tree: SAFE TO APPLY 011; three small `store-proxy` fixes; nothing applied or deployed yet
+
+`jewelos-security-auditor` on Opus (MODEL-POLICY 🔴 sign-off for the apply, Tanish still decides): **no way found** for a manager, staff or readonly user to create or destroy metal or labour, forge a reversal, bypass the account/sign/pairing templates, abuse `op_id`, cross shops, leak raw database text, or break old clients. 011 applies cleanly on the original 010 AND on production's current (in-place edited) 010: `create or replace` leaves exactly one `kg_post_journal` with 011's body. SQL test 188/188 on both bases, run twice. **Not checked by it:** the live production function body (assumed to be the `2ff1ffa` text), that deployed `store-proxy` v15 equals the repo, e2e, `npm audit`.
+
+Fixed now in `supabase/functions/store-proxy/index.ts` (not deployed): `isStr` refuses a NUL character (it became a 500 the client retried forever, jamming that device's queue); labour `karigar_id` must be plain `A-Za-z0-9_-`; a stale comment that said accrual is owner only. **Not verified:** the edited TypeScript was not run or type-checked (no Deno, and `sucrase` is missing for `tests/edge-functions.test.js`).
+
+Left open, all low: fingerprint depends on line order (a future change to the normalised line shape would 422 a retry of an already-posted journal); owner ADJUST template allows custody moved between two karigars with no ADJ line; the client keeps only the last 50 rejected journals; 010's header comment still says "not applied to production".
+
+Next, each needing Tanish's separate GO: apply `011_karigar_ledger_hardening.sql`, then deploy `store-proxy` v16 from this file, then the worker (GO #3).
+
+→ FOR COWORK: nothing — FYI only. Do not apply 011, redeploy `store-proxy` or deploy the worker until Tanish says so.
+
 ### 2026-11-04 (hundred-and-forty-first entry) · Claude Code (Sonnet) — RECONCILED two parallel Task 2.5 branches; worker deploy still NOT done; production now differs from the repo (read this before any deploy)
 
 **What happened.** While I was deploying (GO #1 migration 010, GO #2 `store-proxy` v15), another session had built Task 2.5 independently on branch `karigar-2-task-2-5` in `E:\jewelos` (its 135th/136th entries, kept below, labelled BRANCH). Mine edited migration 010 in place; theirs added a separate `011_karigar_ledger_hardening.sql`, with stricter rules found by a third audit (plain ids, exactly two lines per metal event, voucher pairing, SCRAP/LOSS name the same karigar, reversal of an approved journal needs the owner). I merged `karigar-2-task-2-5` into `claude/yoo-e1b0af` and took THEIR version of the Task 2.5 code and SQL test as the base, because its audit is later and stricter.
