@@ -91,6 +91,10 @@ Source: the automated review of the phase 5a push (4 Nov), logged in `HANDOFF.md
 - [ ] **Step 2 (finding 1, HIGH: gate checks the type label, not the lines):** Failing test first: a `manager` posts type `REVERSAL` or `RECEIPT` with a line on `OPENING` or `ADJ`; expect refusal and zero new rows. Then enforce inside `kg_post_journal` a per-type table of allowed (account, sign) pairs: `OPENING` and `ADJ` lines only for types `OPENING` / `ADJUST`; mirrored accounts only for `REVERSAL`; labour lines rejected on non-labour types; and refuse any `OPENING` / `ADJ` line unless the caller is owner. The `store-proxy` check stays as a first line of defence, not the only one.
 - [ ] **Step 3 (finding 2, MEDIUM: catch-all exception handler):** Failing test first: force a non-business error (for example a dropped connection or a serialization failure) and assert the client receives a generic failure and keeps the journal in its outbox for retry, with no raw `sqlerrm` text in the response. Then catch only the ledger's own refusals (raise them with a dedicated SQLSTATE) and let every other exception propagate.
 - [ ] **Step 4 (finding 3, MEDIUM: LOSS without approval):** Failing test first: a `LOSS` journal with `p_approved_by` null is refused. Then refuse it in `kg_post_journal`. This is the interim rule until Task 8 builds the pending-approval flow; Task 8 then replaces it with `PENDING_APPROVAL` instead of a hard refusal. Check that the live blob's `APPROVAL` flow is not broken: the blob path does not call the ledger while `S.kgLedgerOn` is false.
+- [ ] **Step 4a (D8, approved 4 Nov: reversals also mirror labour):** Failing test first: a `REVERSAL` whose `p_labour` is missing, partial, or not the exact negation of the original's `kg_labour_line` rows is refused, and a labour-only journal can only be reversed by its exact labour mirror. Then add that check beside the existing metal-mirror check (`010_karigar_ledger.sql`, near the `REVERSAL` block).
+- [ ] **Step 4b (D9, approved 4 Nov: op_id reuse with different content is refused):** Failing test first: re-sending an existing `op_id` with different lines or labour returns a conflict (not `duplicate: true`); an identical resend still returns `duplicate: true`. Then store a content fingerprint of the lines, labour, type and date in `kg_journal.meta` and compare it on a duplicate `op_id`. Compute the fingerprint the same way on the client (`js/12-karigar-data.js`) and server. Task 4's deterministic `migr:` ids rely on this: a rerun with a changed balance must report a conflict, not silently post nothing.
+- [ ] **Step 4d (D10, approved 4 Nov: business date limits):** Failing test first: a `manager` posting a `business_date` later than today or more than 7 days before today is refused; the owner is not limited. Enforce it inside `kg_post_journal`, using the posting role it already receives, not only in `store-proxy`.
+- [ ] **Step 4c (verified 4 Nov by static read, not by running):** findings 1, 2 and 3 are CONFIRMED against `010_karigar_ledger.sql:223` (catch-all returns raw `sqlerrm`), `supabase/functions/store-proxy/index.ts:77` and `:98` (gate checks the type, lines are only checked against the account list) and `:125` (`approved` is set only when the caller is owner; the SQL never requires it). Step 1 should still confirm them with the auditor.
 - [ ] **Step 5:** Run `check.bat`, `node tests/karigar-v2.test.js`, `node tests/regression.test.js`, `node tests/karigar-ledger-client.test.js`, and the SQL ledger test. All pass; `backup-check` and `roundtrip` clean. Then `jewelos-invariant-tester`, and `jewelos-security-auditor` again on the fix.
 - [ ] **Step 6:** Commit. Log the results in `HANDOFF.md`, including which findings were rejected and why. No deploy and no production migration in this task.
 
@@ -104,7 +108,7 @@ Source: the automated review of the phase 5a push (4 Nov), logged in `HANDOFF.md
 - [ ] **Step 2:** GO #1 — apply `010` to production. Verify as `anon`: select on `kg_journal` fails; `service_role` can call `kg_balances`.
 - [ ] **Step 3:** GO #2 — deploy `store-proxy`. Verify `kg_balances` returns `[]` for a test shop.
 - [ ] **Step 4:** GO #3 — deploy worker (build includes `APP_BUILD`). After every phone has reloaded, set `MIN_CLIENT_BUILD`.
-- [ ] **Step 5:** Run `jewelos-deploy-verifier`; log in HANDOFF.
+- [ ] **Step 5:** Run `jewelos-deploy-verifier`; log in HANDOFF. Per D14 (approved 4 Nov), it also posts a test journal on the E2E test shop and reverses it, to prove the live role gate and the ledger path. The TypeScript shape checks in `checkKgJournal` have no separate automated test; the SQL tests are the safety net.
 
 ### Task 4: Phase 5b — switch custody to the ledger (migration)
 
@@ -119,7 +123,11 @@ Source: the automated review of the phase 5a push (4 Nov), logged in `HANDOFF.md
 - [ ] **Step 3:** Implement `kgMigrateBlobToLedger`: for each karigar, one owner-only `OPENING` journal into `KCUST`, `op_id = 'migr:'+shopId+':'+karigarId` (deterministic, so reruns are no-ops). Also seed `WIP` for open jobs.
 - [ ] **Step 4:** Run test, expect PASS. Add test: migration refuses for a non-owner.
 - [ ] **Step 5:** Behind a shop-level flag `S.kgLedgerOn` (default false), make `kgAddEntry` post a journal and the blob entry together under `kgTxn`; if the journal is rejected, the blob entry is rolled back. Test: rejected journal leaves blob unchanged.
-- [ ] **Step 6:** Add a Reports line "Blob vs ledger" showing any mismatch per karigar. Flag stays off until a real shop shows zero mismatches for a week.
+- [ ] **Step 3a (D12, approved 4 Nov: zero and negative balances):** A karigar whose blob balance is zero posts nothing. A karigar with a negative blob balance posts nothing and is listed in the mismatch report as "needs owner review"; the owner resolves it with a dated adjustment. The migration completes for all other karigars. Test: a shop with balances 12,345 / 0 / -500 mg migrates the first, skips the other two, and the report names both.
+- [ ] **Step 5b (D13, approved 4 Nov: staff view):** With the ledger on, gold action buttons are hidden for staff and read-only users, with the line "Ask the owner or a manager". This is a display rule only; the server stays the real guard.
+- [ ] **Step 5a (D7, approved 4 Nov: gold movements need internet while the ledger is on):** While `S.kgLedgerOn` is true for a shop, issuing, receiving or transferring gold is refused when the phone is offline, with a plain message, and nothing is saved to the blob. This removes the case where an offline entry is saved to the blob and later refused by the server. Test: with the flag on and the network down, `kgAddEntry` saves nothing and shows the message; with the flag off, offline behaviour is unchanged.
+- [ ] **Step 6:** Add a Reports line "Blob vs ledger" showing any mismatch per karigar. Flag stays off until a real shop shows zero mismatches for a week. Per D11 (approved 4 Nov), the same report also lists any ledger `owner_ref` that matches no karigar in the shop data.
+- [ ] **Step 6a (D15, approved 4 Nov: rejected posts are visible):** `store-proxy` logs each refused journal (shop, type, `op_id`, reason; never amounts). The Today tile from SCOPE-5 shows "N journals rejected" to the owner, counted from the client's rejected list.
 - [ ] **Step 7:** Commit.
 
 ### Task 5: Phase 6a — authenticated transfer vouchers (needs Q10 answered)
@@ -200,13 +208,30 @@ Source: the automated review of the phase 5a push (4 Nov), logged in `HANDOFF.md
 
 **Files:** Modify: `exportFullBackup` and restore (`js/05-auth-login.js` area; grep to confirm), `tools/backup-store.js`; Create: `tests/e2e/karigar.spec.js`.
 
-- [ ] **Step 1: Failing test** `backup includes kg_export; restore replays by op_id and never deletes newer journals`.
+- [ ] **Step 1: Failing test** `backup includes the full ledger; restore replays by op_id and never deletes newer journals`. Per D16 (approved 4 Nov), the backup pages `kg_journal_list` with the `after` cursor, 1000 at a time, and checks the last id, instead of one `kg_export` call of up to 100,000 journals. Test: a ledger of 2,500 journals is backed up in 3 pages with none missing.
 - [ ] **Step 2:** Implement; `checks/backup-check` and `roundtrip` must pass cleanly.
 - [ ] **Step 3:** Write the e2e spec (issue → partial receipt → transfer → close → reconcile). Run `npm run test:e2e`.
 - [ ] **Step 4:** Agents per `CLAUDE.md`: `jewelos-bug-pattern-reviewer`, `jewelos-invariant-tester`, `jewelos-test-runner`; pre-release `jewelos-security-auditor`, `jewelos-readiness-auditor`, `jewelos-deploy-verifier`.
 - [ ] **Step 5:** Restore rehearsal on the test project from a real backup file. Only then ask Tanish for deploy GO.
 
 ---
+
+## CEO review additions (4 Nov 2026, /plan-ceo-review, SCOPE EXPANSION mode)
+
+Mode: SCOPE EXPANSION, chosen by Tanish over the recommended HOLD SCOPE. Each addition below was approved individually (D2, D3, D4, D6). Review Sections 1-10 and the outside voice have NOT been run yet; these are scope decisions only.
+
+- **SCOPE-1 (D2, accepted): WhatsApp khata statement per karigar.** New task after Task 4. Opens WhatsApp with issued, returned, loss and balance, following the existing `custBalanceWA` pattern (`js/03-billing-numbers.js:441`). Must read balances from the ledger, and only once Task 4's blob-vs-ledger check is clean. Effort S.
+- **SCOPE-2 (D3, accepted): karigar scorecard.** New read-only report, shown only for a karigar with at least 3 closed jobs: actual wastage against the agreed rate, and average days per job. Add to Task 11. Effort S.
+- **SCOPE-3 (D4, accepted): overdue-job WhatsApp nudge.** One-tap reminder on an overdue job from the Today dashboard. The button hides when the karigar has no phone number. Effort S.
+- **SCOPE-5 (D6, accepted): "gold outside the vault" tile and Close Day mismatch banner.** The tile goes on the Today tab. The banner goes in the Day Book at Close Day and waits for Task 4's reconcile check. It touches `js/10-daybook.js`, so the Day Book e2e spec must stay green. Effort M.
+
+**Review decisions from Sections 1-10 (4 Nov):** D7 offline gold needs internet (Task 4, Step 5a). D8 reversals mirror labour (Task 2.5, Step 4a). D9 reused op_id with different content is refused (Task 2.5, Step 4b). Static-read evidence only; nothing was run.
+
+**Remaining Sections 1-10 findings, decided 4 Nov (all approved as recommended):** D10 business date limits (Task 2.5, Step 4d). D11 unknown karigar ids listed in the mismatch report (Task 4, Step 6). D12 zero and negative balances skipped and listed (Task 4, Step 3a). D13 staff see a message instead of a 403 (Task 4, Step 5b). D14 no separate TypeScript test; SQL tests plus a post-and-reverse after deploy (Task 3, Step 5). D15 rejected posts are logged and counted on the Today tile (Task 4, Step 6a). D16 backup pages the ledger (Task 12, Step 1). D17 design gate: run `/plan-design-review` on the SCOPE-1, 2, 3 and 5 screens before building them (empty, error and phone states).
+
+**Not yet done:** outside voice, spec-review loop, CEO plan archive, final report.
+
+**NOT in scope (deferred):** SCOPE-4 (D5), printable job card. Deferred to `TODOS.md` because print output cannot be verified by the test suite and no shop has asked for it.
 
 ## Decisions (Tanish, 3 Nov 2026)
 
