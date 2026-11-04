@@ -104,6 +104,20 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-04 (hundred-and-thirty-second entry) · Claude Code (Sonnet) — read-only check run: codebase stats, `check.bat`, full e2e suite; no code changed
+
+Tanish asked for stats, then for `check.bat` and the e2e suite. Nothing in `js/` or `index.html` was edited. The tree was already dirty on arrival (`.claude/settings.json`, `CLAUDE.md`, untracked `.claude/settings.local.json.bak-pre-prune`); it was left alone.
+
+**Stats (4 Nov):** about 24,700 lines (13 JS modules about 21,100, `index.html` 3,632). 441 commits since 8 Sep. `js/11-karigar.js` and `js/12-karigar-data.js` exist but `CLAUDE.md` still says "eleven" modules. There are 11 e2e spec files, while `CLAUDE.md` says 10.
+
+**`check.bat`:** passed ("Tests and syntax passed"). `backup-check` clean (32 keys exported and restored, no orphans). `roundtrip` clean (31/31 keys survived). Making-charge check 11/11. Load-order check: none. Only the last ~100 lines of output were read; the `node --check` and regression-suite sections were not. The "inline handlers splicing a value in without quotes" list had 17 sites, not compared against a prior run. Four are in `11-karigar.js` (lines 894, 917, 1399, 1404) and call `kg2Q(...)`; whether `kg2Q` quotes its argument was not checked.
+
+**e2e (`npm run test:e2e`):** first full run 21 passed, 2 failed (8.2 min): `auth.spec.js:59` ("logs out back to the login form") and `session-restore.spec.js:61` ("idle past the PIN window"). The second timed out at `fixtures/testShop.js:84` waiting for the shop name after login. A second full run appeared to pass everything, but its summary was not read, and it wiped the failure artifacts. Both specs then passed 3 of 3 in isolation (`--repeat-each=3`); one run took 15.1s against 7.5-8.3s for the rest. Cause of the original failures is unknown. A slow or flaky login against the live backend is a guess, not confirmed.
+
+**Not verified:** why the two specs failed in the full run; the `kg2Q` quoting; any real-phone behaviour.
+
+→ FOR COWORK: nothing — FYI only. If you have live-backend or login latency data around 4 Nov, it would help explain the two full-run e2e failures.
+
 ### 2026-11-04 (hundred-and-thirty-first entry) · Claude Code (Sonnet) — gstack installed for Tanish personally; CLAUDE.md gained gstack routing rules (Claude Code only)
 
 Tanish asked for a comparison of our setup against gstack (`docs/JEWELOS-VS-GSTACK-2026-11-04.pdf`) and to use gstack where it wins. Done: gstack lives in `~/.claude/skills/gstack` on Tanish's machine only (not vendored into the repo; bun 1.4.2 installed for it). `CLAUDE.md` got a `## gstack` section: use `/browse` (not the chrome tools); `/plan-eng-review`, `/plan-design-review`, `/design-review`, `/qa-only` (local build or E2E shop `77c4aefe` only), `/careful`, `/retro`. Our `jewelos-*` agents, `check.bat` and hooks stay. `/ship`, `/land-and-deploy`, `/canary` are banned (they bypass "deploy only when Tanish says so"). `/cso` is not installed (needs C++ build tools).
