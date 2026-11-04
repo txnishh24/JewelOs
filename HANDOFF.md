@@ -104,6 +104,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-04 (hundred-and-thirty-ninth entry) · Claude Code (Sonnet) — Karigar 2.0 Task 3, GO #2: `store-proxy` v15 DEPLOYED to production; worker NOT deployed
+
+**Done, with Tanish's explicit GO ("yes, deploy store-proxy").** Before deploying I fetched the live v14 and confirmed it matched `supabase/functions/store-proxy/index.v9.rollback.ts` (no `kg_` code), so nothing deployed outside the repo was overwritten. v15 = repo `index.ts` at `92ae544`: ledger actions (`kg_post`, `kg_balances`, `kg_journal_list`, `kg_export`) plus the other session's two changes from `34fff02` (GET `?known=N` answers `{unchanged:true,_v}`; a successful save returns only `{_v}`). `verify_jwt` stays `true`. `MIN_CLIENT_BUILD` is unset (guard off). **Rollback:** redeploy `index.v9.rollback.ts` as `store-proxy` (it is the v14 source).
+
+**Checked:** the client live today (batch67) reads only `data._v` from a save reply and never sends `?known=`, so the two `34fff02` changes cannot break it. After deploy: the function boots; POST `kg_balances` with no token and GET with a bad token both give 401 `unauthenticated`; OPTIONS gives 200. **NOT verified:** any authenticated call. The plan's check "`kg_balances` returns `[]` for a test shop" and a real save/poll round trip did not run: this worktree has no test-shop credentials file, so `npm run test:e2e` stops at "Missing E2E_SHOP_EMAIL", and a hook blocks me from reading credentials. Tanish or Cowork should run `npm run test:e2e` from the main checkout `E:\jewelos` (where the credentials file lives) now, because saving and loading already go through the new server for every real shop.
+
+**Not done:** GO #3 (worker deploy, `MIN_CLIENT_BUILD`), migration 011, Step 5 (`jewelos-deploy-verifier`, post-and-reverse test journal on `77c4aefe`). `kg_*` actions are reachable by owner/manager sessions but no live client calls them yet.
+
+→ FOR COWORK: run `npm run test:e2e` from `E:\jewelos` and watch `store-proxy` logs for 500s for the next hour. If saves fail, redeploy `index.v9.rollback.ts`. Do not deploy the worker until Tanish gives GO #3.
+
 ### 2026-11-04 (hundred-and-thirty-eighth entry) · Claude Code (Sonnet) — Karigar 2.0 Task 3, GO #1: migration 010 APPLIED TO PRODUCTION (`uluzuwomwqsqxtejgzmf`); store-proxy and worker NOT deployed
 
 **Done, with Tanish's explicit GO ("apply 010 to production, leave 011 for now").** Backup first: `store-2026-11-04-1859.json` (9 shops, 2.5 MB, shop `3720af09` present with 12 girvi loans), run by Tanish in his own terminal (this session never held the service key). Then `apply_migration` named `010_karigar_ledger` (the committed `2ff1ffa` version, comments stripped).
