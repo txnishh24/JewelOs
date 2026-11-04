@@ -104,6 +104,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-04 (hundred-and-thirty-fifth entry) · Claude Code (Sonnet) — Karigar 2.0 Task 2.5 built on branch `karigar-2-task-2-5`: migration 011 hardens `kg_post_journal`; NOT merged, NOT applied, NOT deployed
+
+Tanish said "build it" and chose Task 2.5 only (the security gate before any ledger go-live). Work is on branch `karigar-2-task-2-5` (pushed to GitHub), not `main`. New file `supabase/migrations/011_karigar_ledger_hardening.sql` replaces `kg_post_journal` from 010 (010 untouched). It adds a per-type account and direction template, exact shapes for entitlement accrue/settle, owner-only ADJUST/OPENING/ENTITLEMENT_ACCRUE (also for their reversals), a loss needs an approver, only the ledger's own refusals (SQLSTATE KG001) are caught so transient database errors propagate, reversals mirror labour too, a reused `op_id` with different content is refused, a labour template, managers limited to today (India time) back 7 days, owner references must fit the account, and a null type or role is refused. `store-proxy` changed in two lines: it refuses a client meta key `h`, and it rejects impossible dates such as 2026-02-30. Also added: `@electric-sql/pglite` as a devDependency, `npm run test:sql`, and the SQL test in `check.bat`.
+
+**Verified:** `tests/sql-kg-ledger.test.mjs` 111 checks, 0 failed (was 37); every new check failed before the fix and passed after. `check.bat` passes: regression 489/0, karigar-v2 66/0, ledger client 13/0, SQL ledger test, `backup-check` and `roundtrip` clean. `jewelos-security-auditor` ran twice. The first run found a loose `ENTITLEMENT_SETTLE` that let a manager destroy custody; the second found the accrue-then-settle route. Both are fixed (Tanish decided D1: accrual is owner only; D2: fix the three small findings). **Not verified:** nothing ran against real Postgres, only PGlite; `store-proxy` was not executed (no Deno here); no screen; two phones posting at once. The auditor said its report is not an approval: `MODEL-POLICY.md` marks this 🔴 and needs Opus review sign-off before 011 is applied.
+
+**Open before 011 may be applied (listed in the plan under Task 2.5 Status):** whether a manager may reverse an owner-approved LOSS; the client `kgToday()` uses the phone's date while the server uses India time; ISSUE from an untracked vault is unlimited for a manager by design; refusal messages echo the raw `owner_ref` so any screen showing the rejected list must use `escHtml()`; the app's karigar OPENING builder (Task 4 Step 3b) is not built.
+
+→ FOR COWORK: nothing — FYI only. Do NOT apply 010 or 011 to production, do NOT deploy `store-proxy`, and do not merge `karigar-2-task-2-5` into `main` until Tanish has seen the open list above and an Opus review has signed off.
+
 ### 2026-11-04 (hundred-and-thirty-fourth entry) · Claude Code (Sonnet) — CEO review and engineering review of the Karigar 2.0 plan and ledger code: 15 decisions (D2-D17 except D5 deferred), plan extended, nothing built or deployed
 
 Tanish ran `/plan-ceo-review` (mode SCOPE EXPANSION, chosen over the recommended HOLD SCOPE) and then `/plan-eng-review` (target: the ledger code on `main`) on `docs/superpowers/plans/2026-11-03-karigar-2-remaining-phases.md`. Only docs were changed: that plan, a new `TODOS.md`, and this file. No code, migration or deploy.

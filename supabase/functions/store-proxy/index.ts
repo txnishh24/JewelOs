@@ -84,7 +84,10 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
   if (type === "REVERSAL" && reverses === null) return "a reversal must name the journal it reverses";
   if (type !== "REVERSAL" && reverses !== null) return "only a reversal may name a journal";
   const date = b.business_date;
-  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(Date.parse(date + "T00:00:00Z"))) return "business_date must be YYYY-MM-DD";
+  // a real calendar date between 2000 and 2100: "2026-02-30" and "0000-01-01" pass Date.parse, but
+  // Postgres rejects them while reading the argument, which would surface as a 500 and be retried forever
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < "2000-01-01" || date > "2100-12-31"
+      || isNaN(Date.parse(date + "T00:00:00Z")) || new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date) return "business_date must be a real date, YYYY-MM-DD";
   const note = b.note == null ? "" : b.note;
   if (!isStr(note, 200)) return "note too long";
   const lines = b.lines == null ? [] : b.lines;

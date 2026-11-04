@@ -55,6 +55,11 @@ begin
     return query select true, true, v_existing, null::text; return;
   end if;
 
+  -- a missing type or role would make every later "<> 'owner'" test unknown and skip the check
+  if p_type is null or p_by_role is null then
+    return query select false, false, null::bigint, 'journal type and role are required'; return;
+  end if;
+
   -- shape checks (F2): everything below may cast, so refuse bad input here, in plain words
   if p_lines is null or jsonb_typeof(p_lines) <> 'array' then
     return query select false, false, null::bigint, 'lines required'; return;
@@ -116,6 +121,13 @@ begin
         return query select false, false, null::bigint,
           'account ' || (v_line->>'account') || ' is not allowed in a ' || p_type || ' journal in that direction'; return;
       end if;
+      -- owner references (D2): the shop vault and the OPENING account have none; karigar accounts must name a karigar.
+      -- Without this, metal can be parked under a made-up vault name that no screen reads.
+      if ((v_line->>'account') in ('VAULT', 'OPENING') and coalesce(v_line->>'owner_ref', '') <> '')
+         or ((v_line->>'account') in ('KCUST', 'ENT', 'EARNED', 'PAYOUT') and coalesce(v_line->>'owner_ref', '') = '') then
+        return query select false, false, null::bigint,
+          'owner reference does not fit account ' || (v_line->>'account'); return;
+      end if;
     end loop;
 
     -- the accounts being allowed is not enough: the lines must have the exact shape of the event
@@ -163,7 +175,8 @@ begin
   end if;
 
   -- owner only: ADJUST / OPENING, and any line on the ADJ / OPENING accounts (also in a reversal)
-  if p_by_role <> 'owner' and (p_type in ('ADJUST', 'OPENING')
+  -- (D1: an accrual creates the claim a settlement draws on, so it is owner only too)
+  if p_by_role <> 'owner' and (p_type in ('ADJUST', 'OPENING', 'ENTITLEMENT_ACCRUE')
      or exists (select 1 from jsonb_array_elements(p_lines) l where l->>'account' in ('ADJ', 'OPENING'))) then
     return query select false, false, null::bigint, 'owner only'; return;
   end if;
@@ -183,6 +196,10 @@ begin
     select * into v_target from kg_journal where id = p_reverses_id and shop_id = p_shop_id;
     if not found then return query select false, false, null::bigint, 'reversal target not found'; return; end if;
     if v_target.type = 'REVERSAL' then return query select false, false, null::bigint, 'cannot reverse a reversal'; return; end if;
+    -- a reversal needs the authority of the original (the line check above also catches old rows)
+    if p_by_role <> 'owner' and v_target.type in ('ADJUST', 'OPENING', 'ENTITLEMENT_ACCRUE') then
+      return query select false, false, null::bigint, 'owner only'; return;
+    end if;
     -- metal lines must mirror the target exactly: same accounts and owners, fine_mg negated, same count
     if exists (select account, owner_ref, -fine_mg from kg_journal_line where journal_id = p_reverses_id
                except all

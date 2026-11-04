@@ -153,7 +153,7 @@ ok(!r.ok && /owner/.test(r.error), 'F1: ADJUST is owner only inside the database
 r = await post('D', 'OPENING', [L('KCUST', 'kd', 500), L('OPENING', 'kd', -500)], { role: 'manager' });
 ok(!r.ok && /owner/.test(r.error), 'F1: OPENING is owner only inside the database');
 ok(await count('kg_journal') === jD, 'F1: no refused journal left a row');
-r = await post('D', 'OPENING', [L('KCUST', 'k9', 2500), L('OPENING', 'k9', -2500)]);
+r = await post('D', 'OPENING', [L('KCUST', 'k9', 2500), L('OPENING', '', -2500)]);
 ok(r.ok, 'D3: owner can post a karigar opening balance (KCUST against OPENING)');
 ok(await bal('D', 'KCUST', 'k9') === 2500 && await bal('D', 'ADJ', 'k9') === 0, 'D3: an opening balance does not touch the ADJ account');
 r = await post('D', 'ADJUST', [L('KCUST', 'k9', -500), L('ADJ', 'k9', 500)]); ok(r.ok, 'owner ADJUST (either direction) still posts');
@@ -223,7 +223,9 @@ r = await post('H', 'ENTITLEMENT_SETTLE', [L('KCUST', 'kh', -500), L('PAYOUT', '
 ok(!r.ok && /settlement/.test(r.error), 'audit1: a settlement must be for one karigar');
 r = await post('H', 'ENTITLEMENT_ACCRUE', [L('ENT', 'kh', 100), L('EARNED', 'zz', -100)], { role: 'manager' });
 ok(!r.ok && /one karigar/.test(r.error), 'audit1: an accrual must clear against the same karigar');
-r = await post('H', 'ENTITLEMENT_ACCRUE', [L('ENT', 'kh', 100), L('EARNED', 'kh', -100)], { role: 'manager' }); ok(r.ok, 'audit1: a proper accrual posts');
+r = await post('H', 'ENTITLEMENT_ACCRUE', [L('ENT', 'kh', 100), L('EARNED', 'kh', -100)], { role: 'manager' });
+ok(!r.ok && /owner/.test(r.error), 'D1: a manager cannot create an entitlement accrual (owner only)');
+r = await post('H', 'ENTITLEMENT_ACCRUE', [L('ENT', 'kh', 100), L('EARNED', 'kh', -100)]); ok(r.ok, 'D1: the owner accrues');
 r = await post('H', 'ENTITLEMENT_SETTLE', [L('KCUST', 'kh', -200), L('PAYOUT', 'kh', 200), L('ENT', 'kh', -200), L('EARNED', 'kh', 200)], { role: 'manager' });
 ok(!r.ok && /negative/.test(r.error), 'audit1: a settlement cannot pay out more than was accrued (ENT never below zero)');
 r = await post('H', 'ENTITLEMENT_SETTLE', [L('KCUST', 'kh', -100), L('PAYOUT', 'kh', 100), L('ENT', 'kh', -100), L('EARNED', 'kh', 100)], { role: 'manager' });
@@ -257,6 +259,43 @@ ok(!r.ok && /different content/.test(r.error), 'audit5: job a|b and job a + vouc
 // an empty metal journal is not a journal
 r = await post('J', 'ISSUE', []);
 ok(!r.ok && /at least one line/.test(r.error), 'a metal journal with no lines is refused');
+
+
+// ── 16 decisions D1/D2 after the second audit: accrual owner only, owner references, null safety ──
+// the accrue-then-settle route: a manager cannot start it, so cannot empty a tracked vault or write off a karigar's custody
+await db.query("insert into kg_shop_setting (shop_id, vault_tracked) values ('T', true)");
+await post('T', 'OPENING', [L('VAULT', '', 10000), L('OPENING', '', -10000)]);
+r = await post('T', 'ENTITLEMENT_ACCRUE', [L('ENT', 'kx', 10000), L('EARNED', 'kx', -10000)], { role: 'manager' });
+ok(!r.ok && /owner/.test(r.error), 'D1: manager accrual refused, so the vault-drain route cannot start');
+ok(await bal('T', 'VAULT', '') === 10000, 'D1: the tracked vault is untouched');
+await post('U', 'ISSUE', [L('VAULT', '', -5000), L('KCUST', 'k1', 5000)]);
+r = await post('U', 'ENTITLEMENT_ACCRUE', [L('ENT', 'k1', 5000), L('EARNED', 'k1', -5000)], { role: 'manager' });
+ok(!r.ok && /owner/.test(r.error) && await bal('U', 'KCUST', 'k1') === 5000, 'D1: custody of a karigar cannot be written off that way either');
+r = await post('U', 'ENTITLEMENT_ACCRUE', [L('ENT', 'k1', 2000), L('EARNED', 'k1', -2000)]); ok(r.ok, 'D1: owner accrues 2 g');
+r = await post('U', 'ENTITLEMENT_SETTLE', [L('KCUST', 'k1', -2000), L('PAYOUT', 'k1', 2000), L('ENT', 'k1', -2000), L('EARNED', 'k1', 2000)], { role: 'manager' });
+ok(r.ok, 'D1: a manager may settle what the owner accrued, from the karigar custody');
+await post('U', 'ENTITLEMENT_ACCRUE', [L('ENT', 'k1', 1000), L('EARNED', 'k1', -1000)], { op: 'u-acc-2' });
+r = await post('U', 'ENTITLEMENT_SETTLE', [L('VAULT', '', -1000), L('PAYOUT', 'k1', 1000), L('ENT', 'k1', -1000), L('EARNED', 'k1', 1000)], { role: 'manager' });
+ok(r.ok, 'D1: a manager may settle what the owner accrued, from the vault');
+const accId = (await db.query("select id from kg_journal where shop_id='U' and op_id='u-acc-2'")).rows[0].id;
+r = await post('U', 'REVERSAL', [L('ENT', 'k1', -1000), L('EARNED', 'k1', 1000)], { reverses: accId, role: 'manager' });
+ok(!r.ok && /owner/.test(r.error), 'D1: a manager cannot reverse an owner accrual (a reversal needs the authority of the original)');
+
+// D2a: owner references fit the account
+await post('V', 'ISSUE', [L('VAULT', '', -3000), L('KCUST', 'k1', 3000)]);
+r = await post('V', 'RETURN', [L('KCUST', 'k1', -1000), L('VAULT', 'hidden', 1000)], { role: 'manager' });
+ok(!r.ok && /owner reference/.test(r.error), 'D2: metal cannot be parked under a made-up vault name');
+r = await post('V', 'ISSUE', [L('VAULT', '', -1000), L('KCUST', '', 1000)], { role: 'manager' });
+ok(!r.ok && /owner reference/.test(r.error), 'D2: custody must name a karigar');
+r = await post('V', 'OPENING', [L('VAULT', '', 100), L('OPENING', 'k1', -100)]);
+ok(!r.ok && /owner reference/.test(r.error), 'D2: the OPENING account has no owner reference');
+
+// D2c: a missing role or type is refused up front, not skipped
+for (const [t, role, label] of [[null, 'owner', 'type'], ['ISSUE', null, 'role']]) {
+  const q = await db.query('select * from kg_post_journal($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
+    ['V', 'nullchk-' + label, t, 'J1', null, null, ist(0), '', 'tester', role, null, '{}', JSON.stringify([L('VAULT', '', -1), L('KCUST', 'k1', 1)]), '[]']);
+  ok(!q.rows[0].ok && /required/.test(q.rows[0].error), 'D2: a missing ' + label + ' is refused');
+}
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);
