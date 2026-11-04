@@ -343,6 +343,14 @@ Deno.serve(async (req) => {
       return json({ error: "read failed" }, 500, origin);
     }
     if (!rows || rows.length === 0) return json(null, 200, origin);
+    // The auto-refresh poll sends the version it already holds (?known=N, a query string rather than
+    // a header so no CORS change: an old server just ignores it). Same version = nothing to download
+    // (a shop blob is 0.5-3 MB; without this every open phone pulled it every minute).
+    const known = new URL(req.url).searchParams.get("known");
+    const stored = (rows[0].data as Record<string, unknown> | null)?._v;
+    if (known !== null && /^\d+$/.test(known) && typeof stored === "number" && Number(known) === stored) {
+      return json({ unchanged: true, _v: stored }, 200, origin);
+    }
     return json(rows[0], 200, origin);
   }
 
@@ -381,7 +389,8 @@ Deno.serve(async (req) => {
     if (result.conflict) {
       return json({ ok: false, conflict: true, data: result.current_data }, 409, origin);
     }
-    return json({ ok: true, data: result.new_data }, 200, origin);
+    // The client only reads _v from a success; echoing the whole blob back doubled every save's traffic.
+    return json({ ok: true, data: { _v: (result.new_data as Record<string, unknown>)?._v } }, 200, origin);
   }
 
   // ── COUNTERS ────────────────────────────────────────────────────────

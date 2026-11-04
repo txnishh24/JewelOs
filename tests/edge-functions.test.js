@@ -258,6 +258,20 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     eq((await sp(staffTok, 'PUT', { data: { sales: [1] }, expectedVersion: await ver() })).status, 200, 'PUT');
     eq((await sp(staffTok, 'POST', { action: 'increment_counter', counter: 'inv_no' })).status, 200, 'POST');
   });
+  await test('GET ?known=<current version> answers unchanged with no data; a different version gets the blob', async function () {
+    var v = await ver();
+    var same = await call(proxy, '?known=' + v, undefined, { 'x-session-token': ownerTok }, 'GET');
+    eq(same.status, 200, 'status'); eq(same.body.unchanged, true, 'unchanged'); eq(same.body._v, v, '_v'); eq(same.body.data, undefined, 'no blob');
+    var old = await call(proxy, '?known=' + (v - 1), undefined, { 'x-session-token': ownerTok }, 'GET');
+    ok(old.body.data && old.body.data._v === v, 'a stale version still gets the full blob');
+    var junk = await call(proxy, '?known=abc', undefined, { 'x-session-token': ownerTok }, 'GET');
+    ok(junk.body.data && junk.body.data._v === v, 'a junk value is ignored and gets the full blob');
+  });
+  await test('a PUT success returns only the new version, not the whole blob', async function () {
+    var r = await sp(ownerTok, 'PUT', { data: { sales: [1, 2, 3], big: 'x'.repeat(1000) }, expectedVersion: await ver() });
+    eq(r.status, 200, 'status'); eq(r.body.ok, true, 'ok'); ok(typeof r.body.data._v === 'number', '_v present');
+    eq(r.body.data.sales, undefined, 'blob not echoed');
+  });
   await test('a garbage token is rejected with 401', async function () { eq((await sp('abc.def', 'GET')).status, 401, 'status'); });
   await test('a token that fails verification says reason "expired" (sign in again, no wipe)', async function () {
     eq((await sp('abc.def', 'GET')).body.reason, 'expired', 'reason');

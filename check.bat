@@ -47,6 +47,8 @@ node tests\karigar-ledger-client.test.js
 if errorlevel 1 set FAILED=1
 node tests\sql-kg-ledger.test.mjs
 if errorlevel 1 set FAILED=1
+node tests\sql-store-history.test.mjs
+if errorlevel 1 set FAILED=1
 
 echo.
 echo [3/3] Looking for things the code refers to that were never created...

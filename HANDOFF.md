@@ -104,6 +104,22 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-04 (hundred-and-thirty-seventh entry) · Claude Code (Sonnet) — audit fixes 1 and 2: shop-data history table (migration 011) and a poll that skips the download when nothing changed; NOT deployed, NOT applied
+
+Tanish asked for a repo audit, then "fix 1 and 2". (1) `public.store` had no old copies and no guard, unlike `auth_store`. (2) every open phone downloaded the whole shop blob every 60 s, and every save got the whole blob echoed back.
+
+**What changed.**
+- `supabase/migrations/011_store_history.sql` (new): table `store_history` plus a before-update trigger on `store`. It copies the OLD blob when the shop has no copy from the last 6 hours, or when the new blob lost records (sales/girvi/products/customers: 5 or more before, under 80% after). Newest 4 copies per shop kept. RLS on, no anon/authenticated access. Restore recipe is in the file's header. Storage: about 4 x blob size per shop; a 2.5 MB shop = ~10 MB (watch the Free-plan 500 MB).
+- `supabase/functions/store-proxy/index.ts`: GET honours `?known=N` (query string, so no CORS change and an old server just ignores it) and answers `{unchanged:true,_v}` when N equals the stored `_v`. PUT success now returns `{ok:true,data:{_v}}`, not the whole blob (conflict replies unchanged).
+- `js/01-sync-core.js`: `loadFromCloud(cb, skipPush, opts)`; the auto-refresh poll passes `{known:true}`. It sends `?known=` only after one full download in this page, and never while offline bills wait in the outbox. An `unchanged` answer leaves S alone (before, a poll replaced S, which could discard unsaved local edits).
+- Tests: `tests/sql-store-history.test.mjs` (13 checks, added to `check.bat` and `npm run test:sql`), 4 new in regression, 2 new in edge-functions.
+
+**Verified.** regression 493/493; karigar-v2 66/66; ledger client 13/13; sql-kg-ledger and the new SQL test pass; edge-functions 83 pass, 1 fail (the stale Netlify-origin CORS test, same as before; it needed `sucrase`, installed outside the repo via SUCRASE_PATH); backup-check and roundtrip clean; the other AST checks ran with nothing new (unquoted-args still 17 sites). `jewelos-bug-pattern-reviewer` found no stale-phone or stale-overwrite path; one real finding (the unchanged branch skipped the `ssj_last_cloud_load` stamp, which would make the Settings badge go amber and every tab switch do a full download) was FIXED. Noted, not fixed: if S differs from the cloud at the same `_v` (failed save with localStorage full), the next save uploads that difference. `jewelos-test-runner` re-ran everything: same counts, only the Netlify CORS test fails. `jewelos-invariant-tester` (sync/CAS) NOT run yet: run before release. Restore rule: never set `_v` lower, never delete and re-insert a shop row (phones holding that `_v` would stay stale).
+
+**NOT verified / NOT done.** No real browser run (no e2e, no phone). Migration 011 never run on a real Supabase project (PGlite only). Nothing deployed or applied. `APP_BUILD` and the sw.js cache version were NOT bumped. Deploy order when Tanish says so: apply 011, deploy `store-proxy` (safe before or after the client), then ship the client build. Other audit findings (3-11) untouched: signup rate limit, `resolveTenant` reads the whole users blob, offline replay double-sell warning, undeploy razorpay-webhook, edge tests not in check.bat (needs `npm i -D sucrase`), 9 s load timeout, HANDOFF size, size-warning scope.
+
+→ FOR COWORK: nothing — FYI only. Do not apply 011 or deploy until Tanish says so; when he does, check `select count(*) from store_history` grows slowly and watch the database size.
+
 ### 2026-11-04 (hundred-and-thirty-sixth entry) · Claude Code (Sonnet) — Tanish's decision on question N1 (manager accrue-then-settle), docs only
 
 **Decision (Tanish, 4 Nov, in session): managers KEEP the ability to record an entitlement (ENTITLEMENT_ACCRUE) and settle it (ENTITLEMENT_SETTLE) with no owner approval.** So a manager can move gold to PAYOUT without an approver. This is intended, not a bug. Do not add approval to ACCRUE or SETTLE, and do not re-raise it as a security finding. The 135th entry's N1 is closed. No code changed.
