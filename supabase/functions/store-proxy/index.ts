@@ -84,9 +84,11 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
   if (type === "REVERSAL" && reverses === null) return "a reversal must name the journal it reverses";
   if (type !== "REVERSAL" && reverses !== null) return "only a reversal may name a journal";
   const date = b.business_date;
-  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(Date.parse(date + "T00:00:00Z"))) return "business_date must be YYYY-MM-DD";
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < "2000-01-01" || isNaN(Date.parse(date + "T00:00:00Z")) || new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date) return "business_date must be a real date (YYYY-MM-DD)";
   const note = b.note == null ? "" : b.note;
   if (!isStr(note, 200)) return "note too long";
+  const hasNul = (v: unknown) => typeof v === "string" && v.indexOf("\u0000") !== -1;
+  if (hasNul(note) || hasNul(job) || hasNul(voucher)) return "text contains an invalid character";
   const lines = b.lines == null ? [] : b.lines;
   const labour = b.labour == null ? [] : b.labour;
   if (!Array.isArray(lines) || !Array.isArray(labour)) return "lines and labour must be lists";
@@ -97,7 +99,7 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
     if (!l || typeof l !== "object") return "bad line";
     if (typeof l.account !== "string" || !KG_ACCOUNTS.has(l.account)) return "unknown account";
     const ref = l.owner_ref == null ? "" : l.owner_ref;
-    if (!isStr(ref, 64)) return "owner_ref too long";
+    if (!isStr(ref, 64) || !/^[A-Za-z0-9:_.-]*$/.test(ref as string)) return "owner_ref has invalid characters";
     if (!isInt(l.fine_mg) || l.fine_mg === 0 || Math.abs(l.fine_mg as number) > 1e12) return "fine_mg must be a non-zero whole number";
     if (l.gross_mg != null && (!isInt(l.gross_mg) || Math.abs(l.gross_mg as number) > 1e12)) return "gross_mg invalid";
     if (l.permille != null && (!isInt(l.permille) || (l.permille as number) < 1 || (l.permille as number) > 1000)) return "permille invalid";
@@ -106,7 +108,7 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
   const outLabour: unknown[] = [];
   for (const l of labour as Record<string, unknown>[]) {
     if (!l || typeof l !== "object") return "bad labour line";
-    if (!isStr(l.karigar_id, 64) || !l.karigar_id) return "karigar_id required";
+    if (!isStr(l.karigar_id, 64) || !l.karigar_id || !/^[A-Za-z0-9:_.-]+$/.test(l.karigar_id as string)) return "karigar_id required (letters, digits : _ . - only)";
     if (!isInt(l.amount_paise) || l.amount_paise === 0 || Math.abs(l.amount_paise as number) > 1e12) return "amount_paise must be a non-zero whole number";
     if (l.mode != null && !isStr(l.mode, 20)) return "mode too long";
     outLabour.push({ karigar_id: l.karigar_id, amount_paise: l.amount_paise, mode: l.mode ?? null });

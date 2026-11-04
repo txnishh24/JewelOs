@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. batch67 (Karigar 2.0 phases 3-4) is LIVE on the Cloudflare worker (deployed 31 Oct, Version ID `9bb23a74-04ab-463a-a296-e588478b3837`, rollback tag `batch66-live`). Before it: batch66 (Karigar V2) was live (Version ID `51c7c1aa-714f-4718-a6b4-f174b42cd760`). Before that: batch65 is LIVE: (Karigars tab + stage box redesign) is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`, verified by `jewelos-deploy-verifier`). Previous live = tag `batch64-live`. `main` pushed to GitHub (30 Oct, at 125904b).
+> Nobody. (Task 2.5 committed 4 Nov, no deploy.) batch67 (Karigar 2.0 phases 3-4) is LIVE on the Cloudflare worker (deployed 31 Oct, Version ID `9bb23a74-04ab-463a-a296-e588478b3837`, rollback tag `batch66-live`). Before it: batch66 (Karigar V2) was live (Version ID `51c7c1aa-714f-4718-a6b4-f174b42cd760`). Before that: batch65 is LIVE: (Karigars tab + stage box redesign) is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`, verified by `jewelos-deploy-verifier`). Previous live = tag `batch64-live`. `main` pushed to GitHub (30 Oct, at 125904b).
 > batch64 is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `f0455912-83df-4b98-abfa-d4c08cda55be`,
 > verified by `jewelos-deploy-verifier`). `main` pushed to GitHub (30 Oct, at 125904b).
 
@@ -103,6 +103,20 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-04 (hundred-and-thirty-fifth entry) · Claude Code (Sonnet) — Karigar 2.0 Task 2.5: ledger security fixes in `kg_post_journal`, SQL test now runnable; committed, NOT deployed, NOT applied to production
+
+**Done (Steps 0-6 of Task 2.5 in the plan):** `@electric-sql/pglite` added as devDependency, `npm run test:sql`, test added to `check.bat`. In `supabase/migrations/010_karigar_ledger.sql` (edited in place; 010 is on the test project only, re-apply it there): per-type table of allowed accounts and signs; owner-only OPENING/ADJ lines; ledger-only refusals use SQLSTATE `KG001` and every other fault propagates (store-proxy answers 500, client retries, no raw `sqlerrm`); LOSS needs an approver; reversal must mirror lines AND labour one-to-one; same `op_id` with different content is refused (fingerprint in `meta.fp`, computed on the server only, so no client change); managers limited to today..7 days back (India time); ENTITLEMENT_SETTLE/ACCRUE must pair per karigar; ENT, LOSS, PAYOUT never below zero; labour amounts have the right sign per type; ids restricted to `A-Za-z0-9:_.-`. `store-proxy/index.ts`: real calendar date, year 2000+, no NUL character, same id character set. `js/12-karigar-data.js`: a 403 now logs the journal as rejected instead of dropping it silently.
+
+**How it was checked:** 100+ SQL tests (old migration fails 15 of the first batch). `jewelos-invariant-tester` added a block that posts every journal the real client builders produce, for owner and manager, plus reversals. `jewelos-security-auditor` ran three times (once Opus twice): it found two real ways for a manager to create metal (wrong-sign SETTLE lines; reversal mirror forged with duplicate lines or `,`/`;` in ids). Both fixed and covered by tests. Round 2 found no metal-creation hole left. `regression` 489, `karigar-v2` 66, `karigar-ledger-client` 13, all pass; `backup-check` and `roundtrip` clean.
+
+**Not verified:** the live `store-proxy` (edited, not deployed, not run), a real Postgres with Supabase collation (PGlite only), two phones at once, any screen. A final Opus pass on the last small edit (accrual pairing, structured fingerprint) was not run.
+
+**OPEN, needs Tanish (business rules, not bugs):** (N1) a manager can ACCRUE an entitlement and then SETTLE it, moving gold to PAYOUT with no owner approval, the same effect as an unapproved LOSS. Options: owner approval on ACCRUE, or on any settle above the agreement. (a) A manager can reverse an owner-approved LOSS. (b) A manager can post unlimited labour. (c) An offline manager journal older than 7 days is refused for good, and journals after it can fail with "would go negative"; the UI should warn. (d) Arrival order across two devices can reject a RECEIPT that reaches the server before its ISSUE. No code path sets `vault_tracked`, so the vault floor never applies.
+
+Task 3 (production enablement) stays blocked until Tanish has seen this and decided N1.
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply migration 010 to production or deploy `store-proxy`; ask Tanish the N1 question first.
 
 ### 2026-11-04 (hundred-and-thirty-fourth entry) · Claude Code (Sonnet) — CEO review and engineering review of the Karigar 2.0 plan and ledger code: 15 decisions (D2-D17 except D5 deferred), plan extended, nothing built or deployed
 

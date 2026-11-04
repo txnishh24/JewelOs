@@ -172,7 +172,7 @@ function kgSendJournal(j, cb){
     if(status === 200 && body && body.ok){ kgOutboxRemove(j.op_id); return cb(null, body); }
     if(status === 409 && body && body.error === 'client_outdated') return cb(Object.assign(new Error('Please reload the app to update'), {code:'outdated'}));
     if(status === 401) return cb(Object.assign(new Error('Please sign in again'), {code:'offline'}));
-    if(status === 403) { kgOutboxRemove(j.op_id); return cb(Object.assign(new Error('Your account cannot post to the ledger'), {code:'forbidden'})); }
+    if(status === 403) { kgOutboxRemove(j.op_id); kgRejectedAdd(j, 'forbidden'); return cb(Object.assign(new Error('Your account cannot post to the ledger'), {code:'forbidden'})); }
     if(status === 422 || status === 400){
       kgOutboxRemove(j.op_id);
       var why = (body && (body.message || body.error)) || 'refused';
