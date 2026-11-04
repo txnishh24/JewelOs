@@ -104,6 +104,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-04 (hundred-and-thirty-sixth entry) · Claude Code (Sonnet) — Tanish's decision on question N1 (manager accrue-then-settle), docs only
+
+**Decision (Tanish, 4 Nov, in session): managers KEEP the ability to record an entitlement (ENTITLEMENT_ACCRUE) and settle it (ENTITLEMENT_SETTLE) with no owner approval.** So a manager can move gold to PAYOUT without an approver. This is intended, not a bug. Do not add approval to ACCRUE or SETTLE, and do not re-raise it as a security finding. The 135th entry's N1 is closed. No code changed.
+
+Still open and undecided from the 135th entry: managers reversing an owner-approved LOSS, unlimited manager labour, the 7-day outbox warning in the UI, cross-device arrival order, `vault_tracked` never being set. Task 3 is no longer blocked on N1; it still needs Tanish's separate GO for each step (migration, `store-proxy` deploy).
+
+→ FOR COWORK: nothing — FYI only. Treat manager accrue+settle without approval as intended.
+
 ### 2026-11-04 (hundred-and-thirty-fifth entry) · Claude Code (Sonnet) — Karigar 2.0 Task 2.5: ledger security fixes in `kg_post_journal`, SQL test now runnable; committed, NOT deployed, NOT applied to production
 
 **Done (Steps 0-6 of Task 2.5 in the plan):** `@electric-sql/pglite` added as devDependency, `npm run test:sql`, test added to `check.bat`. In `supabase/migrations/010_karigar_ledger.sql` (edited in place; 010 is on the test project only, re-apply it there): per-type table of allowed accounts and signs; owner-only OPENING/ADJ lines; ledger-only refusals use SQLSTATE `KG001` and every other fault propagates (store-proxy answers 500, client retries, no raw `sqlerrm`); LOSS needs an approver; reversal must mirror lines AND labour one-to-one; same `op_id` with different content is refused (fingerprint in `meta.fp`, computed on the server only, so no client change); managers limited to today..7 days back (India time); ENTITLEMENT_SETTLE/ACCRUE must pair per karigar; ENT, LOSS, PAYOUT never below zero; labour amounts have the right sign per type; ids restricted to `A-Za-z0-9:_.-`. `store-proxy/index.ts`: real calendar date, year 2000+, no NUL character, same id character set. `js/12-karigar-data.js`: a 403 now logs the journal as rejected instead of dropping it silently.
