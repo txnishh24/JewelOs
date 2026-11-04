@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════
--- 010_karigar_ledger.sql  —  Karigar 2.0 immutable ledger. applied to the TEST project jewelos-test only (31 Oct 2026); NOT applied to production.
+-- 010_karigar_ledger.sql  —  Karigar 2.0 immutable ledger. applied to the TEST project jewelos-test (31 Oct 2026, older form) and to PRODUCTION uluzuwomwqsqxtejgzmf on 4 Nov 2026 (this version, comments stripped). store-proxy NOT yet deployed.
 -- Karigar 2.0 immutable metal/labour journal. Design: JewelOS-Karigar-2.0-Phase2-Design.md
 --
 -- Pattern copied from 001_lockdown_rls.sql + 002_atomic_transactions.sql:

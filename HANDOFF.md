@@ -104,6 +104,18 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-04 (hundred-and-thirty-eighth entry) · Claude Code (Sonnet) — Karigar 2.0 Task 3, GO #1: migration 010 APPLIED TO PRODUCTION (`uluzuwomwqsqxtejgzmf`); store-proxy and worker NOT deployed
+
+**Done, with Tanish's explicit GO ("apply 010 to production, leave 011 for now").** Backup first: `store-2026-11-04-1859.json` (9 shops, 2.5 MB, shop `3720af09` present with 12 girvi loans), run by Tanish in his own terminal (this session never held the service key). Then `apply_migration` named `010_karigar_ledger` (the committed `2ff1ffa` version, comments stripped).
+
+**Verified live (read-only queries):** tables `kg_journal`, `kg_journal_line`, `kg_labour_line`, `kg_shop_setting` exist, RLS on, 0 policies, `anon` and `authenticated` have no select. `kg_post_journal`, `kg_balances`, `kg_journal_list`: `anon`/`authenticated` cannot execute, `service_role` can. `kg_journal` has 0 rows, `store` still 9 rows (nothing existing touched). Security advisor: only the expected INFO "RLS enabled, no policy" for the new tables. **Not verified:** an actual call as `service_role` through `store-proxy` (not deployed), the immutability triggers against live data, anything on a phone.
+
+**Not done:** migration 011 (Tanish: leave for now); `store-proxy` deploy (GO #2); worker deploy and `MIN_CLIENT_BUILD` (GO #3); `jewelos-deploy-verifier` and the post-and-reverse test journal on E2E shop `77c4aefe` (Step 5). Pre-existing, unrelated advisor WARN: `public.rls_auto_enable()` is executable by `anon` and `authenticated` (SECURITY DEFINER); not part of this task, worth a look.
+
+Note for GO #2: the committed `store-proxy` also carries the other session's 11 changed lines from `34fff02` (history/poll support); the 137th entry says that part is safe before or after 011.
+
+→ FOR COWORK: FYI — 010 is live in production but nothing calls it yet (the old `store-proxy` ignores it). Do not deploy `store-proxy` or the worker until Tanish gives GO #2 / GO #3.
+
 ### 2026-11-04 (hundred-and-thirty-seventh entry) · Claude Code (Sonnet) — audit fixes 1 and 2: shop-data history table (migration 011) and a poll that skips the download when nothing changed; NOT deployed, NOT applied
 
 Tanish asked for a repo audit, then "fix 1 and 2". (1) `public.store` had no old copies and no guard, unlike `auth_store`. (2) every open phone downloaded the whole shop blob every 60 s, and every save got the whole blob echoed back.
