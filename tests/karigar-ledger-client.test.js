@@ -107,6 +107,10 @@ await test('the validator refuses unbalanced, malformed and role-forbidden journ
   ok(withEdit(function(j){ j.labour = [{karigar_id:'', amount_paise:5}]; }));
   var open = build(a, 'OPENING', {fineMg:5000}).journal;
   ok(a.kgValidateJournal(open, 'manager'), 'manager cannot post OPENING'); eq(a.kgValidateJournal(open, 'owner'), '');
+  var accrue = build(a, 'ENTITLEMENT_ACCRUE', {karigarId:'k1', fineMg:4000}).journal;
+  ok(a.kgValidateJournal(accrue, 'manager'), 'manager cannot post an entitlement accrual (owner only, as in the database)'); eq(a.kgValidateJournal(accrue, 'owner'), '');
+  var settle = build(a, 'ENTITLEMENT_SETTLE', {karigarId:'k1', fineMg:4000}).journal;
+  eq(a.kgValidateJournal(settle, 'manager'), '', 'a manager may still settle what the owner accrued');
 });
 await test('a reversal is the exact mirror: the journal plus its reversal leaves every account at zero', async function(){
   var a = fresh();

@@ -340,5 +340,20 @@ const kIssue = (await db.query("select id from kg_journal where shop_id='K' and 
 r = await post('K', 'REVERSAL', [L('VAULT', '', 1000), L('KCUST', 'kk', -1000)], { reverses: kIssue, role: 'manager' });
 ok(r.ok, 'D3: a manager can still reverse an ordinary journal that had no approver');
 
+
+// ── 18 automated review of the pairing rule: it must be a universal check, not "one matching pair exists" ──
+await post('X', 'ISSUE', [L('VAULT', '', -1000), L('KCUST', 'k2', 1000)]);
+await post('X', 'ISSUE', [L('VAULT', '', -1000), L('KCUST', 'k1', 1000)]);
+r = await post('X', 'SCRAP', [L('KCUST', 'k1', -50), L('SCRAP', 'k1', 50), L('KCUST', 'k2', -400), L('SCRAP', 'k3', 400)], { role: 'manager' });
+ok(!r.ok && /exactly two/.test(r.error), 'pairing: a scrap with extra lines cannot move another karigar\'s custody into a third karigar\'s scrap');
+r = await post('X', 'LOSS', [L('KCUST', 'k1', -50), L('LOSS', 'k1', 50), L('KCUST', 'k2', -400), L('LOSS', 'k3', 400)], { approved: 'owner1' });
+ok(!r.ok && /exactly two/.test(r.error), 'pairing: the same for a loss');
+r = await post('X', 'ISSUE', [L('VAULT', '', -1), L('VAULT', '', -1), L('KCUST', 'k1', 2)], { role: 'manager' });
+ok(!r.ok && /exactly two/.test(r.error), 'pairing: a metal event is exactly two lines (extra lines are refused for every pair type)');
+r = await post('X', 'RECEIPT', [L('KCUST', 'k1', -10), L('FG', 'J1', 5), L('FG', 'J2', 5)], { role: 'manager' });
+ok(!r.ok && /exactly two/.test(r.error), 'pairing: a receipt cannot split into several jobs in one journal');
+ok(await bal('X', 'KCUST', 'k2') === 1000 && await bal('X', 'SCRAP', 'k3') === 0, 'pairing: nothing moved');
+r = await post('X', 'SCRAP', [L('KCUST', 'k1', -50), L('SCRAP', 'k1', 50)], { role: 'manager' }); ok(r.ok, 'pairing: the normal two-line scrap still posts');
+
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);

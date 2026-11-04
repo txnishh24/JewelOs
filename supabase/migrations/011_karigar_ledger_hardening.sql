@@ -138,6 +138,12 @@ begin
     if jsonb_array_length(p_lines) = 0 and p_type not in ('LABOUR_ACCRUE', 'LABOUR_PAY') then
       return query select false, false, null::bigint, 'a journal needs at least one line'; return;
     end if;
+    -- a single metal event is exactly one pair of lines. A looser rule ("a matching pair exists") lets extra
+    -- lines in the same journal move another karigar's custody into a third karigar's bucket.
+    if p_type in ('ISSUE', 'RETURN', 'RECEIPT', 'SCRAP', 'LOSS', 'TRANSFER_OUT', 'TRANSFER_IN', 'OPENING', 'ADJUST')
+       and jsonb_array_length(p_lines) <> 2 then
+      return query select false, false, null::bigint, 'a ' || p_type || ' journal has exactly two lines'; return;
+    end if;
     -- a transit line belongs to its own voucher; scrap and loss come out of the same karigar's custody
     if exists (select 1 from jsonb_array_elements(p_lines) l where l->>'account' = 'TRANSIT'
                and (p_voucher_id is null or coalesce(l->>'owner_ref', '') = '' or l->>'owner_ref' <> p_voucher_id)) then
