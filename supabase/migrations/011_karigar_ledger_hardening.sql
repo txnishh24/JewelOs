@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════
--- 011_karigar_ledger_hardening.sql  —  Karigar 2.0 Task 2.5. NOT applied to production.
+-- 011_karigar_ledger_hardening.sql  —  Karigar 2.0 Task 2.5. APPLIED to production uluzuwomwqsqxtejgzmf on 4 Nov 2026.
 -- Replaces public.kg_post_journal from 010 (same signature, same grants). Apply AFTER 010.
 -- Plan: docs/superpowers/plans/2026-11-03-karigar-2-remaining-phases.md, Task 2.5.
 -- Tested by tests/sql-kg-ledger.test.mjs section 14 (npm run test:sql).

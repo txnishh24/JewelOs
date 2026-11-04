@@ -104,6 +104,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-04 (hundred-and-forty-third entry) · Claude Code (Sonnet) — Task 3 / Task 2.5: migration 011 APPLIED and `store-proxy` v16 DEPLOYED to production; worker still NOT deployed
+
+**Done, each with Tanish's explicit GO ("yes, apply 011 then deploy store-proxy"), after the Opus review in the 142nd entry.** (1) `apply_migration` `011_karigar_ledger_hardening` on `uluzuwomwqsqxtejgzmf`. Before: 0 journals, one `kg_post_journal` overload with my earlier in-place body. After: still one overload, new body only (no `v_fp`), `anon` and `authenticated` cannot execute, `service_role` can, 0 journals, `store` still 9 rows. (2) `store-proxy` v16 deployed (`verify_jwt` true) from the merged repo file at `38aee64`: ledger actions with the stricter checks, NUL refusal, plain labour ids, the `?known=` poll answer and `{_v}` save reply. **Production now matches the repo for the ledger.** Rollback for `store-proxy`: `supabase/functions/store-proxy/index.v9.rollback.ts` (pre-ledger code); the SQL needs no rollback while the ledger is empty.
+
+**Checked:** v16 boots, 401 without a token, OPTIONS 200. e2e (from `E:\jewelos`, branch `karigar-2-task-2-5`'s client, live backend): 22 of 23 passed in the full run; the one failure, the Girvi failed-save test, passed on an immediate re-run together with its sibling (a timing flake, it had passed on v15 too). **NOT verified:** the deployed v16 text equals the repo file (not diffed), an authenticated `kg_post` / `kg_balances` call (Task 3 Step 5 does that on the E2E shop after the worker deploy), two phones at once, any screen.
+
+**Still not done:** GO #3, the worker deploy. It would ship the ledger client (`js/12-karigar-data.js`), the poll fix, and the security headers (`_headers`, Report-Only CSP); `APP_BUILD` and the `sw.js` cache version need bumping first and the E2E suite should be run against the merged client, not the other branch's. Migration 012 (shop-data history) is still unapplied. Then `MIN_CLIENT_BUILD`, `jewelos-deploy-verifier`, and a post-and-reverse test journal on `77c4aefe`.
+
+→ FOR COWORK: nothing — FYI only. Do not deploy the worker or apply 012 until Tanish says so. Branch `karigar-2-task-2-5` is merged into `claude/yoo-e1b0af`; do not build on it separately.
+
 ### 2026-11-04 (hundred-and-forty-second entry) · Claude Code (Sonnet) — Opus review of the merged Task 2.5 tree: SAFE TO APPLY 011; three small `store-proxy` fixes; nothing applied or deployed yet
 
 `jewelos-security-auditor` on Opus (MODEL-POLICY 🔴 sign-off for the apply, Tanish still decides): **no way found** for a manager, staff or readonly user to create or destroy metal or labour, forge a reversal, bypass the account/sign/pairing templates, abuse `op_id`, cross shops, leak raw database text, or break old clients. 011 applies cleanly on the original 010 AND on production's current (in-place edited) 010: `create or replace` leaves exactly one `kg_post_journal` with 011's body. SQL test 188/188 on both bases, run twice. **Not checked by it:** the live production function body (assumed to be the `2ff1ffa` text), that deployed `store-proxy` v15 equals the repo, e2e, `npm audit`.
