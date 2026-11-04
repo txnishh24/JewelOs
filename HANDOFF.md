@@ -104,6 +104,22 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-04 (hundred-and-thirty-fourth entry) · Claude Code (Sonnet) — CEO review and engineering review of the Karigar 2.0 plan and ledger code: 15 decisions (D2-D17 except D5 deferred), plan extended, nothing built or deployed
+
+Tanish ran `/plan-ceo-review` (mode SCOPE EXPANSION, chosen over the recommended HOLD SCOPE) and then `/plan-eng-review` (target: the ledger code on `main`) on `docs/superpowers/plans/2026-11-03-karigar-2-remaining-phases.md`. Only docs were changed: that plan, a new `TODOS.md`, and this file. No code, migration or deploy.
+
+**Scope added (CEO review):** WhatsApp khata statement per karigar (SCOPE-1, after Task 4), karigar scorecard shown from 3 closed jobs (SCOPE-2), overdue-job WhatsApp nudge (SCOPE-3), "gold outside the vault" Today tile plus a Close Day mismatch banner (SCOPE-5). Deferred to `TODOS.md`: printable job card (SCOPE-4). Design gate (D17): run `/plan-design-review` on those screens before building them.
+
+**Confirmed by static read, not by running (Task 2.5 Step 4c):** the three automated security findings are real. `store-proxy/index.ts:77,98` gates owner-only on the journal type but checks lines only against the account list, so a manager can mint gold with `ADJ`/`OPENING` lines under an allowed type. `010_karigar_ledger.sql:223` catches everything and returns raw `sqlerrm` (transient faults become permanent 422 rejections). A LOSS can post with no approver.
+
+**Plan changes, all approved by Tanish:** Task 2.5 now has Step 0 (make the SQL test runnable: `@electric-sql/pglite` is not installed, so `tests/sql-kg-ledger.test.mjs` fails with `ERR_MODULE_NOT_FOUND`), 4a (reversals mirror labour), 4b (reused `op_id` with different content is refused), 4d (managers limited to today..7 days back). Task 4 gained 3a (zero/negative blob balances skipped and listed), 3b (karigar OPENING builder; `js/12-karigar-data.js:97` builds only a VAULT opening), 5a (gold movements need internet; a mid-send timeout stays PENDING until the server answers), 5b (staff see "Ask the owner or a manager"), 6a (rejected journals logged and counted; the client list currently keeps only `slice(-50)` at `js/12-karigar-data.js:159`). Task 3 Step 5 gains a post-and-reverse test journal; Task 12 pages the ledger backup 1000 at a time.
+
+**Verified:** `node tests/karigar-ledger-client.test.js` 13 passed, 0 failed. **Not verified:** the SQL ledger test (could not run), two phones posting at once, the live `store-proxy`, any screen. Both reviews are incomplete against their own skill: no outside voice, no spec-review loop, no formal report file or review log. `bun` is not installed here, so the plan-reality rows could not run.
+
+Open and undecided: the outbox flush does not track dependencies between journals (`js/12-karigar-data.js:200-203`); the type and account lists exist in three places; the SQL test has no case for gold minting through ADJ/OPENING lines, transient errors, labour reversal or concurrency. `CLAUDE.md` still says launch is "late September 2026"; today is 4 Nov and the 3 Nov launch gate is XSS Batch 1 (done), backup rehearsal (done), security headers (committed, not deployed). Karigar 2.0 is not on that gate.
+
+→ FOR COWORK: nothing — FYI only. Do NOT apply migration 010 to production or deploy `store-proxy` until Task 2.5 is done and Tanish has seen the result.
+
 ### 2026-11-04 (hundred-and-thirty-third entry) · Claude Code (Sonnet) — automated security review of the phase 5a push: 3 UNVERIFIED findings logged, nothing changed
 
 After pushing `main` (`79a4169..94388f1`, which carried the Karigar 2.0 phase 5a ledger code to GitHub), an automated review (security-guidance plugin) flagged three issues. I have NOT read the code or confirmed any of them. No code was edited. Treat them as leads, not verdicts.
