@@ -1,14 +1,17 @@
 // Runs supabase/migrations/010_karigar_ledger.sql against real Postgres (PGlite, in-process).
-// Not in npm deps on purpose -- one-off: npm i --no-save @electric-sql/pglite@0.2 && node tests/sql-kg-ledger.test.mjs
+// @electric-sql/pglite is a devDependency: npm install, then npm run test:sql
 // Optional argv[2]: path to the migration (to test a different copy).
 import { PGlite } from '@electric-sql/pglite';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 const MIG = process.argv[2] || fileURLToPath(new URL('../supabase/migrations/010_karigar_ledger.sql', import.meta.url));
+const MIG2 = fileURLToPath(new URL('../supabase/migrations/011_karigar_ledger_hardening.sql', import.meta.url));
 const db = new PGlite();
 await db.exec('create role anon; create role authenticated; create role service_role;');
 await db.exec(fs.readFileSync(MIG, 'utf8'));
 await db.exec(fs.readFileSync(MIG, 'utf8'));            // idempotent: second run must not fail
+await db.exec(fs.readFileSync(MIG2, 'utf8'));           // 011 replaces kg_post_journal (hardening)
+await db.exec(fs.readFileSync(MIG2, 'utf8'));           // and is idempotent too
 let failed = 0;
 const ok = (c, m) => { if (!c) { failed++; console.log('FAIL', m); } else console.log('ok  ', m); };
 
@@ -17,7 +20,7 @@ async function post(shop, type, lines, o = {}) {
   const op = o.op || ('op' + (++n));
   const r = await db.query(
     'select * from kg_post_journal($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
-    [shop, op, type, o.job || 'J1', o.voucher || null, o.reverses || null, '2026-10-31', o.note || '', 'tester', o.role || 'owner',
+    [shop, op, type, o.job || 'J1', o.voucher || null, o.reverses || null, o.date || '2026-10-31', o.note || '', 'tester', o.role || 'owner',
      o.approved || null, '{}', JSON.stringify(lines), JSON.stringify(o.labour || [])]);
   return r.rows[0];
 }
@@ -132,6 +135,80 @@ for (const role of ['anon', 'authenticated']) {
   await db.exec('reset role');
   ok(denied, role + ' cannot read the ledger');
 }
+
+// ── 14 Task 2.5 hardening (migration 011) ─────────────────────────────
+const ist = (off = 0) => new Date(Date.now() + 5.5 * 3600e3 + off * 86400e3).toISOString().slice(0, 10);
+
+// F1: the journal TYPE decides which accounts a journal may touch, and who may touch the owner-only ones
+r = await post('D', 'ISSUE', [L('VAULT', '', -1000), L('KCUST', 'kd', 1000)]); ok(r.ok, 'D: seed issue');
+let jD = await count('kg_journal');
+r = await post('D', 'RECEIPT', [L('KCUST', 'kd', 500), L('ADJ', 'kd', -500)], { role: 'manager' });
+ok(!r.ok && /not allowed/.test(r.error), 'F1: a manager cannot mint custody through ADJ lines under a RECEIPT');
+r = await post('D', 'RECEIPT', [L('KCUST', 'kd', 500), L('OPENING', '', -500)], { role: 'manager' });
+ok(!r.ok && /not allowed/.test(r.error), 'F1: a manager cannot mint custody through OPENING lines under a RECEIPT');
+r = await post('D', 'ISSUE', [L('VAULT', '', 1000), L('KCUST', 'kd', -1000)]);
+ok(!r.ok && /not allowed/.test(r.error), 'F1: right accounts, wrong direction is refused (a balanced journal is not enough)');
+r = await post('D', 'ADJUST', [L('KCUST', 'kd', 500), L('ADJ', 'kd', -500)], { role: 'manager' });
+ok(!r.ok && /owner/.test(r.error), 'F1: ADJUST is owner only inside the database, not just in store-proxy');
+r = await post('D', 'OPENING', [L('KCUST', 'kd', 500), L('OPENING', 'kd', -500)], { role: 'manager' });
+ok(!r.ok && /owner/.test(r.error), 'F1: OPENING is owner only inside the database');
+ok(await count('kg_journal') === jD, 'F1: no refused journal left a row');
+r = await post('D', 'OPENING', [L('KCUST', 'k9', 2500), L('OPENING', 'k9', -2500)]);
+ok(r.ok, 'D3: owner can post a karigar opening balance (KCUST against OPENING)');
+ok(await bal('D', 'KCUST', 'k9') === 2500 && await bal('D', 'ADJ', 'k9') === 0, 'D3: an opening balance does not touch the ADJ account');
+r = await post('D', 'ADJUST', [L('KCUST', 'k9', -500), L('ADJ', 'k9', 500)]); ok(r.ok, 'owner ADJUST (either direction) still posts');
+const adjId = (await db.query("select id from kg_journal where shop_id='D' and type='ADJUST'")).rows[0].id;
+r = await post('D', 'REVERSAL', [L('KCUST', 'k9', 500), L('ADJ', 'k9', -500)], { reverses: adjId, role: 'manager' });
+ok(!r.ok && /owner/.test(r.error), 'F1: a manager cannot reverse an owner adjustment');
+
+// F3: a loss needs an approver
+r = await post('D', 'LOSS', [L('KCUST', 'kd', -100), L('LOSS', 'kd', 100)]);
+ok(!r.ok && /approv/.test(r.error), 'F3: a LOSS with no approver is refused');
+r = await post('D', 'LOSS', [L('KCUST', 'kd', -100), L('LOSS', 'kd', 100)], { approved: 'owner1' }); ok(r.ok, 'F3: an approved LOSS posts');
+
+// F2: only the ledger's own refusals are answered; any other database error must propagate, not become a refusal
+await db.exec(`create function kg_test_boom() returns trigger language plpgsql as $f$ begin
+  if new.owner_ref = 'boom' then raise exception 'simulated serialization failure' using errcode = '40001'; end if; return new; end $f$;
+  create trigger kg_test_boom before insert on kg_journal_line for each row execute function kg_test_boom();`);
+let jBefore = await count('kg_journal'), thrown = null;
+try { await post('D', 'ISSUE', [L('VAULT', '', -10), L('KCUST', 'boom', 10)]); } catch (e) { thrown = e; }
+ok(thrown && /simulated/.test(String(thrown.message)), 'F2: a transient database error propagates instead of becoming a permanent refusal');
+ok(await count('kg_journal') === jBefore, 'F2: and nothing was written');
+await db.exec('drop trigger kg_test_boom on kg_journal_line; drop function kg_test_boom();');
+r = await post('D', 'ISSUE', [{ account: 'VAULT', owner_ref: '', fine_mg: 'abc' }, L('KCUST', 'kd', 1)]);
+ok(!r.ok && /malformed/.test(r.error), 'F2: a malformed line is a clear refusal, not a raw database error');
+r = await post('D', 'RECEIPT', [L('KCUST', 'kd', -999999999), L('FG', 'J1', 999999999)]);
+ok(!r.ok && /negative/.test(r.error) && !/P0001|KG001|sqlstate/i.test(r.error), 'F2: a business refusal still returns its plain message');
+
+// D8: a reversal mirrors labour as well as metal
+r = await post('E', 'LABOUR_ACCRUE', [], { labour: [{ karigar_id: 'ke1', amount_paise: 1000 }] });
+const lj = r.journal_id;
+r = await post('E', 'REVERSAL', [], { reverses: lj });
+ok(!r.ok && /labour/.test(r.error), 'D8: a reversal with no labour lines does not cancel the labour');
+r = await post('E', 'REVERSAL', [], { reverses: lj, labour: [{ karigar_id: 'ke1', amount_paise: 1000 }] });
+ok(!r.ok && /labour/.test(r.error), 'D8: labour that is not the exact negation is refused');
+r = await post('E', 'REVERSAL', [], { reverses: lj, labour: [{ karigar_id: 'ke1', amount_paise: -1000 }, { karigar_id: 'ke1', amount_paise: 5 }] });
+ok(!r.ok && /labour/.test(r.error), 'D8: extra labour lines on a reversal are refused');
+r = await post('E', 'REVERSAL', [], { reverses: lj, labour: [{ karigar_id: 'ke1', amount_paise: -1000 }] });
+ok(r.ok, 'D8: the exact labour mirror posts');
+ok(Number((await db.query("select coalesce(sum(amount_paise),0) s from kg_labour_line where karigar_id='ke1'")).rows[0].s) === 0, 'D8: labour nets to zero after the reversal');
+
+// D9: re-sending an op_id with different content is a loud refusal, an identical resend is still a quiet duplicate
+r = await post('F', 'ISSUE', [L('VAULT', '', -100), L('KCUST', 'kf', 100)], { op: 'fp-op-1' }); ok(r.ok && !r.duplicate, 'D9: first post');
+r = await post('F', 'ISSUE', [L('VAULT', '', -100), L('KCUST', 'kf', 100)], { op: 'fp-op-1' }); ok(r.ok && r.duplicate, 'D9: identical resend is a duplicate');
+r = await post('F', 'ISSUE', [L('VAULT', '', -200), L('KCUST', 'kf', 200)], { op: 'fp-op-1' });
+ok(!r.ok && /different content/.test(r.error), 'D9: same op_id with different amounts is refused, not reported as a duplicate');
+ok(await bal('F', 'KCUST', 'kf') === 100, 'D9: and the ledger still holds the original amount');
+
+// D10: managers are limited to today (IST) back 7 days; the owner is not
+await post('G', 'ISSUE', [L('VAULT', '', -100), L('KCUST', 'kg', 100)], { date: ist(0), op: 'g-seed-01' });
+r = await post('G', 'SCRAP', [L('KCUST', 'kg', -1), L('SCRAP', 'kg', 1)], { role: 'manager', date: ist(1) });
+ok(!r.ok && /date/.test(r.error), 'D10: a manager cannot post a future date');
+r = await post('G', 'SCRAP', [L('KCUST', 'kg', -1), L('SCRAP', 'kg', 1)], { role: 'manager', date: ist(-8) });
+ok(!r.ok && /date/.test(r.error), 'D10: a manager cannot post more than 7 days back');
+r = await post('G', 'SCRAP', [L('KCUST', 'kg', -1), L('SCRAP', 'kg', 1)], { role: 'manager', date: ist(-7) }); ok(r.ok, 'D10: 7 days back is allowed');
+r = await post('G', 'SCRAP', [L('KCUST', 'kg', -1), L('SCRAP', 'kg', 1)], { role: 'manager', date: ist(0) }); ok(r.ok, 'D10: today is allowed');
+r = await post('G', 'SCRAP', [L('KCUST', 'kg', -1), L('SCRAP', 'kg', 1)], { role: 'owner', date: ist(-30) }); ok(r.ok, 'D10: the owner may back-date');
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);
