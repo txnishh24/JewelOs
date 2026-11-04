@@ -104,6 +104,12 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-04 (hundred-and-fortieth entry) · Claude Code (Sonnet) — e2e run against the live backend after `store-proxy` v15: 23 of 23 passed
+
+Run from the main checkout `E:\jewelos` (branch `karigar-2-task-2-5`, which holds the test-shop login details; it also has uncommitted edits to `CLAUDE.md`, the Claude settings file and the Karigar plan that are not mine). Login, PIN lock, session restore, sales, Girvi, Day Book, purchase, offline sale, invoice numbers/dates and failed-save retries all passed (4.9 min), so saves, loads and counters work through v15 with the live client. **Still not verified:** an authenticated `kg_balances` / `kg_post` call (no client calls the ledger yet; that is Task 3 Step 5).
+
+→ FOR COWORK: nothing — FYI only. Do not deploy the worker until Tanish gives GO #3.
+
 ### 2026-11-04 (hundred-and-thirty-ninth entry) · Claude Code (Sonnet) — Karigar 2.0 Task 3, GO #2: `store-proxy` v15 DEPLOYED to production; worker NOT deployed
 
 **Done, with Tanish's explicit GO ("yes, deploy store-proxy").** Before deploying I fetched the live v14 and confirmed it matched `supabase/functions/store-proxy/index.v9.rollback.ts` (no `kg_` code), so nothing deployed outside the repo was overwritten. v15 = repo `index.ts` at `92ae544`: ledger actions (`kg_post`, `kg_balances`, `kg_journal_list`, `kg_export`) plus the other session's two changes from `34fff02` (GET `?known=N` answers `{unchanged:true,_v}`; a successful save returns only `{_v}`). `verify_jwt` stays `true`. `MIN_CLIENT_BUILD` is unset (guard off). **Rollback:** redeploy `index.v9.rollback.ts` as `store-proxy` (it is the v14 source).
