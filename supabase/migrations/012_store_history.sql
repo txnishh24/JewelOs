@@ -1,4 +1,4 @@
--- 011: keep recent copies of each shop's data blob (audit 4 Nov, finding 1).
+-- 012: keep recent copies of each shop's data blob (audit 4 Nov, finding 1).
 --
 -- WHY: store_cas_write (002) replaces the whole blob on every save and keeps no old copy. A client
 -- bug that saves a shrunken blob at the right version erased a shop for good. auth_store already

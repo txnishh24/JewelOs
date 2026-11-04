@@ -9,7 +9,7 @@ const db = new PGlite();
 const R = fileURLToPath(new URL('../supabase/migrations/', import.meta.url));
 await db.exec(`create role anon; create role authenticated; create role service_role;
   create table public.store (id text primary key, data jsonb, updated_at timestamptz default now());`);
-for (const f of ['002_atomic_transactions.sql', '007_manual_store_edit_guard.sql', '011_store_history.sql']) {
+for (const f of ['002_atomic_transactions.sql', '007_manual_store_edit_guard.sql', '012_store_history.sql']) {
   await db.exec(fs.readFileSync(R + f, 'utf8'));
 }
 

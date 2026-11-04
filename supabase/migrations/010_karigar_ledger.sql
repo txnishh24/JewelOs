@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════
--- 010_karigar_ledger.sql  —  Karigar 2.0 immutable ledger. applied to the TEST project jewelos-test (31 Oct 2026, older form) and to PRODUCTION uluzuwomwqsqxtejgzmf on 4 Nov 2026 (this version, comments stripped). store-proxy NOT yet deployed.
+-- 010_karigar_ledger.sql  —  Karigar 2.0 immutable ledger. applied to the TEST project jewelos-test only (31 Oct 2026); NOT applied to production.
 -- Karigar 2.0 immutable metal/labour journal. Design: JewelOS-Karigar-2.0-Phase2-Design.md
 --
 -- Pattern copied from 001_lockdown_rls.sql + 002_atomic_transactions.sql:
@@ -136,45 +136,16 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_existing bigint; v_id bigint; v_sum bigint; v_vault boolean;
   v_line jsonb; v_n integer := 0; r record; v_target record; v_mirror bigint;
-  v_fp text; v_stored text; v_rules jsonb; v_today date; v_v bigint;
 begin
   perform pg_advisory_xact_lock(hashtext('kg:' || p_shop_id));
 
+  select id into v_existing from kg_journal where shop_id = p_shop_id and op_id = p_op_id;
+  if v_existing is not null then
+    return query select true, true, v_existing, null::text; return;
+  end if;
+
   if p_lines is null or jsonb_typeof(p_lines) <> 'array' then
     return query select false, false, null::bigint, 'lines required'; return;
-  end if;
-  if p_labour is not null and jsonb_typeof(p_labour) <> 'array' then
-    return query select false, false, null::bigint, 'labour must be a list'; return;
-  end if;
-
-  -- ids are joined into comparison strings below, so they may not contain separators
-  if exists (select 1 from jsonb_array_elements(p_lines) l
-             where coalesce(l->>'owner_ref','') !~ '^[A-Za-z0-9:_.-]{0,64}$'
-                or coalesce(l->>'account','') !~ '^[A-Z]{2,12}$')
-     or exists (select 1 from jsonb_array_elements(coalesce(p_labour,'[]'::jsonb)) b
-                where coalesce(b->>'karigar_id','') !~ '^[A-Za-z0-9:_.-]{1,64}$') then
-    return query select false, false, null::bigint, 'ids may only contain letters, digits and : _ . -'; return;
-  end if;
-
-  -- content fingerprint: type, date, lines and labour, independent of line order (D9)
-  v_fp := md5(jsonb_build_array(
-      p_type, p_business_date, p_job_id, p_voucher_id, p_reverses_id,
-      coalesce((select jsonb_agg(x order by x) from (
-         select jsonb_build_array(l->>'account', coalesce(l->>'owner_ref',''), l->>'fine_mg',
-                                  l->>'gross_mg', l->>'permille') as x
-         from jsonb_array_elements(p_lines) l) q), '[]'::jsonb),
-      coalesce((select jsonb_agg(x order by x) from (
-         select jsonb_build_array(b->>'karigar_id', b->>'amount_paise', b->>'mode') as x
-         from jsonb_array_elements(coalesce(p_labour, '[]'::jsonb)) b) q2), '[]'::jsonb))::text);
-
-  select id, meta->>'fp' into v_existing, v_stored from kg_journal where shop_id = p_shop_id and op_id = p_op_id;
-  if v_existing is not null then
-    -- same op_id with different content is a client bug, never a harmless resend. Journals
-    -- posted before the fingerprint existed (no stored fp) keep the old duplicate answer.
-    if v_stored is not null and v_stored <> v_fp then
-      return query select false, false, null::bigint, 'op_id already used with different content'; return;
-    end if;
-    return query select true, true, v_existing, null::text; return;
   end if;
 
   select coalesce(sum((l->>'fine_mg')::bigint), 0) into v_sum from jsonb_array_elements(p_lines) l;
@@ -182,107 +153,20 @@ begin
     return query select false, false, null::bigint, 'journal does not balance (sum fine_mg = ' || v_sum || ')'; return;
   end if;
 
-  -- ledger rules that do not trust the label alone. store-proxy checks shape and the owner-only
-  -- TYPES only; THIS is the real enforcement of accounts, signs, approval and dates.
-  if p_type in ('ADJUST','OPENING') and p_by_role <> 'owner' then
-    return query select false, false, null::bigint, 'owner only'; return;
-  end if;
-  if p_by_role <> 'owner' and exists (select 1 from jsonb_array_elements(p_lines) l
-                                      where l->>'account' in ('OPENING','ADJ')) then
-    return query select false, false, null::bigint, 'owner only'; return;
-  end if;
-  -- per type: which accounts may appear and with which sign ('+' gain, '-' give, '*' either).
-  -- A line outside this shape is refused, so a sign-flipped line cannot mint metal.
-  v_rules := case p_type
-    when 'ISSUE' then '{"VAULT":"-","KCUST":"+"}'
-    when 'RETURN' then '{"KCUST":"-","VAULT":"+"}'
-    when 'RECEIPT' then '{"KCUST":"-","FG":"+"}'
-    when 'SCRAP' then '{"KCUST":"-","SCRAP":"+"}'
-    when 'LOSS' then '{"KCUST":"-","LOSS":"+"}'
-    when 'TRANSFER_OUT' then '{"KCUST":"-","TRANSIT":"+"}'
-    when 'TRANSFER_IN' then '{"TRANSIT":"-","KCUST":"+"}'
-    when 'ENTITLEMENT_ACCRUE' then '{"ENT":"+","EARNED":"-"}'
-    when 'ENTITLEMENT_SETTLE' then '{"KCUST":"-","VAULT":"-","PAYOUT":"+","ENT":"-","EARNED":"+"}'
-    when 'LABOUR_ACCRUE' then '{}'
-    when 'LABOUR_PAY' then '{}'
-    when 'ADJUST' then '{"KCUST":"*","WIP":"*","ADJ":"*"}'
-    when 'OPENING' then '{"VAULT":"+","KCUST":"+","WIP":"+","OPENING":"-"}'
-    else null                     -- REVERSAL: the exact one-to-one mirror rule below is the limit
-  end::jsonb;
-  if v_rules is not null and exists (
-       select 1 from jsonb_array_elements(p_lines) l
-       where coalesce(v_rules->>(l->>'account'), '') = ''
-          or (v_rules->>(l->>'account') = '+' and (l->>'fine_mg')::bigint <= 0)
-          or (v_rules->>(l->>'account') = '-' and (l->>'fine_mg')::bigint >= 0)) then
-    return query select false, false, null::bigint, 'line not allowed for ' || p_type; return;
-  end if;
-  if p_type = 'ENTITLEMENT_ACCRUE' and exists (
-       select 1 from jsonb_array_elements(p_lines) l
-       group by coalesce(l->>'owner_ref','')
-       having sum((l->>'fine_mg')::bigint) <> 0) then
-    return query select false, false, null::bigint, 'accrual lines do not pair up per karigar'; return;
-  end if;
-  if p_type = 'ENTITLEMENT_SETTLE' then
-    -- one karigar: PAYOUT +e, ENT -e, EARNED +e, and the metal leaves that karigar's custody
-    -- (KCUST) or the vault (VAULT), never both
-    select coalesce(sum((l->>'fine_mg')::bigint) filter (where l->>'account' = 'VAULT'), 0) into v_v
-      from jsonb_array_elements(p_lines) l;
-    if exists (
-         select 1 from (
-           select coalesce(l->>'owner_ref','') o,
-                  coalesce(sum((l->>'fine_mg')::bigint) filter (where l->>'account' = 'PAYOUT'), 0) p,
-                  coalesce(sum((l->>'fine_mg')::bigint) filter (where l->>'account' = 'ENT'), 0) e,
-                  coalesce(sum((l->>'fine_mg')::bigint) filter (where l->>'account' = 'EARNED'), 0) er,
-                  coalesce(sum((l->>'fine_mg')::bigint) filter (where l->>'account' = 'KCUST'), 0) kc
-           from jsonb_array_elements(p_lines) l group by 1) g
-         where g.e <> -g.p or g.er <> g.p or (v_v = 0 and g.kc <> -g.p) or (v_v <> 0 and g.kc <> 0)) then
-      return query select false, false, null::bigint, 'settlement lines do not pair up'; return;
-    end if;
-  end if;
-  if (p_type = 'LABOUR_ACCRUE' and exists (select 1 from jsonb_array_elements(coalesce(p_labour,'[]'::jsonb)) b
-                                           where (b->>'amount_paise')::bigint <= 0))
-     or (p_type = 'LABOUR_PAY' and exists (select 1 from jsonb_array_elements(coalesce(p_labour,'[]'::jsonb)) b
-                                           where (b->>'amount_paise')::bigint >= 0)) then
-    return query select false, false, null::bigint, 'labour amount has the wrong sign for ' || p_type; return;
-  end if;
-  if p_type not in ('LABOUR_ACCRUE','LABOUR_PAY','REVERSAL')
-     and jsonb_array_length(coalesce(p_labour, '[]'::jsonb)) > 0 then
-    return query select false, false, null::bigint, 'labour not allowed for ' || p_type; return;
-  end if;
-  if p_type = 'LOSS' and p_approved_by is null then
-    return query select false, false, null::bigint, 'a loss needs owner approval'; return;
-  end if;
-  if p_by_role <> 'owner' then
-    v_today := (now() at time zone 'Asia/Kolkata')::date;
-    if p_business_date > v_today or p_business_date < v_today - 7 then
-      return query select false, false, null::bigint, 'date outside the allowed window (today back to 7 days)'; return;
-    end if;
-  end if;
-
   if p_type = 'REVERSAL' then
     select * into v_target from kg_journal where id = p_reverses_id and shop_id = p_shop_id;
     if not found then return query select false, false, null::bigint, 'reversal target not found'; return; end if;
     if v_target.type = 'REVERSAL' then return query select false, false, null::bigint, 'cannot reverse a reversal'; return; end if;
-    -- lines must mirror the target exactly, one-to-one: compare the two sorted lists (account,
-    -- owner_ref, fine_mg), so duplicate lines cannot hide a different line (D8)
-    if (select string_agg(x, ';' order by x) from (
-          select account || ',' || owner_ref || ',' || (-fine_mg) as x
-          from kg_journal_line where journal_id = p_reverses_id) t)
-       is distinct from
-       (select string_agg(x, ';' order by x) from (
-          select (l->>'account') || ',' || coalesce(l->>'owner_ref','') || ',' || (l->>'fine_mg') as x
-          from jsonb_array_elements(p_lines) l) u) then
+    -- lines must mirror the target exactly (account, owner_ref, -fine_mg)
+    if (select count(*) from kg_journal_line where journal_id = p_reverses_id) <> jsonb_array_length(p_lines)
+       or exists (
+         select 1 from kg_journal_line t
+         where t.journal_id = p_reverses_id
+           and not exists (select 1 from jsonb_array_elements(p_lines) l
+                           where l->>'account' = t.account
+                             and coalesce(l->>'owner_ref','') = t.owner_ref
+                             and (l->>'fine_mg')::bigint = -t.fine_mg)) then
       return query select false, false, null::bigint, 'reversal lines do not mirror the original'; return;
-    end if;
-    -- labour must mirror too, one-to-one, amounts negated
-    if (select string_agg(x, ';' order by x) from (
-          select karigar_id || ',' || (-amount_paise) as x
-          from kg_labour_line where journal_id = p_reverses_id) t)
-       is distinct from
-       (select string_agg(x, ';' order by x) from (
-          select (b->>'karigar_id') || ',' || (b->>'amount_paise') as x
-          from jsonb_array_elements(coalesce(p_labour, '[]'::jsonb)) b) u) then
-      return query select false, false, null::bigint, 'reversal labour does not mirror the original'; return;
     end if;
   end if;
 
@@ -290,8 +174,7 @@ begin
     insert into kg_journal (shop_id, op_id, type, job_id, voucher_id, reverses_id, business_date,
                             note, by_user, by_role, approved_by, meta)
     values (p_shop_id, p_op_id, p_type, p_job_id, p_voucher_id, p_reverses_id, p_business_date,
-            coalesce(p_note,''), p_by_user, p_by_role, p_approved_by,
-            coalesce(p_meta,'{}'::jsonb) || jsonb_build_object('fp', v_fp))
+            coalesce(p_note,''), p_by_user, p_by_role, p_approved_by, coalesce(p_meta,'{}'::jsonb))
     returning id into v_id;
   exception when unique_violation then
     -- lost a race on reversal uniqueness or on (shop, op_id)
@@ -329,19 +212,16 @@ begin
                                        from jsonb_array_elements(p_lines) a)
     group by l.account, l.owner_ref
   loop
-    if r.bal < 0 and r.account in ('KCUST','WIP','FG','SCRAP','TRANSIT','LOSS','PAYOUT','ENT')
+    if r.bal < 0 and r.account in ('KCUST','WIP','FG','SCRAP','TRANSIT')
        or (r.bal < 0 and r.account = 'VAULT' and v_vault) then
       raise exception 'account % % would go negative (%)', r.account, r.owner_ref, r.bal
-        using errcode = 'KG001';
+        using errcode = 'P0001';
     end if;
   end loop;
 
   return query select true, false, v_id, null::text;
-exception when sqlstate 'KG001' then
-  -- only the ledger's own refusals (SQLSTATE KG001) become a normal answer; the block rolls the
-  -- journal back. Any other fault (dropped connection, serialization failure, bad data) propagates
-  -- so store-proxy answers 500 and the client keeps the journal in its outbox for retry,
-  -- and no raw database text reaches the caller.
+exception when others then
+  -- any failure rolls the whole journal back (the function body is one transaction)
   return query select false, false, null::bigint, sqlerrm;
 end $$;
 

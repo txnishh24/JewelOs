@@ -45,7 +45,8 @@ const ALLOWED_COUNTERS = new Set([
 // ── Karigar 2.0 ledger (supabase/migrations/010_karigar_ledger.sql) ──
 // The shop id is NEVER read from the request: it is the tenant resolved from the session
 // token, exactly like the blob. Only owner and manager may touch the ledger; ADJUST and
-// OPENING are owner-only. Staff and readonly are refused.
+// OPENING and ENTITLEMENT_ACCRUE are owner-only (migration 011 enforces this in the database too).
+// Staff and readonly are refused.
 const KG_TYPES = new Set([
   "ISSUE", "RETURN", "RECEIPT", "SCRAP", "LOSS", "TRANSFER_OUT", "TRANSFER_IN",
   "ENTITLEMENT_ACCRUE", "ENTITLEMENT_SETTLE", "LABOUR_ACCRUE", "LABOUR_PAY", "ADJUST", "OPENING", "REVERSAL",
@@ -84,11 +85,12 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
   if (type === "REVERSAL" && reverses === null) return "a reversal must name the journal it reverses";
   if (type !== "REVERSAL" && reverses !== null) return "only a reversal may name a journal";
   const date = b.business_date;
-  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < "2000-01-01" || isNaN(Date.parse(date + "T00:00:00Z")) || new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date) return "business_date must be a real date (YYYY-MM-DD)";
+  // a real calendar date between 2000 and 2100: "2026-02-30" and "0000-01-01" pass Date.parse, but
+  // Postgres rejects them while reading the argument, which would surface as a 500 and be retried forever
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < "2000-01-01" || date > "2100-12-31"
+      || isNaN(Date.parse(date + "T00:00:00Z")) || new Date(date + "T00:00:00Z").toISOString().slice(0, 10) !== date) return "business_date must be a real date, YYYY-MM-DD";
   const note = b.note == null ? "" : b.note;
   if (!isStr(note, 200)) return "note too long";
-  const hasNul = (v: unknown) => typeof v === "string" && v.indexOf("\u0000") !== -1;
-  if (hasNul(note) || hasNul(job) || hasNul(voucher)) return "text contains an invalid character";
   const lines = b.lines == null ? [] : b.lines;
   const labour = b.labour == null ? [] : b.labour;
   if (!Array.isArray(lines) || !Array.isArray(labour)) return "lines and labour must be lists";
@@ -99,7 +101,8 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
     if (!l || typeof l !== "object") return "bad line";
     if (typeof l.account !== "string" || !KG_ACCOUNTS.has(l.account)) return "unknown account";
     const ref = l.owner_ref == null ? "" : l.owner_ref;
-    if (!isStr(ref, 64) || !/^[A-Za-z0-9:_.-]*$/.test(ref as string)) return "owner_ref has invalid characters";
+    // plain ids only (letters, digits, _ and -): the database applies the same rule per account
+    if (!isStr(ref, 64) || !/^[A-Za-z0-9_-]*$/.test(ref as string)) return "owner_ref invalid";
     if (!isInt(l.fine_mg) || l.fine_mg === 0 || Math.abs(l.fine_mg as number) > 1e12) return "fine_mg must be a non-zero whole number";
     if (l.gross_mg != null && (!isInt(l.gross_mg) || Math.abs(l.gross_mg as number) > 1e12)) return "gross_mg invalid";
     if (l.permille != null && (!isInt(l.permille) || (l.permille as number) < 1 || (l.permille as number) > 1000)) return "permille invalid";
@@ -108,7 +111,7 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
   const outLabour: unknown[] = [];
   for (const l of labour as Record<string, unknown>[]) {
     if (!l || typeof l !== "object") return "bad labour line";
-    if (!isStr(l.karigar_id, 64) || !l.karigar_id || !/^[A-Za-z0-9:_.-]+$/.test(l.karigar_id as string)) return "karigar_id required (letters, digits : _ . - only)";
+    if (!isStr(l.karigar_id, 64) || !l.karigar_id) return "karigar_id required";
     if (!isInt(l.amount_paise) || l.amount_paise === 0 || Math.abs(l.amount_paise as number) > 1e12) return "amount_paise must be a non-zero whole number";
     if (l.mode != null && !isStr(l.mode, 20)) return "mode too long";
     outLabour.push({ karigar_id: l.karigar_id, amount_paise: l.amount_paise, mode: l.mode ?? null });
@@ -119,7 +122,8 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
     if (keys.length > 10) return "meta too large";
     for (const k of keys) {
       const v = (b.meta as Record<string, unknown>)[k];
-      if (!/^[a-z_]{1,24}$/.test(k) || !isStr(v, 120)) return "meta invalid";
+      // "h" is the server's own op_id fingerprint (migration 011); a client may not set it
+      if (k === "h" || !/^[a-z_]{1,24}$/.test(k) || !isStr(v, 120)) return "meta invalid";
       meta[k] = v as string;
     }
   }
