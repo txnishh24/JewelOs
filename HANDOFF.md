@@ -104,6 +104,22 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-04 (hundred-and-thirty-third entry) · Claude Code (Sonnet) — automated security review of the phase 5a push: 3 UNVERIFIED findings logged, nothing changed
+
+After pushing `main` (`79a4169..94388f1`, which carried the Karigar 2.0 phase 5a ledger code to GitHub), an automated review (security-guidance plugin) flagged three issues. I have NOT read the code or confirmed any of them. No code was edited. Treat them as leads, not verdicts.
+
+1. **HIGH, `supabase/functions/store-proxy/index.ts`.** The owner-only gate checks the journal type (`KG_OWNER_ONLY.has(type) && role !== "owner"`), but the lines are only checked against a list of known accounts (`KG_ACCOUNTS`). A non-owner might post an allowed type whose lines hit owner-only accounts (OPENING / ADJ, or the mirrored reversal accounts). Suggested fix: a per-type table of allowed (account, sign) pairs enforced inside `kg_post_journal`, OPENING/ADJ accounts only for OPENING/ADJUST, mirrored accounts only for REVERSAL, labour lines rejected on non-labour types, and an owner check on the accounts as well as the type.
+2. **MEDIUM, `supabase/migrations/010_karigar_ledger.sql`.** `exception when others` returns the raw `sqlerrm` to the client, and treats transient database faults as permanent refusals, so a journal could be dropped instead of retried. Suggested fix: catch only the ledger's own refusals (dedicated SQLSTATE) and let other errors propagate so `store-proxy` returns a generic 500 and the client keeps the journal for retry.
+3. **MEDIUM, same migration.** A LOSS journal can be posted with `approved_by` null (`approved` is only set when the caller is owner and sends `approve === true` or the type is owner-only), so an unapproved loss may reduce custody. Suggested fix: refuse LOSS with null `p_approved_by` in `kg_post_journal` until a pending-loss mechanism exists, or post unapproved losses to a pending account.
+
+**Exposure:** none today. Migration 010 is not applied to production and `store-proxy` is not deployed (130th entry). The push only put code on GitHub. Finding 1 would become exploitable on deploy.
+
+**Timing:** Tanish's 3 Nov decision is Karigar 2.0 plan tasks 3+ only after launch. These must be resolved before 010 is applied or `store-proxy` is deployed, not before.
+
+**Not verified:** all three findings. Next step is `jewelos-security-auditor` on the phase 5a diff to separate real from false.
+
+→ FOR COWORK: nothing — FYI only. Do NOT apply migration 010 to production and do not deploy `store-proxy` until these three are resolved.
+
 ### 2026-11-04 (hundred-and-thirty-second entry) · Claude Code (Sonnet) — read-only check run: codebase stats, `check.bat`, full e2e suite; no code changed
 
 Tanish asked for stats, then for `check.bat` and the e2e suite. Nothing in `js/` or `index.html` was edited. The tree was already dirty on arrival (`.claude/settings.json`, `CLAUDE.md`, untracked `.claude/settings.local.json.bak-pre-prune`); it was left alone.

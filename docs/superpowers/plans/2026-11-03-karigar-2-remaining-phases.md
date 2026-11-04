@@ -18,7 +18,7 @@
 4. **Known live hazard.** A device on old JS erases `kgAgreements`/`kgRoutes` on its next save (batch67 note). The `MIN_CLIENT_BUILD` guard in 5a fixes this once deployed.
 5. **Roles on blob data are client-side only.** The ledger enforces owner/manager on the server; blob data does not.
 6. **Blocked on owner answers:** Q7 (external workshop as a ledger party), Q10 (rules for moving gold between jobs/karigars), Q6-Q24 generally.
-7. **Priority.** Per `CLAUDE.md`, the launch gate agreed 3 Nov is XSS Batch 1 (done), backup rehearsal (done), security headers (committed, not deployed). Karigar 2.0 is not on that gate. This plan is post-launch unless Tanish says otherwise; only Tasks 1-3 are cheap and safe to do before launch.
+7. **Priority.** Per `CLAUDE.md`, the launch gate agreed 3 Nov is XSS Batch 1 (done), backup rehearsal (done), security headers (committed, not deployed). Karigar 2.0 is not on that gate. This plan is post-launch unless Tanish says otherwise; only Tasks 1-2 are done and safe before launch (Tanish, 3 Nov). Task 2.5 (security findings) must be finished before Task 3, and Task 3 is a production migration plus two deploys that needs a separate GO for each step, so it is not pre-approved.
 
 ## Global Constraints
 
@@ -81,7 +81,22 @@
 - [ ] **Step 3:** Run `check.bat`, `node tests/regression.test.js`, `node tests/karigar-v2.test.js`, `node tests/karigar-ledger-client.test.js`. Expected: all pass, `backup-check` and `roundtrip` clean.
 - [ ] **Step 4:** Commit merge. Do not deploy.
 
-### Task 3: Production ledger enablement (needs Tanish's GO, separate for each sub-step)
+### Task 2.5: Resolve the three security-review findings (added 4 Nov; blocks Task 3)
+
+Source: the automated review of the phase 5a push (4 Nov), logged in `HANDOFF.md` (133rd entry). The three findings are UNVERIFIED leads. Step 1 decides which are real; do not fix a finding that Step 1 rejects.
+
+**Files:** Modify: `supabase/migrations/010_karigar_ledger.sql` (or a new `011` if 010 is already applied anywhere), `supabase/functions/store-proxy/index.ts`, `js/12-karigar-data.js`; Test: `tests/sql-kg-ledger.test.mjs`, `tests/karigar-ledger-client.test.js`.
+
+- [ ] **Step 1:** Run `jewelos-security-auditor` on the phase 5a diff (`79a4169..94388f1` for the ledger files). For each of the three findings below, record CONFIRMED or REJECTED with the line that proves it. Also read `store-proxy/index.ts` `kg_*` actions in full; the 3 Nov audit did not.
+- [ ] **Step 2 (finding 1, HIGH: gate checks the type label, not the lines):** Failing test first: a `manager` posts type `REVERSAL` or `RECEIPT` with a line on `OPENING` or `ADJ`; expect refusal and zero new rows. Then enforce inside `kg_post_journal` a per-type table of allowed (account, sign) pairs: `OPENING` and `ADJ` lines only for types `OPENING` / `ADJUST`; mirrored accounts only for `REVERSAL`; labour lines rejected on non-labour types; and refuse any `OPENING` / `ADJ` line unless the caller is owner. The `store-proxy` check stays as a first line of defence, not the only one.
+- [ ] **Step 3 (finding 2, MEDIUM: catch-all exception handler):** Failing test first: force a non-business error (for example a dropped connection or a serialization failure) and assert the client receives a generic failure and keeps the journal in its outbox for retry, with no raw `sqlerrm` text in the response. Then catch only the ledger's own refusals (raise them with a dedicated SQLSTATE) and let every other exception propagate.
+- [ ] **Step 4 (finding 3, MEDIUM: LOSS without approval):** Failing test first: a `LOSS` journal with `p_approved_by` null is refused. Then refuse it in `kg_post_journal`. This is the interim rule until Task 8 builds the pending-approval flow; Task 8 then replaces it with `PENDING_APPROVAL` instead of a hard refusal. Check that the live blob's `APPROVAL` flow is not broken: the blob path does not call the ledger while `S.kgLedgerOn` is false.
+- [ ] **Step 5:** Run `check.bat`, `node tests/karigar-v2.test.js`, `node tests/regression.test.js`, `node tests/karigar-ledger-client.test.js`, and the SQL ledger test. All pass; `backup-check` and `roundtrip` clean. Then `jewelos-invariant-tester`, and `jewelos-security-auditor` again on the fix.
+- [ ] **Step 6:** Commit. Log the results in `HANDOFF.md`, including which findings were rejected and why. No deploy and no production migration in this task.
+
+**Gate:** Task 3 does not start until Step 6 is committed and Tanish has seen the result. Review Focus #5 is covered by Step 2's test.
+
+### Task 3: Production ledger enablement (needs Tanish's GO, separate for each sub-step; blocked until Task 2.5 is committed)
 
 **Files:** none changed; follow `docs/KARIGAR-2-LEDGER-ROLLOUT.md` steps 4-6.
 
