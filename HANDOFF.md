@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. (Task 2.5 committed 4 Nov, no deploy.) batch67 (Karigar 2.0 phases 3-4) is LIVE on the Cloudflare worker (deployed 31 Oct, Version ID `9bb23a74-04ab-463a-a296-e588478b3837`, rollback tag `batch66-live`). Before it: batch66 (Karigar V2) was live (Version ID `51c7c1aa-714f-4718-a6b4-f174b42cd760`). Before that: batch65 is LIVE: (Karigars tab + stage box redesign) is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`, verified by `jewelos-deploy-verifier`). Previous live = tag `batch64-live`. `main` pushed to GitHub (30 Oct, at 125904b).
+> Nobody. batch68 is LIVE on the Cloudflare worker (deployed 4 Nov, Version ID `d248aacd-6fa3-474f-813a-638945b780e3`, rollback tag `batch67-live`, new tag `batch68-live`): security headers + ledger client + cheaper poll. Karigar ledger SQL (010+011) and `store-proxy` v16 are live. Before it: batch67 (Karigar 2.0 phases 3-4) was LIVE on the Cloudflare worker (deployed 31 Oct, Version ID `9bb23a74-04ab-463a-a296-e588478b3837`, rollback tag `batch66-live`). Before it: batch66 (Karigar V2) was live (Version ID `51c7c1aa-714f-4718-a6b4-f174b42cd760`). Before that: batch65 is LIVE: (Karigars tab + stage box redesign) is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `9de8cdad-1489-4179-85a8-294b7fc815ab`, verified by `jewelos-deploy-verifier`). Previous live = tag `batch64-live`. `main` pushed to GitHub (30 Oct, at 125904b).
 > batch64 is LIVE on the Cloudflare worker (deployed 30 Oct, Version ID `f0455912-83df-4b98-abfa-d4c08cda55be`,
 > verified by `jewelos-deploy-verifier`). `main` pushed to GitHub (30 Oct, at 125904b).
 
@@ -103,6 +103,20 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-04 (hundred-and-forty-fourth entry) · Claude Code (Sonnet) — batch68 DEPLOYED to the Cloudflare worker and verified (Task 3 GO #3)
+
+**Done, with Tanish's explicit GO ("yes, bump versions and deploy the worker").** Commit `7869513`, staged with `node build-cf-deploy-stage.js batch68`, `npx wrangler deploy`. **Version ID `d248aacd-6fa3-474f-813a-638945b780e3`** (100% of traffic, 4 Nov 14:28). **Rollback:** previous version `9bb23a74-04ab-463a-a296-e588478b3837` = tag `batch67-live`; tag `batch68-live` set on `7869513`. `APP_BUILD` 68, `sw.js` cache `jewelos-v23`. batch68 ships: security headers (`_headers`: HSTS 1 year, X-Frame-Options, nosniff, Referrer-Policy, Report-Only CSP), the Karigar 2.0 ledger client (`js/12-karigar-data.js`, inert: `S.kgLedgerOn` is false), and the `?known=` cheaper poll. Changelog: `docs/CHANGES-batch68.md`.
+
+**Before deploy:** all node checks, regression 493/0, karigar-v2 66/0, ledger client 13/0, SQL ledger and history tests pass, `backup-check` and `roundtrip` clean. The e2e suite ran on THIS merged client: I served the worktree on port 4173 and ran `npm run test:e2e` from `E:\jewelos` (so the test-shop login file was never copied or read): **23 of 23 passed** against `store-proxy` v16.
+
+**Verified live by `jewelos-deploy-verifier`:** all 13 js files, `index.html`, `sw.js`, `manifest.json` byte-identical to the stage; `APP_BUILD = 68`; cache `jewelos-v23` lists `12-karigar-data.js`; `?known=` present; the five headers are on `/`; `wrangler.jsonc` and `.wrangler/` return 404; `store-proxy` 401 without a token, OPTIONS 200. **NOT verified:** the live app in a browser or on a phone, headers on each js file (checked on `/` only), an authenticated ledger call (Task 3 Step 5's post-and-reverse test journal on `77c4aefe` is NOT done: this session cannot log in as the test shop).
+
+**Production state now:** migration 010 and 011 applied, `store-proxy` v16, worker batch68. Not applied: migration 012 (shop-data history). `MIN_CLIENT_BUILD` is NOT set (guard off). Phones keep running batch67 until they reload; batch67 clients still work with the new server.
+
+**Open:** (1) Tanish should reload the app on his phone and do a sale, then watch the browser console for Content-Security-Policy-Report-Only messages (they block nothing). (2) After every phone has reloaded: decide on `MIN_CLIENT_BUILD=68` in the `store-proxy` function secrets (a stale phone would otherwise keep saving without newer keys). (3) Task 3 Step 5 test journal. (4) Migration 012. (5) Task 4 (switch custody to the ledger) is the next Karigar 2.0 phase and needs its own plan and GO.
+
+→ FOR COWORK: please log in as the E2E test shop `77c4aefe`, post one test journal through the app console (`kgPostJournal(kgBuildJournal('OPENING',{opId:'...',fineMg:1000}).journal, console.log)`) and reverse it, then check `kg_balances` returns to empty (Task 3 Step 5). Do not use a customer shop.
 
 ### 2026-11-04 (hundred-and-forty-third entry) · Claude Code (Sonnet) — Task 3 / Task 2.5: migration 011 APPLIED and `store-proxy` v16 DEPLOYED to production; worker still NOT deployed
 
