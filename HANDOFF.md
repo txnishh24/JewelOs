@@ -104,6 +104,24 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-05 (hundred-and-forty-eighth entry) · Claude Code (Sonnet) — installed graphify (code-map tool) and documented it in CLAUDE.md; no JewelOS code touched
+
+Installed `graphifyy` 0.9.102 into its own venv at `~/.graphify-venv` (outside the repo) and ran `graphify install --platform claude`, which registers a `/graphify` skill in `~/.claude`. Built a test graph on a throwaway copy of `index.html` + `js/` (869 nodes, 2126 edges, no LLM, no cost): `graphify affected "kgAddEntry"` lists its callers (`kg2Issue`, `kg2Receipt`, `kg2Scrap`, `kg2Loss`, `kg2Adjust`, `kg2Decide`, `kg2Reverse`). Added a `## graphify` section at the end of `CLAUDE.md`: never run it inside this folder (it writes `graphify-out/`), always on a copy; it misses `onclick` string calls, so still grep.
+
+**Verified:** the CLI runs and the graph query returns callers with line numbers; `git status` showed no new files in the repo from graphify. **Not verified:** graph accuracy beyond that one query; no hooks or `.gitignore` changes were made. `CLAUDE.md` also carries Tanish's earlier uncommitted edit (agent-limit removal, 4 Nov) — my section is appended at the end and does not overlap it. Nothing committed.
+
+→ FOR COWORK: nothing — FYI only (graphify is Claude Code only; Cowork cannot use it).
+
+### 2026-11-05 (hundred-and-forty-eighth entry) · Claude Code (Sonnet) — security audit + invariant review of a932a59; finding 7 fixed, findings 1-6 recorded as BLOCKERS for switching the ledger flag on; NOT merged, NOT applied, NOT deployed
+
+`jewelos-security-auditor` (Opus): no 14 Sep finding reopened. Seven new ledger-integrity findings, all latent (nothing sets `S.kgLedgerOn`; `kgOutboxFlush` and `kgMigrateBlobToLedger` are uncalled). Fixed now: (7) a migration rerun on a later day showed the raw "different content" refusal; it now says "Already opened on an earlier day" (test added). `jewelos-invariant-tester` added an unrun `store-proxy` test for the `migr:` prefix (needs `sucrase`).
+
+**BLOCKERS before the ledger flag is wired or any screen calls the outbox flush (design work, needs `/plan-eng-review` + Opus review, 🔴):** (1) editing a figure between two Save taps reuses the `opId` with new content, the server refuses, `kgSendJournal` drops the outbox entry, the retry mints a new id: ledger 21 g vs shop data 11 g. Fix: lock the form after "pending", or new `opId` when content changes. (2) Closing the form after "pending" leaves the journal in the outbox with no shop-data entry; re-entering can double it. Fix: write the shop-data entry as pending at once. (3) Ledger accepts, shop data then refuses (another device changed the job): "Save again" can never finish, no reversal posted. (4) 401 is treated as offline (`kgRemote` never calls `saasRequireReauth`): gold saves loop on "pending" with a false message. (5) Forced sign-out wipes pending gold entries without a warning (only `saasLogout` warns). (6) Outbox and rejected keys for the real shop stay on the device when the session expires while the app is closed (`_by` filter protects the next user). Not checked by the audit: live DB state of 010/011, SQL tests, `npm audit`.
+
+**Verified:** ledger client 47/0, pre-commit regression suite. **Not verified:** `tests/edge-functions.test.js` (needs `sucrase`), no browser or server run.
+
+→ FOR COWORK: nothing — FYI only. Do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`; findings 1-6 must be fixed first.
+
 ### 2026-11-05 (hundred-and-forty-seventh entry) · Claude Code (Sonnet) — review follow-ups on Karigar 2.0 Task 4: five fixes, each with a test that failed first; NOT merged, NOT applied, NOT deployed
 
 Fixes: (1) `kgReconcile` and the migration's confirmed list use prototype-less objects, so an owner id like `constructor` cannot pass as a known karigar. (2) Save-again after midnight now reuses the first attempt's `business_date` from the outbox; the server fingerprints the date, so a new day looked like different content and the retry was refused. (3) The Reports comparison no longer sticks on "Checking" if the compare throws; it shows an error and Try again. (4) One identity helper: `kgUser().who`, and `kgWho()` returns it. (5) Migration 011 (still unapplied, edited in place): an old row under a `migr:` id that is not an owner OPENING is refused as reserved instead of being reported as a duplicate.

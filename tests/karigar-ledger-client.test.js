@@ -241,6 +241,12 @@ await test('migration refuses a manager before anything is sent', async function
   var a = fresh('manager'); blobShop(a); server(a, [{status:200, body:{ok:true, journal_id:1}}]);
   var r = await migrate(a); ok(r.err && /owner/i.test(r.err.message)); eq(a.calls.length, 0, 'no request at all');
 });
+await test('a rerun on a later day: a "different content" answer is explained, not shown raw', async function(){
+  var a = fresh(); blobShop(a);
+  server(a, [{status:422, body:{ok:false, error:'rejected', message:'op_id already used with different content'}}, {status:200, body:{ok:true, duplicate:true, journal_id:5}}]);
+  var r = await migrate(a); var f = r.rep.failed[0];
+  ok(f && f.karigarId === 'karA' && /already opened/i.test(f.why) && !/op_id/.test(f.why), 'plain words, got: ' + (f && f.why));
+});
 await test('a refused or offline opening journal is reported, and the other karigars still go through', async function(){
   var a = fresh(); blobShop(a); a.S.kgLedger.push({id:9, jobId:'jB', type:'ISSUE', fineMg:700});
   server(a, [{status:422, body:{ok:false, error:'rejected', message:'refused'}}, {status:200, body:{ok:true, duplicate:false, journal_id:5}}]);

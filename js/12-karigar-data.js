@@ -248,7 +248,8 @@ function kgMigrateBlobToLedger(cb, opts){
     var built = kgBuildJournal('OPENING', {into:'karigar', karigarId:k.id, fineMg:f, opId:'migr:' + k.id});
     if(built.error){ rep.failed.push({karigarId:k.id, why:built.error}); return next(); }
     kgPostJournal(built.journal, function(err, r){
-      if(err) rep.failed.push({karigarId:k.id, why:err.message});
+      // the date is part of what the server compares, so a rerun on a later day comes back as "different content"
+      if(err) rep.failed.push({karigarId:k.id, why:/different content/.test(err.message) ? 'Already opened on an earlier day. Nothing was posted. Check the ledger balance on Reports.' : err.message});
       else if(r && r.duplicate) rep.duplicates++;
       else rep.posted.push({karigarId:k.id, fineMg:f});
       next();
