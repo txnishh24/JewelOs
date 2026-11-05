@@ -1409,6 +1409,32 @@ function kg2ReverseSalary(karigarId, entryId){
 
 var _kg2Month = '';
 function kg2SetMonth(inp){ _kg2Month = inp.value; renderKgV2(); }
+var _kgRecon = {state:'idle'};
+function kg2Reconcile(){
+  _kgRecon = {state:'loading'}; renderKgV2();
+  kgFetchBalances(function(err, rows){
+    _kgRecon = err ? {state:'error', msg:err.message} : {state:'done', rec:kgReconcile(rows)};
+    renderKgV2();
+  });
+}
+function kg2ReconHtml(){
+  var st = _kgRecon.state, html = '<div class="kg2-sec">Blob vs ledger</div>';
+  if(st === 'loading') return html + '<div class="kg2-empty">Checking the ledger...</div>';
+  if(st === 'error') return html + '<div class="kg2-note warn">' + escHtml(_kgRecon.msg) + '</div><div class="kg2-row">' + kg2Btn('Try again', 'kg2Reconcile()') + '</div>';
+  if(st !== 'done') return html + '<div class="kg2-note">Compares the gold each karigar holds in the shop data with the ledger. It should show no difference before the ledger is switched on.</div><div class="kg2-row">' + kg2Btn('Check now', 'kg2Reconcile()') + '</div>';
+  var rec = _kgRecon.rec;
+  if(!rec.mismatches.length && !rec.unknown.length) html += '<div class="kg2-empty">✓ All karigars match. ' + rec.rows.length + ' checked.</div>';
+  if(rec.mismatches.length) html += '<div class="kg2-note warn">' + rec.mismatches.length + ' karigar' + (rec.mismatches.length === 1 ? '' : 's') + ' differ between the shop data and the ledger.</div>';
+  rec.mismatches.forEach(function(m){
+    html += '<div class="kg2-line"><div><b>' + escHtml(m.name) + '</b><div class="kg2-sub">shop data ' + kgFmtG(m.blob) + ' &middot; ledger ' + kgFmtG(m.ledger) + ' fine</div></div>' +
+      '<div class="kg2-right"><div class="kg2-num warn">' + (m.diff > 0 ? '+' : '-') + kgFmtG(Math.abs(m.diff)) + '</div></div></div>';
+  });
+  if(rec.unknown.length) html += '<div class="kg2-note warn">The ledger holds gold for people who are not in the shop data:</div>';
+  rec.unknown.forEach(function(u){
+    html += '<div class="kg2-line"><div><b>' + escHtml(u.ownerRef) + '</b><div class="kg2-sub">' + escHtml(u.account) + '</div></div><div class="kg2-num">' + kgFmtG(u.fineMg) + '</div></div>';
+  });
+  return html + '<div class="kg2-row">' + kg2Btn('Check again', 'kg2Reconcile()') + '</div>';
+}
 function kg2ReportsHtml(){
   var month = /^\d{4}-\d{2}$/.test(_kg2Month) ? _kg2Month : kgToday().slice(0, 7);
   var r = kgReport(month + '-01', month + '-31');
@@ -1442,7 +1468,7 @@ function kg2ReportsHtml(){
       html += '<div class="kg2-line kg2-click" onclick="kg2OpenJob(' + kg2Q(o.job.id) + ')"><div><b>' + escHtml(o.job.jobNo) + '</b> &middot; ' + name(o.job.karigarId) + '</div><div class="kg2-num warn">' + kgFmtG(-o.openFine) + '</div></div>';
     });
   }
-  return html;
+  return html + kg2ReconHtml();
 }
 
 function kg2AddTouch(){

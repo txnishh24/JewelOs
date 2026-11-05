@@ -327,6 +327,38 @@ await test('ledger flag on: if saving the shop fails after the ledger accepted i
   a.saveToCloud = function(cb){ cb(null); }; server(a, [{status:200, body:{ok:true, duplicate:true, journal_id:7}}]);
   var r2 = await addEntry(a, issueEntry({opId:e.opId})); ok(!r2.err, r2.err && r2.err.message); eq(a.S.kgLedger.length, 1);
 });
+function balRow(account, ref, mg){ return {account:account, owner_ref:ref, fine_mg:String(mg)}; }
+await test('blob vs ledger: matching karigars are not mismatches; a difference shows both figures; zero on both sides is left out', async function(){
+  var a = fresh(); blobShop(a); // karA holds 12,345 in the blob; karB 0; karC -500
+  var rec = a.kgReconcile([balRow('KCUST', 'karA', 12345), balRow('KCUST', 'karC', 200)]);
+  eq(rec.mismatches.length, 1, 'only karC differs'); var m = rec.mismatches[0];
+  eq(m.karigarId, 'karC'); eq(m.blob, -500); eq(m.ledger, 200); eq(m.diff, 700, 'ledger minus blob');
+  ok(!rec.rows.some(function(x){ return x.karigarId === 'karB'; }), 'zero on both sides is not listed');
+  eq(rec.rows.filter(function(x){ return x.karigarId === 'karA'; })[0].diff, 0);
+});
+await test('blob vs ledger: a ledger balance for a karigar who is not in the shop data is listed (D11)', async function(){
+  var a = fresh(); blobShop(a);
+  var rec = a.kgReconcile([balRow('KCUST', 'karA', 12345), balRow('KCUST', 'ghost99', 800), balRow('FG', 'jA', 400), balRow('ENT', 'nobody1', 50)]);
+  eq(rec.unknown.length, 2, 'ghost99 and nobody1; FG belongs to a job, VAULT/OPENING have no karigar'); eq(rec.unknown[0].ownerRef, 'ghost99'); eq(rec.unknown[0].fineMg, 800);
+});
+await test('blob vs ledger: the balances call returns rows, and says plainly when it cannot reach the ledger', async function(){
+  var a = fresh(); server(a, [{status:200, body:{ok:true, balances:[balRow('KCUST', 'karA', 5)]}}]);
+  var r1 = await new Promise(function(res){ a.kgFetchBalances(function(e, rows){ res({e:e, rows:rows}); }); });
+  ok(!r1.e); eq(r1.rows.length, 1); eq(a.calls[0].body.action, 'kg_balances');
+  server(a, ['netfail']); var r2 = await new Promise(function(res){ a.kgFetchBalances(function(e){ res({e:e}); }); });
+  ok(r2.e && /ledger/i.test(r2.e.message));
+  server(a, [{status:403, body:{error:'forbidden'}}]); var r3 = await new Promise(function(res){ a.kgFetchBalances(function(e){ res({e:e}); }); });
+  ok(r3.e && /owner or a manager/i.test(r3.e.message));
+});
+await test('Reports shows a Blob vs ledger section with a state for idle, checking, error, all matching and mismatch', async function(){
+  var a = fresh(); blobShop(a); a.SAAS.user = {name:'Owner', email:'owner@example.com', role:'owner'};
+  a._kgRecon = {state:'idle'}; var h = a.kg2ReportsHtml(); ok(/Blob vs ledger/.test(h) && /kg2Reconcile\(\)/.test(h), 'a button to run the check');
+  a._kgRecon = {state:'loading'}; ok(/Checking the ledger/.test(a.kg2ReportsHtml()));
+  a._kgRecon = {state:'error', msg:'Could not reach the ledger. Check the internet and try again.'}; ok(/Could not reach the ledger/.test(a.kg2ReportsHtml()));
+  a._kgRecon = {state:'done', rec:a.kgReconcile([balRow('KCUST', 'karA', 12345), balRow('KCUST', 'karC', -500)])}; ok(/All karigars match/.test(a.kg2ReportsHtml()), 'blob and ledger agree');
+  a._kgRecon = {state:'done', rec:a.kgReconcile([balRow('KCUST', 'karA', 10000), balRow('KCUST', 'ghost99', 800)])};
+  var d = a.kg2ReportsHtml(); ok(/Asha/.test(d) && /2 karigars differ/i.test(d) && /ghost99/.test(d), 'mismatch and unknown reference shown: ' + d.slice(d.indexOf('Blob vs ledger'), d.indexOf('Blob vs ledger') + 200));
+});
 await test('signing out warns first when gold entries are still waiting to be sent', async function(){
   var a = fresh(); a.SAAS.shop = {id:'shop-1'}; var seen = null;
   a.safeConfirm = function(title, msg, yes, danger){ seen = {msg:msg, danger:danger}; };

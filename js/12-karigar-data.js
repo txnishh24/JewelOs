@@ -258,3 +258,34 @@ function kgMigrateBlobToLedger(cb, opts){
     });
   })();
 }
+
+// ── blob vs ledger report: do the shop data and the ledger agree on who holds how much gold? ─────────
+// cb(err, rows) with rows = [{account, owner_ref, fine_mg}] for the whole shop (owner or manager).
+function kgFetchBalances(cb){
+  kgRemote({action:'kg_balances'}, function(err, body, status){
+    if(err) return cb(new Error('Could not reach the ledger. Check the internet and try again.'));
+    if(status === 200 && body && body.ok) return cb(null, body.balances || []);
+    cb(new Error(status === 403 ? 'Only the owner or a manager can read the ledger' : 'The ledger could not be read. Try again.'));
+  });
+}
+// Pure. Compares each karigar's ledger custody (KCUST) with the blob's gold-with-karigar figure; diff = ledger minus blob.
+// unknown = ledger balances whose owner reference matches no karigar in the shop data (D11).
+// shortcut: custody only; a wastage karigar's earned share is not accrued on the ledger yet, so with the ledger flag on
+// it shows as a diff until ENTITLEMENT_ACCRUE is wired to job close (Task 4 follow-up).
+function kgReconcile(rows){
+  var led = {}, known = {}, unknown = [], byKarigar = ['KCUST', 'ENT', 'EARNED', 'PAYOUT', 'SCRAP', 'LOSS'];
+  (S.karigars || []).forEach(function(k){ known[k.id] = true; });
+  (rows || []).forEach(function(r){
+    var mg = Number(r.fine_mg);
+    if(r.account === 'KCUST') led[r.owner_ref] = mg;
+    if(byKarigar.indexOf(r.account) !== -1 && !known[r.owner_ref]) unknown.push({account:r.account, ownerRef:r.owner_ref, fineMg:mg});
+  });
+  var out = [], bad = [];
+  (S.karigars || []).forEach(function(k){
+    var blob = kgKhata(k.id).openFine, ledger = led[k.id] || 0;
+    if(blob === 0 && ledger === 0) return;
+    var row = {karigarId:k.id, name:k.name, blob:blob, ledger:ledger, diff:ledger - blob};
+    out.push(row); if(row.diff !== 0) bad.push(row);
+  });
+  return {rows:out, mismatches:bad, unknown:unknown};
+}
