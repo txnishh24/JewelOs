@@ -104,6 +104,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-05 (hundred-and-fifty-first entry) · Claude Code (Sonnet) — ledger blocker 2 (core): a queued gold entry keeps its shop-data entry on the device and the flush finishes it; job-screen line and blocker 3 still open; NOT merged, NOT applied, NOT deployed
+
+`kgAddEntryLedger` now stores the entry as `_entry` on the queued journal (device only: `kgSendJournal` strips every `_`-prefixed key). `kgOutboxFlush` calls new `kgFinishQueued` after the ledger confirms: skips if the blob already has that `opId`, else `kgCommitEntry`; if the shop data now refuses (job closed elsewhere), the entry stays out of the blob and a note goes on the device-local rejected list. **Still open:** (2b) a "waiting for confirmation" line on the job screen so nobody re-enters a queued issue; (3) a shop-following `S.kgParked` list on Reports instead of the device-local note (needs `01-sync-core.js` save/load and `backup-check`/`roundtrip`); 4, 5, 6 from the audit entry. Nothing calls `kgOutboxFlush` yet.
+
+**Verified:** `check.bat` clean, ledger client 51/0 (new tests failed first). **Not verified:** no browser or server run.
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`.
+
 ### 2026-11-05 (hundred-and-fiftieth entry) · Claude Code (Sonnet) — ledger blocker 1 fixed (edit between two Save taps); blockers 2-6 still open; NOT merged, NOT applied, NOT deployed
 
 Tanish confirmed the Karigar ledger is on the launch path (launch after Karigar plus his own small changes). Plan for blockers 1-3 (see the audit entry below): (1) refuse a changed figure under a queued `opId` — done in `kgAddEntryLedger`; (2) store the shop-data entry inside the outbox item so a flush completes the commit even if the form was closed, plus a "waiting for confirmation" line on the job; (3) park an entry the shop data refuses in `S.kgParked`, shown on Reports for the owner to resolve, no automatic reversal. Blockers 2-6 remain; each needs `/plan-eng-review` sign-off and an Opus review before the flag is wired.

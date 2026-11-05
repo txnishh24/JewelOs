@@ -325,6 +325,30 @@ await test('ledger flag on: editing the figure after a pending answer is refused
   eq(a.calls.length, 0, 'nothing sent'); eq(a.kgOutboxList().length, 1, 'the first journal is still queued'); eq(a.kgOutboxList()[0].lines[0].fine_mg, -10000, 'with its original figure');
   eq(a.S.kgLedger.length, 0, 'nothing committed to the blob');
 });
+await test('blocker 2: a pending entry carries its shop-data entry in the outbox (device only, never sent), and the form being closed loses nothing', async function(){
+  var a = fresh(); entryShop(a, true); server(a, ['netfail']);
+  var e = issueEntry(), r1 = await addEntry(a, e); eq(r1.err.code, 'pending');
+  var q = a.kgOutboxList()[0]; ok(q && q._entry && q._entry.opId === e.opId, 'entry kept with the queued journal');
+  eq('_entry' in a.calls[0].body, false, 'never sent to the server');
+  server(a, [{status:200, body:{ok:true, duplicate:true, journal_id:3}}]); a.calls = [];
+  var f = await flush(a); ok(!f.err, f.err && f.err.message);
+  eq(a.S.kgLedger.length, 1, 'the flush finished the shop-data side'); eq(a.S.kgLedger[0].opId, e.opId); eq(a.kgOutboxList().length, 0);
+});
+await test('blocker 2: a flush after the user already tapped Save again does not create a second shop-data entry', async function(){
+  var a = fresh(); entryShop(a, true); server(a, ['netfail']);
+  var e = issueEntry(); await addEntry(a, e);
+  server(a, [{status:200, body:{ok:true, duplicate:true, journal_id:3}}]);
+  var r2 = await addEntry(a, issueEntry({opId:e.opId})); ok(!r2.err); eq(a.S.kgLedger.length, 1);
+  a.kgOutboxAdd && 0; await flush(a); eq(a.S.kgLedger.length, 1, 'still one');
+});
+await test('blocker 2: a flush where the shop data now refuses (job closed) keeps the entry out of the blob and tells the owner', async function(){
+  var a = fresh(); entryShop(a, true); server(a, ['netfail']);
+  var e = issueEntry(); await addEntry(a, e);
+  a.S.kgJobs[0].status = 'closed';
+  server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:4}}]);
+  var f = await flush(a); ok(!f.err); eq(a.S.kgLedger.length, 0, 'not committed');
+  var rej = a.kgRejectedList(); eq(rej.length, 1, 'visible afterwards'); ok(/ledger/i.test(rej[0].why) && /not saved to the shop/i.test(rej[0].why), rej[0].why);
+});
 await test('ledger flag on and the phone offline: refused with a plain message, nothing sent, nothing saved', async function(){
   var a = fresh(); entryShop(a, true); a.navigator = {onLine:false}; server(a, [{status:200, body:{ok:true, journal_id:1}}]);
   var r = await addEntry(a, issueEntry()); ok(r.err && /internet/i.test(r.err.message), r.err && r.err.message);

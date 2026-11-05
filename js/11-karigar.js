@@ -594,6 +594,7 @@ function kgAddEntryLedger(entry, done){
   if(bad) return done(new Error(bad), entry, false);
   if(typeof navigator !== 'undefined' && navigator.onLine === false)
     return done(new Error('Gold entries need internet while the ledger is on. Nothing was saved.'), entry, false);
+  jb.journal._entry = entry; // kept with the queued journal on this device so a flush can finish the shop-data side
   kgPostJournal(jb.journal, function(err){
     if(err && (err.code === 'offline' || err.code === 'outdated')){
       var p = new Error(err.code === 'outdated' ? err.message : 'Sending, not confirmed. The gold may already be recorded. Tap Save again to confirm.');

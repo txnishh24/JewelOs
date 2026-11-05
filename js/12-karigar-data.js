@@ -180,7 +180,7 @@ function kgRejectedAdd(j, why){
 //   err.code 'outdated'  this app build is too old: reload
 //   err.code 'forbidden' your role cannot post
 function kgSendJournal(j, cb){
-  var wire = {}; Object.keys(j).forEach(function(x){ if(x !== '_by') wire[x] = j[x]; });
+  var wire = {}; Object.keys(j).forEach(function(x){ if(x.charAt(0) !== '_') wire[x] = j[x]; }); // _by and _entry stay on this device
   kgRemote(Object.assign({action:'kg_post'}, wire), function(err, body, status){
     if(err) return cb(Object.assign(new Error('Not sent yet - it is saved and will be retried'), {code:'offline'}));
     if(status === 200 && body && body.ok){ kgOutboxRemove(j.op_id); return cb(null, body); }
@@ -202,6 +202,19 @@ function kgPostJournal(j, cb){
   if(!kgOutboxAdd(j)) return cb(Object.assign(new Error('This device has no room to keep the entry safely - free some storage'), {code:'invalid'}));
   kgSendJournal(j, cb);
 }
+// The ledger took a queued journal; save its shop-data entry too (the form that made it may be long closed).
+// If the shop data now refuses it (the job changed on another device), keep it out of the blob and leave a note on the
+// rejected list. shortcut: device-local note only; a Reports "parked" list that follows the shop is blocker 3.
+function kgFinishQueued(item, done){
+  var en = item._entry; S.kgLedger = S.kgLedger || [];
+  if(!en) return done();
+  for(var i = 0; i < S.kgLedger.length; i++) if(S.kgLedger[i].opId === en.opId) return done();
+  kgCommitEntry(en, kgFindJob(en.jobId), kgUser(), function(err){
+    if(err){ var wire = {}; Object.keys(item).forEach(function(x){ if(x.charAt(0) !== '_') wire[x] = item[x]; });
+      kgRejectedAdd(wire, 'Recorded on the ledger but not saved to the shop data: ' + err.message + '. The owner should check this entry.'); }
+    done();
+  });
+}
 // Replays everything waiting, oldest first, one at a time. A network failure stops the run.
 var _kgFlushing = false;
 function kgOutboxFlush(cb){
@@ -211,10 +224,11 @@ function kgOutboxFlush(cb){
   (function next(){
     var list = kgOutboxMine();
     if(!list.length){ _kgFlushing = false; if(cb) cb(null, {sent:sent, left:kgOutboxList().length}); return; }
-    kgSendJournal(list[0], function(err){
+    var item = list[0];
+    kgSendJournal(item, function(err){
       if(err && (err.code === 'offline' || err.code === 'outdated')){ _kgFlushing = false; if(cb) cb(err, {sent:sent, left:kgOutboxList().length}); return; }
-      sent++;
-      next();
+      if(err) { sent++; return next(); }
+      kgFinishQueued(item, function(){ sent++; next(); });
     });
   })();
 }
