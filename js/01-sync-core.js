@@ -777,7 +777,9 @@ function _dataFingerprint(){
 
 function startAutoRefresh(){
   if(refreshTimer) clearInterval(refreshTimer);
+  try{ kgTryFlush(); }catch(e){} // gold entries still waiting for the ledger, tried once at start and on every tick
   refreshTimer = setInterval(function(){
+    try{ kgTryFlush(); }catch(e){}
     // Skip poll entirely when browser tab is not visible — saves Supabase reads
     if(document.hidden) return;
     // Foundation audit B4 (12 Sep): a safeConfirm dialog (Reverse payment,

@@ -534,6 +534,21 @@ await test('audit 3: the count of gold entries a device clear will delete covers
   ok(/2 gold entries/.test(a.kgLostNote()) && /ledger/.test(a.kgLostNote()), a.kgLostNote());
   a.localStorage.removeItem('kg_outbox::shop-9'); eq(a.kgLostNote(), '');
 });
+await test('flush trigger: kgTryFlush sends a waiting entry, and does nothing when the queue is empty, the phone is offline, or a sign-in prompt is open', async function(){
+  var a = fresh(); entryShop(a, true); a.S.kgParked = []; server(a, ['netfail']);
+  var e = issueEntry(); await addEntry(a, e);
+  server(a, [{status:200, body:{ok:true, duplicate:true, journal_id:3}}]); a.calls = [];
+  a.navigator = {onLine:false}; a.kgTryFlush(); await new Promise(function(r){ setTimeout(r, 20); }); eq(a.calls.length, 0, 'offline: nothing');
+  a.navigator = {onLine:true}; a.saasReauthPending = function(){ return true; }; a.kgTryFlush(); await new Promise(function(r){ setTimeout(r, 20); }); eq(a.calls.length, 0, 'sign-in prompt open: nothing');
+  a.saasReauthPending = function(){ return false; }; a.kgTryFlush(); await new Promise(function(r){ setTimeout(r, 40); });
+  eq(a.calls.length, 1, 'sent'); eq(a.S.kgLedger.length, 1, 'shop-data side finished'); eq(a.kgOutboxList().length, 0);
+  a.calls = []; a.kgTryFlush(); await new Promise(function(r){ setTimeout(r, 20); }); eq(a.calls.length, 0, 'empty queue: no request');
+});
+await test('flush trigger: starting the auto-refresh tries a flush, and so does the phone coming back online', async function(){
+  var a = fresh(); var n = 0; a.kgTryFlush = function(){ n++; };
+  a.startAutoRefresh(); eq(n, 1, 'once at start');
+  ok(a.kgOnlineHook, 'online hook exists'); a.kgOnlineHook(); eq(n, 2, 'and on online');
+});
 await test('forbidden role, old build, expired session and server faults: right outcome for each', async function(){
   var a = fresh(); var j = build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal;
   server(a, [{status:403, body:{error:'forbidden'}}]); var r1 = await post(a, j);

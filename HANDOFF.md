@@ -70,6 +70,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-05 (hundred-and-fifty-eighth entry) · Claude Code (Sonnet) — ledger flush trigger: queued gold entries are now sent at app start, on every auto-refresh tick and when the phone comes back online; NOT merged, NOT applied, NOT deployed
+
+New `kgTryFlush()` in `js/12-karigar-data.js`: does nothing unless this user has a queued entry, the phone is online, and no sign-in prompt is open (`saasReauthPending`); otherwise `kgOutboxFlush()`. Called from `startAutoRefresh()` (once at start and each tick, `js/01-sync-core.js`) and from an `online` listener (`kgOnlineHook`). With this, an entry left "pending" after its form was closed is now finished without waiting for a 401. **Still open before the ledger flag may be wired:** the job-screen "waiting for confirmation" line (needs a browser check), a reverse button for parked entries, Tanish's decision on unsent sales and the other shop-scoped keys (see 157th entry), and the Opus review of the whole Task 4 branch. Nothing sets `S.kgLedgerOn` yet.
+
+**Verified:** `check.bat` clean, ledger client 62/0; both new tests fail without the change. **Not verified:** the real `online` event and the 60 s timer have not been run in a browser; the tick calls the flush even while the tab is hidden (it is a no-op when the queue is empty).
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`.
+
 ### 2026-11-05 (hundred-and-fifty-seventh entry) · Claude Code (Sonnet) — audit of blockers 1-6: three medium findings fixed; ledger flag still must NOT be wired; NOT merged, NOT applied, NOT deployed
 
 `jewelos-security-auditor` (Opus) on 87f781e..dd62be8: `_entry` never reaches the server or logs, parked entries are escaped, `kgParked` save/load/backup/restore complete. Three new medium findings, all fixed with tests that failed first: (1) `kgCommitEntry` could add the same `opId` twice (flush plus a slow Save-again); it now adds nothing if the `opId` is already there, and its undo only removes what it added. (2) `kgFinishQueued` parked an entry on any error, including a network failure or a busy lock; `kgTxn` now marks those errors `transient`, and the entry goes back in the outbox and the flush stops (the server answers duplicate on the retry). Only a real refusal is parked. (3) A boot after an expired login deleted every shop's queued gold with only the generic notice; new `kgLostNote()` counts all shops' queues and is used by both that path and `saasForceLogout`. `jewelos-invariant-tester`: no gap needing a new test; minor untested: a 401 mid multi-entry flush, a changed `type`/`job_id` under a queued op_id.

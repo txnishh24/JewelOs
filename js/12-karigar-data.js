@@ -231,6 +231,18 @@ function kgFinishQueued(item, done){
       function(){ S.kgParked = (S.kgParked || []).filter(function(x){ return x.id !== p.id; }); }, function(e2){ if(e2) return requeue(e2); done(); });
   });
 }
+// Safe to call from anywhere, any time: does nothing unless this user has a queued entry, the phone is online and no
+// sign-in prompt is already open. Called at app start, on every auto-refresh tick and when the phone comes back online.
+function kgTryFlush(){
+  try{
+    if(typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    if(typeof saasReauthPending === 'function' && saasReauthPending()) return;
+    if(!kgOutboxMine().length) return;
+    kgOutboxFlush();
+  }catch(e){}
+}
+function kgOnlineHook(){ kgTryFlush(); }
+try{ if(typeof window !== 'undefined' && window.addEventListener) window.addEventListener('online', kgOnlineHook); }catch(e){}
 // Replays everything waiting, oldest first, one at a time. A network failure stops the run.
 var _kgFlushing = false;
 function kgOutboxFlush(cb){
