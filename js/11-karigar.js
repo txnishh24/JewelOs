@@ -576,7 +576,8 @@ function kgLedgerJournalFor(entry){
   if(!covered[entry.type] || (entry.type === 'LOSS' && entry.proposed))
     return {error:'This entry is not available while the ledger is on yet. Nothing was saved.'};
   return kgBuildJournal(entry.type, {opId:entry.opId, jobId:entry.jobId, karigarId:entry.karigarId, mg:entry.mg, permille:entry.permille,
-    fineMg:entry.fineMg, date:entry.date, note:entry.reason || entry.note || '', approve:entry.type === 'LOSS'});
+    fineMg:(entry.type === 'ADJUST' ? -entry.fineMg : entry.fineMg), // the shop data's credit lowers what the karigar holds; on the ledger that is custody going down
+    date:entry.date, note:entry.reason || entry.note || '', approve:entry.type === 'LOSS'});
 }
 function kgAddEntryLedger(entry, done){
   var job = kgFindJob(entry.jobId), u = kgUser();
@@ -584,6 +585,7 @@ function kgAddEntryLedger(entry, done){
   if(job && !entry.karigarId) entry.karigarId = job.karigarId;
   // a retry keeps the first attempt's date: the server fingerprints business_date, so a new day would look like new content
   kgOutboxList().forEach(function(x){ if(x.op_id === entry.opId && kgValidDateKey(x.business_date)) entry.date = x.business_date; });
+  var postedDay = kgPostedDate(entry.opId); if(postedDay) entry.date = postedDay;
   var jb = kgLedgerJournalFor(entry);
   if(jb.error) return done(new Error(jb.error), entry, false);
   // Same id, changed figures: the first try may already be on the server, and sending the edit would be refused and
@@ -1449,6 +1451,17 @@ function kg2ParkedHtml(){
   });
   return html;
 }
+function kg2RejectedHtml(){
+  var list = kgRejectedList();
+  if(!list.length) return '';
+  var html = '<div class="kg2-sec">Ledger refused these</div><div class="kg2-note warn">The ledger would not take the gold below, so it is in neither the ledger nor the shop data. Check with the karigar before entering it again. This list is kept on this phone only.</div>';
+  list.forEach(function(r){
+    var j = r.journal || {}, fine = 0;
+    (j.lines || []).forEach(function(l){ if(Number(l.fine_mg) > 0) fine += Number(l.fine_mg); });
+    html += '<div class="kg2-line"><div><b>' + escHtml(String(j.type || '')) + '</b><div class="kg2-sub">' + escHtml(String(r.why || '')) + ' &middot; ' + escHtml(String(r.at || '').slice(0, 10)) + '</div></div><div class="kg2-num warn">' + kgFmtG(fine) + '</div></div>';
+  });
+  return html;
+}
 function kg2ReconHtml(){
   var st = _kgRecon.state, html = '<div class="kg2-sec">Blob vs ledger</div>';
   if(st === 'loading') return html + '<div class="kg2-empty">Checking the ledger...</div>';
@@ -1500,7 +1513,7 @@ function kg2ReportsHtml(){
       html += '<div class="kg2-line kg2-click" onclick="kg2OpenJob(' + kg2Q(o.job.id) + ')"><div><b>' + escHtml(o.job.jobNo) + '</b> &middot; ' + name(o.job.karigarId) + '</div><div class="kg2-num warn">' + kgFmtG(-o.openFine) + '</div></div>';
     });
   }
-  return html + kg2ParkedHtml() + kg2ReconHtml();
+  return html + kg2ParkedHtml() + kg2RejectedHtml() + kg2ReconHtml();
 }
 
 function kg2AddTouch(){

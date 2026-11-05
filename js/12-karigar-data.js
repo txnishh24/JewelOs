@@ -175,6 +175,11 @@ function kgQueuedForJob(jobId){ return kgOutboxMine().filter(function(x){ return
 function kgOutboxRemove(opId){
   kgLsSet(kgOutboxKey(), kgOutboxList().filter(function(x){ return x.op_id !== opId; }));
 }
+// Remembers the day each accepted journal was dated, after its outbox row is gone, so a Save-again on a later day sends the same
+// date (the server fingerprints business_date; a new day would look like different content).
+function kgPostedKey(){ return shopScopedKey('kg_outbox_posted'); }
+function kgPostedAdd(opId, date){ var l = kgLsGet(kgPostedKey()).filter(function(x){ return x.op !== opId; }); l.push({op:opId, d:date}); kgLsSet(kgPostedKey(), l.slice(-100)); }
+function kgPostedDate(opId){ var d = null; kgLsGet(kgPostedKey()).forEach(function(x){ if(x.op === opId && kgValidDateKey(x.d)) d = x.d; }); return d; }
 function kgRejectedList(){ return kgLsGet(kgRejectedKey()); }
 function kgRejectedAdd(j, why){
   var list = kgRejectedList(); list.push({journal:j, why:why, at:new Date().toISOString()});
@@ -192,7 +197,7 @@ function kgSendJournal(j, cb){
   var wire = {}; Object.keys(j).forEach(function(x){ if(x.charAt(0) !== '_') wire[x] = j[x]; }); // _by and _entry stay on this device
   kgRemote(Object.assign({action:'kg_post'}, wire), function(err, body, status){
     if(err) return cb(Object.assign(new Error('Not sent yet - it is saved and will be retried'), {code:'offline'}));
-    if(status === 200 && body && body.ok){ kgOutboxRemove(j.op_id); return cb(null, body); }
+    if(status === 200 && body && body.ok){ kgPostedAdd(j.op_id, j.business_date); kgOutboxRemove(j.op_id); return cb(null, body); }
     if(status === 409 && body && body.error === 'client_outdated') return cb(Object.assign(new Error('Please reload the app to update'), {code:'outdated'}));
     if(status === 401){
       // the entry is safe in the outbox; ask for sign-in and send the queue once it is back

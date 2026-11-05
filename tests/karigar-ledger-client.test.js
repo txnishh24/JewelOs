@@ -668,6 +668,31 @@ await test('unsent bills: sign-out keeps them on the phone, and the notice count
   ok(/2 unsent bills/.test(a.salesKeptNote()));
   a.localStorage.removeItem('jewelos_sale_outbox::shop-1'); eq(a.salesKeptNote(), '');
 });
+await test('review: an owner credit (reduces what the karigar holds) lowers custody on the ledger, same direction as the shop data', async function(){
+  var a = fresh(); entryShop(a, true);
+  var credit = a.kgLedgerJournalFor({type:'ADJUST', opId:'op-adj-credit-1', jobId:'jA', karigarId:'karA', fineMg:500, reason:'recount found less'}).journal;
+  var kc = credit.lines.filter(function(l){ return l.account === 'KCUST'; })[0]; eq(kc.fine_mg, -500, 'credit lowers custody');
+  var debit = a.kgLedgerJournalFor({type:'ADJUST', opId:'op-adj-debit-1', jobId:'jA', karigarId:'karA', fineMg:-500, reason:'recount found more'}).journal;
+  eq(debit.lines.filter(function(l){ return l.account === 'KCUST'; })[0].fine_mg, 500, 'debit raises custody');
+});
+await test('review: Save again after midnight re-sends the date the ledger already accepted, even though the outbox row is gone', async function(){
+  var a = fresh(); entryShop(a, true); a.toast = function(){}; a.kgToday = function(){ return '2026-11-05'; };
+  server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:1}}]);
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  var e = issueEntry(); var r1 = await addEntry(a, e); ok(r1.err, 'shop save failed after the ledger accepted it');
+  var first = a.calls[0].body.business_date; eq(a.kgOutboxList().length, 0, 'outbox row gone');
+  a.kgToday = function(){ return '2026-11-06'; }; a.saveToCloud = function(cb){ cb(null); };
+  server(a, [{status:200, body:{ok:true, duplicate:true, journal_id:1}}]); a.calls = [];
+  var r2 = await addEntry(a, issueEntry({opId:e.opId})); ok(!r2.err, r2.err && r2.err.message);
+  eq(a.calls[0].body.business_date, first, 'same date as the first, or the server calls it different content');
+});
+await test('review: a refused queued entry is shown on Reports and is not silently lost', async function(){
+  var a = fresh(); entryShop(a, true); a.SAAS.user = {name:'Owner', email:'owner@example.com', role:'owner'}; a.toast = function(){};
+  server(a, ['netfail']); var e = issueEntry(); await addEntry(a, e);
+  server(a, [{status:422, body:{ok:false, error:'rejected', message:'Job is not open on the ledger'}}]);
+  await flush(a);
+  var h = a.kg2ReportsHtml(); ok(/Ledger refused/.test(h) && /Job is not open on the ledger/.test(h), 'shown with the reason');
+});
 await test('the shop blob save now carries the build number (so the server can refuse a stale phone)', async function(){
   var fs = require('fs'), path = require('path');
   var sync = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');
