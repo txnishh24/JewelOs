@@ -43,6 +43,7 @@ function kgValidateJournal(j, role){
   if(!kgValidDateKey(j.business_date)) return 'Date is not valid';
   if(j.type === 'REVERSAL' && !(Math.floor(j.reverses_id) === j.reverses_id)) return 'A reversal must name the journal it reverses';
   if(j.type !== 'REVERSAL' && j.reverses_id != null) return 'Only a reversal may name a journal';
+  if(j.type === 'RECEIPT' && !(typeof j.job_id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(j.job_id))) return 'A receipt must name its job';
   var lines = j.lines || [], labour = j.labour || [];
   if(lines.length > 20 || labour.length > 20) return 'Too many lines';
   if(!lines.length && !labour.length) return 'A journal needs at least one line';

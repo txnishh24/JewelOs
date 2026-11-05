@@ -89,6 +89,15 @@ await test('weights: whole milligrams only; fine must match weight x fineness; z
   ok(build(a, 'STEAL', {}).error);
   eq(build(a, 'ISSUE', {karigarId:'k1', mg:1, permille:916}).journal.lines[1].fine_mg, 1, 'rounds once like the rest of V2');
 });
+await test('a receipt journal carries its job id, and the FG line names that same job (the database refuses any other pairing)', async function(){
+  var a = fresh(), rc = build(a, 'RECEIPT', {karigarId:'k1', jobId:'J9', mg:40000, permille:916}).journal;
+  eq(rc.job_id, 'J9', 'journal job id'); eq(rc.lines[1].owner_ref, rc.job_id, 'FG owner is the journal job');
+  eq(a.kgValidateJournal(rc, 'manager'), '');
+  var bare = build(a, 'RECEIPT', {karigarId:'k1', mg:40000, permille:916}).journal;
+  eq(a.kgValidateJournal(bare, 'manager'), 'A receipt must name its job', 'no job id is refused on the phone');
+  var bad = build(a, 'RECEIPT', {karigarId:'k1', jobId:'J 9', mg:40000, permille:916}).journal;
+  eq(a.kgValidateJournal(bad, 'manager'), 'A receipt must name its job', 'job id with a space is refused');
+});
 await test('the validator refuses unbalanced, malformed and role-forbidden journals', async function(){
   var a = fresh(), good = build(a, 'ISSUE', {karigarId:'k1', fineMg:1000}).journal;
   function clone(){ return JSON.parse(JSON.stringify(good)); }
