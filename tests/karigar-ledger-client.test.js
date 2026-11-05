@@ -745,6 +745,25 @@ await test('ledger flag: Reports shows the switch to the owner only', async func
   var m = parkedShop('manager'); m.S.kgLedgerOn = true; var hm = m.kg2ReportsHtml();
   ok(/Ledger is on/i.test(hm) && !/kg2ToggleLedger\(/.test(hm), 'manager sees the status, no button');
 });
+function tick(ms){ return new Promise(function(res){ setTimeout(res, ms || 30); }); }
+await test('opening balances screen: owner previews, confirms, and the ledger gets one OPENING per karigar who holds gold', async function(){
+  var a = fresh(); blobShop(a); asRole(a, 'owner'); a.safeConfirm = function(t, m, fn){ fn(); }; a.toast = function(){};
+  var h0 = a.kg2MigHtml(); ok(/Opening balances/.test(h0) && /kg2MigPreview\(/.test(h0), 'owner sees the first step');
+  a.kg2MigPreview(); var h1 = a.kg2MigHtml();
+  ok(/Asha/.test(h1) && /12\.345/.test(h1), 'preview lists who holds gold: ' + h1); ok(/Chitra/.test(h1) && /review/i.test(h1), 'a negative balance is shown for review, not posted');
+  ok(/kg2MigRun\(/.test(h1), 'and the confirm step is offered');
+  server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:1}}]); a.calls = [];
+  a.kg2MigRun(); await tick(60);
+  eq(a.calls.length, 1, 'one journal posted'); eq(a.calls[0].body.op_id, 'migr:karA'); eq(a.calls[0].body.type, 'OPENING');
+  var h2 = a.kg2MigHtml(); ok(/1 opened/.test(h2), 'done summary: ' + h2);
+});
+await test('opening balances screen: a manager sees nothing to press; a failed post is shown with its reason', async function(){
+  var m = fresh(); blobShop(m); asRole(m, 'manager'); ok(!/kg2MigPreview\(/.test(m.kg2MigHtml()), 'no button for a manager');
+  var a = fresh(); blobShop(a); asRole(a, 'owner'); a.safeConfirm = function(t, m2, fn){ fn(); }; a.toast = function(){};
+  a.kg2MigPreview(); server(a, [{status:422, body:{ok:false, error:'rejected', message:'ledger said no'}}]);
+  a.kg2MigRun(); await tick(60);
+  var h = a.kg2MigHtml(); ok(/ledger said no/.test(h) && /not opened/i.test(h), 'failure and reason shown: ' + h);
+});
 await test('the shop blob save now carries the build number (so the server can refuse a stale phone)', async function(){
   var fs = require('fs'), path = require('path');
   var sync = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');

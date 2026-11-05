@@ -1426,6 +1426,7 @@ function kg2ReverseSalary(karigarId, entryId){
 var _kg2Month = '';
 function kg2SetMonth(inp){ _kg2Month = inp.value; renderKgV2(); }
 var _kgRecon = {state:'idle'};
+var _kgMig = {state:'idle'};
 function kg2Reconcile(){
   _kgRecon = {state:'loading'}; renderKgV2();
   kgFetchBalances(function(err, rows){
@@ -1467,6 +1468,48 @@ function kg2LedgerHtml(){
   return '<div class="kg2-sec">Ledger switch</div><div class="kg2-note' + (on ? '' : ' warn') + '">Ledger is ' + (on ? 'on' : 'off') + '. ' +
     (on ? 'Gold entries go to the server ledger first and need internet.' : 'Gold entries are saved in the shop data only.') + '</div>' +
     (owner ? '<div class="kg2-row">' + kg2Btn(on ? 'Turn ledger off' : 'Turn ledger on', 'kg2ToggleLedger()') + '</div>' : '');
+}
+// Opening balances: what each karigar holds in the shop data is posted once to the ledger as an OPENING journal, before the
+// ledger is switched on. Preview first, then confirm exactly that list (kgMigrateBlobToLedger enforces the same).
+function kg2MigPreview(){
+  _kgMig = {state:'loading'}; renderKgV2();
+  kgMigrateBlobToLedger(function(err, rep){
+    _kgMig = err ? {state:'error', msg:err.message} : {state:'preview', pre:rep};
+    renderKgV2();
+  }, {dryRun:true});
+}
+function kg2MigRun(){
+  if(_kgMig.state !== 'preview') return;
+  var list = _kgMig.pre.would;
+  safeConfirm('Post these balances to the ledger?', 'Each karigar below gets one opening entry for the gold held now. This is posted once and cannot be edited, only reversed. Check the list first.', function(){
+    _kgMig = {state:'loading'}; renderKgV2();
+    kgMigrateBlobToLedger(function(err, rep){
+      _kgMig = err ? {state:'error', msg:err.message} : {state:'done', rep:rep};
+      renderKgV2();
+    }, {confirmed:list});
+  });
+}
+function kg2MigHtml(){
+  if(kgUser().role !== 'owner') return '';
+  var st = _kgMig.state, html = '<div class="kg2-sec">Opening balances</div>';
+  if(st === 'loading') return html + '<div class="kg2-empty">Working...</div>';
+  if(st === 'error') return html + '<div class="kg2-note warn">' + escHtml(_kgMig.msg) + '</div><div class="kg2-row">' + kg2Btn('Try again', 'kg2MigPreview()') + '</div>';
+  if(st === 'idle') return html + '<div class="kg2-note">Before the ledger is switched on, post what each karigar holds now as an opening entry. You see the list first.</div><div class="kg2-row">' + kg2Btn('Preview opening balances', 'kg2MigPreview()') + '</div>';
+  function rows(list, cls){
+    return list.map(function(r){ return '<div class="kg2-line"><div><b>' + escHtml(r.name || r.karigarId) + '</b></div><div class="kg2-num ' + (cls || '') + '">' + kgFmtG(r.fineMg) + '</div></div>'; }).join('');
+  }
+  if(st === 'preview'){
+    var p = _kgMig.pre;
+    html += p.would.length ? '<div class="kg2-note">These karigars hold gold now. Posting opens each balance on the ledger.</div>' + rows(p.would) : '<div class="kg2-empty">No karigar holds gold, so there is nothing to open.</div>';
+    if(p.needsReview.length) html += '<div class="kg2-note warn">Needs review, not posted: these balances are below zero in the shop data. Fix them first.</div>' + rows(p.needsReview, 'warn');
+    return html + '<div class="kg2-row">' + (p.would.length ? kg2Btn('Post these balances', 'kg2MigRun()', 'btn-gold') : '') + kg2Btn('Preview again', 'kg2MigPreview()') + '</div>';
+  }
+  var r = _kgMig.rep;
+  html += '<div class="kg2-note">' + r.posted.length + ' opened' + (r.duplicates ? ', ' + r.duplicates + ' already on the ledger' : '') + '. Now run "Check now" under Blob vs ledger: it should show no difference.</div>';
+  if(r.failed.length) html += '<div class="kg2-note warn">' + r.failed.length + ' not opened:</div>' + r.failed.map(function(f){
+    var k = findKarigar(f.karigarId); return '<div class="kg2-line"><div><b>' + escHtml(k ? k.name : String(f.karigarId)) + '</b><div class="kg2-sub">' + escHtml(String(f.why)) + '</div></div></div>'; }).join('');
+  if(r.needsReview.length) html += '<div class="kg2-note warn">Needs review, not posted:</div>' + rows(r.needsReview, 'warn');
+  return html + '<div class="kg2-row">' + kg2Btn('Preview again', 'kg2MigPreview()') + '</div>';
 }
 function kg2ToggleLedger(){
   var turnOn = S.kgLedgerOn !== true;
@@ -1526,7 +1569,7 @@ function kg2ReportsHtml(){
       html += '<div class="kg2-line kg2-click" onclick="kg2OpenJob(' + kg2Q(o.job.id) + ')"><div><b>' + escHtml(o.job.jobNo) + '</b> &middot; ' + name(o.job.karigarId) + '</div><div class="kg2-num warn">' + kgFmtG(-o.openFine) + '</div></div>';
     });
   }
-  return html + kg2ParkedHtml() + kg2RejectedHtml() + kg2LedgerHtml() + kg2ReconHtml();
+  return html + kg2ParkedHtml() + kg2RejectedHtml() + kg2MigHtml() + kg2ReconHtml() + kg2LedgerHtml();
 }
 
 function kg2AddTouch(){
