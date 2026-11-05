@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. batch67 (Karigar 2.0 phases 3-4) is LIVE on the Cloudflare worker (deployed 31 Oct, Version ID `9bb23a74-04ab-463a-a296-e588478b3837`, rollback tag `batch66-live`). Older deploy history is in the archive.
+> **Waiting on Cowork** (Tanish, 6 Nov): steps 1-3 of the live ledger rollout, see the 172nd LOG entry. Claude Code does step 4 after. Nothing else is claimed. batch67 (Karigar 2.0 phases 3-4) is LIVE on the Cloudflare worker (deployed 31 Oct, Version ID `9bb23a74-04ab-463a-a296-e588478b3837`, rollback tag `batch66-live`). Older deploy history is in the archive.
 
 ---
 
@@ -69,6 +69,22 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-06 (hundred-and-seventy-second entry) · Claude Code (Sonnet) — COWORK TASK: apply 011 and 012 to the live project and deploy `store-proxy` (steps 1-3); Tanish assigned these to Cowork; the ledger flag stays OFF
+
+**Decided by Tanish (6 Nov): Cowork does steps 1-3; Claude Code does step 4.** Project `uluzuwomwqsqxtejgzmf` (the live one; the test project `mdqgbrcueedbieawxild` already has 010-012 and is a SQL-only sandbox, do not repeat it there). State read on 6 Nov, see the 171st entry: live has 010 and an OLDER 011 and `store-proxy` v16; `kg_journal` has 0 rows; 9 shops; no 012. Branch `karigar-2-task-2-5` at `222fcf5` or later, NOT merged. **Do these in order, run each check before the next. Run `/careful` first. Stop and tell Tanish if any check differs.**
+
+1. **Re-apply 011.** File `supabase/migrations/011_karigar_ledger_hardening.sql` (create or replace of `kg_post_journal`; safe, 0 rows). Check: `select position('migr:' in pg_get_functiondef(oid))>0 from pg_proc where proname='kg_post_journal' and pronamespace='public'::regnamespace;` must be true (it was false before).
+2. **Apply 012.** File `supabase/migrations/012_karigar_ledger_flag.sql` (additive: table `kg_ledger_flag`, functions `kg_ledger_status` / `kg_set_ledger`, trigger `kg_journal_labour_owner_only`). Check: the two functions and the trigger exist; `select count(*) from kg_ledger_flag` is 0 (flag OFF for every shop); `get_advisors` security shows only the intended "RLS enabled, no policy" INFO lints for the `kg_*` tables.
+3. **Deploy `store-proxy`** from `supabase/functions/store-proxy/index.ts` at the branch head, **`verify_jwt` true as it is now**, only after steps 1 and 2 passed (it calls the 012 functions). Do NOT deploy `auth-gateway` or `razorpay-webhook`; nothing changed there. Every changed line in `store-proxy` is inside the `kg_*` code (GET, PUT and counters untouched). Check: `list_edge_functions` shows `store-proxy` at version 17 and ACTIVE.
+
+**Do NOT:** turn the ledger on for any shop (`kg_set_ledger` must not be called), merge the branch, touch `auth-gateway`, re-apply 010, or change anything in `public.store`. **Rollback:** `store-proxy`: deploy `git show 943517b:supabase/functions/store-proxy/index.ts` (matches live v16 outside `kg_*`); 012 is additive and can stay; 011: older text `git show d665f02:supabase/migrations/011_karigar_ledger_hardening.sql` (only needed if the new one misbehaves). The Supabase MCP in Cowork may need the same permission Claude Code lacked; if it is blocked, tell Tanish, he applies the two SQL files in the dashboard SQL editor and deploys from the dashboard.
+
+**After step 3, write one LOG line here ("steps 1-3 done, checks passed" or what differed). Claude Code then does step 4:** read-only test through the app on the E2E shop `77c4aefe` (`kg_status` must answer ledger off; `kg_balances` empty), then `npm run test:e2e`, then reports. Only after step 4 passes may the branch be merged.
+
+**Verified:** nothing new this entry (instructions only). **Not verified:** that Cowork's tools can apply to live.
+
+→ FOR COWORK: do steps 1-3 above in order with the checks, then append one LOG line. Do not turn the ledger on and do not merge.
 
 ### 2026-11-06 (hundred-and-seventy-first entry) · Claude Code (Sonnet) — LIVE project inspected read-only; it is NOT in the state this file said; the production write was blocked by the permission classifier and nothing was changed on live
 
