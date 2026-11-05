@@ -14,6 +14,10 @@ Use, without asking Tanish which:
 
 - **Designing or restyling a screen** → `ui-ux-pro-max` (spacing, hierarchy, empty/error states,
   accessibility), then `taste-skill` if it still looks generic.
+- **Critiquing or polishing an existing screen** → `impeccable` (`critique`, `audit`, `polish`,
+  `typeset`, `layout`). Skill only, no hook. Never run `/impeccable hooks on`, `init` or
+  `document` (they write `PRODUCT.md`, `DESIGN.md`, `.impeccable/` into the repo). Skip its
+  `bolder` / `overdrive` modes: they fight the motion limits below.
 - **Reviewing a finished UI change** → `/design-review` (gstack), on a local build only.
 - **Adding or reviewing motion** → `animation-vocabulary` to name what you want,
   `find-animation-opportunities` to spot where it helps, `improve-animations` /
