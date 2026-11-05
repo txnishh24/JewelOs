@@ -78,7 +78,7 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
   if (KG_OWNER_ONLY.has(type) && role !== "owner") return "owner only";
   const job = b.job_id == null || b.job_id === "" ? null : b.job_id;
   const voucher = b.voucher_id == null || b.voucher_id === "" ? null : b.voucher_id;
-  if (job !== null && !isStr(job, 64)) return "job_id too long";
+  if (job !== null && (!isStr(job, 64) || !/^[A-Za-z0-9_-]+$/.test(job as string))) return "job_id invalid";
   if (voucher !== null && !isStr(voucher, 64)) return "voucher_id too long";
   const reverses = b.reverses_id == null ? null : b.reverses_id;
   if (reverses !== null && !isInt(reverses)) return "reverses_id must be an integer";

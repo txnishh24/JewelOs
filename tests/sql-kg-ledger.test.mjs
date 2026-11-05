@@ -20,7 +20,7 @@ async function post(shop, type, lines, o = {}) {
   const op = o.op || ('op' + (++n));
   const r = await db.query(
     'select * from kg_post_journal($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
-    [shop, op, type, o.job || 'J1', o.voucher || null, o.reverses || null, o.date || '2026-10-31', o.note || '', 'tester', o.role || 'owner',
+    [shop, op, type, ('job' in o ? o.job : 'J1'), o.voucher || null, o.reverses || null, o.date || '2026-10-31', o.note || '', 'tester', o.role || 'owner',
      o.approved || null, '{}', JSON.stringify(lines), JSON.stringify(o.labour || [])]);
   return r.rows[0];
 }
@@ -354,6 +354,23 @@ r = await post('X', 'RECEIPT', [L('KCUST', 'k1', -10), L('FG', 'J1', 5), L('FG',
 ok(!r.ok && /exactly two/.test(r.error), 'pairing: a receipt cannot split into several jobs in one journal');
 ok(await bal('X', 'KCUST', 'k2') === 1000 && await bal('X', 'SCRAP', 'k3') === 0, 'pairing: nothing moved');
 r = await post('X', 'SCRAP', [L('KCUST', 'k1', -50), L('SCRAP', 'k1', 50)], { role: 'manager' }); ok(r.ok, 'pairing: the normal two-line scrap still posts');
+
+
+// ── 19 finished goods belong to a job: a receipt names its job, and its FG line carries exactly that id ──
+await post('Y', 'ISSUE', [L('VAULT', '', -1000), L('KCUST', 'ky', 1000)]);
+r = await post('Y', 'RECEIPT', [L('KCUST', 'ky', -100), L('FG', '', 100)], { role: 'manager' });
+ok(!r.ok && /owner reference/.test(r.error), 'FG: finished goods with a blank owner are refused (no invisible bucket)');
+r = await post('Y', 'RECEIPT', [L('KCUST', 'ky', -100), L('FG', 'J 1', 100)], { role: 'manager', job: 'J 1' });
+ok(!r.ok && /owner reference/.test(r.error), 'FG: a job id with a space is refused');
+r = await post('Y', 'RECEIPT', [L('KCUST', 'ky', -100), L('FG', 'J2', 100)], { role: 'manager', job: 'J1' });
+ok(!r.ok && /job/.test(r.error), 'FG: the FG line must name the journal\'s own job');
+r = await post('Y', 'RECEIPT', [L('KCUST', 'ky', -100), L('FG', 'J1', 100)], { role: 'manager', job: null });
+ok(!r.ok && /job/.test(r.error), 'FG: a receipt with no job id is refused');
+ok(await bal('Y', 'FG', 'J2') === 0 && await bal('Y', 'KCUST', 'ky') === 1000, 'FG: nothing moved');
+r = await post('Y', 'RECEIPT', [L('KCUST', 'ky', -100), L('FG', 'J1', 100)], { role: 'manager', job: 'J1' });
+ok(r.ok && await bal('Y', 'FG', 'J1') === 100, 'FG: a proper receipt for its job posts');
+r = await post('Y', 'RECEIPT', [L('KCUST', 'ky', -50), L('FG', '3f2b8c1e-9a4d-4e6b-8f10-2c7d5a9e0b11', 50)], { role: 'manager', job: '3f2b8c1e-9a4d-4e6b-8f10-2c7d5a9e0b11' });
+ok(r.ok, 'FG: a UUID job id (what the app generates) posts');
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);

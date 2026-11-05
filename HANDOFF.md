@@ -104,6 +104,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-05 (hundred-and-thirty-eighth entry) · Claude Code (Sonnet) — Task 2.5 FG job rule committed on `karigar-2-task-2-5`; still NOT merged, NOT applied, NOT deployed
+
+A RECEIPT must now carry a job id, every FG line's owner reference must equal it, and FG refs follow the plain-id pattern (migration 011); `store-proxy` applies the same pattern to `job_id`. Built the day before on Tanish's go-ahead, committed now. **Effect:** a receipt with no job is refused; `kgBuildJournal('RECEIPT')` (`js/12-karigar-data.js:87`) must always get `jobId` (no UI caller exists yet).
+
+**Verified:** SQL ledger test 142 checks pass, `karigar-ledger-client` 13/0, `karigar-v2` 66/0. **Not verified:** full `check.bat`, real Postgres (PGlite only), invariant-tester and security-auditor re-run on this delta. `CLAUDE.md` and `.claude/settings.json` edits were left uncommitted (Tanish's config, not part of this task).
+
+→ FOR COWORK: nothing — FYI only
+
 ### 2026-11-04 (hundred-and-thirty-sixth entry) · Claude Code (Sonnet) — Task 2.5 third security audit pass done and its decisions built on `karigar-2-task-2-5`; still NOT merged, NOT applied, NOT deployed
 
 Third `jewelos-security-auditor` pass on migration 011: no new way for a manager to create metal, settle another karigar's entitlement or bypass owner authority; real `kgBuildJournal`/`kgBuildReversal` output passes the templates; the `store-proxy` date check matched Postgres on all 36,890 dates 2000-2100. Tanish decided the three open items and they are built: (1) karigar references on KCUST/ENT/EARNED/PAYOUT/SCRAP/LOSS must be plain ids (`^[A-Za-z0-9_-]{1,64}$`), a TRANSIT line must carry its own voucher id, SCRAP/LOSS name the same karigar as the custody line (`store-proxy` applies the same id pattern); (2) a date-refused manager journal must be surfaced to the owner, not lost (a plan item under Task 4 Step 6a; nothing built, no screen exists); (3) a reversal of any journal that carries an approver needs the owner. Also `ENTITLEMENT_ACCRUE` is now owner-only in `store-proxy` and `js/12-karigar-data.js` (one list entry), matching the database.

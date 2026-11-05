@@ -125,7 +125,7 @@ begin
       -- owner references (D2): the shop vault and the OPENING account have none; karigar accounts must name a karigar.
       -- Without this, metal can be parked under a made-up vault name that no screen reads.
       if ((v_line->>'account') in ('VAULT', 'OPENING') and coalesce(v_line->>'owner_ref', '') <> '')
-         or ((v_line->>'account') in ('KCUST', 'ENT', 'EARNED', 'PAYOUT', 'SCRAP', 'LOSS')
+         or ((v_line->>'account') in ('KCUST', 'ENT', 'EARNED', 'PAYOUT', 'SCRAP', 'LOSS', 'FG')
              and coalesce(v_line->>'owner_ref', '') !~ '^[A-Za-z0-9_-]{1,64}$') then
         -- a karigar reference is a plain id (existing ids are "kar" + digits or a UUID): no spaces, no
         -- look-alike or invisible characters. The database has no karigar list, so a well-formed made-up id still passes.
@@ -143,6 +143,13 @@ begin
     if p_type in ('ISSUE', 'RETURN', 'RECEIPT', 'SCRAP', 'LOSS', 'TRANSFER_OUT', 'TRANSFER_IN', 'OPENING', 'ADJUST')
        and jsonb_array_length(p_lines) <> 2 then
       return query select false, false, null::bigint, 'a ' || p_type || ' journal has exactly two lines'; return;
+    end if;
+    -- finished goods belong to a job: a receipt names its job and its FG line carries exactly that id
+    -- (otherwise metal can sit in an FG bucket no job screen reads)
+    if p_type = 'RECEIPT' and (p_job_id is null or exists (
+         select 1 from jsonb_array_elements(p_lines) l
+         where l->>'account' = 'FG' and l->>'owner_ref' is distinct from p_job_id)) then
+      return query select false, false, null::bigint, 'a receipt must carry a job id, and its FG line must name that same job'; return;
     end if;
     -- a transit line belongs to its own voucher; scrap and loss come out of the same karigar's custody
     if exists (select 1 from jsonb_array_elements(p_lines) l where l->>'account' = 'TRANSIT'
