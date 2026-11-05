@@ -588,6 +588,45 @@ await test('kgQueuedForJob counts only the signed-in user queued entries for tha
   eq(a.kgQueuedForJob(j1.job_id), 1); eq(a.kgQueuedForJob('job-zzz'), 1); eq(a.kgQueuedForJob('nope'), 0);
   a.kgOutboxRemove(j1.op_id); eq(a.kgQueuedForJob(j1.job_id), 0);
 });
+function parkedShop(role){
+  var a = fresh(); blobShop(a); a.SAAS.user = {name:'Owner', email:'owner@example.com', role:role || 'owner'};
+  a.saveToCloud = function(cb){ cb(null); };
+  a.S.kgParked = [{id:'p1', opId:'op-parked-0001', at:'2026-11-05T10:00:00.000Z', why:'Job is closed', entry:{type:'ISSUE', jobId:'jA', karigarId:'karA', fineMg:10000}}];
+  return a;
+}
+var srvOrig = {id:7, op_id:'op-parked-0001', type:'ISSUE', job_id:'jA', voucher_id:null, reverses_id:null, business_date:'2026-11-05', note:'',
+  lines:[{account:'VAULT', owner_ref:'', fine_mg:-10000, gross_mg:null, permille:null}, {account:'KCUST', owner_ref:'karA', fine_mg:10000, gross_mg:10000, permille:1000}], labour:[]};
+function revParked(a, reason){ return new Promise(function(res){ a.kgReverseParked('p1', reason, function(err){ res(err); }); }); }
+await test('reverse a parked entry: finds the ledger journal, posts the exact mirror, then removes the parked row', async function(){
+  var a = parkedShop(); a.toast = function(){};
+  server(a, [{status:200, body:{ok:true, journals:[srvOrig]}}, {status:200, body:{ok:true, duplicate:false, journal_id:8}}]);
+  var err = await revParked(a, 'job was closed, entered in error'); ok(!err, err && err.message);
+  var sent = a.calls[1].body; eq(sent.action, 'kg_post'); eq(sent.type, 'REVERSAL'); eq(sent.reverses_id, 7);
+  eq(JSON.stringify(sent.lines.map(function(l){ return l.fine_mg; })), JSON.stringify([10000, -10000]), 'mirror');
+  eq(a.S.kgParked.length, 0, 'parked row gone'); eq(a.kgOutboxList().length, 0);
+});
+await test('reverse a parked entry: only the owner may; nothing is sent otherwise; a short reason is refused', async function(){
+  var m = parkedShop('manager'); server(m, [{status:200, body:{ok:true, journals:[srvOrig]}}]);
+  var e1 = await revParked(m, 'long enough reason'); ok(e1, 'manager refused'); eq(m.calls.length, 0); eq(m.S.kgParked.length, 1);
+  var a = parkedShop(); server(a, [{status:200, body:{ok:true, journals:[srvOrig]}}, {status:200, body:{ok:true, journal_id:8}}]);
+  var e2 = await revParked(a, 'no'); ok(e2, 'short reason refused'); eq(a.S.kgParked.length, 1);
+});
+await test('reverse a parked entry: the ledger has no such journal -> error, row stays', async function(){
+  var a = parkedShop(); server(a, [{status:200, body:{ok:true, journals:[]}}]);
+  var err = await revParked(a, 'not on the ledger?'); ok(err && /ledger/i.test(err.message), err && err.message); eq(a.S.kgParked.length, 1);
+});
+await test('reverse a parked entry: a network failure keeps the row; the retry (server says duplicate) finishes it', async function(){
+  var a = parkedShop(); a.toast = function(){};
+  server(a, [{status:200, body:{ok:true, journals:[srvOrig]}}, 'netfail']);
+  var e1 = await revParked(a, 'job was closed, entered in error'); ok(e1, 'not confirmed'); eq(a.S.kgParked.length, 1, 'row stays');
+  server(a, [{status:200, body:{ok:true, journals:[srvOrig]}}, {status:200, body:{ok:true, duplicate:true, journal_id:8}}]);
+  var e2 = await revParked(a, 'job was closed, entered in error'); ok(!e2, e2 && e2.message); eq(a.S.kgParked.length, 0);
+  eq(a.calls[1].body.op_id, 'rv-op-parked-0001', 'same op_id on retry, so the server cannot reverse twice');
+});
+await test('reverse a parked entry: Reports shows the button to the owner only', async function(){
+  var a = parkedShop(); ok(/kg2ReverseParked\(/.test(a.kg2ReportsHtml()), 'owner sees it');
+  var m = parkedShop('manager'); ok(!/kg2ReverseParked\(/.test(m.kg2ReportsHtml()), 'manager does not');
+});
 await test('the shop blob save now carries the build number (so the server can refuse a stale phone)', async function(){
   var fs = require('fs'), path = require('path');
   var sync = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');

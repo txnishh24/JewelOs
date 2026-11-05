@@ -70,6 +70,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-06 (hundred-and-sixtieth entry) · Claude Code (Sonnet) — owner can now reverse a parked gold entry on the ledger from Reports; NOT merged, NOT applied, NOT deployed
+
+Reports > "Ledger has this, shop data refused it" now shows a "Reverse on ledger" button per row, owner only. `kgReverseParked` (`js/12-karigar-data.js`) reads the ledger (`kg_journal_list`, paged) for the journal with the parked entry's `op_id`, posts its exact mirror via `kgBuildReversal` with `op_id` `rv-<parked op_id>`, then removes the parked row and writes an audit line. A lost answer is safe: the retry sends the same `op_id`, the server says duplicate, and the row is then removed. Manager gets no button and the function refuses. **Still open before the ledger flag may be wired:** Tanish's decision on unsent sales and the other shop-scoped keys (157th entry), a browser look at both new screens (waiting line, reverse form), and the whole-branch review (reviewer agents run once at the end, Tanish 6 Nov).
+
+**Verified:** ledger client 68/0 (5 new tests, failed first); `regression` 489/0; `roundtrip`, `backup-check`, `loadorder`, `unescaped-ids` clean; `node --check` both files. **Not verified:** no browser run; no real server call (server answers are faked in the test); `karigar-v2.test.js` still fails "report counts fixed gold of jobs closed in the period" (same without my changes, cause not investigated); `check.bat` as a whole not run. Reading the ledger from the start each time is a known shortcut for a large ledger.
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`.
+
 ### 2026-11-06 (hundred-and-fifty-ninth entry) · Claude Code (Sonnet) — job screen now shows "N gold entries waiting for confirmation" for entries queued on that job; NOT merged, NOT applied, NOT deployed
 
 New `kgQueuedForJob(jobId)` in `js/12-karigar-data.js` counts this user's queued ledger entries for one job; `kg2JobHtml` in `js/11-karigar.js` shows a warning line with it, so nobody re-enters an issue that is only waiting to send. This closes item 2b. **Still open before the ledger flag may be wired:** a reverse button for parked entries, Tanish's decision on unsent sales and the other shop-scoped keys (157th entry), and the whole-branch review. Tanish decided (6 Nov) to run the reviewer agents once, at the end of the whole Karigar work, not per step.

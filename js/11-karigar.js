@@ -1432,6 +1432,11 @@ function kg2Reconcile(){
     renderKgV2();
   });
 }
+function kg2ReverseParked(parkedId){
+  kgForm({title:'Reverse this on the ledger', submitLabel:'Reverse', doneToast:'✓ Reversed on the ledger',
+    fields:[{id:'reason', label:'Reason (required)'}],
+    onSubmit:function(v, fin){ kgReverseParked(parkedId, v.reason, function(err){ fin(err); }); }});
+}
 function kg2ParkedHtml(){
   var list = S.kgParked || [];
   if(!list.length) return '';
@@ -1439,7 +1444,8 @@ function kg2ParkedHtml(){
   list.forEach(function(p){
     var e = p.entry || {}, k = findKarigar(e.karigarId);
     html += '<div class="kg2-line"><div><b>' + escHtml(k ? k.name : String(e.karigarId || '')) + '</b> &middot; ' + escHtml(String(e.type || '')) +
-      '<div class="kg2-sub">' + escHtml(p.why || '') + '</div></div><div class="kg2-num warn">' + kgFmtG(e.fineMg || 0) + '</div></div>';
+      '<div class="kg2-sub">' + escHtml(p.why || '') + '</div></div><div class="kg2-num warn">' + kgFmtG(e.fineMg || 0) + '</div>' +
+      (kgUser().role === 'owner' ? '<div class="kg2-right">' + kg2Btn('Reverse on ledger', 'kg2ReverseParked(' + kg2Q(p.id) + ')') + '</div>' : '') + '</div>';
   });
   return html;
 }

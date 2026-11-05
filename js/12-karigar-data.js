@@ -217,7 +217,7 @@ function kgPostJournal(j, cb){
 }
 // The ledger took a queued journal; save its shop-data entry too (the form that made it may be long closed).
 // If the shop data now refuses it (the job changed on another device), keep it out of the blob and leave a note on the
-// S.kgParked (saved with the shop data, shown on Reports); the owner decides. shortcut: no reverse button yet.
+// S.kgParked (saved with the shop data, shown on Reports); the owner decides; kgReverseParked undoes it on the ledger.
 function kgFinishQueued(item, done){
   var en = item._entry; S.kgLedger = S.kgLedger || [];
   if(!en) return done();
@@ -302,6 +302,50 @@ function kgMigrateBlobToLedger(cb, opts){
       next();
     });
   })();
+}
+
+// ── reverse a parked entry: the ledger has it, the shop data refused it ──────────────────────────
+// cb(err, journal|null). Reads the ledger a page at a time until it finds the journal with this op_id.
+// shortcut: reads from the start of the ledger each time; add a "find by op_id" call when a shop's ledger is large.
+function kgFindServerJournal(opId, cb){
+  (function page(after){
+    kgRemote({action:'kg_journal_list', after:after, limit:1000}, function(err, body, status){
+      if(err) return cb(new Error('Could not reach the ledger. Check the internet and try again.'));
+      if(!(status === 200 && body && body.ok && Array.isArray(body.journals))) return cb(new Error(status === 403 ? 'Only the owner or a manager can read the ledger' : 'The ledger could not be read. Try again.'));
+      for(var i = 0; i < body.journals.length; i++) if(body.journals[i].op_id === opId) return cb(null, body.journals[i]);
+      if(body.journals.length < 1000) return cb(null, null);
+      page(body.journals[body.journals.length - 1].id);
+    });
+  })(0);
+}
+// Owner only. Posts the exact mirror of the ledger journal, then drops the parked row. The reversal's op_id comes from the
+// parked entry, so a retry after a lost answer is a duplicate on the server and never reverses twice.
+function kgReverseParked(parkedId, reason, done){
+  var u = kgUser(), p = null;
+  (S.kgParked || []).forEach(function(x){ if(x.id === parkedId) p = x; });
+  if(!p) return done(new Error('That entry is no longer parked'));
+  if(u.role !== 'owner') return done(new Error('Only the owner can reverse a parked entry'));
+  var opId = ('rv-' + p.opId).slice(0, 64);
+  kgFindServerJournal(p.opId, function(err, orig){
+    if(err) return done(err);
+    if(!orig) return done(new Error('The ledger has no entry with this id. Check the karigar ledger before doing anything.'));
+    var date = null;
+    kgOutboxList().forEach(function(x){ if(x.op_id === opId && kgValidDateKey(x.business_date)) date = x.business_date; }); // a retry keeps its first date
+    var rv = kgBuildReversal(orig, opId, reason, date);
+    if(rv.error) return done(new Error(rv.error));
+    kgPostJournal(rv.journal, function(e2){
+      if(e2 && (e2.code === 'offline' || e2.code === 'outdated')) return done(new Error(e2.reauth || e2.code === 'outdated' ? e2.message : 'Not confirmed. The reversal may already be recorded. Tap Reverse again to confirm.'));
+      if(e2) return done(e2);
+      var removed = null, auditId = null;
+      kgTxn('park-rm:' + p.id, function(){
+        S.kgParked = S.kgParked || [];
+        S.kgParked = S.kgParked.filter(function(x){ if(x.id === p.id){ removed = x; return false; } return true; });
+        if(removed) auditId = kgAudit('kg_parked_reverse', 'kgParked', p.id, 'Reversed on ledger: ' + String(reason).trim());
+        return '';
+      }, function(){ if(removed) S.kgParked.push(removed); kgUndoAudit(auditId); },
+      function(e3){ done(e3 ? new Error('Reversed on the ledger but not saved to the shop yet. Tap Reverse again to finish.') : null); });
+    });
+  });
 }
 
 // ── blob vs ledger report: do the shop data and the ledger agree on who holds how much gold? ─────────
