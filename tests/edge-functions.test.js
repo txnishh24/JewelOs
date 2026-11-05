@@ -1034,6 +1034,16 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     await sp(ownerTok, 'POST', kgGood(Object.assign({}, loss, { op_id: 'op-loss-000004' })));
     eq(kgCalls()[0].args.p_approved_by, null, 'no approval unless asked');
   });
+  await test('ledger: the migr: op_id prefix is reserved for the owner\'s OPENING journals (nobody can pre-empt a migration id)', async function () {
+    var opn = { type: 'OPENING', lines: [{ account: 'KCUST', owner_ref: 'karA', fine_mg: 5000 }, { account: 'OPENING', owner_ref: '', fine_mg: -5000 }] };
+    db.rpcCalls.length = 0;
+    eq((await sp(ownerTok, 'POST', kgGood({ op_id: 'migr:karA0001' }))).status, 400, 'owner ISSUE under migr: is refused');
+    eq((await sp(mgrTok, 'POST', kgGood(Object.assign({ op_id: 'migr:karA0001' }, opn)))).status, 400, 'manager OPENING under migr: is refused');
+    eq((await sp(mgrTok, 'POST', kgGood({ op_id: 'migr:karA0001' }))).status, 400, 'manager ISSUE under migr: is refused');
+    eq(kgCalls().length, 0, 'no refused journal reached the database');
+    eq((await sp(ownerTok, 'POST', kgGood(Object.assign({ op_id: 'migr:karA0001' }, opn)))).status, 200, 'owner OPENING under migr: posts');
+    eq(kgCalls()[0].args.p_op_id, 'migr:karA0001', 'op_id forwarded unchanged');
+  });
   await test('ledger: malformed journals are refused with 400 before the database is touched', async function () {
     var bad = [
       ['op_id too short', { op_id: 'x' }], ['op_id bad characters', { op_id: 'has space 12345' }], ['unknown type', { type: 'STEAL' }],
