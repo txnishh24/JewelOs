@@ -228,7 +228,7 @@ function kgReport(from, to){
   });
   (S.kgJobs || []).forEach(function(j){
     if(j.status !== 'closed' || !j.earnings || !(j.earnings.fixedFine > 0)) return;
-    var day = String(j.closedAt || '').slice(0, 10);
+    var cd = new Date(j.closedAt), day = isNaN(cd.getTime()) ? '' : dbDayKey(cd); // local day, same as kgToday(); the UTC text is a day behind from midnight to 5:30 am IST
     if(day < from || day > to) return;
     var t = byK[j.karigarId] || (byK[j.karigarId] = {karigarId:j.karigarId, issuedFine:0, keptFine:0, fixedFine:0});
     t.fixedFine += j.earnings.fixedFine;

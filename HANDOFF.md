@@ -70,6 +70,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-06 (hundred-and-sixty-first entry) · Claude Code (Sonnet) — fixed a day-boundary bug in the Karigar report: a job closed between midnight and 5:30 am IST was counted on the previous day; NOT merged, NOT applied, NOT deployed
+
+`kgReport` (`js/11-karigar.js`) took the day of a closed job from the first 10 characters of `closedAt`, which is UTC, but compared it with the local date range (`kgToday()`). It now converts `closedAt` to the local day with `dbDayKey`. This was the cause of the `karigar-v2.test.js` failure "report counts fixed gold of jobs closed in the period" (it only failed when run between 00:00 and 05:30 IST); the test needed no change. The same UTC slice is used for display of stage dates (`doneAt`, `startedAt`, line ~1528); not changed, cosmetic.
+
+**Verified:** `karigar-v2` 66/0, ledger client 69/0, `regression` 489/0. **Not verified:** the fixed-gold figure on the live Reports screen; `check.bat` as a whole.
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`.
+
 ### 2026-11-06 (hundred-and-sixtieth entry) · Claude Code (Sonnet) — owner can now reverse a parked gold entry on the ledger from Reports; NOT merged, NOT applied, NOT deployed
 
 Reports > "Ledger has this, shop data refused it" now shows a "Reverse on ledger" button per row, owner only. `kgReverseParked` (`js/12-karigar-data.js`) reads the ledger (`kg_journal_list`, paged) for the journal with the parked entry's `op_id`, posts its exact mirror via `kgBuildReversal` with `op_id` `rv-<parked op_id>`, then removes the parked row and writes an audit line. A lost answer is safe: the retry sends the same `op_id`, the server says duplicate, and the row is then removed. Manager gets no button and the function refuses. After an automated security note it also refuses when the ledger journal's type, job or gold total differs from the parked row (ledger client 69/0). **Still open before the ledger flag may be wired:** Tanish's decision on unsent sales and the other shop-scoped keys (157th entry), a browser look at both new screens (waiting line, reverse form), and the whole-branch review (reviewer agents run once at the end, Tanish 6 Nov).
