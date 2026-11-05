@@ -160,6 +160,8 @@ function _clearDeviceSession(){
   try{ _clearUnsynced(); }catch(e){} // same reason — ssj_unsynced is shop-scoped too (C2)
   // Karigar ledger outbox and its rejected list: also shop-scoped, and they hold gold entries made by this user.
   try{ localStorage.removeItem(kgOutboxKey()); localStorage.removeItem(kgRejectedKey()); }catch(e){}
+  // At boot after an expired session SAAS.shop is null, so the keys above point at 'noshop'. Sweep every shop's copy.
+  try{ for(var q = localStorage.length - 1; q >= 0; q--){ var qk = localStorage.key(q); if(qk && /^kg_outbox(_rejected)?::/.test(qk)) localStorage.removeItem(qk); } }catch(e){}
   var keys = [AUTH_KEY, USERS_KEY, SHOPS_KEY, 'ssj_cache', 'ssj_last_save', 'ssj_last_cloud_load'];
   for(var i = 0; i < keys.length; i++){ try{ localStorage.removeItem(keys[i]); }catch(e){} }
   SAAS.sessionToken = null;

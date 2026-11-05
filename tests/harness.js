@@ -47,7 +47,9 @@ function buildSandbox(){
     localStorage: {
       getItem: function(k){ return _local.hasOwnProperty(k) ? _local[k] : null; },
       setItem: function(k,v){ _local[k] = String(v); },
-      removeItem: function(k){ delete _local[k]; }
+      removeItem: function(k){ delete _local[k]; },
+      key: function(i){ return Object.keys(_local)[i] === undefined ? null : Object.keys(_local)[i]; },
+      get length(){ return Object.keys(_local).length; }
     },
     sessionStorage: {
       getItem: function(k){ return _session.hasOwnProperty(k) ? _session[k] : null; },

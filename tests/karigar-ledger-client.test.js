@@ -494,6 +494,13 @@ await test('signing out of the device clears the outbox and the rejected list', 
   a._clearDeviceSession();
   eq(a.localStorage.getItem(ok1), null, 'outbox key removed'); eq(a.localStorage.getItem(ok2), null, 'rejected key removed');
 });
+await test('blocker 6: clearing the device also removes outbox keys of a shop that is not loaded (session expired while the app was closed)', async function(){
+  var a = fresh(); a.SAAS.shop = null; // boot after expiry: nothing loaded, kgOutboxKey() would say noshop
+  a.localStorage.setItem('kg_outbox::shop-9', '[{"op_id":"x"}]'); a.localStorage.setItem('kg_outbox_rejected::shop-9', '[]'); a.localStorage.setItem('pin_hash::shop-9', 'keep');
+  a._clearDeviceSession();
+  eq(a.localStorage.getItem('kg_outbox::shop-9'), null); eq(a.localStorage.getItem('kg_outbox_rejected::shop-9'), null);
+  eq(a.localStorage.getItem('pin_hash::shop-9'), 'keep', 'the PIN stays: it is a per-device lock');
+});
 await test('forbidden role, old build, expired session and server faults: right outcome for each', async function(){
   var a = fresh(); var j = build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal;
   server(a, [{status:403, body:{error:'forbidden'}}]); var r1 = await post(a, j);

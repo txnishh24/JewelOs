@@ -70,6 +70,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-05 (hundred-and-fifty-sixth entry) · Claude Code (Sonnet) — ledger blocker 6: clearing the device now removes every shop's outbox keys; NOT merged, NOT applied, NOT deployed
+
+`_clearDeviceSession` now also sweeps all `kg_outbox::*` and `kg_outbox_rejected::*` keys. Before, a boot after an expired session (`SAAS.shop` null) removed only the `noshop` copies and left the real shop's gold entries on the phone. PIN keys are untouched (per-device lock). `tests/harness.js` gained `localStorage.key()` and `length` so the sweep can be tested (additive). **All six audit blockers (1-6) are now fixed in code.** **Still open before the ledger flag may be wired:** 2b job-screen "waiting for confirmation" line (UI, needs a browser check), a reverse button for parked entries, the Opus review of the whole Task 4 branch, and nothing calls `kgOutboxFlush` from a screen yet (boot, online event, after sign-in is wired for 401 only).
+
+**Verified:** `check.bat` clean, ledger client 56/0; the new test fails without the change. **Not verified:** no browser run.
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5` until the open list above is done and an Opus review signs off.
+
 ### 2026-11-05 (hundred-and-fifty-fifth entry) · Claude Code (Sonnet) — review fix on blocker 4: a 401 with no reason is treated as expired, not guessed; replay of queued entries is by design; NOT merged, NOT applied, NOT deployed
 
 The automated commit review of `52108b0` raised two points. (1) Valid, fixed: `kgSendJournal` passed `body.reason` straight to `saasRequireReauth`, which guesses from the phone's clock when it is missing and can pick 'revoked' (device wipe). It now passes `|| 'expired'`; test added, failed first. (2) Acknowledged, no code change: after sign-in `kgOutboxFlush` also sends older queued entries. That is intended: a queued journal may already be on the ledger, so removing it on Cancel would split the ledger from the shop data (blocker 1). The real gap is that the user cannot see what is queued: the job-screen "waiting for confirmation" line (2b) is still open and is the fix. `saasRequireReauth`'s clock-based guess is still there for other callers; not touched.
