@@ -709,6 +709,13 @@ await test('security A1: a parked row that the shop data already has, or that na
   server(b, [{status:200, body:{ok:true, journals:[srvOrig]}}, {status:200, body:{ok:true, journal_id:8}}]);
   var e2 = await revParked(b, 'long enough reason'); ok(e2 && /does not match/.test(e2.message), e2 && e2.message); eq(b.calls.length, 1, 'nothing posted');
 });
+await test('A3: labour accrue and pay are owner-only in the client validator; the owner is unaffected', async function(){
+  var a = fresh();
+  var acc = build(a, 'LABOUR_ACCRUE', {karigarId:'k1', amountPaise:250000}).journal, pay = build(a, 'LABOUR_PAY', {karigarId:'k1', amountPaise:100000}).journal;
+  ok(/owner/i.test(a.kgValidateJournal(acc, 'manager')), 'manager accrue refused'); ok(/owner/i.test(a.kgValidateJournal(pay, 'manager')), 'manager pay refused');
+  eq(a.kgValidateJournal(acc, 'owner'), ''); eq(a.kgValidateJournal(pay, 'owner'), '');
+  var iss = build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal; eq(a.kgValidateJournal(iss, 'manager'), '', 'gold entries still open to a manager');
+});
 await test('the shop blob save now carries the build number (so the server can refuse a stale phone)', async function(){
   var fs = require('fs'), path = require('path');
   var sync = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');
