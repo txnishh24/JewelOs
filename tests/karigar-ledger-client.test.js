@@ -176,6 +176,49 @@ await test('the ledger refusing a journal (422) removes it from the outbox, reco
   eq(a.kgRejectedList().length, 1); ok(/negative/.test(a.kgRejectedList()[0].why));
   var f = await flush(a); eq(a.calls.length, 1, 'never re-sent');
 });
+await test('a queued journal is only ever sent by the user who made it (shared shop computer)', async function(){
+  var a = fresh('manager'); a.SAAS.user = {name:'Mgr', email:'Mgr@Example.com', role:'manager'};
+  server(a, ['netfail']);
+  var j = build(a, 'LOSS', {karigarId:'k1', fineMg:5000, approve:true}).journal;
+  var r = await post(a, j); eq(r.err.code, 'offline'); eq(a.kgOutboxList().length, 1);
+  a.SAAS.user = {name:'Owner', email:'owner@example.com', role:'owner'};
+  server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:1}}]); a.calls = [];
+  var f = await flush(a); ok(!f.err); eq(f.r.sent, 0, 'the owner does not send the manager\'s journal'); eq(a.calls.length, 0, 'nothing reached the server'); eq(f.r.left, 1, 'still waiting for its own user');
+  a.SAAS.user = {name:'Mgr', email:'mgr@example.com', role:'manager'};
+  var f2 = await flush(a); eq(f2.r.sent, 1, 'the manager sends it (e-mail case ignored)'); eq(a.calls.length, 1);
+  ok(!('_by' in a.calls[0].body), 'the owner tag is local only and is never sent to the server');
+});
+await test('a journal that must wait for its own user does not block another user\'s journals', async function(){
+  var a = fresh('manager'); a.SAAS.user = {name:'Mgr', email:'mgr@example.com', role:'manager'};
+  server(a, ['netfail']); await post(a, build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal);
+  a.SAAS.user = {name:'Owner', email:'owner@example.com', role:'owner'};
+  await post(a, build(a, 'ISSUE', {karigarId:'k1', fineMg:7000}).journal); eq(a.kgOutboxList().length, 2);
+  server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:2}}]); a.calls = [];
+  var f = await flush(a); eq(f.r.sent, 1, 'only the owner\'s own entry'); eq(f.r.left, 1);
+});
+await test('a 403 is recorded in the rejected list, not lost without a trace', async function(){
+  var a = fresh(); server(a, [{status:403, body:{error:'forbidden'}}]);
+  await post(a, build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal);
+  eq(a.kgOutboxList().length, 0); eq(a.kgRejectedList().length, 1, 'visible to the owner afterwards');
+});
+await test('signing out warns first when gold entries are still waiting to be sent', async function(){
+  var a = fresh(); a.SAAS.shop = {id:'shop-1'}; var seen = null;
+  a.safeConfirm = function(title, msg, yes, danger){ seen = {msg:msg, danger:danger}; };
+  a.saasLogout(); ok(seen && !/gold entr/i.test(seen.msg), 'no warning when nothing is waiting');
+  server(a, ['netfail']); await post(a, build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal);
+  seen = null; a.saasLogout();
+  ok(seen && /1 gold entry/i.test(seen.msg) && /lost/i.test(seen.msg), 'warns that 1 gold entry will be lost: ' + (seen && seen.msg));
+  eq(seen.danger, true, 'shown as a danger confirm');
+});
+await test('signing out of the device clears the outbox and the rejected list', async function(){
+  var a = fresh(); a.SAAS.shop = {id:'shop-1'}; server(a, ['netfail']);
+  await post(a, build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal);
+  a.kgRejectedAdd(build(a, 'ISSUE', {karigarId:'k1', fineMg:1000}).journal, 'x');
+  eq(a.kgOutboxList().length, 1); eq(a.kgRejectedList().length, 1);
+  var ok1 = a.kgOutboxKey(), ok2 = a.kgRejectedKey();
+  a._clearDeviceSession();
+  eq(a.localStorage.getItem(ok1), null, 'outbox key removed'); eq(a.localStorage.getItem(ok2), null, 'rejected key removed');
+});
 await test('forbidden role, old build, expired session and server faults: right outcome for each', async function(){
   var a = fresh(); var j = build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal;
   server(a, [{status:403, body:{error:'forbidden'}}]); var r1 = await post(a, j);

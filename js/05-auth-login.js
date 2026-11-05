@@ -158,6 +158,8 @@ function _saasSessionExpired(){
 function _clearDeviceSession(){
   try{ clearPinSession(); }catch(e){} // before SAAS.shop is nulled — its key is shop-scoped
   try{ _clearUnsynced(); }catch(e){} // same reason — ssj_unsynced is shop-scoped too (C2)
+  // Karigar ledger outbox and its rejected list: also shop-scoped, and they hold gold entries made by this user.
+  try{ localStorage.removeItem(kgOutboxKey()); localStorage.removeItem(kgRejectedKey()); }catch(e){}
   var keys = [AUTH_KEY, USERS_KEY, SHOPS_KEY, 'ssj_cache', 'ssj_last_save', 'ssj_last_cloud_load'];
   for(var i = 0; i < keys.length; i++){ try{ localStorage.removeItem(keys[i]); }catch(e){} }
   SAAS.sessionToken = null;
@@ -178,10 +180,17 @@ function saasLogout(){
   var msg = unsynced
     ? 'Your latest changes may not have reached the cloud yet. Signing out removes this device\'s copy of the shop, so anything not yet saved to the cloud will be lost. Sign out anyway?'
     : 'Sign out of JewelOS on this device?';
+  // Karigar gold entries still waiting to reach the ledger are deleted with the device session.
+  var kgWaiting = 0;
+  try{ kgWaiting = kgOutboxList().length; }catch(e){}
+  if(kgWaiting > 0){
+    var one = kgWaiting === 1;
+    msg = kgWaiting + ' gold entr' + (one ? 'y' : 'ies') + ' ' + (one ? 'has' : 'have') + ' not reached the ledger yet. Signing out deletes ' + (one ? 'it' : 'them') + ' from this device, so ' + (one ? 'it' : 'they') + ' will be lost. Stay signed in until the phone is back online. Sign out anyway?';
+  }
   safeConfirm('Sign out?', msg, function(){
     _clearDeviceSession();
     _reloadToSignIn();
-  }, unsynced);
+  }, unsynced || kgWaiting > 0);
 }
 
 // The server refused the session — it expired, or this user was removed from

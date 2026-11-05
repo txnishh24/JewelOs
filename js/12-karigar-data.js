@@ -145,11 +145,25 @@ function kgRejectedKey(){ return shopScopedKey('kg_outbox_rejected'); }
 function kgLsGet(key){ try{ var v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v : []; }catch(e){ return []; } }
 function kgLsSet(key, list){ try{ localStorage.setItem(key, JSON.stringify(list)); return true; }catch(e){ return false; } }
 function kgOutboxList(){ return kgLsGet(kgOutboxKey()); }
+// Who is signed in on this device. A queued journal is tagged with its maker (locally only, never sent) so a
+// shared shop computer cannot send one person's entry under the next person's login: the server stamps the
+// sender as the author, and as the approver of a loss when the sender is the owner.
+function kgWho(){
+  var u = (typeof SAAS !== 'undefined' && SAAS.user) ? SAAS.user : null;
+  return u ? String(u.email || u.name || '').toLowerCase() : '';
+}
 function kgOutboxAdd(j){
   var list = kgOutboxList();
   for(var i = 0; i < list.length; i++) if(list[i].op_id === j.op_id) return true;
-  list.push(j);
+  var mine = {}; Object.keys(j).forEach(function(x){ mine[x] = j[x]; });
+  mine._by = kgWho();
+  list.push(mine);
   return kgLsSet(kgOutboxKey(), list);
+}
+// Entries this user may send. An entry with no maker recorded is treated as someone else's.
+function kgOutboxMine(){
+  var who = kgWho();
+  return kgOutboxList().filter(function(x){ return who && x._by === who; });
 }
 function kgOutboxRemove(opId){
   kgLsSet(kgOutboxKey(), kgOutboxList().filter(function(x){ return x.op_id !== opId; }));
@@ -168,16 +182,17 @@ function kgRejectedAdd(j, why){
 //   err.code 'outdated'  this app build is too old: reload
 //   err.code 'forbidden' your role cannot post
 function kgSendJournal(j, cb){
-  kgRemote(Object.assign({action:'kg_post'}, j), function(err, body, status){
+  var wire = {}; Object.keys(j).forEach(function(x){ if(x !== '_by') wire[x] = j[x]; });
+  kgRemote(Object.assign({action:'kg_post'}, wire), function(err, body, status){
     if(err) return cb(Object.assign(new Error('Not sent yet - it is saved and will be retried'), {code:'offline'}));
     if(status === 200 && body && body.ok){ kgOutboxRemove(j.op_id); return cb(null, body); }
     if(status === 409 && body && body.error === 'client_outdated') return cb(Object.assign(new Error('Please reload the app to update'), {code:'outdated'}));
     if(status === 401) return cb(Object.assign(new Error('Please sign in again'), {code:'offline'}));
-    if(status === 403) { kgOutboxRemove(j.op_id); return cb(Object.assign(new Error('Your account cannot post to the ledger'), {code:'forbidden'})); }
+    if(status === 403) { kgOutboxRemove(j.op_id); kgRejectedAdd(wire, 'Your account cannot post to the ledger'); return cb(Object.assign(new Error('Your account cannot post to the ledger'), {code:'forbidden'})); }
     if(status === 422 || status === 400){
       kgOutboxRemove(j.op_id);
       var why = (body && (body.message || body.error)) || 'refused';
-      kgRejectedAdd(j, why);
+      kgRejectedAdd(wire, why);
       return cb(Object.assign(new Error(why), {code:'rejected'}));
     }
     cb(Object.assign(new Error('Server problem - saved and will be retried'), {code:'offline'}));
@@ -196,8 +211,8 @@ function kgOutboxFlush(cb){
   _kgFlushing = true;
   var sent = 0;
   (function next(){
-    var list = kgOutboxList();
-    if(!list.length){ _kgFlushing = false; if(cb) cb(null, {sent:sent, left:0}); return; }
+    var list = kgOutboxMine();
+    if(!list.length){ _kgFlushing = false; if(cb) cb(null, {sent:sent, left:kgOutboxList().length}); return; }
     kgSendJournal(list[0], function(err){
       if(err && (err.code === 'offline' || err.code === 'outdated')){ _kgFlushing = false; if(cb) cb(err, {sent:sent, left:kgOutboxList().length}); return; }
       sent++;
