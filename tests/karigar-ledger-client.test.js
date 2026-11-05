@@ -580,6 +580,14 @@ await test('an invalid journal is refused before it is stored or sent; a full de
   var rf = await post(full, build(full, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal);
   eq(rf.err.code, 'invalid'); ok(/storage/.test(rf.err.message)); eq(full.calls.length, 0, 'never sent what could not be kept safe');
 });
+await test('kgQueuedForJob counts only the signed-in user queued entries for that job', async function(){
+  var a = fresh(); server(a, [{status:200, body:{ok:true}}]);
+  var j1 = build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal;
+  a.kgOutboxAdd(j1);
+  var other = Object.assign({}, j1, {op_id:'op-other-0001', job_id:'job-zzz'}); a.kgOutboxAdd(other);
+  eq(a.kgQueuedForJob(j1.job_id), 1); eq(a.kgQueuedForJob('job-zzz'), 1); eq(a.kgQueuedForJob('nope'), 0);
+  a.kgOutboxRemove(j1.op_id); eq(a.kgQueuedForJob(j1.job_id), 0);
+});
 await test('the shop blob save now carries the build number (so the server can refuse a stale phone)', async function(){
   var fs = require('fs'), path = require('path');
   var sync = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');

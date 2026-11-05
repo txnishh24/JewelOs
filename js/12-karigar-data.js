@@ -170,6 +170,8 @@ function kgOutboxMine(){
   var who = kgWho();
   return kgOutboxList().filter(function(x){ return who && x._by === who; });
 }
+// How many of this user's gold entries for one job are saved on the phone but not yet confirmed by the ledger.
+function kgQueuedForJob(jobId){ return kgOutboxMine().filter(function(x){ return x.job_id === jobId; }).length; }
 function kgOutboxRemove(opId){
   kgLsSet(kgOutboxKey(), kgOutboxList().filter(function(x){ return x.op_id !== opId; }));
 }

@@ -70,6 +70,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-06 (hundred-and-fifty-ninth entry) · Claude Code (Sonnet) — job screen now shows "N gold entries waiting for confirmation" for entries queued on that job; NOT merged, NOT applied, NOT deployed
+
+New `kgQueuedForJob(jobId)` in `js/12-karigar-data.js` counts this user's queued ledger entries for one job; `kg2JobHtml` in `js/11-karigar.js` shows a warning line with it, so nobody re-enters an issue that is only waiting to send. This closes item 2b. **Still open before the ledger flag may be wired:** a reverse button for parked entries, Tanish's decision on unsent sales and the other shop-scoped keys (157th entry), and the whole-branch review. Tanish decided (6 Nov) to run the reviewer agents once, at the end of the whole Karigar work, not per step.
+
+**Verified:** ledger client 63/0 (new test failed first); `node --check` on both files; `loadorder`, `unescaped-ids` clean. **Not verified:** full `check.bat` (not run; `regression`, `roundtrip`, `backup-check` skipped); no browser look at the new line; `tests/karigar-v2.test.js` fails "report counts fixed gold of jobs closed in the period: expected: 0 !== 2000", and it fails the same with this change stashed, so it is not from this change, cause not investigated.
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`.
+
 ### 2026-11-05 (hundred-and-fifty-eighth entry) · Claude Code (Sonnet) — ledger flush trigger: queued gold entries are now sent at app start, on every auto-refresh tick and when the phone comes back online; NOT merged, NOT applied, NOT deployed
 
 New `kgTryFlush()` in `js/12-karigar-data.js`: does nothing unless this user has a queued entry, the phone is online, and no sign-in prompt is open (`saasReauthPending`); otherwise `kgOutboxFlush()`. Called from `startAutoRefresh()` (once at start and each tick, `js/01-sync-core.js`) and from an `online` listener (`kgOnlineHook`). With this, an entry left "pending" after its form was closed is now finished without waiting for a 401. **Still open before the ledger flag may be wired:** the job-screen "waiting for confirmation" line (needs a browser check), a reverse button for parked entries, Tanish's decision on unsent sales and the other shop-scoped keys (see 157th entry), and the Opus review of the whole Task 4 branch. Nothing sets `S.kgLedgerOn` yet.
