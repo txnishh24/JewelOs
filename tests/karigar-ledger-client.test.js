@@ -240,6 +240,20 @@ await test('a refused or offline opening journal is reported, and the other kari
   var r = await migrate(a); ok(!r.err); eq(a.calls.length, 2); eq(r.rep.failed.length, 1); eq(r.rep.failed[0].karigarId, 'karA'); eq(r.rep.posted.length, 1);
   eq(r.rep.posted[0].karigarId, 'karB');
 });
+await test('a dry run lists what would be opened, with names, and sends nothing, so the owner can check it first', async function(){
+  var a = fresh(); blobShop(a); server(a, [{status:200, body:{ok:true, journal_id:1}}]);
+  var r = await new Promise(function(res){ a.kgMigrateBlobToLedger(function(err, rep){ res({err:err, rep:rep}); }, {dryRun:true}); });
+  ok(!r.err); eq(a.calls.length, 0, 'no request at all'); eq(r.rep.posted.length, 0);
+  eq(r.rep.would.length, 1); eq(r.rep.would[0].karigarId, 'karA'); eq(r.rep.would[0].name, 'Asha'); eq(r.rep.would[0].fineMg, 12345);
+  eq(r.rep.needsReview.length, 1, 'the negative balance is still reported');
+});
+await test('the migr: op_id is reserved for the owner\'s OPENING journals, on the phone as well as the server', async function(){
+  var a = fresh(), j = build(a, 'ISSUE', {karigarId:'karA', fineMg:100, opId:'migr:karA'}).journal;
+  ok(/reserved/.test(a.kgValidateJournal(j, 'owner')), 'not for an ordinary journal, even the owner\'s');
+  var o = build(a, 'OPENING', {into:'karigar', karigarId:'karA', fineMg:100, opId:'migr:karA'}).journal;
+  eq(a.kgValidateJournal(o, 'owner'), '', 'the owner\'s opening journal is fine');
+  ok(a.kgValidateJournal(o, 'manager') !== '', 'a manager is refused');
+});
 await test('signing out warns first when gold entries are still waiting to be sent', async function(){
   var a = fresh(); a.SAAS.shop = {id:'shop-1'}; var seen = null;
   a.safeConfirm = function(title, msg, yes, danger){ seen = {msg:msg, danger:danger}; };

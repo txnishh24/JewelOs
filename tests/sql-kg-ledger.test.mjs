@@ -372,5 +372,17 @@ ok(r.ok && await bal('Y', 'FG', 'J1') === 100, 'FG: a proper receipt for its job
 r = await post('Y', 'RECEIPT', [L('KCUST', 'ky', -50), L('FG', '3f2b8c1e-9a4d-4e6b-8f10-2c7d5a9e0b11', 50)], { role: 'manager', job: '3f2b8c1e-9a4d-4e6b-8f10-2c7d5a9e0b11' });
 ok(r.ok, 'FG: a UUID job id (what the app generates) posts');
 
+// ── 20 the migr: op_id namespace belongs to the owner's opening balances (nobody can pre-empt a migration id) ──
+r = await post('Z', 'ISSUE', [L('VAULT', '', -100), L('KCUST', 'kz', 100)], { role: 'manager', op: 'migr:karZ1' });
+ok(!r.ok && /reserved/.test(r.error), 'migr: a manager cannot take a migr: op_id with an ordinary journal');
+r = await post('Z', 'OPENING', [L('KCUST', 'karZ1', 100), L('OPENING', '', -100)], { role: 'manager', op: 'migr:karZ1' });
+ok(!r.ok, 'migr: a manager cannot post OPENING at all');
+r = await post('Z', 'ISSUE', [L('VAULT', '', -100), L('KCUST', 'kz', 100)], { role: 'owner', op: 'migr:karZ1' });
+ok(!r.ok && /reserved/.test(r.error), 'migr: even the owner may use migr: only for OPENING');
+r = await post('Z', 'OPENING', [L('KCUST', 'karZ1', 100), L('OPENING', '', -100)], { role: 'owner', op: 'migr:karZ1' });
+ok(r.ok && await bal('Z', 'KCUST', 'karZ1') === 100, 'migr: an owner opening balance posts under its migr: id');
+r = await post('Z', 'OPENING', [L('KCUST', 'karZ1', 100), L('OPENING', '', -100)], { role: 'owner', op: 'migr:karZ1' });
+ok(r.ok && r.duplicate, 'migr: a rerun is a duplicate, nothing new');
+
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);

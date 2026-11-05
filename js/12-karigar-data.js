@@ -40,6 +40,7 @@ function kgValidateJournal(j, role){
   if(typeof j.op_id !== 'string' || !/^[A-Za-z0-9:_.-]{8,64}$/.test(j.op_id)) return 'Operation id is not valid';
   if(KG_J_TYPES.indexOf(j.type) === -1) return 'Unknown journal type';
   if(role && KG_J_OWNER_ONLY.indexOf(j.type) !== -1 && role !== 'owner') return 'Only the owner can post this';
+  if(j.op_id.indexOf('migr:') === 0 && (j.type !== 'OPENING' || (role && role !== 'owner'))) return 'This operation id is reserved for opening balances posted by the owner';
   if(!kgValidDateKey(j.business_date)) return 'Date is not valid';
   if(j.type === 'REVERSAL' && !(Math.floor(j.reverses_id) === j.reverses_id)) return 'A reversal must name the journal it reverses';
   if(j.type !== 'REVERSAL' && j.reverses_id != null) return 'Only a reversal may name a journal';
@@ -225,16 +226,18 @@ function kgOutboxFlush(cb){
 // op_id is 'migr:' + karigar id (the ledger already keeps op_ids per shop), so a rerun re-sends the same id and the
 // server reports a duplicate. Zero posts nothing; a negative blob balance is listed for the owner to resolve by hand.
 // shortcut: gold held per karigar only, no per-job WIP seed (it would double count custody), revisit with Task 11.
-// cb(err, {posted:[{karigarId,fineMg}], duplicates, skippedZero, needsReview:[{karigarId,name,fineMg}], failed:[{karigarId,why}]})
-function kgMigrateBlobToLedger(cb){
+// opts.dryRun: send nothing and list what would be opened (rep.would), for the owner to check before confirming.
+// cb(err, {posted:[{karigarId,fineMg}], would:[{karigarId,name,fineMg}], duplicates, skippedZero, needsReview:[{karigarId,name,fineMg}], failed:[{karigarId,why}]})
+function kgMigrateBlobToLedger(cb, opts){
   if(kgUser().role !== 'owner') return cb(new Error('Only the owner can open the ledger balances'));
-  var rep = {posted:[], duplicates:0, skippedZero:0, needsReview:[], failed:[]}, list = (S.karigars || []).slice();
+  var rep = {posted:[], would:[], duplicates:0, skippedZero:0, needsReview:[], failed:[]}, list = (S.karigars || []).slice();
   (function next(){
     var k = list.shift();
     if(!k) return cb(null, rep);
     var f = kgKhata(k.id).openFine;
     if(f === 0){ rep.skippedZero++; return next(); }
     if(f < 0){ rep.needsReview.push({karigarId:k.id, name:k.name, fineMg:f}); return next(); }
+    if(opts && opts.dryRun){ rep.would.push({karigarId:k.id, name:k.name, fineMg:f}); return next(); }
     var built = kgBuildJournal('OPENING', {into:'karigar', karigarId:k.id, fineMg:f, opId:'migr:' + k.id});
     if(built.error){ rep.failed.push({karigarId:k.id, why:built.error}); return next(); }
     kgPostJournal(built.journal, function(err, r){

@@ -76,6 +76,7 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
   const type = b.type;
   if (typeof type !== "string" || !KG_TYPES.has(type)) return "unknown journal type";
   if (KG_OWNER_ONLY.has(type) && role !== "owner") return "owner only";
+  if (op.startsWith("migr:") && (type !== "OPENING" || role !== "owner")) return "op_id prefix migr: is reserved for the owner's opening balances";
   const job = b.job_id == null || b.job_id === "" ? null : b.job_id;
   const voucher = b.voucher_id == null || b.voucher_id === "" ? null : b.voucher_id;
   if (job !== null && (!isStr(job, 64) || !/^[A-Za-z0-9_-]+$/.test(job as string))) return "job_id invalid";

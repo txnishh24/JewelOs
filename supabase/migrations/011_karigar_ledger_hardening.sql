@@ -60,6 +60,12 @@ begin
     return query select false, false, null::bigint, 'journal type and role are required'; return;
   end if;
 
+  -- the migr: op_id prefix is reserved for the owner's opening balances, so nobody can take a migration id first
+  -- and make the owner's real opening journal a conflict
+  if p_op_id like 'migr:%' and (p_type <> 'OPENING' or p_by_role <> 'owner') then
+    return query select false, false, null::bigint, 'op_id prefix migr: is reserved for the owner''s opening balances'; return;
+  end if;
+
   -- shape checks (F2): everything below may cast, so refuse bad input here, in plain words
   if p_lines is null or jsonb_typeof(p_lines) <> 'array' then
     return query select false, false, null::bigint, 'lines required'; return;
