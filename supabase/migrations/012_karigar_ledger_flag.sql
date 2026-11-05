@@ -53,7 +53,7 @@ grant execute on function public.kg_set_ledger(text, boolean, text) to service_r
 
 -- labour is owner only, and so is undoing it
 create or replace function public.kg_labour_owner_only() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = public as $$
 declare v_target text;
 begin
   if new.by_role <> 'owner' then
