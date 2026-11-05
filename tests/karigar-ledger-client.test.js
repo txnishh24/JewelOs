@@ -632,6 +632,27 @@ await test('reverse a parked entry: a network failure keeps the row; the retry (
   var e2 = await revParked(a, 'job was closed, entered in error'); ok(!e2, e2 && e2.message); eq(a.S.kgParked.length, 0);
   eq(a.calls[1].body.op_id, 'rv-op-parked-0001', 'same op_id on retry, so the server cannot reverse twice');
 });
+await test('reverse a parked entry: the ledger took the reversal but the shop save failed; Reverse again next day re-sends the first business_date', async function(){
+  var a = parkedShop(); a.toast = function(){}; a.kgToday = function(){ return '2026-11-05'; };
+  server(a, [{status:200, body:{ok:true, journals:[srvOrig]}}, {status:200, body:{ok:true, duplicate:false, journal_id:8}}]);
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  var e1 = await revParked(a, 'job was closed, entered in error'); ok(e1, 'shop save failed'); eq(a.S.kgParked.length, 1, 'row stays');
+  var first = a.calls[1].body.business_date;
+  a.kgToday = function(){ return '2026-11-06'; }; a.saveToCloud = function(cb){ cb(null); };
+  server(a, [{status:200, body:{ok:true, journals:[srvOrig]}}, {status:200, body:{ok:true, duplicate:true, journal_id:8}}]); a.calls = [];
+  var e2 = await revParked(a, 'job was closed, entered in error'); ok(!e2, e2 && e2.message);
+  eq(a.calls[1].body.business_date, first, 'same date, or the server calls it different content and the row can never be cleared');
+});
+await test('park: when the shop-data save of the park note fails, the entry goes back to the outbox, not lost', async function(){
+  var a = fresh(); entryShop(a, true); a.S.kgParked = []; a.toast = function(){}; server(a, ['netfail']);
+  var e = issueEntry(); await addEntry(a, e);
+  a.S.kgJobs[0].status = 'closed';
+  server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:4}}]);
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  var f = await flush(a); ok(f.err, 'flush reports it could not finish');
+  eq(a.S.kgParked.length, 0, 'park note rolled back'); eq(a.S.kgLedger.length, 0);
+  eq(a.kgOutboxList().length, 1, 'still queued so the next flush parks it');
+});
 await test('reverse a parked entry: Reports shows the button to the owner only', async function(){
   var a = parkedShop(); ok(/kg2ReverseParked\(/.test(a.kg2ReportsHtml()), 'owner sees it');
   var m = parkedShop('manager'); ok(!/kg2ReverseParked\(/.test(m.kg2ReportsHtml()), 'manager does not');

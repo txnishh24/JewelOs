@@ -333,8 +333,9 @@ function kgReverseParked(parkedId, reason, done){
     (orig.lines || []).forEach(function(l){ if(Number(l.fine_mg) > 0) pos += Number(l.fine_mg); });
     if(orig.type !== en.type || (orig.job_id || null) !== (en.jobId || null) || pos !== Math.abs(en.fineMg || 0))
       return done(new Error('The ledger entry does not match this parked entry. Check the karigar ledger before doing anything.'));
-    var date = null;
-    kgOutboxList().forEach(function(x){ if(x.op_id === opId && kgValidDateKey(x.business_date)) date = x.business_date; }); // a retry keeps its first date
+    // Dated on the original journal's own day: the same on every retry (the server fingerprints business_date, so a new
+    // day would make a retry look like different content), and the mirror cancels the original on its own day.
+    var date = kgValidDateKey(orig.business_date) ? orig.business_date : null;
     var rv = kgBuildReversal(orig, opId, reason, date);
     if(rv.error) return done(new Error(rv.error));
     kgPostJournal(rv.journal, function(e2){
