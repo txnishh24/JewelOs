@@ -113,7 +113,7 @@ function kgNewId(){
 }
 function kgUser(){
   var u = (typeof SAAS !== 'undefined' && SAAS.user) ? SAAS.user : null;
-  return u ? {name:(u.name || u.email || 'user'), role:(u.role || 'staff')} : {name:'system', role:'staff'};
+  return u ? {name:(u.name || u.email || 'user'), role:(u.role || 'staff'), who:String(u.email || u.name || '').toLowerCase()} : {name:'system', role:'staff', who:''};
 }
 function kgRoleRank(role){ return role === 'owner' ? 3 : role === 'manager' ? 2 : role === 'staff' ? 1 : 0; }
 function kgCan(role, need){ return kgRoleRank(role) >= kgRoleRank(need); }
@@ -581,6 +581,8 @@ function kgAddEntryLedger(entry, done){
   var job = kgFindJob(entry.jobId), u = kgUser();
   kgStamp(entry);
   if(job && !entry.karigarId) entry.karigarId = job.karigarId;
+  // a retry keeps the first attempt's date: the server fingerprints business_date, so a new day would look like new content
+  kgOutboxList().forEach(function(x){ if(x.op_id === entry.opId && kgValidDateKey(x.business_date)) entry.date = x.business_date; });
   var jb = kgLedgerJournalFor(entry);
   if(jb.error) return done(new Error(jb.error), entry, false);
   var bad = kgValidateEntry(entry, {job:job, ledger:S.kgLedger, role:u.role});
@@ -1413,7 +1415,8 @@ var _kgRecon = {state:'idle'};
 function kg2Reconcile(){
   _kgRecon = {state:'loading'}; renderKgV2();
   kgFetchBalances(function(err, rows){
-    _kgRecon = err ? {state:'error', msg:err.message} : {state:'done', rec:kgReconcile(rows)};
+    try{ _kgRecon = err ? {state:'error', msg:err.message} : {state:'done', rec:kgReconcile(rows)}; }
+    catch(e){ _kgRecon = {state:'error', msg:'Could not compare the balances. Try again.'}; }
     renderKgV2();
   });
 }

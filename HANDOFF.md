@@ -104,6 +104,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-05 (hundred-and-forty-seventh entry) · Claude Code (Sonnet) — review follow-ups on Karigar 2.0 Task 4: five fixes, each with a test that failed first; NOT merged, NOT applied, NOT deployed
+
+Fixes: (1) `kgReconcile` and the migration's confirmed list use prototype-less objects, so an owner id like `constructor` cannot pass as a known karigar. (2) Save-again after midnight now reuses the first attempt's `business_date` from the outbox; the server fingerprints the date, so a new day looked like different content and the retry was refused. (3) The Reports comparison no longer sticks on "Checking" if the compare throws; it shows an error and Try again. (4) One identity helper: `kgUser().who`, and `kgWho()` returns it. (5) Migration 011 (still unapplied, edited in place): an old row under a `migr:` id that is not an owner OPENING is refused as reserved instead of being reported as a duplicate.
+
+**Verified:** `check.bat`: regression 489/0, karigar-v2 66/0, ledger client 46/0, SQL ledger test all passed, `backup-check` and `roundtrip` clean. **Not verified:** no real server or browser run; the three background reviewers from earlier did not report back into this session, so their findings beyond these five are unknown. Wastage karigars still show a diff equal to their earned share on the Reports comparison (documented shortcut, test added).
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5` until Tanish sees the open list and an Opus review signs off.
+
 ### 2026-11-05 (hundred-and-forty-sixth entry) · Claude Code (Sonnet) — Task 4 Step 6: "Blob vs ledger" report on the Reports screen; NOT merged, NOT applied, NOT deployed
 
 `kgFetchBalances(cb)` (`js/12-karigar-data.js`) calls the existing `kg_balances` action (owner or manager). `kgReconcile(rows)` is pure: it compares each karigar's ledger `KCUST` balance with the blob's gold-with-karigar figure (`kgKhata(id).openFine`); a mismatch shows both figures and the difference (ledger minus blob); karigars at zero on both sides are left out; ledger balances on KCUST, ENT, EARNED, PAYOUT, SCRAP or LOSS whose owner reference matches no karigar in the shop data are listed as unknown (D11). `js/11-karigar.js`: `kg2ReconHtml` adds a "Blob vs ledger" section to `kg2ReportsHtml` with a state for idle ("Check now"), "Checking the ledger...", error (plain message and "Try again"), "All karigars match. N checked.", and a mismatch list with the unknown references.

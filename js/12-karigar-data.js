@@ -149,10 +149,7 @@ function kgOutboxList(){ return kgLsGet(kgOutboxKey()); }
 // Who is signed in on this device. A queued journal is tagged with its maker (locally only, never sent) so a
 // shared shop computer cannot send one person's entry under the next person's login: the server stamps the
 // sender as the author, and as the approver of a loss when the sender is the owner.
-function kgWho(){
-  var u = (typeof SAAS !== 'undefined' && SAAS.user) ? SAAS.user : null;
-  return u ? String(u.email || u.name || '').toLowerCase() : '';
-}
+function kgWho(){ return kgUser().who; }
 function kgOutboxAdd(j){
   var list = kgOutboxList();
   for(var i = 0; i < list.length; i++) if(list[i].op_id === j.op_id) return true;
@@ -234,7 +231,7 @@ function kgOutboxFlush(cb){
 //          needsReview:[{karigarId,name,fineMg,was?}], failed:[{karigarId,why}]})
 function kgMigrateBlobToLedger(cb, opts){
   if(kgUser().role !== 'owner') return cb(new Error('Only the owner can open the ledger balances'));
-  var dry = !!(opts && opts.dryRun), conf = {};
+  var dry = !!(opts && opts.dryRun), conf = Object.create(null); // no prototype: an id like 'constructor' must not match
   if(!dry){
     if(!opts || !Array.isArray(opts.confirmed)) return cb(new Error('Preview the balances and confirm them first'));
     opts.confirmed.forEach(function(c){ conf[c.karigarId] = c.fineMg; });
@@ -273,7 +270,7 @@ function kgFetchBalances(cb){
 // shortcut: custody only; a wastage karigar's earned share is not accrued on the ledger yet, so with the ledger flag on
 // it shows as a diff until ENTITLEMENT_ACCRUE is wired to job close (Task 4 follow-up).
 function kgReconcile(rows){
-  var led = {}, known = {}, unknown = [], byKarigar = ['KCUST', 'ENT', 'EARNED', 'PAYOUT', 'SCRAP', 'LOSS'];
+  var led = Object.create(null), known = Object.create(null), unknown = [], byKarigar = ['KCUST', 'ENT', 'EARNED', 'PAYOUT', 'SCRAP', 'LOSS'];
   (S.karigars || []).forEach(function(k){ known[k.id] = true; });
   (rows || []).forEach(function(r){
     var mg = Number(r.fine_mg);

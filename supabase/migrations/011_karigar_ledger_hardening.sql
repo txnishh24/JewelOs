@@ -49,6 +49,11 @@ begin
 
   select id, meta->>'h' into v_existing, v_oldhash from kg_journal where shop_id = p_shop_id and op_id = p_op_id;
   if v_existing is not null then
+    -- a migr: id only ever belongs to an owner OPENING; an older row under it (posted before the reservation) is not one
+    if p_op_id like 'migr:%' and (p_type <> 'OPENING' or p_by_role <> 'owner'
+        or (select type from kg_journal where id = v_existing) <> 'OPENING') then
+      return query select false, false, null::bigint, 'op_id prefix migr: is reserved for the owner''s opening balances'; return;
+    end if;
     if v_oldhash is not null and v_oldhash <> v_hash then
       return query select false, false, null::bigint, 'op_id already used with different content'; return;
     end if;

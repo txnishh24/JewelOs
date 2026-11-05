@@ -384,5 +384,12 @@ ok(r.ok && await bal('Z', 'KCUST', 'karZ1') === 100, 'migr: an owner opening bal
 r = await post('Z', 'OPENING', [L('KCUST', 'karZ1', 100), L('OPENING', '', -100)], { role: 'owner', op: 'migr:karZ1' });
 ok(r.ok && r.duplicate, 'migr: a rerun is a duplicate, nothing new');
 
+// ── 21 an old row under a migr: id (posted before the reservation existed) is never reported as an opening balance ──
+await db.query("insert into kg_journal(shop_id, op_id, type, business_date, by_user, by_role) values ('Z','migr:legacy01','ISSUE','2026-10-31','old','manager')");
+r = await post('Z', 'OPENING', [L('KCUST', 'legacy01', 100), L('OPENING', '', -100)], { role: 'owner', op: 'migr:legacy01' });
+ok(!r.ok && /reserved/.test(r.error), 'migr: an existing non-OPENING row under a migr: id is refused, not reported as a duplicate');
+r = await post('Z', 'ISSUE', [L('VAULT', '', -100), L('KCUST', 'kz', 100)], { role: 'manager', op: 'migr:legacy01' });
+ok(!r.ok && /reserved/.test(r.error), 'migr: a manager re-sending that id is refused as reserved');
+
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);

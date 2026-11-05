@@ -341,6 +341,16 @@ await test('blob vs ledger: a ledger balance for a karigar who is not in the sho
   var rec = a.kgReconcile([balRow('KCUST', 'karA', 12345), balRow('KCUST', 'ghost99', 800), balRow('FG', 'jA', 400), balRow('ENT', 'nobody1', 50)]);
   eq(rec.unknown.length, 2, 'ghost99 and nobody1; FG belongs to a job, VAULT/OPENING have no karigar'); eq(rec.unknown[0].ownerRef, 'ghost99'); eq(rec.unknown[0].fineMg, 800);
 });
+await test('blob vs ledger: owner references that are also JavaScript property names cannot hide from the unknown list', async function(){
+  var a = fresh(); blobShop(a);
+  var rec = a.kgReconcile([balRow('KCUST', 'constructor', 900), balRow('LOSS', 'toString', 10), balRow('KCUST', '__proto__', 5), balRow('KCUST', 'hasOwnProperty', 7)]);
+  eq(rec.unknown.length, 4, 'all four are unknown people, none treated as known');
+});
+await test('migration: a karigar whose id is a JavaScript property name is never posted on a confirmed list it is not on', async function(){
+  var a = fresh(); a.S.karigars = [{id:'constructor', name:'Odd'}]; a.S.kgJobs = [{id:'jX', karigarId:'constructor', status:'open', kind:'other'}];
+  a.S.kgLedger = [{id:1, jobId:'jX', type:'ISSUE', fineMg:500}]; server(a, [{status:200, body:{ok:true, journal_id:1}}]);
+  var r = await migrate(a, []); ok(!r.err); eq(a.calls.length, 0, 'not on the confirmed list, so not posted'); eq(r.rep.needsReview.length, 1);
+});
 await test('blob vs ledger: the balances call returns rows, and says plainly when it cannot reach the ledger', async function(){
   var a = fresh(); server(a, [{status:200, body:{ok:true, balances:[balRow('KCUST', 'karA', 5)]}}]);
   var r1 = await new Promise(function(res){ a.kgFetchBalances(function(e, rows){ res({e:e, rows:rows}); }); });
@@ -349,6 +359,41 @@ await test('blob vs ledger: the balances call returns rows, and says plainly whe
   ok(r2.e && /ledger/i.test(r2.e.message));
   server(a, [{status:403, body:{error:'forbidden'}}]); var r3 = await new Promise(function(res){ a.kgFetchBalances(function(e){ res({e:e}); }); });
   ok(r3.e && /owner or a manager/i.test(r3.e.message));
+});
+await test('blob vs ledger: a wastage karigar shows a diff equal to her earned share until accrual is wired (known shortcut)', async function(){
+  var a = fresh(); blobShop(a);
+  a.S.kgJobs[0].kind = 'wastage'; a.S.kgJobs[0].wastageBp = 400; // 4% of 12,345 = 494 earned; blob holds 11,851, ledger KCUST holds the full 12,345
+  var rec = a.kgReconcile([balRow('KCUST', 'karA', 12345), balRow('KCUST', 'karC', -500)]);
+  var m = rec.mismatches.filter(function(x){ return x.karigarId === 'karA'; })[0];
+  ok(m, 'karA is flagged'); eq(m.blob, 11851); eq(m.ledger, 12345); eq(m.diff, 494, 'diff is exactly the earned share');
+});
+await test('ledger flag on: Save again after midnight re-sends the first attempt\'s business_date, so the server sees the same content', async function(){
+  var a = fresh(); entryShop(a, true);
+  var seen = {}; // fake server that fingerprints content like the real one (op_id + business_date + lines)
+  a.fetch = function(url, opts){ var b = JSON.parse(opts.body); a.calls.push({body:b});
+    var h = b.business_date + JSON.stringify(b.lines), n = a.calls.length;
+    if(n === 1) return Promise.reject(new Error('offline')); // first reply lost; assume the server did record it
+    if(seen[b.op_id] && seen[b.op_id] !== h) return Promise.resolve({status:422, json:function(){ return Promise.resolve({ok:false, error:'rejected', message:'op_id already used with different content'}); }});
+    seen[b.op_id] = h; return Promise.resolve({status:200, json:function(){ return Promise.resolve({ok:true, duplicate:false, journal_id:7}); }}); };
+  a.kgToday = function(){ return '2026-11-05'; };
+  var e = issueEntry(), r1 = await addEntry(a, e); eq(r1.err.code, 'pending');
+  seen[e.opId] = a.calls[0].body.business_date + JSON.stringify(a.calls[0].body.lines); // the server did get it
+  a.kgToday = function(){ return '2026-11-06'; };
+  var r2 = await addEntry(a, issueEntry({opId:e.opId}));
+  ok(!r2.err, 'retry after midnight must finish, got: ' + (r2.err && r2.err.message)); eq(a.S.kgLedger.length, 1, 'one blob entry');
+  eq(a.calls[1].body.business_date, '2026-11-05', 'same business_date as the first attempt');
+});
+await test('Reports does not hang on Checking when the comparison throws: it shows an error and a way to retry', async function(){
+  var a = fresh(); blobShop(a); a.SAAS.user = {name:'Owner', email:'owner@example.com', role:'owner'};
+  server(a, [{status:200, body:{ok:true, balances:[balRow('KCUST', 'karA', 5)]}}]);
+  a.kgReconcile = function(){ throw new Error('bad data'); };
+  await new Promise(function(res){ a.kg2Reconcile(); setTimeout(res, 30); });
+  eq(a._kgRecon.state, 'error', 'not stuck on loading'); ok(/Try again/.test(a.kg2ReportsHtml()));
+});
+await test('one identity helper: the outbox tag is the identity from kgUser', async function(){
+  var a = fresh(); a.SAAS.user = {name:'Mgr', email:'Mgr@Example.com', role:'manager'};
+  eq(a.kgWho(), a.kgUser().who); eq(a.kgWho(), 'mgr@example.com');
+  a.SAAS.user = null; eq(a.kgWho(), '', 'nobody signed in');
 });
 await test('Reports shows a Blob vs ledger section with a state for idle, checking, error, all matching and mismatch', async function(){
   var a = fresh(); blobShop(a); a.SAAS.user = {name:'Owner', email:'owner@example.com', role:'owner'};
