@@ -146,6 +146,13 @@ function kgRejectedKey(){ return shopScopedKey('kg_outbox_rejected'); }
 function kgLsGet(key){ try{ var v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v : []; }catch(e){ return []; } }
 function kgLsSet(key, list){ try{ localStorage.setItem(key, JSON.stringify(list)); return true; }catch(e){ return false; } }
 function kgOutboxList(){ return kgLsGet(kgOutboxKey()); }
+// Every shop's queued gold entries on this device, for the note shown when a sign-out or an expiry deletes them.
+function kgLostNote(){
+  var n = 0;
+  try{ for(var q = localStorage.length - 1; q >= 0; q--){ var k = localStorage.key(q); if(k && /^kg_outbox::/.test(k)) n += kgLsGet(k).length; } }catch(e){}
+  if(!n) return '';
+  return ' ' + n + ' gold entr' + (n === 1 ? 'y' : 'ies') + ' had not reached the ledger. Check the karigar ledger before entering ' + (n === 1 ? 'it' : 'them') + ' again.';
+}
 // Who is signed in on this device. A queued journal is tagged with its maker (locally only, never sent) so a
 // shared shop computer cannot send one person's entry under the next person's login: the server stamps the
 // sender as the author, and as the approver of a loss when the sender is the owner.
@@ -213,11 +220,15 @@ function kgFinishQueued(item, done){
   var en = item._entry; S.kgLedger = S.kgLedger || [];
   if(!en) return done();
   for(var i = 0; i < S.kgLedger.length; i++) if(S.kgLedger[i].opId === en.opId) return done();
+  // a network failure or a busy lock is not a refusal: put it back and stop, the next flush tries again (the server
+  // answers duplicate, so nothing is posted twice)
+  function requeue(err){ kgOutboxAdd(item); done(err); }
   kgCommitEntry(en, kgFindJob(en.jobId), kgUser(), function(err){
     if(!err) return done();
+    if(err.transient) return requeue(err);
     var p = {id:kgNewId(), opId:en.opId, at:new Date().toISOString(), why:err.message, entry:en};
     kgTxn('park:' + en.opId, function(){ S.kgParked = S.kgParked || []; S.kgParked.push(p); return ''; },
-      function(){ S.kgParked = (S.kgParked || []).filter(function(x){ return x.id !== p.id; }); }, function(){ done(); });
+      function(){ S.kgParked = (S.kgParked || []).filter(function(x){ return x.id !== p.id; }); }, function(e2){ if(e2) return requeue(e2); done(); });
   });
 }
 // Replays everything waiting, oldest first, one at a time. A network failure stops the run.
@@ -233,7 +244,10 @@ function kgOutboxFlush(cb){
     kgSendJournal(item, function(err){
       if(err && (err.code === 'offline' || err.code === 'outdated')){ _kgFlushing = false; if(cb) cb(err, {sent:sent, left:kgOutboxList().length}); return; }
       if(err) { sent++; return next(); }
-      kgFinishQueued(item, function(){ sent++; next(); });
+      kgFinishQueued(item, function(e2){
+        if(e2){ _kgFlushing = false; if(cb) cb(e2, {sent:sent, left:kgOutboxList().length}); return; }
+        sent++; next();
+      });
     });
   })();
 }

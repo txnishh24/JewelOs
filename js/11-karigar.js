@@ -536,7 +536,7 @@ function kgValidateSalary(e, ctx){
 // \u2500\u2500 transactions: one lock per key, snapshot/undo, saveToCloud, rollback \u2500\u2500
 var _kgLocks = {};
 function kgTxn(lockKey, apply, undo, onDone){
-  if(_kgLocks[lockKey]){ onDone(new Error('Another save is in progress - try again')); return; }
+  if(_kgLocks[lockKey]){ var busy = new Error('Another save is in progress - try again'); busy.transient = true; onDone(busy); return; }
   _kgLocks[lockKey] = true;
   var err = apply();
   if(err){ delete _kgLocks[lockKey]; onDone(new Error(err)); return; }
@@ -547,6 +547,7 @@ function kgTxn(lockKey, apply, undo, onDone){
       saveCache();
       if(e.message !== 'version-conflict') toast(SAVE_RETRY_MSG);
     }
+    if(e) e.transient = true; // a failed save is worth retrying; a refusal from apply() is not
     onDone(e || null);
   });
 }
@@ -620,15 +621,18 @@ function kgAddEntry(entry, done){
   kgCommitEntry(entry, job, u, function(err){ done(err, entry, false); });
 }
 function kgCommitEntry(entry, job, u, onDone){
-  var auditId = null;
+  var auditId = null, added = false;
   kgTxn('job:' + entry.jobId, function(){
     var err = kgValidateEntry(entry, {job:job, ledger:S.kgLedger, role:u.role});
     if(err) return err;
+    for(var d = 0; d < S.kgLedger.length; d++) if(S.kgLedger[d].opId === entry.opId) return ''; // already there: add nothing
+    added = true;
     S.kgLedger.push(entry);
     auditId = kgAudit('kg_' + entry.type.toLowerCase(), 'kgJob', entry.jobId,
       entry.type + (entry.fineMg != null ? ' ' + kgFmtG(entry.fineMg) + ' fine' : ''));
     return '';
   }, function(){
+    if(!added) return; // nothing of ours to undo: the first copy stays
     S.kgLedger = S.kgLedger.filter(function(x){ return x.id !== entry.id; });
     kgUndoAudit(auditId);
   }, onDone);

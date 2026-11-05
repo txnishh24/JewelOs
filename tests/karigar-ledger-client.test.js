@@ -501,6 +501,39 @@ await test('blocker 6: clearing the device also removes outbox keys of a shop th
   eq(a.localStorage.getItem('kg_outbox::shop-9'), null); eq(a.localStorage.getItem('kg_outbox_rejected::shop-9'), null);
   eq(a.localStorage.getItem('pin_hash::shop-9'), 'keep', 'the PIN stays: it is a per-device lock');
 });
+await test('audit 1: committing an entry whose opId is already in the blob adds nothing and a failed save does not remove the first one', async function(){
+  var a = fresh(); entryShop(a, false);
+  var e1 = a.kgStamp(issueEntry({opId:'op-dup-1-xx'})), e2 = a.kgStamp(issueEntry({opId:'op-dup-1-xx'}));
+  await new Promise(function(res){ a.kgCommitEntry(e1, a.kgFindJob('jA'), a.kgUser(), res); });
+  eq(a.S.kgLedger.length, 1);
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  a.toast = function(){}; e2.id = e1.id; // worst case: same id too
+  await new Promise(function(res){ a.kgCommitEntry(e2, a.kgFindJob('jA'), a.kgUser(), res); });
+  eq(a.S.kgLedger.length, 1, 'still exactly one, and the first was not undone');
+});
+await test('audit 2: a flush whose shop-data save fails on the network re-queues the entry and stops; it is not parked, and the next flush finishes it', async function(){
+  var a = fresh(); entryShop(a, true); a.S.kgParked = []; a.toast = function(){}; server(a, ['netfail']);
+  var e = issueEntry(); await addEntry(a, e);
+  server(a, [{status:200, body:{ok:true, duplicate:true, journal_id:3}}]);
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  var f = await flush(a); ok(f.err, 'the flush reports it could not finish');
+  eq(a.S.kgParked.length, 0, 'a network failure is not a refusal'); eq(a.kgOutboxList().length, 1, 'back in the outbox'); ok(a.kgOutboxList()[0]._entry, 'with its shop-data entry');
+  eq(a.S.kgLedger.length, 0);
+  a.saveToCloud = function(cb){ cb(null); }; var f2 = await flush(a); ok(!f2.err, f2.err && f2.err.message);
+  eq(a.S.kgLedger.length, 1); eq(a.kgOutboxList().length, 0);
+});
+await test('audit 2: a flush that meets another save in progress on the same job re-queues instead of parking', async function(){
+  var a = fresh(); entryShop(a, true); a.S.kgParked = []; server(a, ['netfail']);
+  var e = issueEntry(); await addEntry(a, e);
+  server(a, [{status:200, body:{ok:true, duplicate:true, journal_id:3}}]);
+  a._kgLocks['job:' + e.jobId] = true;
+  var f = await flush(a); ok(f.err); eq(a.S.kgParked.length, 0); eq(a.kgOutboxList().length, 1);
+});
+await test('audit 3: the count of gold entries a device clear will delete covers every shop, even with no shop loaded', async function(){
+  var a = fresh(); a.SAAS.shop = null; a.localStorage.setItem('kg_outbox::shop-9', '[{"op_id":"a"},{"op_id":"b"}]');
+  ok(/2 gold entries/.test(a.kgLostNote()) && /ledger/.test(a.kgLostNote()), a.kgLostNote());
+  a.localStorage.removeItem('kg_outbox::shop-9'); eq(a.kgLostNote(), '');
+});
 await test('forbidden role, old build, expired session and server faults: right outcome for each', async function(){
   var a = fresh(); var j = build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal;
   server(a, [{status:403, body:{error:'forbidden'}}]); var r1 = await post(a, j);

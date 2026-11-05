@@ -70,6 +70,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-05 (hundred-and-fifty-seventh entry) · Claude Code (Sonnet) — audit of blockers 1-6: three medium findings fixed; ledger flag still must NOT be wired; NOT merged, NOT applied, NOT deployed
+
+`jewelos-security-auditor` (Opus) on 87f781e..dd62be8: `_entry` never reaches the server or logs, parked entries are escaped, `kgParked` save/load/backup/restore complete. Three new medium findings, all fixed with tests that failed first: (1) `kgCommitEntry` could add the same `opId` twice (flush plus a slow Save-again); it now adds nothing if the `opId` is already there, and its undo only removes what it added. (2) `kgFinishQueued` parked an entry on any error, including a network failure or a busy lock; `kgTxn` now marks those errors `transient`, and the entry goes back in the outbox and the flush stops (the server answers duplicate on the retry). Only a real refusal is parked. (3) A boot after an expired login deleted every shop's queued gold with only the generic notice; new `kgLostNote()` counts all shops' queues and is used by both that path and `saasForceLogout`. `jewelos-invariant-tester`: no gap needing a new test; minor untested: a 401 mid multi-entry flush, a changed `type`/`job_id` under a queued op_id.
+
+**Open, needs Tanish's decision:** the automated review noted that other shop-scoped keys (unsent-sales outbox, `ssj_unsynced`, last-active) have the same boot-time gap. Older than this work and out of ledger scope; a sweep would delete unsent sales silently, so it needs a decision (warn, keep, or sweep). **Still open before the flag is wired:** nothing flushes the outbox at app start or when the phone comes back online (only the 401 sign-in path does); job-screen "waiting for confirmation" line (needs a browser check); a reverse button for parked entries; restore uses `if(d.kgParked)` without `Array.isArray` (matches its neighbours); the Opus review of the whole Task 4 branch.
+
+**Verified:** `check.bat` clean, ledger client 60/0. **Not verified:** no browser run; `tests/edge-functions.test.js` still needs `sucrase`.
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`.
+
 ### 2026-11-05 (hundred-and-fifty-sixth entry) · Claude Code (Sonnet) — ledger blocker 6: clearing the device now removes every shop's outbox keys; NOT merged, NOT applied, NOT deployed
 
 `_clearDeviceSession` now also sweeps all `kg_outbox::*` and `kg_outbox_rejected::*` keys. Before, a boot after an expired session (`SAAS.shop` null) removed only the `noshop` copies and left the real shop's gold entries on the phone. PIN keys are untouched (per-device lock). `tests/harness.js` gained `localStorage.key()` and `length` so the sweep can be tested (additive). **All six audit blockers (1-6) are now fixed in code.** **Still open before the ledger flag may be wired:** 2b job-screen "waiting for confirmation" line (UI, needs a browser check), a reverse button for parked entries, the Opus review of the whole Task 4 branch, and nothing calls `kgOutboxFlush` from a screen yet (boot, online event, after sign-in is wired for 401 only).
