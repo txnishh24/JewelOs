@@ -104,6 +104,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-05 (hundred-and-fifty-third entry) · Claude Code (Sonnet) — ledger blocker 4: a 401 on a gold entry now raises the sign-in prompt and says so; NOT merged, NOT applied, NOT deployed
+
+`kgSendJournal` on 401 now calls `saasRequireReauth` with the server's `reason` (expired or revoked), keeps the journal queued, and returns an error flagged `reauth` with the message "Please sign in again. Your entry is saved and will be sent after you sign in." `kgAddEntryLedger` shows that message instead of the false "may already be recorded". After sign-in the queue is flushed. **Still open:** 2b (job-screen waiting line), 5 (forced sign-out wipes the outbox silently; the revoked path in `saasRequireReauth` also wipes the device, so a queued entry can be lost there), 6 (stale outbox keys), a reverse action for parked entries, and the Opus review. Nothing calls `kgOutboxFlush` from a screen yet.
+
+**Verified:** `check.bat` clean, ledger client 53/0; the new test fails on the old code and passes on the new. **Not verified:** no browser or sign-in prompt run.
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`.
+
 ### 2026-11-05 (hundred-and-fifty-second entry) · Claude Code (Sonnet) — ledger blocker 3: an entry the shop data refuses after the ledger accepted it is parked in `S.kgParked` and shown on Reports; NOT merged, NOT applied, NOT deployed
 
 New shop-data field `S.kgParked` (state init, cloud load/save, export in `04`, restore in `04`, `05` backup and restore, `checks/roundtrip.js` fixture; `roundtrip` failed first with "LOST kgParked", now all 32 keys survive). `kgFinishQueued` (flush) parks the entry with the reason instead of the device-local note; Reports shows "Ledger has this, shop data refused it" (`kg2ParkedHtml`). No reverse button yet: the owner reads it and decides. **Still open:** job-screen "waiting for confirmation" line (2b), 4 (401 treated as offline), 5 (forced sign-out wipes outbox silently), 6 (stale outbox keys), a reverse action for parked entries. Nothing calls `kgOutboxFlush` yet; Opus review still required before the flag is wired.

@@ -597,7 +597,7 @@ function kgAddEntryLedger(entry, done){
   jb.journal._entry = entry; // kept with the queued journal on this device so a flush can finish the shop-data side
   kgPostJournal(jb.journal, function(err){
     if(err && (err.code === 'offline' || err.code === 'outdated')){
-      var p = new Error(err.code === 'outdated' ? err.message : 'Sending, not confirmed. The gold may already be recorded. Tap Save again to confirm.');
+      var p = new Error(err.code === 'outdated' || err.reauth ? err.message : 'Sending, not confirmed. The gold may already be recorded. Tap Save again to confirm.');
       p.code = 'pending'; return done(p, entry, false);
     }
     if(err) return done(err, entry, false);

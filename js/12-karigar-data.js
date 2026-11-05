@@ -185,7 +185,11 @@ function kgSendJournal(j, cb){
     if(err) return cb(Object.assign(new Error('Not sent yet - it is saved and will be retried'), {code:'offline'}));
     if(status === 200 && body && body.ok){ kgOutboxRemove(j.op_id); return cb(null, body); }
     if(status === 409 && body && body.error === 'client_outdated') return cb(Object.assign(new Error('Please reload the app to update'), {code:'outdated'}));
-    if(status === 401) return cb(Object.assign(new Error('Please sign in again'), {code:'offline'}));
+    if(status === 401){
+      // the entry is safe in the outbox; ask for sign-in and send the queue once it is back
+      if(typeof saasRequireReauth === 'function') saasRequireReauth(function(){ kgOutboxFlush(); }, body && body.reason);
+      return cb(Object.assign(new Error('Please sign in again. Your entry is saved and will be sent after you sign in.'), {code:'offline', reauth:true}));
+    }
     if(status === 403) { kgOutboxRemove(j.op_id); kgRejectedAdd(wire, 'Your account cannot post to the ledger'); return cb(Object.assign(new Error('Your account cannot post to the ledger'), {code:'forbidden'})); }
     if(status === 422 || status === 400){
       kgOutboxRemove(j.op_id);

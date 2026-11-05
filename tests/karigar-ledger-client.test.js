@@ -356,6 +356,17 @@ await test('blocker 3: the Reports screen shows parked entries to the owner and 
   a.S.kgParked = [{id:'p1', opId:'o1', at:'2026-11-05T10:00:00.000Z', why:'Job is closed - reopen it first', entry:{type:'ISSUE', jobId:'jA', karigarId:'karA', fineMg:10000}}];
   var h = a.kg2ReportsHtml(); ok(/Ledger has this/.test(h) && /Job is closed/.test(h), 'shows the entry and why');
 });
+await test('blocker 4: a 401 asks for sign-in with the reason from the server, keeps the entry queued, and says so instead of "may already be recorded"', async function(){
+  var a = fresh(); entryShop(a, true); var asked = [];
+  a.saasRequireReauth = function(resume, reason){ asked.push({reason:reason, resume:resume}); };
+  server(a, [{status:401, body:{error:'unauthenticated', reason:'expired'}}]);
+  var r = await addEntry(a, issueEntry());
+  eq(r.err.code, 'pending'); ok(/sign in/i.test(r.err.message) && !/may already be recorded/i.test(r.err.message), r.err.message);
+  eq(asked.length, 1, 'sign-in prompt raised once'); eq(asked[0].reason, 'expired'); eq(a.kgOutboxList().length, 1, 'still queued');
+  server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:5}}]); a.calls = []; asked[0].resume();
+  await new Promise(function(res){ setTimeout(res, 30); });
+  eq(a.calls.length, 1, 'after sign-in the queue is sent'); eq(a.S.kgLedger.length, 1, 'and the shop-data side is finished');
+});
 await test('ledger flag on and the phone offline: refused with a plain message, nothing sent, nothing saved', async function(){
   var a = fresh(); entryShop(a, true); a.navigator = {onLine:false}; server(a, [{status:200, body:{ok:true, journal_id:1}}]);
   var r = await addEntry(a, issueEntry()); ok(r.err && /internet/i.test(r.err.message), r.err && r.err.message);
