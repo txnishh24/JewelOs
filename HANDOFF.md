@@ -104,6 +104,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-05 (hundred-and-fiftieth entry) · Claude Code (Sonnet) — ledger blocker 1 fixed (edit between two Save taps); blockers 2-6 still open; NOT merged, NOT applied, NOT deployed
+
+Tanish confirmed the Karigar ledger is on the launch path (launch after Karigar plus his own small changes). Plan for blockers 1-3 (see the audit entry below): (1) refuse a changed figure under a queued `opId` — done in `kgAddEntryLedger`; (2) store the shop-data entry inside the outbox item so a flush completes the commit even if the form was closed, plus a "waiting for confirmation" line on the job; (3) park an entry the shop data refuses in `S.kgParked`, shown on Reports for the owner to resolve, no automatic reversal. Blockers 2-6 remain; each needs `/plan-eng-review` sign-off and an Opus review before the flag is wired.
+
+**Verified:** `check.bat` clean, ledger client 48/0 (new test failed first). **Not verified:** no browser or server run.
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`.
+
 ### 2026-11-05 (hundred-and-forty-ninth entry) · Claude Code (Sonnet) — trimmed CLAUDE.md (225→114 lines) and HANDOFF.md (1596→~230 lines); nothing deleted, all archived
 
 `CLAUDE.md`: full old copy kept at `docs/CLAUDE-MD-FULL-2026-11-05.md`; agent/gstack tables shortened (full version in that file); dirty-tree rule now stops only for unexplained dirty `js/`, `tests/`, `supabase/`, `checks/` files; HANDOFF reading rule is now NOW + WAITING ON TANISH + newest 3 entries. `HANDOFF.md`: 81 older LOG entries moved verbatim to `docs/handoff-archive/HANDOFF-LOG-through-2026-11-05.md`; the live file keeps the newest 10 plus an "Older entries" pointer. Entry numbers cited elsewhere (e.g. "73rd entry") are in the archive. Note: two entries are both numbered "148th" (one is the graphify install, one is the security audit) — harmless, not renumbered.

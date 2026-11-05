@@ -585,6 +585,11 @@ function kgAddEntryLedger(entry, done){
   kgOutboxList().forEach(function(x){ if(x.op_id === entry.opId && kgValidDateKey(x.business_date)) entry.date = x.business_date; });
   var jb = kgLedgerJournalFor(entry);
   if(jb.error) return done(new Error(jb.error), entry, false);
+  // Same id, changed figures: the first try may already be on the server, and sending the edit would be refused and
+  // would drop the queued original. Tell the user to confirm the first one unchanged.
+  var queued = kgOutboxList().filter(function(x){ return x.op_id === entry.opId; })[0];
+  if(queued && (JSON.stringify(queued.lines) !== JSON.stringify(jb.journal.lines) || queued.type !== jb.journal.type || queued.job_id !== jb.journal.job_id))
+    return done(new Error('Your earlier try is still being confirmed. Tap Save without changing anything, or Cancel and check the ledger.'), entry, false);
   var bad = kgValidateEntry(entry, {job:job, ledger:S.kgLedger, role:u.role});
   if(bad) return done(new Error(bad), entry, false);
   if(typeof navigator !== 'undefined' && navigator.onLine === false)

@@ -316,6 +316,15 @@ await test('ledger flag on: no answer from the server leaves the entry unsaved a
   var r2 = await addEntry(a, issueEntry({opId:e.opId})); ok(!r2.err, r2.err && r2.err.message);
   eq(a.calls[0].body.op_id, e.opId, 'same op_id re-sent'); eq(a.S.kgLedger.length, 1, 'one blob entry'); eq(a.kgOutboxList().length, 0, 'outbox cleared');
 });
+await test('ledger flag on: editing the figure after a pending answer is refused before sending, and the first journal stays in the outbox', async function(){
+  var a = fresh(); entryShop(a, true); server(a, ['netfail']);
+  var e = issueEntry(), r1 = await addEntry(a, e); eq(r1.err.code, 'pending');
+  server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:8}}]); a.calls = [];
+  var r2 = await addEntry(a, issueEntry({opId:e.opId, mg:11000, fineMg:11000}));
+  ok(r2.err && /still being confirmed/i.test(r2.err.message), 'plain refusal, got: ' + (r2.err && r2.err.message));
+  eq(a.calls.length, 0, 'nothing sent'); eq(a.kgOutboxList().length, 1, 'the first journal is still queued'); eq(a.kgOutboxList()[0].lines[0].fine_mg, -10000, 'with its original figure');
+  eq(a.S.kgLedger.length, 0, 'nothing committed to the blob');
+});
 await test('ledger flag on and the phone offline: refused with a plain message, nothing sent, nothing saved', async function(){
   var a = fresh(); entryShop(a, true); a.navigator = {onLine:false}; server(a, [{status:200, body:{ok:true, journal_id:1}}]);
   var r = await addEntry(a, issueEntry()); ok(r.err && /internet/i.test(r.err.message), r.err && r.err.message);
