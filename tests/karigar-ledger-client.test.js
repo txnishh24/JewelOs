@@ -367,6 +367,12 @@ await test('blocker 4: a 401 asks for sign-in with the reason from the server, k
   await new Promise(function(res){ setTimeout(res, 30); });
   eq(a.calls.length, 1, 'after sign-in the queue is sent'); eq(a.S.kgLedger.length, 1, 'and the shop-data side is finished');
 });
+await test('blocker 4: a 401 with no reason from the server is treated as expired, never as revoked (revoked wipes the device)', async function(){
+  var a = fresh(); entryShop(a, true); var asked = [];
+  a.saasRequireReauth = function(resume, reason){ asked.push(reason); };
+  server(a, [{status:401, body:{error:'unauthenticated'}}]); await addEntry(a, issueEntry());
+  eq(asked[0], 'expired');
+});
 await test('ledger flag on and the phone offline: refused with a plain message, nothing sent, nothing saved', async function(){
   var a = fresh(); entryShop(a, true); a.navigator = {onLine:false}; server(a, [{status:200, body:{ok:true, journal_id:1}}]);
   var r = await addEntry(a, issueEntry()); ok(r.err && /internet/i.test(r.err.message), r.err && r.err.message);

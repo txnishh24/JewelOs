@@ -58,7 +58,7 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   (Cowork's own account skills) write to the paused Office, and `jewelos-health`'s drift SQL still
   reads `nextInvNo`, stale since migration 005 changed the invoice-floor source.** Flagged by Cowork's
   3 Oct skills audit; explicitly out of scope for Claude Code to touch; Cowork/Tanish's to fix.
-**Closed (don't re-ask):** the full list of past decisions is in `docs/handoff-archive/HANDOFF-LOG-through-2026-11-05.md` (section "WAITING Closed list"). Still relevant: the Netlify badge is still visible, nothing hides it (don't claim it is hidden); session tokens stay in `localStorage`; `razorpay-webhook` is left as is.
+**Closed (don't re-ask):** the full list of past decisions is in `docs/handoff-archive/HANDOFF-LOG-through-2026-11-05.md` (section "WAITING Closed list and notes", at the end of that file). Still relevant: the Netlify badge is still visible, nothing hides it (don't claim it is hidden); session tokens stay in `localStorage`; `razorpay-webhook` is left as is.
 
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
 outside the app.** Tanish demos in person, the shop pays by UPI, he sets `paidUntil` in
@@ -69,6 +69,22 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-05 (hundred-and-fifty-fifth entry) · Claude Code (Sonnet) — review fix on blocker 4: a 401 with no reason is treated as expired, not guessed; replay of queued entries is by design; NOT merged, NOT applied, NOT deployed
+
+The automated commit review of `52108b0` raised two points. (1) Valid, fixed: `kgSendJournal` passed `body.reason` straight to `saasRequireReauth`, which guesses from the phone's clock when it is missing and can pick 'revoked' (device wipe). It now passes `|| 'expired'`; test added, failed first. (2) Acknowledged, no code change: after sign-in `kgOutboxFlush` also sends older queued entries. That is intended: a queued journal may already be on the ledger, so removing it on Cancel would split the ledger from the shop data (blocker 1). The real gap is that the user cannot see what is queued: the job-screen "waiting for confirmation" line (2b) is still open and is the fix. `saasRequireReauth`'s clock-based guess is still there for other callers; not touched.
+
+**Verified:** `check.bat` clean, ledger client 55/0. **Not verified:** no browser run.
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`.
+
+### 2026-11-05 (hundred-and-fifty-fourth entry) · Claude Code (Sonnet) — second trim of HANDOFF.md (268→~140 lines); nothing deleted
+
+Moved to the end of `docs/handoff-archive/HANDOFF-LOG-through-2026-11-05.md`, verbatim: LOG entries 140th–148th, the old long NOW block, the answered stored-XSS item, and the whole WAITING "Closed" list. Live file now has NOW (short), the still-open WAITING items, the newest 5 LOG entries and the 3 Oct carried-forward section.
+
+**Verified:** removed text is appended to the archive in full; live counts: 138 lines before this entry. **Not verified:** whether Cowork relies on any removed WAITING closed item; nothing committed. Another session was committing (153rd entry) while I trimmed, so re-open HANDOFF.md before writing to it.
+
+→ FOR COWORK: nothing — FYI only. Look in `docs/handoff-archive/` for any entry or closed decision that is no longer in this file.
 
 ### 2026-11-05 (hundred-and-fifty-fourth entry) · Claude Code (Sonnet) — ledger blocker 5: a forced sign-out now says how many gold entries never reached the ledger; NOT merged, NOT applied, NOT deployed
 
@@ -120,7 +136,7 @@ Tanish confirmed the Karigar ledger is on the launch path (launch after Karigar 
 
 ### Older entries
 
-Older LOG entries are archived verbatim in `docs/handoff-archive/HANDOFF-LOG-through-2026-11-05.md` (entries up to the 139th, in the second half of that file). Search there when an entry is referenced by number (e.g. "73rd entry").
+Older LOG entries are archived verbatim in `docs/handoff-archive/HANDOFF-LOG-through-2026-11-05.md` (entries up to the 148th; the second trim is at the end of that file). Search there when an entry is referenced by number (e.g. "73rd entry").
 
 ## Carried forward from the 3 Oct condensation (NOT re-verified since; check before relying on any line)
 
