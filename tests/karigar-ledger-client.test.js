@@ -693,6 +693,22 @@ await test('review: a refused queued entry is shown on Reports and is not silent
   await flush(a);
   var h = a.kg2ReportsHtml(); ok(/Ledger refused/.test(h) && /Job is not open on the ledger/.test(h), 'shown with the reason');
 });
+await test('security A2: numbers read back from the shop data are escaped on the Karigar screens', async function(){
+  var a = fresh(); blobShop(a); a.SAAS.user = {name:'Owner', email:'owner@example.com', role:'owner'};
+  var bad = '<img src=x onerror=alert(1)>';
+  ok(a.kg2Detail({type:'RECEIPT', pieceDesc:'ring', qty:bad, mg:1000, permille:916, purityKey:'916', fineMg:916}).indexOf('<img') === -1, 'RECEIPT qty');
+  ok(a.kg2JobLinesHtml({status:'open', lines:[{id:'l1', desc:'ring', qty:bad}]}).indexOf('<img') === -1, 'piece line qty');
+  a.S.karigars = [{id:'kA', name:'K', kind:'salary', salary:{mode:'daily'}}]; a.S.kgSalary = [{id:'s1', karigarId:'kA', type:'ACCRUE', date:'2026-11-05', days:bad}];
+  a._kg2.karigarId = 'kA'; ok(a.kg2SalaryHtml().indexOf('<img') === -1, 'salary days');
+});
+await test('security A1: a parked row that the shop data already has, or that names another karigar, is not reversed', async function(){
+  var a = parkedShop(); server(a, [{status:200, body:{ok:true, journals:[srvOrig]}}, {status:200, body:{ok:true, journal_id:8}}]);
+  a.S.kgLedger = [{id:'e1', opId:'op-parked-0001', type:'ISSUE', jobId:'jA', karigarId:'karA', fineMg:10000}];
+  var e1 = await revParked(a, 'long enough reason'); ok(e1 && /not parked|already/i.test(e1.message), e1 && e1.message); eq(a.calls.length, 1, 'nothing posted'); eq(a.S.kgParked.length, 1);
+  var b = parkedShop(); b.S.kgLedger = []; b.S.kgParked[0].entry.karigarId = 'someoneElse';
+  server(b, [{status:200, body:{ok:true, journals:[srvOrig]}}, {status:200, body:{ok:true, journal_id:8}}]);
+  var e2 = await revParked(b, 'long enough reason'); ok(e2 && /does not match/.test(e2.message), e2 && e2.message); eq(b.calls.length, 1, 'nothing posted');
+});
 await test('the shop blob save now carries the build number (so the server can refuse a stale phone)', async function(){
   var fs = require('fs'), path = require('path');
   var sync = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');

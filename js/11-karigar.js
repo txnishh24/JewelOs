@@ -1067,7 +1067,7 @@ function kg2JobHtml(job){
 function kg2Detail(e){
   var p = e.purityKey ? (e.purityKey === 'other' ? 'other ' + (e.permille / 10) + '%' : e.purityKey) + (e.as24k ? ' as 24K' : '') : '';
   if(e.type === 'ISSUE') return kgFmtG(e.mg) + ' ' + escHtml(p) + ' = ' + kgFmtG(e.fineMg) + ' fine';
-  if(e.type === 'RECEIPT') return escHtml(e.pieceDesc || '') + ' x' + e.qty + ' &middot; ' + kgFmtG(e.mg) + ' ' + escHtml(p) + ' @' + (e.permille / 10) + '% = ' + kgFmtG(e.fineMg) + ' fine';
+  if(e.type === 'RECEIPT') return escHtml(e.pieceDesc || '') + ' x' + escHtml(String(e.qty)) + ' &middot; ' + kgFmtG(e.mg) + ' ' + escHtml(p) + ' @' + (e.permille / 10) + '% = ' + kgFmtG(e.fineMg) + ' fine';
   if(e.type === 'SCRAP') return escHtml(e.kind) + ' ' + kgFmtG(e.mg) + ' ' + escHtml(p) + ' = ' + kgFmtG(e.fineMg) + ' fine';
   if(e.type === 'LOSS') return escHtml(e.category) + ' ' + kgFmtG(e.fineMg) + ' fine &middot; ' + escHtml(e.reason || '');
   if(e.type === 'ADJUST') return (e.fineMg > 0 ? 'credit ' : 'debit ') + kgFmtG(Math.abs(e.fineMg)) + ' fine &middot; ' + escHtml(e.reason || '');
@@ -1130,7 +1130,7 @@ function kg2SalaryHtml(){
   list.slice().reverse().forEach(function(e){
     var isRev = e.type === 'REVERSAL', gone = rev[e.id];
     html += '<div class="kg2-line' + (gone ? ' kg2-struck' : '') + '"><div><b>' + escHtml(e.type) + '</b> ' + (gone ? kg2Badge('reversed') : '') +
-      '<div class="kg2-sub">' + escHtml(e.date) + (e.period ? ' &middot; ' + escHtml(e.period) : '') + (e.days ? ' &middot; ' + e.days + ' day(s)' : '') +
+      '<div class="kg2-sub">' + escHtml(e.date) + (e.period ? ' &middot; ' + escHtml(e.period) : '') + (e.days ? ' &middot; ' + escHtml(String(e.days)) + ' day(s)' : '') +
       (e.mode ? ' &middot; ' + escHtml(e.mode) : '') + (e.note ? ' &middot; ' + escHtml(e.note) : '') + (e.reason ? ' &middot; ' + escHtml(e.reason) : '') + '</div></div>' +
       '<div class="kg2-right">' + (isRev ? '' : '<div class="kg2-num">' + kgFmtRs(e.amountPaise) + '</div>') +
       (!isRev && !gone && e.type !== 'JOB_LABOUR' ? kg2Btn('Reverse', 'kg2ReverseSalary(' + kg2Q(k.id) + ',' + kg2Q(e.id) + ')') : '') + '</div></div>';
@@ -1548,7 +1548,7 @@ function kg2JobLinesHtml(job){
   var html = '<div class="kg2-sec">Pieces to make</div>';
   if(!lines.length) html += '<div class="kg2-empty">No pieces listed.</div>';
   lines.forEach(function(l){
-    html += '<div class="kg2-line' + (l.void ? ' kg2-struck' : '') + '"><div><b>' + escHtml(l.desc) + '</b> x' + l.qty +
+    html += '<div class="kg2-line' + (l.void ? ' kg2-struck' : '') + '"><div><b>' + escHtml(l.desc) + '</b> x' + escHtml(String(l.qty)) +
       '<div class="kg2-sub">' + (l.targetMg ? 'target ' + kgFmtG(l.targetMg) : 'no target weight') + (l.void ? ' &middot; removed: ' + escHtml(l.void.reason) : '') + '</div></div>' +
       '<div class="kg2-right">' + (open && !l.void ? kg2Btn('Remove', 'kg2VoidLine(' + kg2Q(job.id) + ',' + kg2Q(l.id) + ')') : '') + '</div></div>';
   });

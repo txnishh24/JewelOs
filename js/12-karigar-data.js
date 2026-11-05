@@ -334,9 +334,13 @@ function kgReverseParked(parkedId, reason, done){
   kgFindServerJournal(p.opId, function(err, orig){
     if(err) return done(err);
     if(!orig) return done(new Error('The ledger has no entry with this id. Check the karigar ledger before doing anything.'));
+    // The parked list lives in the shop data, which a staff login can rewrite. Only act on a row that is really missing
+    // from the ledger side of the shop data and names the karigar the ledger journal belongs to.
+    for(var q = 0; q < (S.kgLedger || []).length; q++) if(S.kgLedger[q].opId === p.opId) return done(new Error('The shop data already has this entry, so it is not parked. Nothing was reversed.'));
     var en = p.entry || {}, pos = 0;
     (orig.lines || []).forEach(function(l){ if(Number(l.fine_mg) > 0) pos += Number(l.fine_mg); });
-    if(orig.type !== en.type || (orig.job_id || null) !== (en.jobId || null) || pos !== Math.abs(en.fineMg || 0))
+    var ownerOk = false; (orig.lines || []).forEach(function(l){ if(l.account === 'KCUST' && l.owner_ref === en.karigarId) ownerOk = true; });
+    if(!ownerOk || orig.type !== en.type || (orig.job_id || null) !== (en.jobId || null) || pos !== Math.abs(en.fineMg || 0))
       return done(new Error('The ledger entry does not match this parked entry. Check the karigar ledger before doing anything.'));
     // Dated on the original journal's own day: the same on every retry (the server fingerprints business_date, so a new
     // day would make a retry look like different content), and the mirror cancels the original on its own day.
