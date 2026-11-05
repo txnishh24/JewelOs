@@ -104,6 +104,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-05 (hundred-and-thirty-ninth entry) · Claude Code (Sonnet) — design review and eng review of the Karigar plan; plan amended (Tasks 5-9 deferred); no code changed
+
+Ran `/plan-design-review` on the live Karigar screens (11 decisions, score 3/10 to 8/10 once built) and `/plan-eng-review` on `docs/superpowers/plans/2026-11-03-karigar-2-remaining-phases.md`. Eng decisions, all approved by Tanish: D1 defer Tasks 5-7 until owner questions Q7 and Q10 are answered; D2 defer Tasks 8-9 (the Task 2.5 hard refusal of an unapproved LOSS stays); D3 no new migration and no separate audit document, active scope is Tasks 2.5, 3, 4, 10, 11, 12; D4 Task 4 Step 5b becomes a staff explainer card, because `renderKgV2` (`js/11-karigar.js:859`) already shows nothing below manager. The plan's file table no longer names `011_karigar_ledger_ext.sql` (number 011 is taken by `011_karigar_ledger_hardening.sql`; a later table would be `012`). The design decisions are written into the plan under "Engineering review decisions".
+
+A read-only pass over the E2E test shop at 390px (10 tabs, no page errors, no sideways scroll) found one real problem: the Home "orders past delivery date" card prints every order id in one run-on paragraph. Many emoji remain as icons (the 20 Oct finding). Desktop width, 320px and the Karigar 2.0 screens were not inspected.
+
+**Not verified / not done:** no code, migration or deploy touched. Outside voice skipped; the gstack review log was not saved (`bun` is not installed, so `gstack-review-log` and `gstack-plan-reality` fail). No Karigar e2e spec exists yet. Unresolved from the design review: Khata vs Karigars tab overlap, loading state, 320px layout, Hinglish vs English labels. `CLAUDE.md` and `.claude/settings.json` edits are still uncommitted and belong to Tanish.
+
+→ FOR COWORK: nothing — FYI only
+
 ### 2026-11-05 (hundred-and-thirty-eighth entry) · Claude Code (Sonnet) — Task 2.5 FG job rule committed on `karigar-2-task-2-5`; still NOT merged, NOT applied, NOT deployed
 
 A RECEIPT must now carry a job id, every FG line's owner reference must equal it, and FG refs follow the plain-id pattern (migration 011); `store-proxy` applies the same pattern to `job_id`. Built the day before on Tanish's go-ahead, committed now. **Effect:** a receipt with no job is refused; `kgBuildJournal('RECEIPT')` (`js/12-karigar-data.js:87`) must always get `jobId` (no UI caller exists yet).

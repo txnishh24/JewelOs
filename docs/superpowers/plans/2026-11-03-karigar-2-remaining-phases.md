@@ -20,6 +20,15 @@
 6. **Blocked on owner answers:** Q7 (external workshop as a ledger party), Q10 (rules for moving gold between jobs/karigars), Q6-Q24 generally.
 7. **Priority.** Per `CLAUDE.md`, the launch gate agreed 3 Nov is XSS Batch 1 (done), backup rehearsal (done), security headers (committed, not deployed). Karigar 2.0 is not on that gate. This plan is post-launch unless Tanish says otherwise; only Tasks 1-2 are done and safe before launch (Tanish, 3 Nov). Task 2.5 (security findings) must be finished before Task 3, and Task 3 is a production migration plus two deploys that needs a separate GO for each step, so it is not pre-approved.
 
+## Engineering review decisions (5 Nov 2026)
+
+- **D1 (approved):** Tasks 5, 6, 7 (transfer vouchers, split/merge, external workshops) are DEFERRED until owner questions Q7 and Q10 are answered.
+- **D2 (approved):** Tasks 8, 9 (loss standards and approval queue, QC and rework) are DEFERRED until the ledger has run clean. The Task 2.5 hard refusal of an unapproved LOSS stays as the rule.
+- **D3 (approved):** smaller arrangement: no new migration, no separate audit document, e2e spec kept. Active scope: Tasks 2.5, 3, 4, 10, 11, 12.
+- **D4 (approved):** staff see an explainer card, not hidden buttons (Task 4 Step 5b).
+- **Design review D1-D11 (approved 5 Nov, carried into Task 4):** two-tier job actions; plain-language entry labels; staff explainer card; inline pending row plus banner for unconfirmed sends; empty states with one button (needs an add-karigar form); "Needs you" tile and attention list for refused journals; result line after saving; remove the "2.0" pill; map `.kg2-*` CSS to tokens (nothing under 12px); Enter/Space on job rows; dialog role, focus and Escape in `kgForm`.
+- **Not decided, recorded:** the owner-only type list and plain-id pattern live in three places (`kg_post_journal`, `checkKgJournal`, `js/12-karigar-data.js`). The SQL test is the guard; `store-proxy` has no automated test (Task 3 Step 5 relies on the live test journal). Reality-row check could not run (`bun` missing).
+
 ## Global Constraints
 
 - ES5 only: no arrow functions, `let`/`const`, template literals, `async/await`.
@@ -49,8 +58,8 @@
 
 | File | Responsibility |
 |---|---|
-| `docs/KARIGAR-2-ARCHITECTURE-AUDIT.md` (new) | Audit report: reusable functions, data shapes, integration points, risks, migration strategy |
-| `supabase/migrations/011_karigar_ledger_ext.sql` (new) | Only what Task 1 finds missing: voucher table, loss standards, QC, job split/merge links |
+| ~~`docs/KARIGAR-2-ARCHITECTURE-AUDIT.md` (new)~~ | Dropped (eng review D3, 5 Nov): Task 1 becomes a short audit section at the top of this plan |
+| ~~`supabase/migrations/011_karigar_ledger_ext.sql` (new)~~ | Dropped (eng review D3, 5 Nov): `011_karigar_ledger_hardening.sql` already holds number 011, and Tasks 5-9 are deferred. Any later table goes in `012_*` |
 | `js/12-karigar-data.js` (modify, from 5a) | Journal builders, validator, outbox. New builders per task |
 | `js/11-karigar.js` (modify) | Screens and blob logic; switched to read the ledger in Task 4 |
 | `supabase/functions/store-proxy/index.ts` (modify) | New `kg_*` actions only where a task needs them |
@@ -136,7 +145,7 @@ Source: the automated review of the phase 5a push (4 Nov), logged in `HANDOFF.md
 - [ ] **Step 5:** Behind a shop-level flag `S.kgLedgerOn` (default false), make `kgAddEntry` post a journal and the blob entry together under `kgTxn`; if the journal is rejected, the blob entry is rolled back. Test: rejected journal leaves blob unchanged.
 - [ ] **Step 3b (D3, approved 4 Nov by eng review: karigar OPENING builder):** `kgBuildJournal('OPENING', ...)` in `js/12-karigar-data.js:97` builds only `VAULT +f / OPENING -f`. Add a karigar variant that posts `KCUST[k] +f / OPENING -f` (and `WIP[job] +f / OPENING -f` for open jobs), selected by an explicit option, not by guessing. Do NOT use `ADJUST` for opening balances: the `ADJ` account stays reserved for real owner corrections. Test: the migration's journal has `OPENING` as its counter-account, `ADJ` stays at zero, and a non-owner is refused.
 - [ ] **Step 3a (D12, approved 4 Nov: zero and negative balances):** A karigar whose blob balance is zero posts nothing. A karigar with a negative blob balance posts nothing and is listed in the mismatch report as "needs owner review"; the owner resolves it with a dated adjustment. The migration completes for all other karigars. Test: a shop with balances 12,345 / 0 / -500 mg migrates the first, skips the other two, and the report names both.
-- [ ] **Step 5b (D13, approved 4 Nov: staff view):** With the ledger on, gold action buttons are hidden for staff and read-only users, with the line "Ask the owner or a manager". This is a display rule only; the server stays the real guard.
+- [ ] **Step 5b (D13, approved 4 Nov; REPLACED by eng review D4 and design review D3, 5 Nov):** `renderKgV2` (`js/11-karigar.js:859`) shows nothing to anyone below manager, so there are no gold buttons to hide. Instead, staff and read-only users see one explainer card: "Karigar is for the owner and managers. Ask the owner for access." No staff read-only view. This is a display rule only; the server stays the real guard.
 - [ ] **Step 5a (D7, approved 4 Nov: gold movements need internet while the ledger is on):** While `S.kgLedgerOn` is true for a shop, issuing, receiving or transferring gold is refused when the phone is offline, with a plain message, and nothing is saved to the blob. This removes the case where an offline entry is saved to the blob and later refused by the server. **Extended by D1 (approved 4 Nov by eng review): mid-send failures.** `kgRemote` (`js/12-karigar-data.js:128`) gives up after 20 seconds and `kgSendJournal` (`:171`) then reports "saved and will be retried", but the server may already have posted the journal. While the ledger is on, a timeout or network loss after sending leaves the entry PENDING: show "sending, not confirmed", do not commit the blob entry, and retry the same `op_id` until the server gives a definite answer (success, duplicate, or refusal). Test: a send that times out after the server posted it ends with one ledger row, one blob entry, and no "saved" message in between. Test: with the flag on and the network down, `kgAddEntry` saves nothing and shows the message; with the flag off, offline behaviour is unchanged.
 - [ ] **Step 6:** Add a Reports line "Blob vs ledger" showing any mismatch per karigar. Flag stays off until a real shop shows zero mismatches for a week. Per D11 (approved 4 Nov), the same report also lists any ledger `owner_ref` that matches no karigar in the shop data.
 - [ ] **Step 6a (D15, approved 4 Nov: rejected posts are visible):** `store-proxy` logs each refused journal (shop, type, `op_id`, reason; never amounts). The Today tile from SCOPE-5 shows "N journals rejected" to the owner, counted from the client's rejected list. **Extended by D2 (approved 4 Nov by eng review):** `kgRejectedAdd` (`js/12-karigar-data.js:159`) keeps only `slice(-50)` and ignores a failed storage write, so older refusals vanish silently. Keep every rejected journal until the owner dismisses it (cap 500, with a visible warning when nearly full or when a save fails). Test: 51 rejections leave 51 entries and a count of 51; a failed `localStorage` write is reported, not swallowed. **Also (third audit, approved 4 Nov):** a journal refused only for its business date ("business date out of range", a manager's entry that waited offline over 7 days or came from a fast phone clock) is shown to the owner as "needs the owner to post", with the original details, and is not left as an ordinary rejection. Test: a date-refused journal appears in that owner list with its lines intact.
@@ -266,3 +275,19 @@ Mode: SCOPE EXPANSION, chosen by Tanish over the recommended HOLD SCOPE. Each ad
 - **Spec coverage:** dashboard, directory, agreements, job cards, issue/receipt, in-house/external, stages, transfers, reconciliation, earning models, labour, process loss, scrap, QC, advances, ledger, reports, audit, integration all map to existing work or Tasks 4-11. Backup/restore Task 12. "Rebuild everything" deliberately declined (finding 1).
 - **Not covered by any task:** per-piece labour beyond what agreements already store; confirm in Task 1 whether it is present (the request lists it; `kgParseAgreementTerms` suggests per-gram only).
 - **Proportion:** roadmap-level; each task states signatures and tests, bodies are left to the implementer.
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|---|---|---|---|---|---|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | none | not run |
+| Outside Review | `codex` | Independent 2nd opinion | 0 | not run | missing coverage |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | issues_open | 4 findings, 4 decisions (D1-D4) |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | issues_open | 3/10 to 8/10, 11 decisions, 4 unresolved |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | none | not applicable |
+
+**VERDICT:** ENG REVIEW NOT CLEARED. 2 critical plan fixes applied; test plan not yet written; outside voice and review log not run.
+
+**UNRESOLVED DECISIONS:**
+- Khata vs Karigars tab overlap, loading state, 320px layout, Hinglish vs English labels (from design review)
+- Eng review: Karigar e2e coverage for Task 4 flows not yet specified
