@@ -95,7 +95,7 @@ function kgBuildJournal(type, o){
     var src = o.from === 'vault' ? kgJLine('VAULT', '', -f) : kgJLine('KCUST', k, -f);
     j.lines = [src, kgJLine('PAYOUT', k, f), kgJLine('ENT', k, -f), kgJLine('EARNED', k, f)];
   }
-  else if(type === 'OPENING') j.lines = [kgJLine('VAULT', '', f), kgJLine('OPENING', '', -f)];
+  else if(type === 'OPENING') j.lines = o.into === 'karigar' ? [kgJLine('KCUST', k, f, gm, pm), kgJLine('OPENING', '', -f)] : [kgJLine('VAULT', '', f), kgJLine('OPENING', '', -f)];
   else if(type === 'ADJUST'){
     if(!(f && Math.floor(f) === f)) return {error:'Adjustment weight is not valid'};
     if(String(o.note || '').trim().length < 5) return {error:'A reason (at least 5 letters) is required'};
@@ -216,6 +216,31 @@ function kgOutboxFlush(cb){
     kgSendJournal(list[0], function(err){
       if(err && (err.code === 'offline' || err.code === 'outdated')){ _kgFlushing = false; if(cb) cb(err, {sent:sent, left:kgOutboxList().length}); return; }
       sent++;
+      next();
+    });
+  })();
+}
+
+// ── blob to ledger: open each karigar's blob balance once (owner only) ─────────
+// op_id is 'migr:' + karigar id (the ledger already keeps op_ids per shop), so a rerun re-sends the same id and the
+// server reports a duplicate. Zero posts nothing; a negative blob balance is listed for the owner to resolve by hand.
+// shortcut: gold held per karigar only, no per-job WIP seed (it would double count custody), revisit with Task 11.
+// cb(err, {posted:[{karigarId,fineMg}], duplicates, skippedZero, needsReview:[{karigarId,name,fineMg}], failed:[{karigarId,why}]})
+function kgMigrateBlobToLedger(cb){
+  if(kgUser().role !== 'owner') return cb(new Error('Only the owner can open the ledger balances'));
+  var rep = {posted:[], duplicates:0, skippedZero:0, needsReview:[], failed:[]}, list = (S.karigars || []).slice();
+  (function next(){
+    var k = list.shift();
+    if(!k) return cb(null, rep);
+    var f = kgKhata(k.id).openFine;
+    if(f === 0){ rep.skippedZero++; return next(); }
+    if(f < 0){ rep.needsReview.push({karigarId:k.id, name:k.name, fineMg:f}); return next(); }
+    var built = kgBuildJournal('OPENING', {into:'karigar', karigarId:k.id, fineMg:f, opId:'migr:' + k.id});
+    if(built.error){ rep.failed.push({karigarId:k.id, why:built.error}); return next(); }
+    kgPostJournal(built.journal, function(err, r){
+      if(err) rep.failed.push({karigarId:k.id, why:err.message});
+      else if(r && r.duplicate) rep.duplicates++;
+      else rep.posted.push({karigarId:k.id, fineMg:f});
       next();
     });
   })();

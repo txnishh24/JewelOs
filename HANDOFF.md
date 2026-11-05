@@ -104,6 +104,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-05 (hundred-and-forty-second entry) · Claude Code (Sonnet) — Task 4 Steps 1-4 and 3b built: blob balances can be opened on the ledger; not wired to any screen; NOT merged, NOT applied, NOT deployed
+
+`kgBuildJournal('OPENING', {into:'karigar', karigarId, fineMg})` now posts `KCUST[k] +f / OPENING -f` (explicit option; without it the vault shape is unchanged; `ADJ` is never used). New `kgMigrateBlobToLedger(cb)` in `js/12-karigar-data.js`: owner only (a manager is refused before any request), one OPENING journal per karigar from the blob balance (`kgKhata(id).openFine`), `op_id = 'migr:' + karigarId` so a rerun re-sends the same id and the server reports a duplicate. A zero balance posts nothing; a negative balance is listed as needs owner review (D12); a refused journal is recorded and the other karigars still go through. Result: `{posted, duplicates, skippedZero, needsReview, failed}`.
+
+**Deviations from the plan:** `op_id` omits the shop id, because shop UUID plus karigar UUID is 78 characters against the 64-character limit and the ledger already keeps op_ids per shop (a karigar id over 59 characters would still overflow; real ids are short or a UUID). WIP for open jobs is NOT seeded, because Task 11's reconciliation formula counts custody and WIP both, so seeding both would double count the same gold. **Needs a decision from Tanish before Task 11.**
+
+**Verified:** 5 new tests in `tests/karigar-ledger-client.test.js`, each watched failing first (two of my own faults fixed: ids too short for the op_id rule, and a wrong expected balance); `karigar-ledger-client` 24/0, `karigar-v2` 66/0, regression 489/0, SQL ledger test all passed. **Not verified:** the migration's own journals were not posted through PGlite or a real server (the existing SQL tests cover the OPENING-to-karigar shape); nothing calls the function from a screen; `jewelos-invariant-tester`, `jewelos-bug-pattern-reviewer` and the Opus review (`MODEL-POLICY.md`, ledger work is 🔴) have not run on this delta, and it was built on Sonnet. Task 4 Steps 5 onward (flagged `kgAddEntry`, offline refusal, pending state) are not started. `CLAUDE.md` and `.claude/settings.json` edits remain uncommitted (Tanish's).
+
+→ FOR COWORK: nothing — FYI only
+
 ### 2026-11-05 (hundred-and-forty-first entry) · Claude Code (Sonnet) — security audit finding 1 (shared-computer outbox) fixed on `karigar-2-task-2-5`; still NOT merged, NOT applied, NOT deployed
 
 `jewelos-test-runner` and `jewelos-security-auditor` ran on `fe6f9d0`. Test runner: all suites and `checks/` clean except `tests/cowork-live-check.js`, which fails at its first `recordSale()` (a GST-percent toast rejects the test's sale); not checked against `main`, so not known to be caused by this branch. Auditor: no bypass in role gate, grants, cross-shop access, SQL injection, error leakage or the receipt job rule. Its main finding was the offline outbox (`kg_outbox::<shop>`), keyed per shop and not cleared at sign-out, so a manager's queued journal could be sent later under the next login (including `approve:true` stamped to the owner). Latent only: nothing calls `kgPostJournal` or `kgOutboxFlush` yet.

@@ -201,6 +201,45 @@ await test('a 403 is recorded in the rejected list, not lost without a trace', a
   await post(a, build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal);
   eq(a.kgOutboxList().length, 0); eq(a.kgRejectedList().length, 1, 'visible to the owner afterwards');
 });
+await test('OPENING into a karigar posts KCUST against OPENING by an explicit option; the default stays the vault; ADJ is never used', async function(){
+  var a = fresh();
+  var k = build(a, 'OPENING', {into:'karigar', karigarId:'kar1', fineMg:12345}).journal;
+  eq(k.type, 'OPENING'); eq(k.lines.length, 2); eq(k.lines[0].account, 'KCUST'); eq(k.lines[0].owner_ref, 'kar1'); eq(k.lines[0].fine_mg, 12345);
+  eq(k.lines[1].account, 'OPENING'); eq(k.lines[1].fine_mg, -12345); eq(a.kgValidateJournal(k, 'owner'), '');
+  ok(!k.lines.some(function(l){ return l.account === 'ADJ'; }), 'ADJ stays reserved for real corrections');
+  var v = build(a, 'OPENING', {fineMg:5000}).journal; eq(v.lines[0].account, 'VAULT', 'no option, no change of behaviour');
+  eq(a.kgValidateJournal(k, 'manager'), 'Only the owner can post this', 'a manager is refused on the phone too');
+});
+function blobShop(a){
+  a.S.karigars = [{id:'karA', name:'Asha'}, {id:'karB', name:'Bela'}, {id:'karC', name:'Chitra'}];
+  a.S.kgJobs = [{id:'jA', karigarId:'karA', status:'open', kind:'other'}, {id:'jB', karigarId:'karB', status:'open', kind:'other'}, {id:'jC', karigarId:'karC', status:'open', kind:'other'}];
+  a.S.kgLedger = [{id:1, jobId:'jA', type:'ISSUE', fineMg:12345}, {id:2, jobId:'jC', type:'ISSUE', fineMg:1000}, {id:3, jobId:'jC', type:'ADJUST', fineMg:1500}];
+}
+function migrate(a){ return new Promise(function(res){ a.kgMigrateBlobToLedger(function(err, rep){ res({err:err, rep:rep}); }); }); }
+await test('migration opens each karigar\'s blob balance on the ledger once; zero is skipped, negative is reported for owner review', async function(){
+  var a = fresh(); blobShop(a); server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:1}}]);
+  var r = await migrate(a); ok(!r.err, r.err && r.err.message);
+  eq(a.calls.length, 1, 'only Asha has gold with her (Bela is zero, Chitra is negative)');
+  var j = a.calls[0].body; eq(j.type, 'OPENING'); eq(j.op_id, 'migr:karA'); eq(j.lines[0].account, 'KCUST'); eq(j.lines[0].owner_ref, 'karA'); eq(j.lines[0].fine_mg, 12345);
+  eq(r.rep.posted.length, 1); eq(r.rep.needsReview.length, 1); eq(r.rep.needsReview[0].karigarId, 'karC'); eq(r.rep.needsReview[0].fineMg, -500);
+  eq(r.rep.skippedZero, 1, 'Bela\'s zero is skipped without noise');
+});
+await test('running the migration again re-sends the same op_id, so the server posts nothing new', async function(){
+  var a = fresh(); blobShop(a); server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:1}}]);
+  await migrate(a);
+  server(a, [{status:200, body:{ok:true, duplicate:true, journal_id:1}}]); a.calls = [];
+  var r = await migrate(a); eq(a.calls[0].body.op_id, 'migr:karA', 'same deterministic id'); eq(r.rep.duplicates, 1); eq(r.rep.posted.length, 0, 'nothing newly posted');
+});
+await test('migration refuses a manager before anything is sent', async function(){
+  var a = fresh('manager'); blobShop(a); server(a, [{status:200, body:{ok:true, journal_id:1}}]);
+  var r = await migrate(a); ok(r.err && /owner/i.test(r.err.message)); eq(a.calls.length, 0, 'no request at all');
+});
+await test('a refused or offline opening journal is reported, and the other karigars still go through', async function(){
+  var a = fresh(); blobShop(a); a.S.kgLedger.push({id:9, jobId:'jB', type:'ISSUE', fineMg:700});
+  server(a, [{status:422, body:{ok:false, error:'rejected', message:'refused'}}, {status:200, body:{ok:true, duplicate:false, journal_id:5}}]);
+  var r = await migrate(a); ok(!r.err); eq(a.calls.length, 2); eq(r.rep.failed.length, 1); eq(r.rep.failed[0].karigarId, 'karA'); eq(r.rep.posted.length, 1);
+  eq(r.rep.posted[0].karigarId, 'karB');
+});
 await test('signing out warns first when gold entries are still waiting to be sent', async function(){
   var a = fresh(); a.SAAS.shop = {id:'shop-1'}; var seen = null;
   a.safeConfirm = function(title, msg, yes, danger){ seen = {msg:msg, danger:danger}; };
