@@ -197,6 +197,10 @@ function saasLogout(){
 // the shop. No confirmation: a removed employee must not be able to tap Cancel
 // and keep browsing the shop from this device.
 function saasForceLogout(message){
+  var kgWaiting = 0;
+  try{ kgWaiting = kgOutboxList().length; }catch(e){} // count before the wipe
+  if(kgWaiting > 0 && message)
+    message += ' ' + kgWaiting + ' gold entr' + (kgWaiting === 1 ? 'y' : 'ies') + ' had not reached the ledger. Check the karigar ledger before entering ' + (kgWaiting === 1 ? 'it' : 'them') + ' again.';
   _clearDeviceSession();
   try{ if(message) sessionStorage.setItem(SIGNOUT_NOTICE_KEY, message); }catch(e){}
   _reloadToSignIn();

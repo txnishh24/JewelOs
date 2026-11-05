@@ -470,6 +470,15 @@ await test('signing out warns first when gold entries are still waiting to be se
   ok(seen && /1 gold entry/i.test(seen.msg) && /lost/i.test(seen.msg), 'warns that 1 gold entry will be lost: ' + (seen && seen.msg));
   eq(seen.danger, true, 'shown as a danger confirm');
 });
+await test('blocker 5: a forced sign-out (expired or removed) tells the user which gold entries never reached the ledger', async function(){
+  var a = fresh(); a.SAAS.shop = {id:'shop-1'}; a._reloadToSignIn = function(){};
+  server(a, ['netfail']); await post(a, build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal); await post(a, build(a, 'ISSUE', {karigarId:'k1', fineMg:6000}).journal);
+  a.saasForceLogout('Signed out.');
+  var note = a.sessionStorage.getItem(a.SIGNOUT_NOTICE_KEY);
+  ok(/Signed out\./.test(note) && /2 gold entries/i.test(note) && /ledger/i.test(note) && /check/i.test(note), 'notice: ' + note);
+  var b = fresh(); b.SAAS.shop = {id:'shop-2'}; b._reloadToSignIn = function(){}; b.saasForceLogout('Signed out.');
+  ok(!/gold/i.test(b.sessionStorage.getItem(b.SIGNOUT_NOTICE_KEY)), 'nothing waiting, nothing extra');
+});
 await test('signing out of the device clears the outbox and the rejected list', async function(){
   var a = fresh(); a.SAAS.shop = {id:'shop-1'}; server(a, ['netfail']);
   await post(a, build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal);
