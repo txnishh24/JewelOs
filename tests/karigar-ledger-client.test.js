@@ -215,7 +215,14 @@ function blobShop(a){
   a.S.kgJobs = [{id:'jA', karigarId:'karA', status:'open', kind:'other'}, {id:'jB', karigarId:'karB', status:'open', kind:'other'}, {id:'jC', karigarId:'karC', status:'open', kind:'other'}];
   a.S.kgLedger = [{id:1, jobId:'jA', type:'ISSUE', fineMg:12345}, {id:2, jobId:'jC', type:'ISSUE', fineMg:1000}, {id:3, jobId:'jC', type:'ADJUST', fineMg:1500}];
 }
-function migrate(a){ return new Promise(function(res){ a.kgMigrateBlobToLedger(function(err, rep){ res({err:err, rep:rep}); }); }); }
+// the owner's two steps: preview (dry run), then confirm exactly that list
+function migrate(a, confirmed){
+  return new Promise(function(res){
+    function run(list){ a.kgMigrateBlobToLedger(function(err, rep){ res({err:err, rep:rep}); }, {confirmed:list}); }
+    if(confirmed) return run(confirmed);
+    a.kgMigrateBlobToLedger(function(err, pre){ if(err) return res({err:err}); run(pre.would); }, {dryRun:true});
+  });
+}
 await test('migration opens each karigar\'s blob balance on the ledger once; zero is skipped, negative is reported for owner review', async function(){
   var a = fresh(); blobShop(a); server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:1}}]);
   var r = await migrate(a); ok(!r.err, r.err && r.err.message);
@@ -239,6 +246,26 @@ await test('a refused or offline opening journal is reported, and the other kari
   server(a, [{status:422, body:{ok:false, error:'rejected', message:'refused'}}, {status:200, body:{ok:true, duplicate:false, journal_id:5}}]);
   var r = await migrate(a); ok(!r.err); eq(a.calls.length, 2); eq(r.rep.failed.length, 1); eq(r.rep.failed[0].karigarId, 'karA'); eq(r.rep.posted.length, 1);
   eq(r.rep.posted[0].karigarId, 'karB');
+});
+await test('the real run needs the list the owner confirmed: with none it is refused and nothing is sent', async function(){
+  var a = fresh(); blobShop(a); server(a, [{status:200, body:{ok:true, journal_id:1}}]);
+  var r = await new Promise(function(res){ a.kgMigrateBlobToLedger(function(err, rep){ res({err:err, rep:rep}); }); });
+  ok(r.err && /confirm/i.test(r.err.message), r.err && r.err.message); eq(a.calls.length, 0);
+});
+await test('a balance that changed after the preview is not posted; it goes to needsReview', async function(){
+  var a = fresh(); blobShop(a); server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:1}}]);
+  var pre = await new Promise(function(res){ a.kgMigrateBlobToLedger(function(err, rep){ res(rep); }, {dryRun:true}); });
+  a.S.kgLedger.push({id:20, jobId:'jA', type:'ISSUE', fineMg:5000}); // a manager edits the blob after the owner looked
+  var r = await migrate(a, pre.would); ok(!r.err); eq(a.calls.length, 0, 'the changed figure was never posted');
+  eq(r.rep.posted.length, 0); var n = r.rep.needsReview.filter(function(x){ return x.karigarId === 'karA'; })[0];
+  ok(n && n.fineMg === 17345 && n.was === 12345, 'reports the new figure and the confirmed one');
+});
+await test('a karigar added after the preview is not posted; it goes to needsReview', async function(){
+  var a = fresh(); blobShop(a); server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:1}}]);
+  var pre = await new Promise(function(res){ a.kgMigrateBlobToLedger(function(err, rep){ res(rep); }, {dryRun:true}); });
+  a.S.karigars.push({id:'karD', name:'Devi'}); a.S.kgJobs.push({id:'jD', karigarId:'karD', status:'open', kind:'other'}); a.S.kgLedger.push({id:21, jobId:'jD', type:'ISSUE', fineMg:900});
+  var r = await migrate(a, pre.would); ok(!r.err); eq(r.rep.posted.length, 1, 'only the confirmed karigar'); eq(r.rep.posted[0].karigarId, 'karA');
+  ok(r.rep.needsReview.some(function(x){ return x.karigarId === 'karD'; }), 'the new one waits for the owner');
 });
 await test('a dry run lists what would be opened, with names, and sends nothing, so the owner can check it first', async function(){
   var a = fresh(); blobShop(a); server(a, [{status:200, body:{ok:true, journal_id:1}}]);
