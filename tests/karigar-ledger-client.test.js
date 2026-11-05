@@ -636,6 +636,17 @@ await test('reverse a parked entry: Reports shows the button to the owner only',
   var a = parkedShop(); ok(/kg2ReverseParked\(/.test(a.kg2ReportsHtml()), 'owner sees it');
   var m = parkedShop('manager'); ok(!/kg2ReverseParked\(/.test(m.kg2ReportsHtml()), 'manager does not');
 });
+await test('unsent bills: sign-out keeps them on the phone, and the notice counts every shop', async function(){
+  var a = fresh(); eq(a.salesKeptNote(), '');
+  a.localStorage.setItem('jewelos_sale_outbox::shop-1', JSON.stringify([{sale:{id:'s1'}}, {sale:{id:'s2'}}]));
+  a.localStorage.setItem('jewelos_sale_outbox::shop-2', JSON.stringify([{sale:{id:'s3'}}]));
+  ok(/3 unsent bills stay on this phone/.test(a.salesKeptNote()), a.salesKeptNote());
+  a._clearDeviceSession();
+  eq(JSON.parse(a.localStorage.getItem('jewelos_sale_outbox::shop-1')).length, 2, 'not deleted by sign-out');
+  a.localStorage.removeItem('jewelos_sale_outbox::shop-2');
+  ok(/2 unsent bills/.test(a.salesKeptNote()));
+  a.localStorage.removeItem('jewelos_sale_outbox::shop-1'); eq(a.salesKeptNote(), '');
+});
 await test('the shop blob save now carries the build number (so the server can refuse a stale phone)', async function(){
   var fs = require('fs'), path = require('path');
   var sync = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');

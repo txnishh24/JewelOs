@@ -1754,6 +1754,14 @@ function replayOfflineSales(){
   });
   return pending.length;
 }
+// Every shop's unsent bills on this device. Sign-out does not delete them (they are keyed by shop and go when that shop signs in);
+// this is the sentence that tells the user so.
+function salesKeptNote(){
+  var n = 0;
+  try{ for(var q = localStorage.length - 1; q >= 0; q--){ var k = localStorage.key(q); if(k && /^jewelos_sale_outbox::/.test(k)) n += _lsList(k).length; } }catch(e){}
+  if(!n) return '';
+  return ' ' + n + ' unsent bill' + (n === 1 ? '' : 's') + ' stay' + (n === 1 ? 's' : '') + ' on this phone and ' + (n === 1 ? 'is' : 'are') + ' sent after you sign in to that shop again.';
+}
 function offlineSalesPending(){ return _lsList(saleOutboxKey()).length; }
 // After a save that carried the replayed sales has landed: they are in the cloud now.
 function pruneOfflineOutbox(){

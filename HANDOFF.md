@@ -70,6 +70,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-06 (hundred-and-sixty-second entry) · Claude Code (Sonnet) — Tanish's decision on unsent sales: keep and warn; sign-out and expiry notices now say unsent bills stay on the phone; NOT merged, NOT applied, NOT deployed
+
+**Decided by Tanish (6 Nov): keep and warn** (not sweep). Checked first: `_clearDeviceSession` never deleted `jewelos_sale_outbox::<shop>`, so unsent bills already survive sign-out and are sent when that shop signs in again; the only gap was that nobody was told. New `salesKeptNote()` (`js/02-ui-inactivity-modals.js`) counts bills across every shop on the device and is added to the manual sign-out confirm, the forced sign-out notice and the expired-login notice (`js/05-auth-login.js`). Nothing is deleted. `ssj_unsynced` and `ssj_last_active` unchanged: they are flags, not data; `ssj_cache` is still wiped on sign-out as before (security review 14 Sep, finding 9). Also committed `checks/globals.json` (Tanish said yes; it also held pre-existing additions by others).
+
+**Verified:** ledger client 70/0 (new test: bills survive `_clearDeviceSession`, note counts every shop; I did not run it red first, the function did not exist), `regression` 489/0, `karigar-v2` 66/0. **Not verified:** no browser run of the three notices; a removed employee's unsent bills now stay on that phone until that shop signs in there (already the case before this change, now stated rather than silent).
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`.
+
 ### 2026-11-06 (hundred-and-sixty-first entry) · Claude Code (Sonnet) — fixed a day-boundary bug in the Karigar report: a job closed between midnight and 5:30 am IST was counted on the previous day; NOT merged, NOT applied, NOT deployed
 
 `kgReport` (`js/11-karigar.js`) took the day of a closed job from the first 10 characters of `closedAt`, which is UTC, but compared it with the local date range (`kgToday()`). It now converts `closedAt` to the local day with `dbDayKey`. This was the cause of the `karigar-v2.test.js` failure "report counts fixed gold of jobs closed in the period" (it only failed when run between 00:00 and 05:30 IST); the test needed no change. The same UTC slice is used for display of stage dates (`doneAt`, `startedAt`, line ~1528); not changed, cosmetic.

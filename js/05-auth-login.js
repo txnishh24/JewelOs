@@ -189,6 +189,7 @@ function saasLogout(){
     var one = kgWaiting === 1;
     msg = kgWaiting + ' gold entr' + (one ? 'y' : 'ies') + ' ' + (one ? 'has' : 'have') + ' not reached the ledger yet. Signing out deletes ' + (one ? 'it' : 'them') + ' from this device, so ' + (one ? 'it' : 'they') + ' will be lost. Stay signed in until the phone is back online. Sign out anyway?';
   }
+  try{ msg += salesKeptNote(); }catch(e){}
   safeConfirm('Sign out?', msg, function(){
     _clearDeviceSession();
     _reloadToSignIn();
@@ -199,7 +200,7 @@ function saasLogout(){
 // the shop. No confirmation: a removed employee must not be able to tap Cancel
 // and keep browsing the shop from this device.
 function saasForceLogout(message){
-  if(message){ try{ message += kgLostNote(); }catch(e){} } // count before the wipe
+  if(message){ try{ message += kgLostNote() + salesKeptNote(); }catch(e){} } // count before the wipe
   _clearDeviceSession();
   try{ if(message) sessionStorage.setItem(SIGNOUT_NOTICE_KEY, message); }catch(e){}
   _reloadToSignIn();
@@ -1580,7 +1581,7 @@ window.onload = function(){
     if(_saasSessionExpired()){
       // Same clean-up as a forced sign-out, minus the reload: nothing has
       // been loaded into memory yet.
-      var lostNote = ''; try{ lostNote = kgLostNote(); }catch(e){} // count before the wipe
+      var lostNote = ''; try{ lostNote = kgLostNote() + salesKeptNote(); }catch(e){} // count before the wipe
       _clearDeviceSession();
       try{ sessionStorage.setItem(SIGNOUT_NOTICE_KEY, 'Your login has expired — please sign in again.' + lostNote); }catch(e){}
     }
