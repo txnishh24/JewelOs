@@ -605,7 +605,13 @@ function kgAddEntryLedger(entry, done){
     }
     if(err) return done(err, entry, false);
     kgCommitEntry(entry, job, u, function(e){
-      done(e ? new Error('Recorded on the ledger but not saved to the shop yet. Tap Save again to finish.') : null, entry, false);
+      if(!e) return done(null, entry, false);
+      // The ledger has it already. Hand it to the same finisher a flush uses: it re-queues on a failed save and parks a real refusal.
+      kgFinishQueued(jb.journal, function(e2){
+        for(var d = 0; d < S.kgLedger.length; d++) if(S.kgLedger[d].opId === entry.opId) return done(null, entry, false);
+        if(e2) return done(new Error('Recorded on the ledger but not saved to the shop yet. It is kept on this phone and finishes by itself. Tap Save again to finish now.'), entry, false);
+        done(new Error('The ledger took this entry but the shop data refused it. It is listed on Reports under "Ledger has this". Check it there.'), entry, false);
+      });
     });
   });
 }
@@ -616,6 +622,7 @@ function kgAddEntry(entry, done){
   for(var i = 0; i < S.kgLedger.length; i++){
     if(S.kgLedger[i].opId === entry.opId){ done(null, S.kgLedger[i], true); return; }
   }
+  if(_kgFlagUnknown){ try{ kgLoadLedgerFlag(); }catch(e){} return done(new Error('Checking whether the ledger is on. Try again in a moment. Nothing was saved.'), entry, false); }
   if(S.kgLedgerOn === true) return kgAddEntryLedger(entry, done);
   var job = kgFindJob(entry.jobId), u = kgUser();
   kgStamp(entry);
@@ -1455,7 +1462,7 @@ function kg2ParkedHtml(){
 function kg2RejectedHtml(){
   var list = kgRejectedList();
   if(!list.length) return '';
-  var html = '<div class="kg2-sec">Ledger refused these</div><div class="kg2-note warn">The ledger would not take the gold below, so it is in neither the ledger nor the shop data. Check with the karigar before entering it again. This list is kept on this phone only.</div>';
+  var html = '<div class="kg2-sec">Ledger refused these</div><div class="kg2-note warn">The ledger did not take the gold below. Usually it is in neither the ledger nor the shop data; if the reason says the ledger may already have it, check the ledger first. Check with the karigar before entering it again. This list is kept on this phone only and is deleted when you sign out.</div>';
   list.forEach(function(r){
     var j = r.journal || {}, fine = 0;
     (j.lines || []).forEach(function(l){ if(Number(l.fine_mg) > 0) fine += Number(l.fine_mg); });
@@ -1492,6 +1499,7 @@ function kg2MigRun(){
 function kg2MigHtml(){
   if(kgUser().role !== 'owner') return '';
   var st = _kgMig.state, html = '<div class="kg2-sec">Opening balances</div>';
+  if(S.kgLedgerOn === true) return html + '<div class="kg2-note">The ledger is already on, so opening balances can no longer be posted. Fix a difference with an owner adjustment.</div>';
   if(st === 'loading') return html + '<div class="kg2-empty">Working...</div>';
   if(st === 'error') return html + '<div class="kg2-note warn">' + escHtml(_kgMig.msg) + '</div><div class="kg2-row">' + kg2Btn('Try again', 'kg2MigPreview()') + '</div>';
   if(st === 'idle') return html + '<div class="kg2-note">Before the ledger is switched on, post what each karigar holds now as an opening entry. You see the list first.</div><div class="kg2-row">' + kg2Btn('Preview opening balances', 'kg2MigPreview()') + '</div>';

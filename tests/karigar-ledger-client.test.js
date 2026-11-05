@@ -680,7 +680,7 @@ await test('review: Save again after midnight re-sends the date the ledger alrea
   server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:1}}]);
   a.saveToCloud = function(cb){ cb(new Error('network')); };
   var e = issueEntry(); var r1 = await addEntry(a, e); ok(r1.err, 'shop save failed after the ledger accepted it');
-  var first = a.calls[0].body.business_date; eq(a.kgOutboxList().length, 0, 'outbox row gone');
+  var first = a.calls[0].body.business_date; a.kgOutboxRemove(e.opId); eq(a.kgOutboxList().length, 0, 'outbox row gone (it is re-queued now, so remove it to test the date memory on its own)');
   a.kgToday = function(){ return '2026-11-06'; }; a.saveToCloud = function(cb){ cb(null); };
   server(a, [{status:200, body:{ok:true, duplicate:true, journal_id:1}}]); a.calls = [];
   var r2 = await addEntry(a, issueEntry({opId:e.opId})); ok(!r2.err, r2.err && r2.err.message);
@@ -726,7 +726,8 @@ await test('ledger flag: the server decides; a failed ask falls back to what thi
   server(a, ['netfail']); a.S.kgLedgerOn = false;
   var r2 = await loadFlag(a); ok(r2.err, 'reports the failure'); eq(a.S.kgLedgerOn, true, 'falls back to the last known answer');
   server(a, [{status:200, body:{ok:true, ledger_on:false}}]); await loadFlag(a); eq(a.S.kgLedgerOn, false, 'the server overrides the cache');
-  server(a, [{status:400, body:{error:'unknown action'}}]); await loadFlag(a); eq(a.S.kgLedgerOn, false, 'an old server means off');
+  server(a, [{status:200, body:{ok:true, ledger_on:true}}]); await loadFlag(a); eq(a.S.kgLedgerOn, true);
+  server(a, [{status:400, body:{error:'unknown action'}}]); await loadFlag(a); eq(a.S.kgLedgerOn, false, 'a server that does not know the action means off, even with a cached on');
   var fs = require('fs'), path = require('path');
   ['00-config-state.js', '01-sync-core.js', '04-orders-detail.js', '05-auth-login.js'].forEach(function(f){
     ok(!/kgLedgerOn/.test(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8').replace(/\/\/.*$/gm, '')), f + ' never stores or restores the flag');
@@ -763,6 +764,61 @@ await test('opening balances screen: a manager sees nothing to press; a failed p
   a.kg2MigPreview(); server(a, [{status:422, body:{ok:false, error:'rejected', message:'ledger said no'}}]);
   a.kg2MigRun(); await tick(60);
   var h = a.kg2MigHtml(); ok(/ledger said no/.test(h) && /not opened/i.test(h), 'failure and reason shown: ' + h);
+});
+await test('opus 1: the flag is asked again on every refresh tick, so a phone that was open when the owner switched it on learns it', async function(){
+  var fs = require('fs'), path = require('path');
+  var src = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');
+  ok(/setInterval\(function\(\)\{\s*try\{ kgLoadLedgerFlag\(\); \}catch\(e\)\{\}/.test(src), 'the interval body calls kgLoadLedgerFlag');
+});
+await test('opus 1: a brand-new device whose first ask fails does not guess "off": gold entries wait until it knows', async function(){
+  var a = fresh(); entryShop(a, undefined); asRole(a, 'owner'); a.toast = function(){}; a.localStorage.removeItem(a.kgFlagKey());
+  server(a, ['netfail']); var r = await loadFlag(a); ok(r.err);
+  var e = issueEntry(); var res = await addEntry(a, e);
+  ok(res.err && /ledger/i.test(res.err.message), 'refused: ' + (res.err && res.err.message)); eq(a.S.kgLedger.length, 0, 'nothing saved to the shop data');
+  server(a, [{status:200, body:{ok:true, ledger_on:false}}]); await loadFlag(a);
+  var res2 = await addEntry(a, issueEntry()); ok(!res2.err, res2.err && res2.err.message); eq(a.S.kgLedger.length, 1, 'once it knows (off), the entry saves as before');
+});
+await test('opus 2: the ledger took the entry but the shop save failed -> it is kept on the phone and finishes by itself', async function(){
+  var a = fresh(); entryShop(a, true); a.toast = function(){};
+  server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:1}}]);
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  var e = issueEntry(); var r = await addEntry(a, e);
+  ok(r.err && /Tap Save again/.test(r.err.message), r.err && r.err.message); eq(a.S.kgLedger.length, 0);
+  eq(a.kgOutboxList().length, 1, 'back in the outbox with its shop-data entry'); ok(a.kgOutboxList()[0]._entry);
+  a.saveToCloud = function(cb){ cb(null); }; server(a, [{status:200, body:{ok:true, duplicate:true, journal_id:1}}]);
+  var f = await flush(a); ok(!f.err); eq(a.S.kgLedger.length, 1, 'the flush finished it'); eq(a.kgOutboxList().length, 0);
+});
+await test('opus 2: the ledger took the entry but the shop data now refuses it (job closed during the send) -> parked, not lost', async function(){
+  var a = fresh(); entryShop(a, true); a.S.kgParked = []; a.toast = function(){};
+  a.fetch = function(url, opts){ a.calls.push({url:url, body:JSON.parse(opts.body)}); a.S.kgJobs[0].status = 'closed';
+    return Promise.resolve({status:200, json:function(){ return Promise.resolve({ok:true, duplicate:false, journal_id:2}); }}); };
+  var e = issueEntry(); var r = await addEntry(a, e);
+  ok(r.err && /Reports/.test(r.err.message), r.err && r.err.message); eq(a.S.kgLedger.length, 0);
+  eq(a.S.kgParked.length, 1, 'parked'); eq(a.S.kgParked[0].opId, e.opId); eq(a.kgOutboxList().length, 0);
+});
+await test('opus 3: opening balances cannot be posted once the ledger is on (they would double the gold)', async function(){
+  var a = fresh(); blobShop(a); asRole(a, 'owner'); a.S.kgLedgerOn = true;
+  var pre = await new Promise(function(res){ a.kgMigrateBlobToLedger(function(err, rep){ res({err:err, rep:rep}); }, {dryRun:true}); });
+  ok(pre.err && /already on/i.test(pre.err.message), pre.err && pre.err.message);
+  var h = a.kg2MigHtml(); ok(!/kg2MigPreview\(/.test(h) && /already on/i.test(h), 'no buttons, says why: ' + h);
+});
+await test('opus 4: signing out warns about refused entries and about queued entries of other shops on this phone', async function(){
+  var a = fresh(); a.SAAS.shop = {id:'shop-1'}; var seen = null;
+  a.safeConfirm = function(title, msg, yes, danger){ seen = {msg:msg, danger:danger}; };
+  a.localStorage.setItem('kg_outbox_rejected::shop-1', JSON.stringify([{journal:{type:'ISSUE', lines:[]}, why:'refused', at:'2026-11-06T00:00:00Z'}]));
+  a.saasLogout(); ok(seen && /refused/i.test(seen.msg) && seen.danger === true, 'refused list counted: ' + (seen && seen.msg));
+  a.localStorage.removeItem('kg_outbox_rejected::shop-1'); seen = null;
+  a.localStorage.setItem('kg_outbox::shop-2', JSON.stringify([{op_id:'op-x-000001', type:'ISSUE', lines:[], _by:'u'}]));
+  a.saasLogout(); ok(seen && /1 gold entry/i.test(seen.msg), 'queue of another shop counted: ' + (seen && seen.msg));
+  a.localStorage.removeItem('kg_outbox::shop-2');
+});
+await test('opus 5: a "different content" refusal says the ledger may already have it; the accepted-date memory survives sign-out', async function(){
+  var a = fresh(); entryShop(a, true); a.toast = function(){};
+  server(a, [{status:422, body:{ok:false, error:'rejected', message:'op_id already used with different content'}}]);
+  var e = issueEntry(); await addEntry(a, e);
+  var rej = a.kgRejectedList(); eq(rej.length, 1); ok(/may already have/i.test(rej[0].why), rej[0].why);
+  a.SAAS.shop = {id:'shop-1'}; a.localStorage.setItem('kg_outbox_posted::shop-1', JSON.stringify([{op:'op-p-000001', d:'2026-11-05'}]));
+  a._clearDeviceSession(); ok(a.localStorage.getItem('kg_outbox_posted::shop-1'), 'posted dates are not wiped by sign-out');
 });
 await test('the shop blob save now carries the build number (so the server can refuse a stale phone)', async function(){
   var fs = require('fs'), path = require('path');

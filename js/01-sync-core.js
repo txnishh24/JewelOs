@@ -780,6 +780,7 @@ function startAutoRefresh(){
   try{ kgLoadLedgerFlag(); }catch(e){} // whether this shop's gold goes through the ledger: asked of the server, not read from the shop data
   try{ kgTryFlush(); }catch(e){} // gold entries still waiting for the ledger, tried once at start and on every tick
   refreshTimer = setInterval(function(){
+    try{ kgLoadLedgerFlag(); }catch(e){} // a phone that was open when the owner switched the ledger must learn it within a minute
     try{ kgTryFlush(); }catch(e){}
     // Skip poll entirely when browser tab is not visible — saves Supabase reads
     if(document.hidden) return;

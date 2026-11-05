@@ -147,10 +147,12 @@ function kgLsSet(key, list){ try{ localStorage.setItem(key, JSON.stringify(list)
 function kgOutboxList(){ return kgLsGet(kgOutboxKey()); }
 // Every shop's queued gold entries on this device, for the note shown when a sign-out or an expiry deletes them.
 function kgLostNote(){
-  var n = 0;
-  try{ for(var q = localStorage.length - 1; q >= 0; q--){ var k = localStorage.key(q); if(k && /^kg_outbox::/.test(k)) n += kgLsGet(k).length; } }catch(e){}
-  if(!n) return '';
-  return ' ' + n + ' gold entr' + (n === 1 ? 'y' : 'ies') + ' had not reached the ledger. Check the karigar ledger before entering ' + (n === 1 ? 'it' : 'them') + ' again.';
+  var n = 0, r = 0;
+  try{ for(var q = localStorage.length - 1; q >= 0; q--){ var k = localStorage.key(q); if(k && /^kg_outbox::/.test(k)) n += kgLsGet(k).length; else if(k && /^kg_outbox_rejected::/.test(k)) r += kgLsGet(k).length; } }catch(e){}
+  var t = '';
+  if(n) t += ' ' + n + ' gold entr' + (n === 1 ? 'y' : 'ies') + ' had not reached the ledger. Check the karigar ledger before entering ' + (n === 1 ? 'it' : 'them') + ' again.';
+  if(r) t += ' ' + r + ' refused entr' + (r === 1 ? 'y' : 'ies') + ' listed on Reports ' + (r === 1 ? 'is' : 'are') + ' deleted too.';
+  return t;
 }
 // Who is signed in on this device. A queued journal is tagged with its maker (locally only, never sent) so a
 // shared shop computer cannot send one person's entry under the next person's login: the server stamps the
@@ -207,6 +209,7 @@ function kgSendJournal(j, cb){
     if(status === 422 || status === 400){
       kgOutboxRemove(j.op_id);
       var why = (body && (body.message || body.error)) || 'refused';
+      if(/different content/.test(why)) why = 'The ledger may already have this entry under another date. Check the ledger on Reports before entering it again.';
       kgRejectedAdd(wire, why);
       return cb(Object.assign(new Error(why), {code:'rejected'}));
     }
@@ -282,6 +285,7 @@ function kgOutboxFlush(cb){
 //          needsReview:[{karigarId,name,fineMg,was?}], failed:[{karigarId,why}]})
 function kgMigrateBlobToLedger(cb, opts){
   if(kgUser().role !== 'owner') return cb(new Error('Only the owner can open the ledger balances'));
+  if(S.kgLedgerOn === true) return cb(new Error('The ledger is already on. Opening balances can only be posted before it is switched on.'));
   var dry = !!(opts && opts.dryRun), conf = Object.create(null); // no prototype: an id like 'constructor' must not match
   if(!dry){
     if(!opts || !Array.isArray(opts.confirmed)) return cb(new Error('Preview the balances and confirm them first'));
@@ -300,7 +304,7 @@ function kgMigrateBlobToLedger(cb, opts){
     if(built.error){ rep.failed.push({karigarId:k.id, why:built.error}); return next(); }
     kgPostJournal(built.journal, function(err, r){
       // the date is part of what the server compares, so a rerun on a later day comes back as "different content"
-      if(err) rep.failed.push({karigarId:k.id, why:/different content/.test(err.message) ? 'Already opened on an earlier day. Nothing was posted. Check the ledger balance on Reports.' : err.message});
+      if(err) rep.failed.push({karigarId:k.id, why:/different content|may already have/.test(err.message) ? 'Already opened on an earlier day. Nothing was posted. Check the ledger balance on Reports.' : err.message});
       else if(r && r.duplicate) rep.duplicates++;
       else rep.posted.push({karigarId:k.id, fineMg:f});
       next();
@@ -314,12 +318,16 @@ function kgMigrateBlobToLedger(cb, opts){
 // shortcut: a person who can edit this phone's storage can change the fallback; they could already edit the shop data.
 function kgFlagKey(){ return shopScopedKey('kg_ledger_flag'); }
 function kgFlagStore(on){ S.kgLedgerOn = on === true; try{ localStorage.setItem(kgFlagKey(), S.kgLedgerOn ? '1' : '0'); }catch(e){} }
+var _kgFlagUnknown = false; // true on a device that has never had an answer and whose ask failed: it must not guess "off"
 function kgLoadLedgerFlag(cb){
   if(!kgCan(kgUser().role, 'manager')){ if(cb) cb(null, S.kgLedgerOn === true); return; }
+  var cached = null; try{ cached = localStorage.getItem(kgFlagKey()); }catch(e){}
+  if(cached === null && S.kgLedgerOn !== true) _kgFlagUnknown = true; // nothing known yet
   kgRemote({action:'kg_status'}, function(err, body, status){
-    if(!err && status === 200 && body && body.ok){ kgFlagStore(body.ledger_on === true); if(cb) cb(null, S.kgLedgerOn); return; }
-    var cached = false; try{ cached = localStorage.getItem(kgFlagKey()) === '1'; }catch(e){}
-    S.kgLedgerOn = cached;
+    if(!err && status === 200 && body && body.ok){ _kgFlagUnknown = false; kgFlagStore(body.ledger_on === true); if(cb) cb(null, S.kgLedgerOn); return; }
+    if(!err && status === 400){ _kgFlagUnknown = false; kgFlagStore(false); if(cb) cb(null, false); return; } // a server that does not know the action: off
+    if(cached !== null){ _kgFlagUnknown = false; S.kgLedgerOn = cached === '1'; }
+    else if(S.kgLedgerOn === true) _kgFlagUnknown = false;
     if(cb) cb(err || new Error('Could not ask the server whether the ledger is on'), S.kgLedgerOn);
   });
 }

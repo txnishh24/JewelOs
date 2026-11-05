@@ -161,7 +161,7 @@ function _clearDeviceSession(){
   // Karigar ledger outbox and its rejected list: also shop-scoped, and they hold gold entries made by this user.
   try{ localStorage.removeItem(kgOutboxKey()); localStorage.removeItem(kgRejectedKey()); }catch(e){}
   // At boot after an expired session SAAS.shop is null, so the keys above point at 'noshop'. Sweep every shop's copy.
-  try{ for(var q = localStorage.length - 1; q >= 0; q--){ var qk = localStorage.key(q); if(qk && /^kg_outbox(_rejected|_posted)?::/.test(qk)) localStorage.removeItem(qk); } }catch(e){}
+  try{ for(var q = localStorage.length - 1; q >= 0; q--){ var qk = localStorage.key(q); if(qk && /^kg_outbox(_rejected)?::/.test(qk)) localStorage.removeItem(qk); } }catch(e){}
   var keys = [AUTH_KEY, USERS_KEY, SHOPS_KEY, 'ssj_cache', 'ssj_last_save', 'ssj_last_cloud_load'];
   for(var i = 0; i < keys.length; i++){ try{ localStorage.removeItem(keys[i]); }catch(e){} }
   SAAS.sessionToken = null;
@@ -182,18 +182,14 @@ function saasLogout(){
   var msg = unsynced
     ? 'Your latest changes may not have reached the cloud yet. Signing out removes this device\'s copy of the shop, so anything not yet saved to the cloud will be lost. Sign out anyway?'
     : 'Sign out of JewelOS on this device?';
-  // Karigar gold entries still waiting to reach the ledger are deleted with the device session.
-  var kgWaiting = 0;
-  try{ kgWaiting = kgOutboxList().length; }catch(e){}
-  if(kgWaiting > 0){
-    var one = kgWaiting === 1;
-    msg = kgWaiting + ' gold entr' + (one ? 'y' : 'ies') + ' ' + (one ? 'has' : 'have') + ' not reached the ledger yet. Signing out deletes ' + (one ? 'it' : 'them') + ' from this device, so ' + (one ? 'it' : 'they') + ' will be lost. Stay signed in until the phone is back online. Sign out anyway?';
-  }
+  // Karigar gold entries still waiting to reach the ledger, and the refused list, are deleted with the device session (every shop's).
+  var kgLost = ''; try{ kgLost = kgLostNote(); }catch(e){}
+  if(kgLost) msg = 'Signing out deletes what is stored only on this phone, and it will be lost.' + kgLost + ' Stay signed in until the phone is back online. Sign out anyway?';
   try{ msg += salesKeptNote(); }catch(e){}
   safeConfirm('Sign out?', msg, function(){
     _clearDeviceSession();
     _reloadToSignIn();
-  }, unsynced || kgWaiting > 0);
+  }, unsynced || !!kgLost);
 }
 
 // The server refused the session — it expired, or this user was removed from
