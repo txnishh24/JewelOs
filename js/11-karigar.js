@@ -566,15 +566,53 @@ function kgUndoAudit(auditId){
   if(auditId && Array.isArray(S.auditLog)) S.auditLog = S.auditLog.filter(function(x){ return x.id !== auditId; });
 }
 
+// With the shop's ledger flag on (S.kgLedgerOn === true), gold entries go to the server ledger first and the blob entry
+// is only saved after the server gives a definite answer. shortcut: the flag is read here but not yet persisted or
+// switchable from a screen (that needs the backup/restore touchpoints), and APPROVAL, REVERSAL and proposed-LOSS
+// entries are refused while it is on; add them with the Task 4 screens.
+function kgLedgerJournalFor(entry){
+  var covered = {ISSUE:1, RECEIPT:1, SCRAP:1, ADJUST:1, LOSS:1};
+  if(!covered[entry.type] || (entry.type === 'LOSS' && entry.proposed))
+    return {error:'This entry is not available while the ledger is on yet. Nothing was saved.'};
+  return kgBuildJournal(entry.type, {opId:entry.opId, jobId:entry.jobId, karigarId:entry.karigarId, mg:entry.mg, permille:entry.permille,
+    fineMg:entry.fineMg, date:entry.date, note:entry.reason || entry.note || '', approve:entry.type === 'LOSS'});
+}
+function kgAddEntryLedger(entry, done){
+  var job = kgFindJob(entry.jobId), u = kgUser();
+  kgStamp(entry);
+  if(job && !entry.karigarId) entry.karigarId = job.karigarId;
+  var jb = kgLedgerJournalFor(entry);
+  if(jb.error) return done(new Error(jb.error), entry, false);
+  var bad = kgValidateEntry(entry, {job:job, ledger:S.kgLedger, role:u.role});
+  if(bad) return done(new Error(bad), entry, false);
+  if(typeof navigator !== 'undefined' && navigator.onLine === false)
+    return done(new Error('Gold entries need internet while the ledger is on. Nothing was saved.'), entry, false);
+  kgPostJournal(jb.journal, function(err){
+    if(err && (err.code === 'offline' || err.code === 'outdated')){
+      var p = new Error(err.code === 'outdated' ? err.message : 'Sending, not confirmed. The gold may already be recorded. Tap Save again to confirm.');
+      p.code = 'pending'; return done(p, entry, false);
+    }
+    if(err) return done(err, entry, false);
+    kgCommitEntry(entry, job, u, function(e){
+      done(e ? new Error('Recorded on the ledger but not saved to the shop yet. Tap Save again to finish.') : null, entry, false);
+    });
+  });
+}
+
 // done(err, entry, duplicate)
 function kgAddEntry(entry, done){
   S.kgLedger = S.kgLedger || [];
   for(var i = 0; i < S.kgLedger.length; i++){
     if(S.kgLedger[i].opId === entry.opId){ done(null, S.kgLedger[i], true); return; }
   }
-  var job = kgFindJob(entry.jobId), u = kgUser(), auditId = null;
+  if(S.kgLedgerOn === true) return kgAddEntryLedger(entry, done);
+  var job = kgFindJob(entry.jobId), u = kgUser();
   kgStamp(entry);
   if(job && !entry.karigarId) entry.karigarId = job.karigarId;
+  kgCommitEntry(entry, job, u, function(err){ done(err, entry, false); });
+}
+function kgCommitEntry(entry, job, u, onDone){
+  var auditId = null;
   kgTxn('job:' + entry.jobId, function(){
     var err = kgValidateEntry(entry, {job:job, ledger:S.kgLedger, role:u.role});
     if(err) return err;
@@ -585,7 +623,7 @@ function kgAddEntry(entry, done){
   }, function(){
     S.kgLedger = S.kgLedger.filter(function(x){ return x.id !== entry.id; });
     kgUndoAudit(auditId);
-  }, function(err){ done(err, entry, false); });
+  }, onDone);
 }
 
 // fields: {karigarId, title, orderId?}

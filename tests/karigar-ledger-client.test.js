@@ -254,6 +254,52 @@ await test('the migr: op_id is reserved for the owner\'s OPENING journals, on th
   eq(a.kgValidateJournal(o, 'owner'), '', 'the owner\'s opening journal is fine');
   ok(a.kgValidateJournal(o, 'manager') !== '', 'a manager is refused');
 });
+function entryShop(a, on){
+  blobShop(a); a.S.kgLedger = []; a.S.kgLedgerOn = on; a.saveToCloud = function(cb){ cb(null); };
+}
+function issueEntry(o){ var e = {type:'ISSUE', opId:'op-entry-' + (++seq) + '-xx', jobId:'jA', karigarId:'karA', mg:10000, purityKey:'999', permille:1000, fineMg:10000};
+  Object.keys(o || {}).forEach(function(x){ e[x] = o[x]; }); return e; }
+function addEntry(a, e){ return new Promise(function(res){ a.kgAddEntry(e, function(err, ent, dup){ res({err:err, entry:ent, dup:dup}); }); }); }
+await test('ledger flag off: a gold entry is saved to the blob only, nothing is sent (behaviour unchanged)', async function(){
+  var a = fresh(); entryShop(a, false); server(a, [{status:200, body:{ok:true, journal_id:1}}]);
+  var r = await addEntry(a, issueEntry()); ok(!r.err, r.err && r.err.message); eq(a.S.kgLedger.length, 1); eq(a.calls.length, 0);
+});
+await test('ledger flag on: the journal is posted first, then the blob entry is saved once', async function(){
+  var a = fresh(); entryShop(a, true); server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:7}}]);
+  var e = issueEntry(), r = await addEntry(a, e); ok(!r.err, r.err && r.err.message);
+  eq(a.calls.length, 1); eq(a.calls[0].body.type, 'ISSUE'); eq(a.calls[0].body.op_id, e.opId); eq(a.calls[0].body.lines[0].account, 'VAULT'); eq(a.calls[0].body.lines[1].owner_ref, 'karA');
+  eq(a.S.kgLedger.length, 1);
+});
+await test('ledger flag on: a refused journal leaves the blob unchanged and says why', async function(){
+  var a = fresh(); entryShop(a, true); server(a, [{status:422, body:{ok:false, error:'rejected', message:'account VAULT would go negative'}}]);
+  var r = await addEntry(a, issueEntry()); ok(r.err && /negative/.test(r.err.message)); eq(a.S.kgLedger.length, 0, 'blob entry not created');
+});
+await test('ledger flag on: no answer from the server leaves the entry unsaved and pending; Save again with the same id finishes it with one ledger row and one blob entry', async function(){
+  var a = fresh(); entryShop(a, true); server(a, ['netfail']);
+  var e = issueEntry(), r1 = await addEntry(a, e);
+  ok(r1.err && r1.err.code === 'pending' && /not confirmed/i.test(r1.err.message), 'says not confirmed: ' + (r1.err && r1.err.message));
+  eq(a.S.kgLedger.length, 0, 'nothing committed to the blob while unconfirmed');
+  server(a, [{status:200, body:{ok:true, duplicate:true, journal_id:7}}]); a.calls = [];
+  var r2 = await addEntry(a, issueEntry({opId:e.opId})); ok(!r2.err, r2.err && r2.err.message);
+  eq(a.calls[0].body.op_id, e.opId, 'same op_id re-sent'); eq(a.S.kgLedger.length, 1, 'one blob entry'); eq(a.kgOutboxList().length, 0, 'outbox cleared');
+});
+await test('ledger flag on and the phone offline: refused with a plain message, nothing sent, nothing saved', async function(){
+  var a = fresh(); entryShop(a, true); a.navigator = {onLine:false}; server(a, [{status:200, body:{ok:true, journal_id:1}}]);
+  var r = await addEntry(a, issueEntry()); ok(r.err && /internet/i.test(r.err.message), r.err && r.err.message);
+  eq(a.calls.length, 0); eq(a.S.kgLedger.length, 0); eq(a.kgOutboxList().length, 0, 'not even queued');
+});
+await test('ledger flag on: an entry type the ledger path does not cover yet is refused, never half saved', async function(){
+  var a = fresh(); entryShop(a, true); server(a, [{status:200, body:{ok:true, journal_id:1}}]);
+  var r = await addEntry(a, {type:'APPROVAL', opId:'op-entry-appr-xx', jobId:'jA', refId:'x', decision:'approve'});
+  ok(r.err && /ledger is on/i.test(r.err.message), r.err && r.err.message); eq(a.calls.length, 0); eq(a.S.kgLedger.length, 0);
+});
+await test('ledger flag on: if saving the shop fails after the ledger accepted it, Save again completes it without a second ledger row', async function(){
+  var a = fresh(); entryShop(a, true); server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:7}}]);
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  var e = issueEntry(), r1 = await addEntry(a, e); ok(r1.err); eq(a.S.kgLedger.length, 0, 'blob entry rolled back');
+  a.saveToCloud = function(cb){ cb(null); }; server(a, [{status:200, body:{ok:true, duplicate:true, journal_id:7}}]);
+  var r2 = await addEntry(a, issueEntry({opId:e.opId})); ok(!r2.err, r2.err && r2.err.message); eq(a.S.kgLedger.length, 1);
+});
 await test('signing out warns first when gold entries are still waiting to be sent', async function(){
   var a = fresh(); a.SAAS.shop = {id:'shop-1'}; var seen = null;
   a.safeConfirm = function(title, msg, yes, danger){ seen = {msg:msg, danger:danger}; };
