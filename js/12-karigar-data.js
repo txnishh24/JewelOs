@@ -329,6 +329,10 @@ function kgReverseParked(parkedId, reason, done){
   kgFindServerJournal(p.opId, function(err, orig){
     if(err) return done(err);
     if(!orig) return done(new Error('The ledger has no entry with this id. Check the karigar ledger before doing anything.'));
+    var en = p.entry || {}, pos = 0;
+    (orig.lines || []).forEach(function(l){ if(Number(l.fine_mg) > 0) pos += Number(l.fine_mg); });
+    if(orig.type !== en.type || (orig.job_id || null) !== (en.jobId || null) || pos !== Math.abs(en.fineMg || 0))
+      return done(new Error('The ledger entry does not match this parked entry. Check the karigar ledger before doing anything.'));
     var date = null;
     kgOutboxList().forEach(function(x){ if(x.op_id === opId && kgValidDateKey(x.business_date)) date = x.business_date; }); // a retry keeps its first date
     var rv = kgBuildReversal(orig, opId, reason, date);

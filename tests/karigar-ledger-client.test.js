@@ -615,6 +615,15 @@ await test('reverse a parked entry: the ledger has no such journal -> error, row
   var a = parkedShop(); server(a, [{status:200, body:{ok:true, journals:[]}}]);
   var err = await revParked(a, 'not on the ledger?'); ok(err && /ledger/i.test(err.message), err && err.message); eq(a.S.kgParked.length, 1);
 });
+await test('reverse a parked entry: refused when the ledger journal does not match the parked row (type, job or gold total)', async function(){
+  var bads = [Object.assign({}, srvOrig, {type:'RECEIPT'}), Object.assign({}, srvOrig, {job_id:'jOther'}),
+    Object.assign({}, srvOrig, {lines:[{account:'VAULT', owner_ref:'', fine_mg:-99000}, {account:'KCUST', owner_ref:'karA', fine_mg:99000}]})];
+  for(var i = 0; i < bads.length; i++){
+    var a = parkedShop(); server(a, [{status:200, body:{ok:true, journals:[bads[i]]}}, {status:200, body:{ok:true, journal_id:8}}]);
+    var err = await revParked(a, 'long enough reason'); ok(err && /does not match/.test(err.message), 'case ' + i + ': ' + (err && err.message));
+    eq(a.calls.length, 1, 'nothing posted'); eq(a.S.kgParked.length, 1);
+  }
+});
 await test('reverse a parked entry: a network failure keeps the row; the retry (server says duplicate) finishes it', async function(){
   var a = parkedShop(); a.toast = function(){};
   server(a, [{status:200, body:{ok:true, journals:[srvOrig]}}, 'netfail']);
