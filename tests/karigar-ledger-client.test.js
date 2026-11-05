@@ -341,13 +341,20 @@ await test('blocker 2: a flush after the user already tapped Save again does not
   var r2 = await addEntry(a, issueEntry({opId:e.opId})); ok(!r2.err); eq(a.S.kgLedger.length, 1);
   a.kgOutboxAdd && 0; await flush(a); eq(a.S.kgLedger.length, 1, 'still one');
 });
-await test('blocker 2: a flush where the shop data now refuses (job closed) keeps the entry out of the blob and tells the owner', async function(){
-  var a = fresh(); entryShop(a, true); server(a, ['netfail']);
+await test('blocker 3: a flush where the shop data now refuses (job closed) parks the entry in the shop data, out of the blob', async function(){
+  var a = fresh(); entryShop(a, true); a.S.kgParked = []; server(a, ['netfail']);
   var e = issueEntry(); await addEntry(a, e);
   a.S.kgJobs[0].status = 'closed';
   server(a, [{status:200, body:{ok:true, duplicate:false, journal_id:4}}]);
   var f = await flush(a); ok(!f.err); eq(a.S.kgLedger.length, 0, 'not committed');
-  var rej = a.kgRejectedList(); eq(rej.length, 1, 'visible afterwards'); ok(/ledger/i.test(rej[0].why) && /not saved to the shop/i.test(rej[0].why), rej[0].why);
+  eq(a.S.kgParked.length, 1, 'parked'); eq(a.S.kgParked[0].opId, e.opId); ok(/closed/i.test(a.S.kgParked[0].why), a.S.kgParked[0].why); eq(a.S.kgParked[0].entry.fineMg, 10000);
+  eq(a.kgOutboxList().length, 0, 'the ledger has it, so it is not queued again');
+});
+await test('blocker 3: the Reports screen shows parked entries to the owner and not to a manager-only view of nothing', async function(){
+  var a = fresh(); blobShop(a); a.SAAS.user = {name:'Owner', email:'owner@example.com', role:'owner'}; a.S.kgParked = [];
+  ok(!/Ledger has this/.test(a.kg2ReportsHtml()), 'nothing parked, nothing shown');
+  a.S.kgParked = [{id:'p1', opId:'o1', at:'2026-11-05T10:00:00.000Z', why:'Job is closed - reopen it first', entry:{type:'ISSUE', jobId:'jA', karigarId:'karA', fineMg:10000}}];
+  var h = a.kg2ReportsHtml(); ok(/Ledger has this/.test(h) && /Job is closed/.test(h), 'shows the entry and why');
 });
 await test('ledger flag on and the phone offline: refused with a plain message, nothing sent, nothing saved', async function(){
   var a = fresh(); entryShop(a, true); a.navigator = {onLine:false}; server(a, [{status:200, body:{ok:true, journal_id:1}}]);

@@ -104,6 +104,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-05 (hundred-and-fifty-second entry) · Claude Code (Sonnet) — ledger blocker 3: an entry the shop data refuses after the ledger accepted it is parked in `S.kgParked` and shown on Reports; NOT merged, NOT applied, NOT deployed
+
+New shop-data field `S.kgParked` (state init, cloud load/save, export in `04`, restore in `04`, `05` backup and restore, `checks/roundtrip.js` fixture; `roundtrip` failed first with "LOST kgParked", now all 32 keys survive). `kgFinishQueued` (flush) parks the entry with the reason instead of the device-local note; Reports shows "Ledger has this, shop data refused it" (`kg2ParkedHtml`). No reverse button yet: the owner reads it and decides. **Still open:** job-screen "waiting for confirmation" line (2b), 4 (401 treated as offline), 5 (forced sign-out wipes outbox silently), 6 (stale outbox keys), a reverse action for parked entries. Nothing calls `kgOutboxFlush` yet; Opus review still required before the flag is wired.
+
+**Verified:** `check.bat` clean, ledger client 52/0, `backup-check` and `roundtrip` clean. **Not verified:** no browser or server run.
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`.
+
 ### 2026-11-05 (hundred-and-fifty-first entry) · Claude Code (Sonnet) — ledger blocker 2 (core): a queued gold entry keeps its shop-data entry on the device and the flush finishes it; job-screen line and blocker 3 still open; NOT merged, NOT applied, NOT deployed
 
 `kgAddEntryLedger` now stores the entry as `_entry` on the queued journal (device only: `kgSendJournal` strips every `_`-prefixed key). `kgOutboxFlush` calls new `kgFinishQueued` after the ledger confirms: skips if the blob already has that `opId`, else `kgCommitEntry`; if the shop data now refuses (job closed elsewhere), the entry stays out of the blob and a note goes on the device-local rejected list. **Still open:** (2b) a "waiting for confirmation" line on the job screen so nobody re-enters a queued issue; (3) a shop-following `S.kgParked` list on Reports instead of the device-local note (needs `01-sync-core.js` save/load and `backup-check`/`roundtrip`); 4, 5, 6 from the audit entry. Nothing calls `kgOutboxFlush` yet.

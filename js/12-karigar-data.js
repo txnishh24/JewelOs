@@ -204,15 +204,16 @@ function kgPostJournal(j, cb){
 }
 // The ledger took a queued journal; save its shop-data entry too (the form that made it may be long closed).
 // If the shop data now refuses it (the job changed on another device), keep it out of the blob and leave a note on the
-// rejected list. shortcut: device-local note only; a Reports "parked" list that follows the shop is blocker 3.
+// S.kgParked (saved with the shop data, shown on Reports); the owner decides. shortcut: no reverse button yet.
 function kgFinishQueued(item, done){
   var en = item._entry; S.kgLedger = S.kgLedger || [];
   if(!en) return done();
   for(var i = 0; i < S.kgLedger.length; i++) if(S.kgLedger[i].opId === en.opId) return done();
   kgCommitEntry(en, kgFindJob(en.jobId), kgUser(), function(err){
-    if(err){ var wire = {}; Object.keys(item).forEach(function(x){ if(x.charAt(0) !== '_') wire[x] = item[x]; });
-      kgRejectedAdd(wire, 'Recorded on the ledger but not saved to the shop data: ' + err.message + '. The owner should check this entry.'); }
-    done();
+    if(!err) return done();
+    var p = {id:kgNewId(), opId:en.opId, at:new Date().toISOString(), why:err.message, entry:en};
+    kgTxn('park:' + en.opId, function(){ S.kgParked = S.kgParked || []; S.kgParked.push(p); return ''; },
+      function(){ S.kgParked = (S.kgParked || []).filter(function(x){ return x.id !== p.id; }); }, function(){ done(); });
   });
 }
 // Replays everything waiting, oldest first, one at a time. A network failure stops the run.

@@ -1426,6 +1426,17 @@ function kg2Reconcile(){
     renderKgV2();
   });
 }
+function kg2ParkedHtml(){
+  var list = S.kgParked || [];
+  if(!list.length) return '';
+  var html = '<div class="kg2-sec">Ledger has this, shop data refused it</div><div class="kg2-note warn">The gold below is on the ledger but is not in the shop data. Check each one before doing anything.</div>';
+  list.forEach(function(p){
+    var e = p.entry || {}, k = findKarigar(e.karigarId);
+    html += '<div class="kg2-line"><div><b>' + escHtml(k ? k.name : String(e.karigarId || '')) + '</b> &middot; ' + escHtml(String(e.type || '')) +
+      '<div class="kg2-sub">' + escHtml(p.why || '') + '</div></div><div class="kg2-num warn">' + kgFmtG(e.fineMg || 0) + '</div></div>';
+  });
+  return html;
+}
 function kg2ReconHtml(){
   var st = _kgRecon.state, html = '<div class="kg2-sec">Blob vs ledger</div>';
   if(st === 'loading') return html + '<div class="kg2-empty">Checking the ledger...</div>';
@@ -1477,7 +1488,7 @@ function kg2ReportsHtml(){
       html += '<div class="kg2-line kg2-click" onclick="kg2OpenJob(' + kg2Q(o.job.id) + ')"><div><b>' + escHtml(o.job.jobNo) + '</b> &middot; ' + name(o.job.karigarId) + '</div><div class="kg2-num warn">' + kgFmtG(-o.openFine) + '</div></div>';
     });
   }
-  return html + kg2ReconHtml();
+  return html + kg2ParkedHtml() + kg2ReconHtml();
 }
 
 function kg2AddTouch(){

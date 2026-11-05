@@ -22,6 +22,7 @@ const before = {
   kgPurities: [{ key: 'T920', label: '92 touch', permille: 920, custom: true }],
   kgAgreements: [{ id: 'ka1', opId: 'op3', karigarId: 1, effectiveFrom: '2026-10-01', kind: 'wastage', wastageBp: 400, fixedMg: 2000, labour: null }],
   kgRoutes: [{ category: 'Rings', stages: ['Casting', 'Setting', 'Polish'] }],
+  kgParked: [{ id: 'kp1', opId: 'op9', at: '2026-11-05T10:00:00.000Z', why: 'Job is closed - reopen it first', entry: { type: 'ISSUE', opId: 'op9', jobId: 'kj1', karigarId: 1, mg: 5000, fineMg: 5000 } }],
   nextKgJobNo: 2,
   rates: { g24: 7800, g22: 7200 },
   purchaseCfg: { showWastage: false },

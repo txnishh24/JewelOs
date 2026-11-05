@@ -753,7 +753,7 @@ function saveCache(){
       products:S.products,sales:S.sales,orders:S.orders||[],girvi:S.girvi||[],customers:S.customers||[],
       purchases:S.purchases||[],suppliers:S.suppliers||[],purchaseAuditLog:S.purchaseAuditLog||[],purchaseCfg:S.purchaseCfg||{},rates:S.rates,
       karigars:S.karigars||[],karigarPayments:S.karigarPayments||[],
-      kgJobs:S.kgJobs||[],kgLedger:S.kgLedger||[],kgSalary:S.kgSalary||[],kgPurities:S.kgPurities||[],kgAgreements:S.kgAgreements||[],kgRoutes:S.kgRoutes||[],nextKgJobNo:S.nextKgJobNo||1,
+      kgJobs:S.kgJobs||[],kgLedger:S.kgLedger||[],kgSalary:S.kgSalary||[],kgPurities:S.kgPurities||[],kgAgreements:S.kgAgreements||[],kgRoutes:S.kgRoutes||[],kgParked:S.kgParked||[],nextKgJobNo:S.nextKgJobNo||1,
       auditLog:S.auditLog||[],activityLog:S.activityLog||[],waRules:S.waRules||[],dayBook:S.dayBook||null,
       stockMovements:S.stockMovements||[], // F2: was never cached, so stock history vanished on every reopen
       voidedInvNos:S.voidedInvNos||[],
@@ -981,6 +981,7 @@ function loadCache(){
     if(Array.isArray(r.kgPurities)) S.kgPurities=r.kgPurities;
     if(Array.isArray(r.kgAgreements)) S.kgAgreements=r.kgAgreements;
     if(Array.isArray(r.kgRoutes)) S.kgRoutes=r.kgRoutes;
+    if(Array.isArray(r.kgParked)) S.kgParked=r.kgParked;
     if(r.nextKgJobNo>0) S.nextKgJobNo=r.nextKgJobNo;
     if(Array.isArray(r.purchaseAuditLog)) S.purchaseAuditLog=r.purchaseAuditLog;
     if(Array.isArray(r.auditLog)) S.auditLog=r.auditLog;
