@@ -716,6 +716,35 @@ await test('A3: labour accrue and pay are owner-only in the client validator; th
   eq(a.kgValidateJournal(acc, 'owner'), ''); eq(a.kgValidateJournal(pay, 'owner'), '');
   var iss = build(a, 'ISSUE', {karigarId:'k1', fineMg:5000}).journal; eq(a.kgValidateJournal(iss, 'manager'), '', 'gold entries still open to a manager');
 });
+function asRole(a, role){ a.SAAS.user = {name:'U', email:role + '@example.com', role:role}; }
+function loadFlag(a){ return new Promise(function(res){ a.kgLoadLedgerFlag(function(err, on){ res({err:err, on:on}); }); }); }
+function setFlag(a, on){ return new Promise(function(res){ a.kgSetLedger(on, function(err){ res(err); }); }); }
+await test('ledger flag: the server decides; a failed ask falls back to what this device last knew; never from the shop data', async function(){
+  var a = fresh(); blobShop(a); asRole(a, 'owner'); a.S.kgLedgerOn = false;
+  server(a, [{status:200, body:{ok:true, ledger_on:true}}]);
+  var r1 = await loadFlag(a); ok(!r1.err); eq(a.S.kgLedgerOn, true); eq(a.calls[0].body.action, 'kg_status');
+  server(a, ['netfail']); a.S.kgLedgerOn = false;
+  var r2 = await loadFlag(a); ok(r2.err, 'reports the failure'); eq(a.S.kgLedgerOn, true, 'falls back to the last known answer');
+  server(a, [{status:200, body:{ok:true, ledger_on:false}}]); await loadFlag(a); eq(a.S.kgLedgerOn, false, 'the server overrides the cache');
+  server(a, [{status:400, body:{error:'unknown action'}}]); await loadFlag(a); eq(a.S.kgLedgerOn, false, 'an old server means off');
+  var fs = require('fs'), path = require('path');
+  ['00-config-state.js', '01-sync-core.js', '04-orders-detail.js', '05-auth-login.js'].forEach(function(f){
+    ok(!/kgLedgerOn/.test(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8').replace(/\/\/.*$/gm, '')), f + ' never stores or restores the flag');
+  });
+});
+await test('ledger flag: only the owner can switch it, and nothing is sent otherwise', async function(){
+  var m = fresh(); blobShop(m); asRole(m, 'manager'); server(m, [{status:200, body:{ok:true, ledger_on:true}}]);
+  var e = await setFlag(m, true); ok(e && /owner/i.test(e.message), e && e.message); eq(m.calls.length, 0); ok(m.S.kgLedgerOn !== true);
+  var a = fresh(); blobShop(a); asRole(a, 'owner'); server(a, [{status:200, body:{ok:true, ledger_on:true}}]);
+  var e2 = await setFlag(a, true); ok(!e2, e2 && e2.message); eq(a.calls[0].body.action, 'kg_set_ledger'); eq(a.calls[0].body.on, true); eq(a.S.kgLedgerOn, true);
+  server(a, [{status:403, body:{error:'owner only'}}]); var e3 = await setFlag(a, false); ok(e3, 'server refusal is an error'); eq(a.S.kgLedgerOn, true, 'unchanged on refusal');
+});
+await test('ledger flag: Reports shows the switch to the owner only', async function(){
+  var a = parkedShop(); a.S.kgLedgerOn = false; var h = a.kg2ReportsHtml();
+  ok(/Ledger is off/i.test(h) && /kg2ToggleLedger\(/.test(h), 'owner sees the status and the button');
+  var m = parkedShop('manager'); m.S.kgLedgerOn = true; var hm = m.kg2ReportsHtml();
+  ok(/Ledger is on/i.test(hm) && !/kg2ToggleLedger\(/.test(hm), 'manager sees the status, no button');
+});
 await test('the shop blob save now carries the build number (so the server can refuse a stale phone)', async function(){
   var fs = require('fs'), path = require('path');
   var sync = fs.readFileSync(path.join(__dirname, '..', 'js', '01-sync-core.js'), 'utf8');

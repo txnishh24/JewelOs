@@ -12,6 +12,9 @@ await db.exec(fs.readFileSync(MIG, 'utf8'));
 await db.exec(fs.readFileSync(MIG, 'utf8'));            // idempotent: second run must not fail
 await db.exec(fs.readFileSync(MIG2, 'utf8'));           // 011 replaces kg_post_journal (hardening)
 await db.exec(fs.readFileSync(MIG2, 'utf8'));           // and is idempotent too
+const MIG3 = fileURLToPath(new URL('../supabase/migrations/012_karigar_ledger_flag.sql', import.meta.url));
+await db.exec(fs.readFileSync(MIG3, 'utf8'));           // 012: server-held ledger flag + owner-only labour
+await db.exec(fs.readFileSync(MIG3, 'utf8'));           // idempotent too
 let failed = 0;
 const ok = (c, m) => { if (!c) { failed++; console.log('FAIL', m); } else console.log('ok  ', m); };
 
@@ -244,7 +247,7 @@ r = await post('H', 'ISSUE', [L('VAULT', '', -1), L('KCUST', 'kh', 1)], { role: 
 ok(!r.ok && /labour/.test(r.error), 'audit2: a metal journal cannot carry labour lines (no quiet erasing of a payable)');
 r = await post('H', 'LABOUR_ACCRUE', [], { role: 'manager', labour: [] });
 ok(!r.ok && /labour/.test(r.error), 'audit2: a labour journal with no labour is refused');
-r = await post('H', 'LABOUR_PAY', [], { role: 'manager', labour: [{ karigar_id: 'kh', amount_paise: -300 }] }); ok(r.ok, 'audit2: a proper labour payment posts');
+r = await post('H', 'LABOUR_PAY', [], { role: 'owner', labour: [{ karigar_id: 'kh', amount_paise: -300 }] }); ok(r.ok, 'audit2: a proper labour payment posts (owner, since 012)');
 
 // only a reversal may name a journal, enforced in the database
 const anyA = (await db.query("select id from kg_journal where shop_id='A' limit 1")).rows[0].id;
@@ -391,5 +394,31 @@ ok(!r.ok && /reserved/.test(r.error), 'migr: an existing non-OPENING row under a
 r = await post('Z', 'ISSUE', [L('VAULT', '', -100), L('KCUST', 'kz', 100)], { role: 'manager', op: 'migr:legacy01' });
 ok(!r.ok && /reserved/.test(r.error), 'migr: a manager re-sending that id is refused as reserved');
 
+// ── 012: the ledger flag is held by the server, not the shop data ─────────────────────────
+r = (await db.query("select kg_ledger_status('F1') as on")).rows[0]; ok(r.on === false, '012: a shop with no row has the ledger off');
+await db.query("select kg_set_ledger('F1', true, 'owner-user')");
+r = (await db.query("select kg_ledger_status('F1') as on")).rows[0]; ok(r.on === true, '012: owner switched it on');
+r = (await db.query("select kg_ledger_status('F2') as on")).rows[0]; ok(r.on === false, '012: another shop is unaffected');
+await db.query("select kg_set_ledger('F1', false, 'owner-user')");
+r = (await db.query("select kg_ledger_status('F1') as on")).rows[0]; ok(r.on === false, '012: and off again');
+ok(await count('kg_ledger_flag') === 1, '012: one row per shop, updated in place');
+for (const t of ['kg_ledger_flag']) {
+  const g = (await db.query("select has_table_privilege('anon', $1, 'select') a, has_table_privilege('authenticated', $1, 'select') b", [t])).rows[0];
+  ok(!g.a && !g.b, '012: the flag table is closed to anon and authenticated');
+}
+r = await post('L', 'LABOUR_ACCRUE', [], { role: 'manager', labour: [{ karigar_id: 'kl', amount_paise: 1000 }] });
+ok(!r.ok && /owner/.test(r.error), '012: a manager cannot accrue labour (database layer): ' + r.error);
+r = await post('L', 'LABOUR_PAY', [], { role: 'manager', labour: [{ karigar_id: 'kl', amount_paise: -100 }] });
+ok(!r.ok && /owner/.test(r.error), '012: a manager cannot pay labour');
+r = await post('L', 'LABOUR_ACCRUE', [], { role: 'owner', labour: [{ karigar_id: 'kl', amount_paise: 1000 }] });
+ok(r.ok, '012: the owner can accrue labour'); const lj12 = r.journal_id;
+r = await post('L', 'REVERSAL', [], { role: 'manager', reverses: lj12, labour: [{ karigar_id: 'kl', amount_paise: -1000 }] });
+ok(!r.ok && /owner/.test(r.error), '012: a manager cannot reverse a labour journal');
+r = await post('L', 'REVERSAL', [], { role: 'owner', reverses: lj12, labour: [{ karigar_id: 'kl', amount_paise: -1000 }] });
+ok(r.ok, '012: the owner can reverse it');
+r = await post('L', 'ISSUE', [L('VAULT', '', -5), L('KCUST', 'kl', 5)], { role: 'manager' });
+ok(r.ok, '012: a manager can still post gold entries');
+
 console.log(failed ? `\n${failed} FAILED` : '\nall passed');
 process.exit(failed ? 1 : 0);
+

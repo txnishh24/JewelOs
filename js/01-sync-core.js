@@ -777,6 +777,7 @@ function _dataFingerprint(){
 
 function startAutoRefresh(){
   if(refreshTimer) clearInterval(refreshTimer);
+  try{ kgLoadLedgerFlag(); }catch(e){} // whether this shop's gold goes through the ledger: asked of the server, not read from the shop data
   try{ kgTryFlush(); }catch(e){} // gold entries still waiting for the ledger, tried once at start and on every tick
   refreshTimer = setInterval(function(){
     try{ kgTryFlush(); }catch(e){}

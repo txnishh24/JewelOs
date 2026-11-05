@@ -568,8 +568,8 @@ function kgUndoAudit(auditId){
 }
 
 // With the shop's ledger flag on (S.kgLedgerOn === true), gold entries go to the server ledger first and the blob entry
-// is only saved after the server gives a definite answer. shortcut: the flag is read here but not yet persisted or
-// switchable from a screen (that needs the backup/restore touchpoints), and APPROVAL, REVERSAL and proposed-LOSS
+// is only saved after the server gives a definite answer. The flag is asked of the server (kgLoadLedgerFlag), never stored in the
+// shop data; the owner switches it on Reports (kg2ToggleLedger). shortcut: APPROVAL, REVERSAL and proposed-LOSS
 // entries are refused while it is on; add them with the Task 4 screens.
 function kgLedgerJournalFor(entry){
   var covered = {ISSUE:1, RECEIPT:1, SCRAP:1, ADJUST:1, LOSS:1};
@@ -1462,6 +1462,19 @@ function kg2RejectedHtml(){
   });
   return html;
 }
+function kg2LedgerHtml(){
+  var on = S.kgLedgerOn === true, owner = kgUser().role === 'owner';
+  return '<div class="kg2-sec">Ledger switch</div><div class="kg2-note' + (on ? '' : ' warn') + '">Ledger is ' + (on ? 'on' : 'off') + '. ' +
+    (on ? 'Gold entries go to the server ledger first and need internet.' : 'Gold entries are saved in the shop data only.') + '</div>' +
+    (owner ? '<div class="kg2-row">' + kg2Btn(on ? 'Turn ledger off' : 'Turn ledger on', 'kg2ToggleLedger()') + '</div>' : '');
+}
+function kg2ToggleLedger(){
+  var turnOn = S.kgLedgerOn !== true;
+  safeConfirm(turnOn ? 'Turn the ledger on?' : 'Turn the ledger off?',
+    turnOn ? 'From now on every gold issue, receipt, scrap and adjustment goes to the server ledger first and needs internet. Check that "Blob vs ledger" below shows no difference before you do this.'
+           : 'Gold entries will be saved in the shop data only again. What is already on the ledger stays there, and the two will drift apart. Only do this if you were told to.',
+    function(){ kgSetLedger(turnOn, function(err){ if(err){ toast(err.message); return; } renderKgV2(); toast(turnOn ? '✓ Ledger is on' : 'Ledger is off'); }); }, !turnOn);
+}
 function kg2ReconHtml(){
   var st = _kgRecon.state, html = '<div class="kg2-sec">Blob vs ledger</div>';
   if(st === 'loading') return html + '<div class="kg2-empty">Checking the ledger...</div>';
@@ -1513,7 +1526,7 @@ function kg2ReportsHtml(){
       html += '<div class="kg2-line kg2-click" onclick="kg2OpenJob(' + kg2Q(o.job.id) + ')"><div><b>' + escHtml(o.job.jobNo) + '</b> &middot; ' + name(o.job.karigarId) + '</div><div class="kg2-num warn">' + kgFmtG(-o.openFine) + '</div></div>';
     });
   }
-  return html + kg2ParkedHtml() + kg2RejectedHtml() + kg2ReconHtml();
+  return html + kg2ParkedHtml() + kg2RejectedHtml() + kg2LedgerHtml() + kg2ReconHtml();
 }
 
 function kg2AddTouch(){

@@ -440,6 +440,19 @@ Deno.serve(async (req) => {
         if (!r.ok) return json({ ok: false, error: "rejected", message: r.error }, 422, origin);
         return json({ ok: true, duplicate: !!r.duplicate, journal_id: r.journal_id }, 200, origin);
       }
+      // Whether this shop posts gold through the ledger is held here, not in the shop data (which any staff login can rewrite).
+      if (body.action === "kg_status") {
+        const { data: on, error: serr } = await supabase.rpc("kg_ledger_status", { p_shop_id: shopKey });
+        if (serr) { console.error("[store-proxy] kg_status failed:", serr.message); return json({ error: "kg_status failed" }, 500, origin); }
+        return json({ ok: true, ledger_on: on === true }, 200, origin);
+      }
+      if (body.action === "kg_set_ledger") {
+        if (role !== "owner") return json({ error: "owner only" }, 403, origin);
+        if (typeof kb.on !== "boolean") return json({ error: "on must be true or false" }, 400, origin);
+        const { data: on, error: serr } = await supabase.rpc("kg_set_ledger", { p_shop_id: shopKey, p_on: kb.on, p_by: session.userId });
+        if (serr) { console.error("[store-proxy] kg_set_ledger failed:", serr.message); return json({ error: "kg_set_ledger failed" }, 500, origin); }
+        return json({ ok: true, ledger_on: on === true }, 200, origin);
+      }
       if (body.action === "kg_balances") {
         const { data, error: berr } = await supabase.rpc("kg_balances", { p_shop_id: shopKey });
         if (berr) { console.error("[store-proxy] kg_balances failed:", berr.message); return json({ error: "kg_balances failed" }, 500, origin); }

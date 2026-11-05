@@ -1,8 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════
 // KARIGAR 2.0 — ledger client (phase 5a). Talks to the immutable journal in Postgres through
-// store-proxy (supabase/migrations/010_karigar_ledger.sql). NOT yet used by any screen: the
-// live V2 screens still read and write the shop blob. Screens switch over (phase 5b) only after
-// the migration has been applied to a test project and you approve.
+// store-proxy (supabase/migrations/010-012). The V2 screens use it only when the server says the shop's
+// ledger is on (kgLoadLedgerFlag, set by the owner on Reports); with it off they read and write the shop data.
 //
 // Units: fine gold in integer MILLIGRAMS, labour in integer PAISE. A journal is a set of signed
 // lines that must sum to zero, so metal can never be created or destroyed by one posting.
@@ -307,6 +306,30 @@ function kgMigrateBlobToLedger(cb, opts){
       next();
     });
   })();
+}
+
+// ── the ledger switch: held by the server, never in the shop data (any staff login can rewrite that) ─────
+// S.kgLedgerOn lives in memory only. It is asked of the server after sign-in; if the ask fails the device falls back to
+// the last answer it got, so a shop that is switched on does not quietly post to the shop data only.
+// shortcut: a person who can edit this phone's storage can change the fallback; they could already edit the shop data.
+function kgFlagKey(){ return shopScopedKey('kg_ledger_flag'); }
+function kgFlagStore(on){ S.kgLedgerOn = on === true; try{ localStorage.setItem(kgFlagKey(), S.kgLedgerOn ? '1' : '0'); }catch(e){} }
+function kgLoadLedgerFlag(cb){
+  if(!kgCan(kgUser().role, 'manager')){ if(cb) cb(null, S.kgLedgerOn === true); return; }
+  kgRemote({action:'kg_status'}, function(err, body, status){
+    if(!err && status === 200 && body && body.ok){ kgFlagStore(body.ledger_on === true); if(cb) cb(null, S.kgLedgerOn); return; }
+    var cached = false; try{ cached = localStorage.getItem(kgFlagKey()) === '1'; }catch(e){}
+    S.kgLedgerOn = cached;
+    if(cb) cb(err || new Error('Could not ask the server whether the ledger is on'), S.kgLedgerOn);
+  });
+}
+function kgSetLedger(on, cb){
+  if(kgUser().role !== 'owner') return cb(new Error('Only the owner can switch the ledger'));
+  kgRemote({action:'kg_set_ledger', on:on === true}, function(err, body, status){
+    if(err) return cb(new Error('Could not reach the server. Check the internet and try again.'));
+    if(status === 200 && body && body.ok){ kgFlagStore(body.ledger_on === true); return cb(null); }
+    cb(new Error(status === 403 ? 'Only the owner can switch the ledger' : 'The server could not change it. Nothing was changed.'));
+  });
 }
 
 // ── reverse a parked entry: the ledger has it, the shop data refused it ──────────────────────────
