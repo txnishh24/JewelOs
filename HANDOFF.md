@@ -70,6 +70,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-06 (hundred-and-sixty-third entry) · Claude Code (Sonnet) — browser check of the three new Karigar screens on the E2E shop; one wording fix; NOT merged, NOT applied, NOT deployed
+
+Playwright (393x851, E2E shop `77c4aefe`, `saveToCloud` stubbed, state injected in the page, nothing written to the shop): (1) job screen shows "1 gold entry is waiting for confirmation from the ledger..." for a queued entry; (2) Reports shows the parked row and an owner-only "Reverse on ledger" button; clicking it opens the form (reason field, Cancel, Reverse); (3) `salesKeptNote()` returned "2 unsent bills stay on this phone..." for a bill outbox under another shop. No page errors. Found and fixed: the singular waiting line said "They send on their own"; now "It sends". The throwaway spec was deleted.
+
+**Verified:** the above in a real browser; ledger client 70/0, `karigar-v2` 66/0. **Not verified:** pressing Reverse (it would call the real ledger, migrations 010/011 are not applied); the sign-out and expired-login notices themselves (only the note text); a real phone; Reports with several parked rows.
+
+→ FOR COWORK: nothing — FYI only. Still do NOT apply 010/011, deploy `store-proxy`, or merge `karigar-2-task-2-5`.
+
 ### 2026-11-06 (hundred-and-sixty-second entry) · Claude Code (Sonnet) — Tanish's decision on unsent sales: keep and warn; sign-out and expiry notices now say unsent bills stay on the phone; NOT merged, NOT applied, NOT deployed
 
 **Decided by Tanish (6 Nov): keep and warn** (not sweep). Checked first: `_clearDeviceSession` never deleted `jewelos_sale_outbox::<shop>`, so unsent bills already survive sign-out and are sent when that shop signs in again; the only gap was that nobody was told. New `salesKeptNote()` (`js/02-ui-inactivity-modals.js`) counts bills across every shop on the device and is added to the manual sign-out confirm, the forced sign-out notice and the expired-login notice (`js/05-auth-login.js`). Nothing is deleted. `ssj_unsynced` and `ssj_last_active` unchanged: they are flags, not data; `ssj_cache` is still wiped on sign-out as before (security review 14 Sep, finding 9). Also committed `checks/globals.json` (Tanish said yes; it also held pre-existing additions by others).

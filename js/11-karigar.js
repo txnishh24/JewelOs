@@ -1030,7 +1030,7 @@ function kg2JobHtml(job){
     (job.earnings.fixedFine ? ' (' + kgFmtG(job.earnings.percentFine) + ' percentage + ' + kgFmtG(job.earnings.fixedFine) + ' fixed)' : '') +
     (job.earnings.labourPaise ? ' &middot; labour ' + kgFmtRs(job.earnings.labourPaise) + ' on ' + kgFmtG(job.earnings.labourBase === 'fine' ? job.earnings.fineMg : job.earnings.netMg) + ' ' + escHtml(job.earnings.labourBase) + ' weight' : '') + '</div>';
   var kgQ = kgQueuedForJob(job.id);
-  if(kgQ > 0) html += '<div class="kg2-note warn">' + kgQ + ' gold entr' + (kgQ === 1 ? 'y is' : 'ies are') + ' waiting for confirmation from the ledger. Do not enter ' + (kgQ === 1 ? 'it' : 'them') + ' again. They send on their own when the phone is online.</div>';
+  if(kgQ > 0) html += '<div class="kg2-note warn">' + kgQ + ' gold entr' + (kgQ === 1 ? 'y is' : 'ies are') + ' waiting for confirmation from the ledger. Do not enter ' + (kgQ === 1 ? 'it' : 'them') + ' again. ' + (kgQ === 1 ? 'It sends' : 'They send') + ' on their own when the phone is online.</div>';
   if(b.pendingLoss > 0) html += '<div class="kg2-note warn">A loss of ' + kgFmtG(b.pendingLoss) + ' fine is waiting for owner approval.</div>';
   if(b.openFine > 0 && job.status === 'open') html += '<div class="kg2-note">Any metal not yet returned stays on the karigar. It is never counted as wastage or loss on its own.</div>';
   if(job.status === 'open'){
