@@ -7,7 +7,7 @@ Tanish has no coding background. Explain the reasoning, not just the fix.
 
 **Priority:** does this move JewelOS closer to sellable? If not, say so before building it.
 
-Full previous version (all history, agent tables, gstack tables): `docs/CLAUDE-MD-FULL-2026-11-05.md`.
+Full previous version (all history): `docs/CLAUDE-MD-FULL-2026-11-05.md`.
 
 ## Before touching anything
 
@@ -32,26 +32,10 @@ Full previous version (all history, agent tables, gstack tables): `docs/CLAUDE-M
 
 ## The codebase
 
-PWA: `index.html` plus numbered `js/` modules, loaded in order. ~18,000 lines.
-
-| File | Owns |
-|---|---|
-| `00-config-state.js` | Supabase config, constants, the `S` state object, shared helpers |
-| `01-sync-core.js` | Cloud load/save, store-proxy calls, debounced renderers |
-| `02-ui-inactivity-modals.js` | Inventory item modals, sale item entry, PIN inactivity |
-| `03-billing-numbers.js` | Bills, GST, sale totals, order item rows |
-| `04-orders-detail.js` | Orders, the `SAAS` object, PIN key helpers, `PLAN_LIMITS` |
-| `05-auth-login.js` | Login/signup, staff, Razorpay, settings panel, digest |
-| `06-inventory-stock.js` | Inventory list, stock, onboarding checklist |
-| `07-settings-plans.js` | Settings tabs, audit views, girvi list rendering |
-| `08-girvi-viewmode.js` | Girvi detail, receipts, `cloudDiag()` |
-| `09-purchases.js` | Purchase bills, suppliers, purchase→stock sync |
-| `10-daybook.js` | Day Book (rojmel): cash-in/out, Close Day, locked-day adjustments |
-| `11-karigar.js`, `12-karigar-data.js` | Karigar (artisan) accounts and the ledger client |
-
-Grep before assuming placement — `SAAS`, `PLAN_LIMITS` and the PIN helpers live in the
-*orders* file. **Do not create a new module file** without Tanish's explicit sign-off and a
-new feature domain too large for any existing file.
+PWA: `index.html` plus numbered `js/00`–`js/12` modules, loaded in order, ~18,000 lines.
+The module-by-module map loads automatically when you open `js/` files
+(`.claude/rules/modules.md`). Grep before assuming placement. **Do not create a new module
+file** without Tanish's explicit sign-off.
 
 Backend: Supabase project `uluzuwomwqsqxtejgzmf`, all access through Edge Functions
 (`store-proxy`, `auth-gateway`, `razorpay-webhook`). No direct PostgREST calls. Each shop is
@@ -86,18 +70,11 @@ Then say plainly what you could **not** verify. Never let a build sound more tes
 
 ## Agents — decide yourself, don't ask Tanish which
 
-Use only the agents a task needs; skip them for trivial edits. `jewelos-*` agents beat generic
-reviewers on `js/` diffs (they know the bug families and the one-blob rules). Full table with
-gstack skills: `docs/CLAUDE-MD-FULL-2026-11-05.md`. Short version:
-
-- **After any `js/` change** → `jewelos-bug-pattern-reviewer`, then `jewelos-test-runner`
-- **Diff touches sale/stock, billing, girvi, purchases, daybook or sync** → `jewelos-invariant-tester`
-- **Auth, session, payment, RLS/migration, per-shop data access** → `jewelos-security-auditor`
-- **After every deploy, before saying it's live** → `jewelos-deploy-verifier`
-- **Before any release** → all four above plus `jewelos-readiness-auditor`
-- **End of any session** → `jewelos-handoff-writer`
-- **Destructive work (migration, deploy, DB)** → `/careful` first. **Planning a 🔴 task** → `/plan-eng-review`.
-- **Find bugs in a browser** → `/qa-only` against a local build or E2E test shop `77c4aefe`, never a customer shop.
+Full routing table, rules and gstack skills: `.claude/rules/agents.md`. Use only the agents a
+task needs; skip them for trivial edits; `jewelos-*` agents beat generic reviewers on `js/` diffs.
+Minimum: after a `js/` change run `jewelos-bug-pattern-reviewer` then `jewelos-test-runner`; after
+a deploy run `jewelos-deploy-verifier` before saying it is live; at session end run
+`jewelos-handoff-writer`. Before a destructive step (migration, deploy, DB) run `/careful`.
 
 ## graphify (code map, Claude Code only)
 
