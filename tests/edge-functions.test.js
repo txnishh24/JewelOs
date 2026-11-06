@@ -169,6 +169,8 @@ function makeClient(db) {
       }
       if (name === 'kg_post_journal') return Promise.resolve({ data: [db.kgReply || { ok: true, duplicate: false, journal_id: 7, error: null }], error: null });
       if (name === 'kg_balances') return Promise.resolve({ data: db.kgBal || [], error: null });
+      if (name === 'kg_ledger_status') return Promise.resolve({ data: !!db.kgOn, error: null });
+      if (name === 'kg_set_ledger') { db.kgOn = args.p_on; return Promise.resolve({ data: args.p_on, error: null }); }
       if (name === 'kg_journal_list') return Promise.resolve({ data: db.kgJournals || [], error: null });
       if (name === 'increment_shop_counter') { var k = args.p_shop_id + '_' + args.p_counter; db.counters[k] = (db.counters[k] || 0) + 1; return Promise.resolve({ data: db.counters[k], error: null }); }
       return Promise.resolve({ data: null, error: { message: 'unknown rpc ' + name } });
@@ -1074,6 +1076,23 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     eq(kgCalls()[0].args.p_labour[0].amount_paise, 250000, 'paise forwarded');
     eq((await sp(ownerTok, 'POST', kgGood({ type: 'REVERSAL', op_id: 'op-rev-000001', reverses_id: 12 }))).status, 200, 'reversal');
     eq(kgCalls()[1].args.p_reverses_id, 12, 'target forwarded');
+  });
+  await test('ledger: labour and entitlement journals are owner-only; the ledger switch is readable by owner and manager, settable by the owner alone', async function () {
+    var lab = { type: 'LABOUR_PAY', op_id: 'op-labp-000001', lines: [], labour: [{ karigar_id: 'k1', amount_paise: -1000 }] };
+    var ent = { type: 'ENTITLEMENT_ACCRUE', op_id: 'op-ent-000001', lines: [{ account: 'ENT', owner_ref: 'k1', fine_mg: 50 }, { account: 'EARNED', owner_ref: 'k1', fine_mg: -50 }] };
+    db.rpcCalls.length = 0;
+    eq((await sp(mgrTok, 'POST', kgGood(lab))).status, 400, 'manager LABOUR_PAY');
+    eq((await sp(mgrTok, 'POST', kgGood(Object.assign({}, lab, { type: 'LABOUR_ACCRUE', op_id: 'op-laba-000001' })))).status, 400, 'manager LABOUR_ACCRUE');
+    eq((await sp(mgrTok, 'POST', kgGood(ent))).status, 400, 'manager ENTITLEMENT_ACCRUE');
+    eq(kgCalls().length, 0, 'none reached the database');
+    db.kgOn = false;
+    eq((await sp(ownerTok, 'POST', { action: 'kg_set_ledger', on: true })).body.ledger_on, true, 'owner switches on');
+    eq((await sp(mgrTok, 'POST', { action: 'kg_status' })).body.ledger_on, true, 'manager reads it');
+    eq((await sp(mgrTok, 'POST', { action: 'kg_set_ledger', on: false })).status, 403, 'manager cannot switch');
+    eq((await sp(ownerTok, 'POST', { action: 'kg_set_ledger', on: 'yes' })).status, 400, 'on must be a boolean');
+    eq(db.kgOn, true, 'refused calls changed nothing');
+    eq((await sp(kgStaffTok, 'POST', { action: 'kg_status' })).status, 403, 'staff');
+    eq((await sp(roTok, 'POST', { action: 'kg_set_ledger', on: false })).status, 403, 'readonly');
   });
   await test('ledger: a refusal by the ledger rules is a 422 with its reason; a repeat is reported as a duplicate; a database fault is a 500 with no detail', async function () {
     db.kgReply = { ok: false, duplicate: false, journal_id: null, error: 'account KCUST k1 would go negative (-5)' };

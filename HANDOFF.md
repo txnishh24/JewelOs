@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Live ledger rollout, 6 Nov (172nd-175th entries):** steps 1-4 DONE (011, 012, `store-proxy` v17 on live; step 4 checks passed); flag OFF; branch `karigar-2-task-2-5` NOT merged, waiting on Tanish. Nothing else is claimed. batch67 (Karigar 2.0 phases 3-4) is LIVE on the Cloudflare worker (deployed 31 Oct, Version ID `9bb23a74-04ab-463a-a296-e588478b3837`, rollback tag `batch66-live`). Older deploy history is in the archive.
+> **Claude Code, 6 Nov (Tanish: "do 1,2,3,4"):** merging `karigar-2-task-2-5`, deploying the worker, then turning the ledger on for the E2E shop `77c4aefe` only. Claimed until the 176th entry.
 
 ---
 
