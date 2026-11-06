@@ -45,7 +45,8 @@ const ALLOWED_COUNTERS = new Set([
 // ── Karigar 2.0 ledger (supabase/migrations/010_karigar_ledger.sql) ──
 // The shop id is NEVER read from the request: it is the tenant resolved from the session
 // token, exactly like the blob. Only owner and manager may touch the ledger; ADJUST and
-// OPENING and ENTITLEMENT_ACCRUE are owner-only (migration 011 enforces this in the database too).
+// OPENING are owner-only (migration 011 enforces this in the database too). Managers MAY accrue and
+// settle entitlements (Tanish, 4 Nov).
 // Staff and readonly are refused.
 const KG_TYPES = new Set([
   "ISSUE", "RETURN", "RECEIPT", "SCRAP", "LOSS", "TRANSFER_OUT", "TRANSFER_IN",
@@ -62,7 +63,9 @@ const KG_ROLES = new Set(["owner", "manager"]);
 const MIN_CLIENT_BUILD = Number(Deno.env.get("MIN_CLIENT_BUILD") ?? "0") || 0;
 const buildOf = (v: unknown) => (typeof v === "number" && isFinite(v) ? v : 0);
 const isInt = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v);
-const isStr = (v: unknown, max: number) => typeof v === "string" && v.length <= max;
+// A NUL character passes length checks but Postgres refuses it (22021), which would surface as a 500 the
+// client retries forever and jam that device's queue, so it is refused here.
+const isStr = (v: unknown, max: number) => typeof v === "string" && v.length <= max && v.indexOf("\u0000") === -1;
 
 // Returns an error string, or the RPC arguments. Shape and size limits only: the balance rules
 // (sum to zero, no negative custody, exact mirror reversals) are enforced inside the database.
@@ -112,7 +115,7 @@ function checkKgJournal(b: Record<string, unknown>, role: string, userId: string
   const outLabour: unknown[] = [];
   for (const l of labour as Record<string, unknown>[]) {
     if (!l || typeof l !== "object") return "bad labour line";
-    if (!isStr(l.karigar_id, 64) || !l.karigar_id) return "karigar_id required";
+    if (!isStr(l.karigar_id, 64) || !l.karigar_id || !/^[A-Za-z0-9_-]+$/.test(l.karigar_id as string)) return "karigar_id required (letters, digits, _ and - only)";
     if (!isInt(l.amount_paise) || l.amount_paise === 0 || Math.abs(l.amount_paise as number) > 1e12) return "amount_paise must be a non-zero whole number";
     if (l.mode != null && !isStr(l.mode, 20)) return "mode too long";
     outLabour.push({ karigar_id: l.karigar_id, amount_paise: l.amount_paise, mode: l.mode ?? null });
@@ -348,6 +351,14 @@ Deno.serve(async (req) => {
       return json({ error: "read failed" }, 500, origin);
     }
     if (!rows || rows.length === 0) return json(null, 200, origin);
+    // The auto-refresh poll sends the version it already holds (?known=N, a query string rather than
+    // a header so no CORS change: an old server just ignores it). Same version = nothing to download
+    // (a shop blob is 0.5-3 MB; without this every open phone pulled it every minute).
+    const known = new URL(req.url).searchParams.get("known");
+    const stored = (rows[0].data as Record<string, unknown> | null)?._v;
+    if (known !== null && /^\d+$/.test(known) && typeof stored === "number" && Number(known) === stored) {
+      return json({ unchanged: true, _v: stored }, 200, origin);
+    }
     return json(rows[0], 200, origin);
   }
 
@@ -386,7 +397,8 @@ Deno.serve(async (req) => {
     if (result.conflict) {
       return json({ ok: false, conflict: true, data: result.current_data }, 409, origin);
     }
-    return json({ ok: true, data: result.new_data }, 200, origin);
+    // The client only reads _v from a success; echoing the whole blob back doubled every save's traffic.
+    return json({ ok: true, data: { _v: (result.new_data as Record<string, unknown>)?._v } }, 200, origin);
   }
 
   // ── COUNTERS ────────────────────────────────────────────────────────

@@ -49,7 +49,7 @@ function _getShopRowKey(){
   return '';
 }
 
-function loadFromCloud(callback, skipPush){
+function loadFromCloud(callback, skipPush, opts){
   // Waiting for the user to sign in again — the token is known dead.
   if(saasReauthPending()){ if(callback) callback(new Error('unauthenticated')); return; }
   // C2: a save from before a reload (or from any abandoned reauth wait) is
@@ -87,7 +87,12 @@ function loadFromCloud(callback, skipPush){
     if(!done){ done=true; setSyncStatus('err','Offline'); if(callback) callback(new Error('timeout')); }
   }, 9000);
 
-  fetch(SB_FUNCTIONS + '/store-proxy', {
+  // Auto-refresh only: say which version this phone already holds, so an unchanged shop answers with a
+  // few bytes instead of the whole blob. Never on a first load, and never while offline bills wait to
+  // be replayed (that happens on a full load).
+  var _knownQ = (opts && opts.known && _cloudLoadedOnce && _loadedVersion > 0 && !_readOutboxPending())
+    ? '?known=' + _loadedVersion : '';
+  fetch(SB_FUNCTIONS + '/store-proxy' + _knownQ, {
     method: 'GET',
     headers: Object.assign({}, SB_HEADERS, { 'x-session-token': (typeof SAAS!=='undefined' && SAAS.sessionToken) || '' })
   })
@@ -122,6 +127,13 @@ function loadFromCloud(callback, skipPush){
   })
   .then(function(row){
     clearTimeout(timer); if(done) return; done = true;
+    if(row && row.unchanged){
+      // Same throttle stamp a full load sets: the Settings "last sync" badge and the tab-switch
+      // staleness check both read it.
+      try{ localStorage.setItem('ssj_last_cloud_load', String(Date.now())); }catch(e){}
+      setSyncStatus('ok', 'Live ●'); if(callback) callback(null); return;
+    }
+    _cloudLoadedOnce = true;
     // row is null for a brand-new shop (store-proxy returns null, not 404) —
     // nothing to load yet; S already holds sane defaults, and the first
     // saveToCloud() will create the row via the proxy's upsert.
@@ -816,7 +828,7 @@ function startAutoRefresh(){
             }
           }
         }
-      });
+      }, false, { known: true });
     }
   }, AUTO_REFRESH_MS);
 }
@@ -846,6 +858,8 @@ function dismissSaveError(){
 // On save: compare version in DB with what we loaded.
 // If mismatch: another device saved newer data → show conflict warning.
 var _loadedVersion = 0;
+var _cloudLoadedOnce = false; // a full blob has been downloaded in this page: only then may a poll skip the download
+function _readOutboxPending(){ return typeof offlineSalesPending==='function' && offlineSalesPending() > 0; }
 
 function _getDataVersion(record){
   return (record && typeof record._v === 'number') ? record._v : 0;

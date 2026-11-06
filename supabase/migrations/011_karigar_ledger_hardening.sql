@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════
--- 011_karigar_ledger_hardening.sql  —  Karigar 2.0 Task 2.5. NOT applied to production.
+-- 011_karigar_ledger_hardening.sql  —  Karigar 2.0 Task 2.5. APPLIED to production uluzuwomwqsqxtejgzmf on 4 Nov 2026.
 -- Replaces public.kg_post_journal from 010 (same signature, same grants). Apply AFTER 010.
 -- Plan: docs/superpowers/plans/2026-11-03-karigar-2-remaining-phases.md, Task 2.5.
 -- Tested by tests/sql-kg-ledger.test.mjs section 14 (npm run test:sql).
@@ -214,8 +214,8 @@ begin
   end if;
 
   -- owner only: ADJUST / OPENING, and any line on the ADJ / OPENING accounts (also in a reversal)
-  -- (D1: an accrual creates the claim a settlement draws on, so it is owner only too)
-  if p_by_role <> 'owner' and (p_type in ('ADJUST', 'OPENING', 'ENTITLEMENT_ACCRUE')
+  -- (Tanish, 4 Nov: managers KEEP accrue and settle, so ENTITLEMENT_ACCRUE is not owner only)
+  if p_by_role <> 'owner' and (p_type in ('ADJUST', 'OPENING')
      or exists (select 1 from jsonb_array_elements(p_lines) l where l->>'account' in ('ADJ', 'OPENING'))) then
     return query select false, false, null::bigint, 'owner only'; return;
   end if;
@@ -237,7 +237,7 @@ begin
     if v_target.type = 'REVERSAL' then return query select false, false, null::bigint, 'cannot reverse a reversal'; return; end if;
     -- a reversal needs the authority of the original (the line check above also catches old rows)
     -- (anything the owner approved, such as an approved loss, can only be undone by the owner)
-    if p_by_role <> 'owner' and (v_target.type in ('ADJUST', 'OPENING', 'ENTITLEMENT_ACCRUE') or v_target.approved_by is not null) then
+    if p_by_role <> 'owner' and (v_target.type in ('ADJUST', 'OPENING') or v_target.approved_by is not null) then
       return query select false, false, null::bigint, 'owner only'; return;
     end if;
     -- metal lines must mirror the target exactly: same accounts and owners, fine_mg negated, same count

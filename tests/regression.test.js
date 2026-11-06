@@ -1681,6 +1681,59 @@ testAsync('C2 baseline: with no unsynced marker, loadFromCloud just does its nor
   });
 });
 
+// Audit 4 Nov, finding 2: the 60 s poll used to download the whole shop blob every time.
+// It now says which version it holds (?known=N); an unchanged shop answers {unchanged:true}.
+function pollApp(urls, answer){
+  var a = reauthApp('ok');
+  a.fetch = function(url){
+    urls.push(String(url));
+    return Promise.resolve({ status:200, ok:true, json:function(){ return Promise.resolve(answer(String(url))); } });
+  };
+  return a;
+}
+testAsync('poll: the first load of a page is always a full download, never ?known', function(){
+  var urls = [];
+  var a = pollApp(urls, function(){ return { data:{ _v:5, products:[] } }; });
+  a._loadedVersion = 5; // a stale version number must not be trusted before one full load
+  a.loadFromCloud(function(){}, false, { known:true });
+  return flushAll(16).then(function(){
+    assert(urls.length === 1 && urls[0].indexOf('known=') === -1, 'expected a plain GET, got ' + urls.join(','));
+  });
+});
+testAsync('poll: after a full load the next poll sends ?known=<version> and an unchanged answer leaves S alone', function(){
+  var urls = [];
+  var a = pollApp(urls, function(url){ return url.indexOf('known=7') !== -1 ? { unchanged:true, _v:7 } : { data:{ _v:7, products:[{ id:'cloud' }] } }; });
+  var r1 = 'pending', r2 = 'pending';
+  a.loadFromCloud(function(err){ r1 = err ? err.message : 'ok'; });
+  return flushAll(16).then(function(){
+    assert(r1 === 'ok' && a.S.products.length === 1, 'first load should fill S');
+    a.S.products = [{ id:'local-unsaved' }];
+    a.loadFromCloud(function(err){ r2 = err ? err.message : 'ok'; }, false, { known:true });
+    return flushAll(16);
+  }).then(function(){
+    assert(urls.length === 2 && urls[1].indexOf('?known=7') !== -1, 'poll must send ?known=7, got ' + urls.join(','));
+    assert(r2 === 'ok', 'an unchanged answer is a success, got ' + r2);
+    assert(a.S.products[0].id === 'local-unsaved', 'S must not be replaced when the cloud has not changed');
+  });
+});
+testAsync('poll: waiting offline bills force a full load (that is where they are replayed)', function(){
+  var urls = [];
+  var a = pollApp(urls, function(){ return { data:{ _v:7 } }; });
+  a.loadFromCloud(function(){});
+  return flushAll(16).then(function(){
+    a.offlineSalesPending = function(){ return 1; };
+    a.loadFromCloud(function(){}, false, { known:true });
+    return flushAll(16);
+  }).then(function(){
+    assert(urls.length === 2 && urls[1].indexOf('known=') === -1, 'expected a full GET while bills wait, got ' + urls.join(','));
+  });
+});
+test('store-proxy: unchanged GET and slim PUT success are in the source', function(){
+  var src = require('fs').readFileSync(require('path').join(__dirname, '..', 'supabase', 'functions', 'store-proxy', 'index.ts'), 'utf8');
+  assert(src.indexOf('{ unchanged: true, _v: stored }') !== -1, 'GET must answer unchanged for a matching ?known');
+  assert(src.indexOf('data: { _v:') !== -1 && src.indexOf('data: result.new_data }') === -1, 'PUT success must not echo the whole blob');
+});
+
 // Opus review item 3 (30 Sep): a save whose answer was lost may have landed.
 function landedApp(conflictSaveId){
   var a = loadApp();
