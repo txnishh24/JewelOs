@@ -15,6 +15,9 @@ await db.exec(fs.readFileSync(MIG2, 'utf8'));           // and is idempotent too
 const MIG3 = fileURLToPath(new URL('../supabase/migrations/012_karigar_ledger_flag.sql', import.meta.url));
 await db.exec(fs.readFileSync(MIG3, 'utf8'));           // 012: server-held ledger flag + owner-only labour
 await db.exec(fs.readFileSync(MIG3, 'utf8'));           // idempotent too
+const MIG4 = fileURLToPath(new URL('../supabase/migrations/014_history_anchor_and_accrual_owner_only.sql', import.meta.url));
+await db.exec(fs.readFileSync(MIG4, 'utf8'));           // 014: entitlement accrual owner-only in the database
+await db.exec(fs.readFileSync(MIG4, 'utf8'));
 let failed = 0;
 const ok = (c, m) => { if (!c) { failed++; console.log('FAIL', m); } else console.log('ok  ', m); };
 
@@ -227,7 +230,7 @@ ok(!r.ok && /settlement/.test(r.error), 'audit1: a settlement must be for one ka
 r = await post('H', 'ENTITLEMENT_ACCRUE', [L('ENT', 'kh', 100), L('EARNED', 'zz', -100)], { role: 'manager' });
 ok(!r.ok && /one karigar/.test(r.error), 'audit1: an accrual must clear against the same karigar');
 r = await post('H', 'ENTITLEMENT_ACCRUE', [L('ENT', 'kh', 100), L('EARNED', 'kh', -100)], { role: 'manager' });
-ok(r.ok, 'D1 (Tanish 4 Nov: managers keep accrual): a manager may record an entitlement accrual');
+ok(!r.ok && /owner/.test(r.error), '014 (6 Nov audit A3): a manager cannot record an entitlement accrual, in the database too');
 r = await post('H', 'ENTITLEMENT_ACCRUE', [L('ENT', 'kh', 100), L('EARNED', 'kh', -100)]); ok(r.ok, 'D1: the owner accrues');
 r = await post('H', 'ENTITLEMENT_SETTLE', [L('KCUST', 'kh', -300), L('PAYOUT', 'kh', 300), L('ENT', 'kh', -300), L('EARNED', 'kh', 300)], { role: 'manager' });
 ok(!r.ok && /negative/.test(r.error), 'audit1: a settlement cannot pay out more than was accrued (ENT never below zero)');
@@ -269,11 +272,11 @@ ok(!r.ok && /at least one line/.test(r.error), 'a metal journal with no lines is
 await db.query("insert into kg_shop_setting (shop_id, vault_tracked) values ('T', true)");
 await post('T', 'OPENING', [L('VAULT', '', 10000), L('OPENING', '', -10000)]);
 r = await post('T', 'ENTITLEMENT_ACCRUE', [L('ENT', 'kx', 10000), L('EARNED', 'kx', -10000)], { role: 'manager' });
-ok(r.ok, 'D1 (changed 4 Nov): a manager accrual posts; the accrue-then-settle route is accepted by Tanish');
+ok(!r.ok && /owner/.test(r.error), '014: a manager accrual is refused (owner only)');
 ok(await bal('T', 'VAULT', '') === 10000, 'D1: the tracked vault is untouched');
 await post('U', 'ISSUE', [L('VAULT', '', -5000), L('KCUST', 'k1', 5000)]);
 r = await post('U', 'ENTITLEMENT_ACCRUE', [L('ENT', 'k1', 5000), L('EARNED', 'k1', -5000)], { role: 'manager' });
-ok(r.ok && await bal('U', 'KCUST', 'k1') === 5000, 'D1 (changed 4 Nov): a manager accrual posts and does not itself touch custody');
+ok(!r.ok && await bal('U', 'KCUST', 'k1') === 5000, '014: a refused manager accrual leaves custody untouched');
 r = await post('U', 'ENTITLEMENT_ACCRUE', [L('ENT', 'k1', 2000), L('EARNED', 'k1', -2000)]); ok(r.ok, 'D1: owner accrues 2 g');
 r = await post('U', 'ENTITLEMENT_SETTLE', [L('KCUST', 'k1', -2000), L('PAYOUT', 'k1', 2000), L('ENT', 'k1', -2000), L('EARNED', 'k1', 2000)], { role: 'manager' });
 ok(r.ok, 'D1: a manager may settle what the owner accrued, from the karigar custody');
@@ -282,7 +285,13 @@ r = await post('U', 'ENTITLEMENT_SETTLE', [L('VAULT', '', -1000), L('PAYOUT', 'k
 ok(r.ok, 'D1: a manager may settle what the owner accrued, from the vault');
 const accId = (await db.query("select id from kg_journal where shop_id='U' and op_id='u-acc-2'")).rows[0].id;
 r = await post('U', 'REVERSAL', [L('ENT', 'k1', -1000), L('EARNED', 'k1', 1000)], { reverses: accId, role: 'manager' });
-ok(r.ok, 'D1 (changed 4 Nov): a manager may reverse an accrual');
+ok(!r.ok && /owner/.test(r.error), '014: a manager cannot reverse an accrual');
+await post('U', 'ENTITLEMENT_ACCRUE', [L('ENT', 'k1', 500), L('EARNED', 'k1', -500)], { op: 'u-acc-3' });
+const accId3 = (await db.query("select id from kg_journal where shop_id='U' and op_id='u-acc-3'")).rows[0].id;
+r = await post('U', 'REVERSAL', [L('ENT', 'k1', -500), L('EARNED', 'k1', 500)], { reverses: accId3, role: 'manager' });
+ok(!r.ok && /owner/.test(r.error), '014: a manager cannot reverse a fresh accrual either');
+r = await post('U', 'REVERSAL', [L('ENT', 'k1', -500), L('EARNED', 'k1', 500)], { reverses: accId3 });
+ok(r.ok, '014: the owner can reverse an accrual (' + (r.ok ? 'posted' : r.error) + ')');
 
 // D2a: owner references fit the account
 await post('V', 'ISSUE', [L('VAULT', '', -3000), L('KCUST', 'k1', 3000)]);
@@ -442,6 +451,7 @@ for (const role of ['owner', 'manager']) {
     ['ENTITLEMENT_SETTLE', { karigarId: 'k1', fineMg: 2000, from: 'vault' }],
     ['LABOUR_ACCRUE', { karigarId: 'k1', amountPaise: 90000 }], ['LABOUR_PAY', { karigarId: 'k1', amountPaise: 30000 }]]) {
     r = await bj(S, t, { ...o }, role, extra);
+    if (role === 'manager' && t === 'ENTITLEMENT_ACCRUE') { ok(!r.ok && /owner/.test(r.error), role + ': client ENTITLEMENT_ACCRUE refused by the ledger (owner only)'); r = await bj(S, t, { ...o }, 'owner', extra); ok(r.ok, role + ': the owner posts the accrual the settles need'); continue; }
     if (role === 'manager' && /^LABOUR_/.test(t)) { ok(!r.ok && /owner/.test(r.error), role + ': client ' + t + ' refused by the ledger (labour is owner only)'); continue; }
     ok(r.ok, role + ': client ' + t + (o.from ? ' from vault' : '') + ' accepted by the ledger' + (r.ok ? '' : ' (' + r.error + ')'));
   }
@@ -452,7 +462,7 @@ for (const role of ['owner', 'manager']) {
   for (const orig of all2) {
     const rb = app.kgBuildReversal(orig, 'cr' + (++n), 'client test reversal', ymd(0));
     r = await post(S, 'REVERSAL', rb.journal.lines, { op: rb.journal.op_id, reverses: orig.id, date: ymd(0), role, labour: rb.journal.labour, job: orig.job_id, voucher: orig.voucher_id });
-    ok(r.ok || /negative/.test(r.error) || (role === 'manager' && orig.type === 'LOSS' && /owner only/.test(r.error)), role + ': client reversal of ' + orig.type + ' shape accepted (' + (r.ok ? 'posted' : r.error) + ')');
+    ok(r.ok || /negative/.test(r.error) || (role === 'manager' && (orig.type === 'LOSS' || orig.type === 'ENTITLEMENT_ACCRUE') && /owner/.test(r.error)), role + ': client reversal of ' + orig.type + ' shape accepted (' + (r.ok ? 'posted' : r.error) + ')');
   }
 }
 // LOSS: manager without approver refused even when built by the client

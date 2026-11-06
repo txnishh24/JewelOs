@@ -9,7 +9,7 @@ const db = new PGlite();
 const R = fileURLToPath(new URL('../supabase/migrations/', import.meta.url));
 await db.exec(`create role anon; create role authenticated; create role service_role;
   create table public.store (id text primary key, data jsonb, updated_at timestamptz default now());`);
-for (const f of ['002_atomic_transactions.sql', '007_manual_store_edit_guard.sql', '013_store_history.sql']) {
+for (const f of ['002_atomic_transactions.sql', '007_manual_store_edit_guard.sql', '013_store_history.sql', '014_history_anchor_and_accrual_owner_only.sql']) {
   await db.exec(fs.readFileSync(R + f, 'utf8'));
 }
 
@@ -74,5 +74,20 @@ ok(typeof restored._saveId === 'string' && restored._saveId.startsWith('manual-'
 const priv = await db.query(`select has_table_privilege('anon','public.store_history','select') a,
   has_table_privilege('authenticated','public.store_history','select') b`);
 ok(priv.rows[0].a === false && priv.rows[0].b === false, 'anon and authenticated cannot read store_history');
+
+// 9. 014: a staff login cannot push the good copy out with crafted saves (the audit's 9-save attack)
+await save('G', blob(20), 0);                 // new shop, 20 good sales
+let gv = 1;
+await save('G', blob(0), gv++);               // 1: empty blob -> good copy (20 sales) is kept
+for (let i = 0; i < 4; i++) {
+  await save('G', blob(5), gv++);             // 2: five junk sales -> no copy (one is less than 6 h old)
+  await save('G', blob(0), gv++);             // 3: empty again -> shrink keeps the junk version
+}
+const gh = await hist('G');
+ok(gh.some(r => r.old_data.sales.length === 20), '014: the good 20-sale copy survives repeated shrink saves');
+ok(gh.length <= 4, '014: still at most 4 copies per shop (' + gh.length + ')');
+await age('G', 30);                            // everything older than a day: the anchor moves on, history still bounded
+await save('G', blob(5), gv++); await save('G', blob(0), gv++);
+ok((await hist('G')).length <= 4, '014: bounded after the anchor ages out');
 
 console.log(process.exitCode ? '\nFAILED' : '\nall passed');

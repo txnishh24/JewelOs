@@ -657,6 +657,13 @@ await test('reverse a parked entry: Reports shows the button to the owner only',
   var a = parkedShop(); ok(/kg2ReverseParked\(/.test(a.kg2ReportsHtml()), 'owner sees it');
   var m = parkedShop('manager'); ok(!/kg2ReverseParked\(/.test(m.kg2ReportsHtml()), 'manager does not');
 });
+await test('the reverse confirm shows the ledger journal itself (author, day, lines), not the shop data text', async function(){
+  var a = fresh();
+  var t = a.kgJournalSummary({type:'ISSUE', business_date:'2026-11-06', by_user:'u-staff', by_role:'manager', lines:[{account:'VAULT', owner_ref:'', fine_mg:-5000}, {account:'KCUST', owner_ref:'k1', fine_mg:5000}]});
+  ok(t.indexOf('ISSUE') >= 0 && t.indexOf('2026-11-06') >= 0 && t.indexOf('u-staff') >= 0 && t.indexOf('manager') >= 0, 'type, day, author and role are shown');
+  ok(t.indexOf('KCUST k1 5.000 g') >= 0 && t.indexOf('VAULT -5.000 g') >= 0, 'every line is shown with its gold');
+  ok(typeof a.kgJournalSummary({}) === 'string', 'a sparse journal does not throw');
+});
 await test('unsent bills: sign-out keeps them on the phone, and the notice counts every shop', async function(){
   var a = fresh(); eq(a.salesKeptNote(), '');
   a.localStorage.setItem('jewelos_sale_outbox::shop-1', JSON.stringify([{sale:{id:'s1'}}, {sale:{id:'s2'}}]));

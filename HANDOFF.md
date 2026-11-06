@@ -69,6 +69,15 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-07 (hundred-and-eightieth entry) · Claude Code (Sonnet) — small fixes from the pre-release audit, in the repo only: migration 014 written (NOT applied to live), reverse-confirm shows the ledger journal, CORS test fixed; NOT deployed
+
+**Done:** (1) NEW `supabase/migrations/014_history_anchor_and_accrual_owner_only.sql` (NOT APPLIED to live): the `store_history` trim now keeps the newest 3 copies plus the oldest copy of the last 24 h, so the 9-crafted-saves attack cannot push the good copy out (new test fails without 014, passes with it); and the `kg_journal` owner-only trigger now covers `ENTITLEMENT_ACCRUE` (and reversing it), so the database agrees with `store-proxy` (the old "manager may accrue" SQL tests were flipped to expect a refusal; settle stays open to managers). (2) `js/11-karigar.js`: the parked-entry Reverse screen now asks the server for the journal and shows its type, day, author, role and lines (`kgJournalSummary`) before the owner confirms; new test. (3) `tests/edge-functions.test.js`: Netlify is now expected to be NOT reflected (it is no longer a listed host), so that long-standing failure is gone. (4) `013_store_history.sql` header said "012", now "013" (comment only; the applied function is unchanged).
+**Left out on purpose:** the sign-out leftovers (`kg_outbox_posted`, `kg_ledger_flag`): keeping the accepted-date memory across sign-out was a deliberate Opus-review decision (169th entry) and the flag cache is per shop; no change.
+**Verified:** syntax; regression 493/0; karigar-v2 66/0; ledger client 91/0; edge-functions 86/0; sql-kg-ledger and sql-store-history all passed; the ten `checks/` scripts as before. `jewelos-bug-pattern-reviewer` on the new JS: no findings. **Not verified:** a browser click-through of the new confirm text; 014 on a real Postgres (only PGlite); the ledger logic still wants an Opus review per MODEL-POLICY.
+**To go live:** apply 014 (SQL only, Cowork or Claude Code with Tanish's word), then redeploy the app as batch70 for the confirm-screen text. 014 is safe to apply alone (no app change needed).
+→ FOR COWORK: nothing — FYI only. Do not apply 014 until Tanish says.
+→ FOR TANISH: say "apply 014" to put the two database fixes on live; say "deploy batch70" when you want the confirm-screen change on the worker.
+
 ### 2026-11-07 (hundred-and-seventy-ninth entry) · Claude Code (Sonnet) — batch69 DEPLOYED to the Cloudflare worker on Tanish's word and verified live; ledger flag still OFF everywhere
 
 **Deployed:** `main` at `9fbbfe4` = batch68 + Karigar 2.0, `APP_BUILD` 69, `sw.js` cache `jewelos-v24` (`docs/CHANGES-batch69.md`). `node build-cf-deploy-stage.js batch69`, then `npx wrangler deploy`. Version ID `4077aa65-baed-4841-a974-c45509489f7a`. Tag `batch69-live`; rollback: redeploy `batch68-live` (works with `store-proxy` v18).

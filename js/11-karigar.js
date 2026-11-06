@@ -1442,10 +1442,24 @@ function kg2Reconcile(){
     renderKgV2();
   });
 }
+// The parked list lives in the shop data, which a staff login can rewrite, so the confirm screen shows what the
+// LEDGER itself holds for this entry (author, day, lines), not the text in the shop data.
+function kgJournalSummary(j){
+  var parts = [];
+  (j.lines || []).forEach(function(l){ parts.push(String(l.account) + (l.owner_ref ? ' ' + String(l.owner_ref) : '') + ' ' + kgFmtG(l.fine_mg)); });
+  return 'On the ledger: ' + String(j.type) + ' on ' + String(j.business_date) + ' by ' + String(j.by_user || '?') + ' (' + String(j.by_role || '?') + '). ' + parts.join('; ');
+}
 function kg2ReverseParked(parkedId){
-  kgForm({title:'Reverse this on the ledger', submitLabel:'Reverse', doneToast:'✓ Reversed on the ledger',
-    fields:[{id:'reason', label:'Reason (required)'}],
-    onSubmit:function(v, fin){ kgReverseParked(parkedId, v.reason, function(err){ fin(err); }); }});
+  var p = null;
+  (S.kgParked || []).forEach(function(x){ if(x.id === parkedId) p = x; });
+  if(!p){ toast('That entry is no longer parked'); return; }
+  kgFindServerJournal(p.opId, function(err, orig){
+    if(err){ toast(err.message); return; }
+    if(!orig){ toast('The ledger has no entry with this id. Check the karigar ledger before doing anything.'); return; }
+    kgForm({title:'Reverse this on the ledger', submitLabel:'Reverse', doneToast:'✓ Reversed on the ledger',
+      fields:[{id:'reason', label:'Reason (required)', hint:kgJournalSummary(orig)}],
+      onSubmit:function(v, fin){ kgReverseParked(parkedId, v.reason, function(err2){ fin(err2); }); }});
+  });
 }
 function kg2ParkedHtml(){
   var list = S.kgParked || [];

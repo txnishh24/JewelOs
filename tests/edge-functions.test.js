@@ -965,7 +965,7 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
   await test('CORS: listed origins and any localhost/127.0.0.1 port are reflected; look-alikes get the default', async function () {
     var DEFAULT = 'https://jewelos.jewelos-e2e.workers.dev';
     var cases = [
-      ['https://heartfelt-queijadas-eeb356.netlify.app', true], ['https://jewelos-test.pages.dev', true],
+      ['https://jewelos.jewelos-e2e.workers.dev', true], ['https://jewelos-test.pages.dev', true], ['https://heartfelt-queijadas-eeb356.netlify.app', false], // Netlify is no longer a listed host
       ['http://localhost:4173', true], ['http://localhost', true], ['http://127.0.0.1:8766', true],
       ['http://localhost.evil.com', false], ['http://localhost:4173.evil.com', false], ['http://localhost:80@evil.com', false],
       ['http://evil.com/?http://localhost', false], ['http://evil.localhost', false], ['https://localhost:4173', false],
