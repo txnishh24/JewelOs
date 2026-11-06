@@ -55,7 +55,7 @@ setInterval(function(){
 // ─── CONSTANTS ────────────────────────────────────────────────────────────
 // Bumped on every deploy. Sent with every save and ledger post so the server can refuse a stale phone
 // (store-proxy MIN_CLIENT_BUILD) instead of letting it overwrite newer data. Batch66 was build 66.
-var APP_BUILD = 68;
+var APP_BUILD = 69;
 var G_PUR=['24K','22K','18K','14K','Gold Plated'];
 var S_PUR=['999 Pure','925 Sterling','800','Silver Plated'];
 // Karigar provenance (29 Oct): fineness per purity, by metal -- used ONLY to
