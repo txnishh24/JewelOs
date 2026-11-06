@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Claude Code, 7 Nov: batch68 MERGED into `main` (177th entry, `acbd461`), NOT deployed, NOT pushed.** Live is still batch68 (old line); `main` is now batch68 + Karigar 2.0. Deploy only when Tanish says. Nothing claimed.
+> **Claude Code, 7 Nov: backend for `main` is LIVE (178th entry): migration 013 applied, `store-proxy` v18 deployed. The APP is NOT deployed** (live app still batch68 from the old branch). Nothing claimed.
 ---
 
 ## WAITING ON TANISH
@@ -68,6 +68,15 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-07 (hundred-and-seventy-eighth entry) · Claude Code (Sonnet) — on Tanish's word: migration `013_store_history` applied to LIVE and `store-proxy` v18 deployed from `main`; app NOT deployed
+
+**Done (project `uluzuwomwqsqxtejgzmf`, `/careful` run first):** `013_store_history` applied (table `store_history`, trigger `_store_history` on `store`; additive, closed to anon/authenticated). `store-proxy` v18 ACTIVE, `verify_jwt` true, file = `main` at `2c5c8b1` (27,318 bytes; has batch68's `?known=` poll skip plus Karigar `kg_status`/`kg_set_ledger`/owner-only labour). `auth-gateway` and `razorpay-webhook` untouched. Ledger flag still off.
+**Checked after:** `store_history` exists, trigger present (1), anon and authenticated cannot read it; `npm run test:e2e` against live: 23 passed; `store_history` then holds 1 copy, for the E2E shop only (the trigger fires). **Rollback:** trigger off: `drop trigger _store_history on public.store;` (table can stay); `store-proxy`: redeploy v17 text from `git show 943517b:supabase/functions/store-proxy/index.ts` plus the `kg_*` additions, or the `main` file at `0a2ed17`.
+**Not verified:** deployed text byte for byte against the repo file (sent as read, not fetched back); the trigger under a real customer save (none made); `jewelos-security-auditor` and `jewelos-deploy-verifier` not run (no app deploy yet).
+**Still not done:** deploying the app (`main`, APP_BUILD 68, sw cache v23) to the Cloudflare worker. Needs Tanish's word, then `jewelos-deploy-verifier`.
+→ FOR COWORK: nothing — FYI only.
+→ FOR TANISH: say "deploy the app" when you want `main` put on the worker; I will run the pre-release agents first.
 
 ### 2026-11-07 (hundred-and-seventy-seventh entry) · Claude Code (Sonnet) — merged `claude/yoo-e1b0af` (batch68) into `main` as `acbd461` (fast-forward from a tested merge branch); NOT pushed, NOT deployed
 
