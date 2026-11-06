@@ -22,8 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Claude Code, 6 Nov: STOPPED before deploy** (176th entry). `main` now holds `karigar-2-task-2-5` but is NOT what is live: live is batch68 from branch `claude/yoo-e1b0af`. Do not deploy `main` until Tanish decides. Nothing claimed.
-
+> **Claude Code, 7 Nov: batch68 MERGED into `main` (177th entry, `acbd461`), NOT deployed, NOT pushed.** Live is still batch68 (old line); `main` is now batch68 + Karigar 2.0. Deploy only when Tanish says. Nothing claimed.
 ---
 
 ## WAITING ON TANISH
@@ -69,6 +68,14 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-07 (hundred-and-seventy-seventh entry) · Claude Code (Sonnet) — merged `claude/yoo-e1b0af` (batch68) into `main` as `acbd461` (fast-forward from a tested merge branch); NOT pushed, NOT deployed
+
+**Conflicts resolved:** labour owner-only (JS, `store-proxy`) and the 401 re-sign-in path kept from main (newer decisions). `HANDOFF.md` kept from main, so the batch68 branch's own LOG entries (135th-onwards of that line) are NOT in this file; they stay in git history on `claude/yoo-e1b0af`. batch68's `012_store_history.sql` renamed **`013_store_history.sql`** (main already has `012_karigar_ledger_flag.sql`). Two tests fixed: batch68's client-builder SQL test now expects a manager's labour post to be refused; a batch68 line in `karigar-ledger-client.test.js` that said a manager may accrue entitlement was reverted to main's owner-only rule.
+**Verified (run by me, in a separate worktree):** syntax ok; regression 493/0; karigar-v2 66/0; ledger client 90/0; sql-kg-ledger all passed; sql-store-history all passed; edge-functions 85 passed, 1 failed (the same `auth-gateway` CORS check that already failed on main: Netlify origin not reflected); the ten `checks/` scripts match main except reference counts. **Not verified:** `check.bat` itself, e2e, a browser, `jewelos-bug-pattern-reviewer`/`security-auditor` on the merged diff.
+**Open before any deploy:** `013_store_history.sql` may or may not already be on live (Cowork's read-only check from the 176th entry is still unanswered); `store-proxy` live v17 is main-line text, so it lacks batch68's `store-proxy` edits and the history table; `APP_BUILD` is 68 and sw.js cache v23 as in batch68. Deploying this build needs the store-history migration applied and `store-proxy` redeployed first.
+→ FOR COWORK: read-only: `list_migrations` on `uluzuwomwqsqxtejgzmf`: is any store-history migration applied? Do not change anything.
+→ FOR TANISH: say "push" to push `main`; deploy needs your separate word plus the two backend steps above.
 
 ### 2026-11-06 (hundred-and-seventy-sixth entry) · Claude Code (Sonnet) — merged `karigar-2-task-2-5` into `main` (fast-forward, pushed); STOPPED before deploy: live is batch68 from ANOTHER branch and `main` lacks it
 
