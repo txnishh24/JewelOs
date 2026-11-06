@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Claude Code, 7 Nov: backend for `main` is LIVE (178th entry): migration 013 applied, `store-proxy` v18 deployed. The APP is NOT deployed** (live app still batch68 from the old branch). Nothing claimed.
+> Nobody. **batch69 is LIVE on the Cloudflare worker** (7 Nov, Version ID `4077aa65-baed-4841-a974-c45509489f7a`, commit `9fbbfe4`, tag `batch69-live`, rollback tag `batch68-live`). Backend: migrations to 013, `store-proxy` v18. Ledger flag OFF for every shop.
 ---
 
 ## WAITING ON TANISH
@@ -68,6 +68,15 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-07 (hundred-and-seventy-ninth entry) · Claude Code (Sonnet) — batch69 DEPLOYED to the Cloudflare worker on Tanish's word and verified live; ledger flag still OFF everywhere
+
+**Deployed:** `main` at `9fbbfe4` = batch68 + Karigar 2.0, `APP_BUILD` 69, `sw.js` cache `jewelos-v24` (`docs/CHANGES-batch69.md`). `node build-cf-deploy-stage.js batch69`, then `npx wrangler deploy`. Version ID `4077aa65-baed-4841-a974-c45509489f7a`. Tag `batch69-live`; rollback: redeploy `batch68-live` (works with `store-proxy` v18).
+**Pre-release agents:** `jewelos-bug-pattern-reviewer` no findings (it had no shell, read the code only); `jewelos-invariant-tester` no missing test (nothing in the diff touches sale, Girvi, purchases or Day Book logic; sign-out now wipes only `kg_outbox` and `kg_outbox_rejected`); `jewelos-security-auditor` no blockers. Local: regression 493/0, karigar-v2 66/0, ledger client 90/0, both SQL suites pass, `checks/` as before. `jewelos-deploy-verifier`: PASS, every `js/` file, `sw.js` and `index.html` on live match the repo by hash, APP_BUILD 69, cache v24, security headers present, `wrangler.jsonc` and `.wrangler` return 404.
+**Auditor recommendations, not blockers (for later):** (1) `013_store_history.sql` can be pushed out by about 9 crafted saves from a staff login (trim keeps only 4 copies; fix: never trim copies younger than 24 h); (2) a staff login can plant a fake `kgParked` row so the owner is invited to reverse a real entry (needs the owner's click; fix: show the server journal's details on the confirm); (3) `ENTITLEMENT_ACCRUE` owner-only in `store-proxy` but not in the database trigger; (4) sign-out leaves `kg_outbox_posted` and `kg_ledger_flag` on the device; (5) 013 file header says "012".
+**Not verified:** `jewelos-readiness-auditor` not run; `check.bat` run by hand not as one file; no phone test of the new screens; `jewelos-security-auditor` did not run `get_advisors`; the `auth-gateway` CORS test still fails (Netlify origin not in the allowlist).
+→ FOR COWORK: nothing — FYI only. Ledger stays off; do not switch any shop on without Tanish.
+→ FOR TANISH: nothing needed. Next real sellability item is shop `3720af09`'s bill-save crash (`splitRows` in New Sale).
 
 ### 2026-11-07 (hundred-and-seventy-eighth entry) · Claude Code (Sonnet) — on Tanish's word: migration `013_store_history` applied to LIVE and `store-proxy` v18 deployed from `main`; app NOT deployed
 
