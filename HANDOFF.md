@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Waiting on Cowork** (Tanish, 6 Nov): steps 1-3 of the live ledger rollout, see the 172nd LOG entry. Claude Code does step 4 after. Nothing else is claimed. batch67 (Karigar 2.0 phases 3-4) is LIVE on the Cloudflare worker (deployed 31 Oct, Version ID `9bb23a74-04ab-463a-a296-e588478b3837`, rollback tag `batch66-live`). Older deploy history is in the archive.
+> **Live ledger rollout, 6 Nov (172nd-175th entries):** steps 1-4 DONE (011, 012, `store-proxy` v17 on live; step 4 checks passed); flag OFF; branch `karigar-2-task-2-5` NOT merged, waiting on Tanish. Nothing else is claimed. batch67 (Karigar 2.0 phases 3-4) is LIVE on the Cloudflare worker (deployed 31 Oct, Version ID `9bb23a74-04ab-463a-a296-e588478b3837`, rollback tag `batch66-live`). Older deploy history is in the archive.
 
 ---
 
@@ -69,6 +69,41 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-06 (hundred-and-seventy-fifth entry) · Claude Code (Sonnet) — step 4 DONE: live `store-proxy` v17 says ledger OFF and ledger empty on the E2E shop; `npm run test:e2e` 22 of 23 first run, the one failure passed on rerun; NOT merged
+
+**Read-only check on live** (E2E shop `77c4aefe`, owner login, through the app's own `kgRemote` and `kgLoadLedgerFlag`, temp spec deleted afterwards): `kg_status` → HTTP 200 `ledger_on:false`; `kg_balances` → HTTP 200, empty list; `kgLoadLedgerFlag` → off, not "unknown". `get_edge_function` shows `store-proxy` v17 ACTIVE, `verify_jwt` true, and the text contains `kg_status`, `kg_set_ledger`, the `migr:` rule and the real-date check. Nothing written to the ledger or the shop; `kg_set_ledger` not called.
+**`npm run test:e2e`:** 22 passed, 1 failed (`edit-bill-reports-newsale` "clearing Old Gold to 0 never posts a phantom Day Book Sale line": "Protocol error (Runtime.callFunctionOn): Internal server error, session closed", a browser crash, not an app assertion). That spec file rerun alone: 4 of 4 passed. Treated as a flaky browser crash; said plainly so it is not read as a clean first run.
+**Verified:** the checks above. **Not verified:** the deployed text byte for byte against the repo file (I read it and saw the key markers, did not diff it); `kg_status` as a manager or staff; any real ledger post on live (none made, on purpose); `check.bat` not re-run (no code changed this session).
+**Open for Tanish:** merge `karigar-2-task-2-5`? Step 4 passed, which was the condition. I did not merge. Turning a shop's ledger on is a separate later step (opening balances, Blob vs ledger check, switch) and needs his word.
+→ FOR COWORK: nothing — FYI only. Do not merge or switch any shop on without Tanish.
+→ FOR TANISH: say "merge" if you want the branch merged to main; say nothing and it stays as it is.
+
+### 2026-11-06 (hundred-and-seventy-fourth entry) · Cowork (Sonnet) — step 3 DONE: `store-proxy` v17 deployed to live after Tanish said "try again"; steps 1-3 complete; ledger flag still OFF; NOT merged
+
+**Tanish (6 Nov, 19:36): "try again".** The first deploy was denied (173rd entry); the retry went through. `list_edge_functions` before: `store-proxy` v16. Deploy: `deploy_edge_function` on `uluzuwomwqsqxtejgzmf`, name `store-proxy`, `verify_jwt` true, the working-tree file `supabase/functions/store-proxy/index.ts` (26,215 bytes, same mtime as when I first read it, so unchanged between the two tries). **Result returned by the deploy: `store-proxy` version 17, ACTIVE, `verify_jwt` true**, updated_at 1793974094317 (ms). `auth-gateway` (v13) and `razorpay-webhook` (v4) untouched.
+**Not done, on purpose:** `kg_set_ledger` not called (flag OFF everywhere); branch not merged; `public.store` untouched.
+**Verified:** the deploy result above (version 17, ACTIVE, JWT on). **Not verified:** that the deployed text equals the repo file byte for byte (the tool takes the content I send; I sent the file as read, but I did not fetch it back and diff); that `kg_status` answers `ledger_on:false` through the app (that is step 4, Claude Code's); that the file is branch head `222fcf5` or later.
+→ FOR CLAUDE CODE: steps 1-3 are done and checked as above. Do step 4 now (E2E shop `77c4aefe`: `kg_status` must say ledger off, `kg_balances` empty; then `npm run test:e2e`). Merge the branch only after step 4 passes. Optionally have `get_edge_function` fetched and diffed against the repo file. Your next entry is the 175th.
+→ FOR TANISH: nothing to do. Say the word if you want me to fetch the deployed function back and diff it against the repo file.
+
+### 2026-11-06 (hundred-and-seventy-third entry) · Cowork (Sonnet) — LIVE steps 1 and 2 DONE and checked; step 3 (`store-proxy` deploy) BLOCKED by the permission classifier; ledger flag still OFF
+
+**Tanish said yes in chat (6 Nov, about 15:25) to steps 1-3, and again "yes deploy it" after step 2.** Project `uluzuwomwqsqxtejgzmf`. Before: `list_migrations` showed 010 and the old 011; `kg_journal` 0 rows; `kg_post_journal` had no `migr:`; no `kg_ledger_flag`; `store-proxy` v16.
+1. **011 re-applied** (migration name `karigar_ledger_011_reapply_hardening`, full file text, comments left out). Check passed: `kg_post_journal` now contains `migr:` and the `EXCEPT ALL` mirror check; `kg_journal` still 0 rows.
+2. **012 applied** (`karigar_ledger_012_flag_and_owner_labour`, file text as in the repo). Checks passed: `kg_ledger_status` and `kg_set_ledger` exist (2), trigger `kg_journal_labour_owner_only` exists (1), `kg_ledger_flag` 0 rows (ledger OFF everywhere), `kg_journal` 0 rows. **One check DIFFERED from the entry:** `get_advisors` security shows, besides the expected INFO "RLS enabled, no policy" lints (19, covering all tables, `kg_ledger_flag` among them), **two WARN lints on `public.rls_auto_enable()`** (executable by anon and by signed-in users). That function is Supabase's own event-trigger helper (`ensure_rls`, `ddl_command_end`, owner `postgres`), not part of 010-012, so I believe it was already there; I did not take a before-and-after advisor snapshot, so that is inferred, not measured. Tanish saw this and said go on.
+3. **`store-proxy` deploy: DENIED.** `deploy_edge_function` (v17, `verify_jwt` true, file `supabase/functions/store-proxy/index.ts` from the working tree of branch `karigar-2-task-2-5`, 26,215 bytes, contains `kg_status` and `kg_set_ledger`) was refused by the auto-mode classifier with no reason. Same block Claude Code hit on `apply_migration`. I did not retry and did not try another route. **`store-proxy` is still v16 on live.** Note: `apply_migration` was allowed for me.
+
+**Not done, on purpose:** `kg_set_ledger` not called; branch not merged; `auth-gateway` and `razorpay-webhook` untouched; `public.store` untouched; 010 not re-applied.
+
+**State now:** live DB is at 010 + new 011 + 012; live `store-proxy` is v16, which does not know `kg_status` (answers 400, which the app treats as ledger off), so the live app is safe. Step 4 cannot run until step 3 is done.
+
+**HANDOFF.md incident (mine):** at about 15:45 I committed a stale 181,907-byte copy over this file by mistake (a failed `cp` in my build step), which removed entries 149-172 for a few minutes. I restored the full 172-entry text plus this entry from the 50,751-byte copy I had read. Claude Code: check that your 172nd entry and the trimmed layout are intact (`git diff HANDOFF.md`).
+
+**Verified:** all read-only checks above, after each write. **Not verified:** the deployed `store-proxy` (does not exist yet); that the working-tree file equals branch head `222fcf5` or later (the HEAD ref was `karigar-2-task-2-5`; I did not read the commit id).
+
+→ FOR TANISH: deploy `store-proxy` yourself (Supabase dashboard, Edge Functions, `store-proxy`, deploy the file `supabase/functions/store-proxy/index.ts`, keep "Verify JWT" on), or allow the tool call and tell me to retry.
+→ FOR CLAUDE CODE: steps 1-2 are live and checked. Step 3 is open (see above). Do step 4 only after `list_edge_functions` shows `store-proxy` v17. Check the HANDOFF.md incident note. Your next entry is the 174th.
 
 ### 2026-11-06 (hundred-and-seventy-second entry) · Claude Code (Sonnet) — COWORK TASK: apply 011 and 012 to the live project and deploy `store-proxy` (steps 1-3); Tanish assigned these to Cowork; the ledger flag stays OFF
 
