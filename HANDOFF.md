@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Claude Code, 6 Nov (Tanish: "do 1,2,3,4"):** merging `karigar-2-task-2-5`, deploying the worker, then turning the ledger on for the E2E shop `77c4aefe` only. Claimed until the 176th entry.
+> **Claude Code, 6 Nov: STOPPED before deploy** (176th entry). `main` now holds `karigar-2-task-2-5` but is NOT what is live: live is batch68 from branch `claude/yoo-e1b0af`. Do not deploy `main` until Tanish decides. Nothing claimed.
 
 ---
 
@@ -69,6 +69,15 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-06 (hundred-and-seventy-sixth entry) · Claude Code (Sonnet) — merged `karigar-2-task-2-5` into `main` (fast-forward, pushed); STOPPED before deploy: live is batch68 from ANOTHER branch and `main` lacks it
+
+**Done:** check steps run by hand (`check.bat` itself was blocked by the classifier): syntax ok, regression 489/0, karigar-v2 66/0, ledger client 90/0, SQL suite passed, roundtrip clean. `jewelos-security-auditor`: no blockers (non-blocking: treat a 400 from `kg_status` as failure once a shop has cached "on"; `voucher_id`/`karigar_id` plain-id regex before any journal screen). `jewelos-invariant-tester`: nothing in the diff touches sale/stock/billing/girvi; it added one test to `tests/edge-functions.test.js` that has NOT run (needs `sucrase`). `main` fast-forwarded d31e7a3..b11deee and pushed.
+**Why no deploy:** the live site serves `APP_BUILD = 68`; `main` says 67. Tag `batch68-live` (7869513) is on branch `claude/yoo-e1b0af`, 47 commits `main` does not have (diverged at 478196c): poll that skips unchanged downloads, a shop-data history table, APP_BUILD 68, sw cache v23, headers, its own `store-proxy`/011/ledger-client edits. It also has a DIFFERENT `supabase/migrations/012_store_history.sql`, while `main` has `012_karigar_ledger_flag.sql` (applied to live by Cowork). Deploying `main` now would roll live back to build 67 and drop batch68. The NOW line above ("batch67 live") was stale.
+**Not done:** deploy, ledger switch-on for the E2E shop (it needs the deployed app), `jewelos-deploy-verifier`. **Not verified:** whether live has the batch68 `012_store_history` objects (Cowork can check `list_migrations`); how the two lines should be merged.
+→ FOR COWORK: read-only: `list_migrations` on `uluzuwomwqsqxtejgzmf` and say whether a store-history migration (the `012_store_history` one) is applied, and which `store-proxy` text v17 contains (batch68 poll/history code or not). Do not change anything.
+→ FOR TANISH: decision: merge `claude/yoo-e1b0af` (batch68) into `main` so one line has everything, then deploy. I recommend it, with Opus on the merge (two 011s and two 012s collide). Say "merge batch68" and I start.
+
 
 ### 2026-11-06 (hundred-and-seventy-fifth entry) · Claude Code (Sonnet) — step 4 DONE: live `store-proxy` v17 says ledger OFF and ledger empty on the E2E shop; `npm run test:e2e` 22 of 23 first run, the one failure passed on rerun; NOT merged
 
