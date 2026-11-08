@@ -558,6 +558,7 @@ function kgValidateEntry(e, ctx){
     if(tgt.type === 'REVERSAL' || tgt.type === 'APPROVAL') return 'This entry cannot be reversed';
     if((tgt.type === 'CARRY_OUT' || tgt.type === 'TRANSFER_OUT' || tgt.type === 'TRANSFER_IN') && !e.pair) return 'This entry is reversed together with its pair';
     if(idx.reversed[tgt.id]) return 'Already reversed';
+    if(tgt.type === 'TRANSFER_IN' && kgKarigarJobFine(job, ledger, tgt.karigarId) < tgt.fineMg) return 'He has already passed that metal on - reverse that first';
     if(tgt.type === 'LOSS' && tgt.settle === 'cash' && kgLiveLossBill(ctx.salary, tgt.id)) return 'Reverse the loss bill first';
     if(String(e.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
     if(role === 'owner') return '';
@@ -1070,6 +1071,23 @@ function kgValidateV3(e, ctx, idx){
     if(e.creditFineMg !== expect || e.fineMg !== expect) return 'Credit does not match the rules (' + kgFmtG(expect) + ' fine expected)';
     return '';
   }
+  if(t === 'TRANSFER_OUT' || t === 'TRANSFER_IN'){
+    bad = kgMetalEntryOk(e); if(bad) return bad;
+    if(!e.voucherId) return 'A transfer needs a voucher';
+    if(t === 'TRANSFER_OUT'){
+      if(kgKarigarJobFine(job, ledger, e.karigarId) < e.fineMg) return 'He does not hold that much on this job';
+      return '';
+    }
+    var out = null;
+    for(var n = 0; n < ledger.length; n++){
+      var y = ledger[n];
+      if(y.voucherId !== e.voucherId || idx.reversed[y.id]) continue;
+      if(y.type === 'TRANSFER_OUT') out = y; else if(y.type === 'TRANSFER_IN') return 'This transfer is already recorded';
+    }
+    if(!out || out.jobId !== e.jobId || out.fineMg !== e.fineMg || out.mg !== e.mg || out.pu !== e.pu || kgMetalOf(out) !== e.metal) return 'No matching amount left the other karigar';
+    if(out.karigarId === e.karigarId) return 'A transfer needs two different karigars';
+    return '';
+  }
   if(t === 'CARRY_OUT'){
     if(!(e.fineMg > 0) || Math.floor(e.fineMg) !== e.fineMg) return 'Carry weight is not valid';
     if(!e.carryId) return 'Carry id missing';
@@ -1246,6 +1264,36 @@ function kgReverseCarry(carryId, reason, opId, done){
     {type:'REVERSAL', pair:true, opId:opId + ':i', jobId:'', stageId:'', karigarId:inn.karigarId, metal:kgMetalOf(inn), reversesId:inn.id, reason:why}
   ], function(err, list, dup){ done(err, list, dup); });
 }
+
+// \u2500\u2500 Karigar to karigar transfer (batch 4): one voucher, two entries, one save \u2500\u2500
+// v: {jobId, fromStageId, toStageId, wt, purity, chip, confirmed, opId, note}. The receiving side must be a stage with its own karigar.
+function kgTransfer(v, done){
+  var job = kgFindJob(v.jobId);
+  if(!job) return done(new Error('Job not found'));
+  if(job.model !== 'points') return done(new Error('This job uses the old rules'));
+  if(!v.toStageId) return done(new Error('Choose the stage the metal goes to'));
+  var mg = kgParseMg(v.wt); if(mg === null) return done(new Error('Enter the weight in grams (up to 3 decimals)'));
+  var p = kgResolvePu(v.purity, v.chip, v.confirmed);
+  if(p.error) return done(new Error(p.error));
+  if(p.confirm){ var c = new Error(p.confirm); c.confirm = true; return done(c); }
+  var from = kgStageKarigarId(job, v.fromStageId || ''), to = kgStageKarigarId(job, v.toStageId), metal = kgMetalOf(job), fine = kgFineFromPu(mg, p.pu);
+  var voucher = v.opId + ':v', base = {jobId:job.id, metal:metal, mg:mg, pu:p.pu, purityKey:p.purityKey, fineMg:fine, voucherId:voucher, note:String(v.note || '').trim()};
+  var out = {type:'TRANSFER_OUT', opId:v.opId + ':o', stageId:v.fromStageId || '', karigarId:from}, inn = {type:'TRANSFER_IN', opId:v.opId + ':i', stageId:v.toStageId, karigarId:to};
+  Object.keys(base).forEach(function(x){ out[x] = base[x]; inn[x] = base[x]; });
+  kgAddEntries([out, inn], function(err, list, dup){ done(err, list, dup); });
+}
+// Undo a transfer: both halves together. The receiving karigar must still hold the metal.
+function kgReverseTransfer(voucherId, reason, opId, done){
+  var out = null, inn = null, idx = kgIndex(S.kgLedger || []);
+  (S.kgLedger || []).forEach(function(x){ if(x.voucherId === voucherId && !idx.reversed[x.id]){ if(x.type === 'TRANSFER_OUT') out = x; else if(x.type === 'TRANSFER_IN') inn = x; } });
+  if(!out || !inn) return done(new Error('Transfer not found'));
+  var why = String(reason || '').trim();
+  kgAddEntries([
+    {type:'REVERSAL', pair:true, opId:opId + ':i', jobId:inn.jobId, stageId:inn.stageId || '', karigarId:inn.karigarId, metal:kgMetalOf(inn), reversesId:inn.id, reason:why},
+    {type:'REVERSAL', pair:true, opId:opId + ':o', jobId:out.jobId, stageId:out.stageId || '', karigarId:out.karigarId, metal:kgMetalOf(out), reversesId:out.id, reason:why}
+  ], function(err, list, dup){ done(err, list, dup); });
+}
+
 // Reverse any ledger entry by its own job and karigar (a stage entry belongs to the stage's karigar, not the job's).
 function kgReverse(entryId, reason, opId, done){
   var t = null;

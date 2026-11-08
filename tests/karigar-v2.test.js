@@ -1185,5 +1185,78 @@ test('needed weight: rounds up so the fine covers the need, never overshoots by 
   eq(a.kgNeededWeightMg(5000, 5000, 9200), 0); eq(a.kgNeededWeightMg(5000, 9000, 9200), 0);
 });
 
+console.log('\nKarigar redesign batch 4 - karigar to karigar transfer, paired reversal');
+
+function chain(a, ptsA, ptsB){
+  var A = pk(a, 'Maker' + (++seq), 'wastage', ptsA), B = pk(a, 'Setter' + (++seq), 'wastage', ptsB);
+  var j = pjob(a, A);
+  var s1 = call(function(cb){ a.kgAddStage(j.id, 'Making', A.id, cb); }).v, s2 = call(function(cb){ a.kgAddStage(j.id, 'Setting', B.id, cb); }).v;
+  return {A:A, B:B, j:j, s1:s1, s2:s2};
+}
+function xfer(a, c, wt, pur, id){
+  return call(function(cb){ a.kgTransfer({jobId:c.j.id, fromStageId:c.s1.id, toStageId:c.s2.id, wt:wt, purity:pur, confirmed:true, opId:id || op()}, cb); });
+}
+test('transfer: the metal moves from one karigar to the other once; the job total does not change', function(){
+  var a = fresh(); var c = chain(a); issueV(a, c.j, '20', '92', c.s1.id);   // A holds 18.400
+  var jobBefore = bal(a, c.j).openFine, led = function(){ return a.S.kgLedger; };
+  var r = xfer(a, c, '10', '92'); ok(!r.err, r.err && r.err.message);
+  eq(a.kgKarigarJobFine(c.j, led(), c.A.id), 18400 - 9200); eq(a.kgKarigarJobFine(c.j, led(), c.B.id), 9200);
+  eq(bal(a, c.j).openFine, jobBefore, 'open fine on the job is the same'); eq(bal(a, c.j).transferIn, 9200); eq(bal(a, c.j).transferOut, 9200);
+  eq(a.kgKarigarJobFine(c.j, led(), c.A.id) + a.kgKarigarJobFine(c.j, led(), c.B.id), bal(a, c.j).openFine);
+});
+test('transfer: the receiving karigar can return it and is credited under his own points', function(){
+  var a = fresh(); var c = chain(a, '4', '3'); issueV(a, c.j, '20', '', c.s1.id, '999'); ok(!xfer(a, c, '10', '99.9').err);
+  eq(a.kgKarigarJobFine(c.j, a.S.kgLedger, c.B.id), 9990);
+  var r = receiptV(a, c.j, {gross:'5', purity:'99.9'}, c.s2.id);
+  eq(r.entry.pointsPu, 300, 'B own points'); eq(r.entry.creditFineMg, 5145); eq(a.kgKarigarJobFine(c.j, a.S.kgLedger, c.B.id), 9990 - 5145);
+});
+test('transfer: cannot move more than he holds, to himself, a missing stage, a wrong metal, or on a closed job', function(){
+  var a = fresh(); var c = chain(a); issueV(a, c.j, '10', '92', c.s1.id);     // A holds 9.200
+  ok(xfer(a, c, '11', '92').err, 'more than he holds');
+  var self = call(function(cb){ a.kgTransfer({jobId:c.j.id, fromStageId:c.s1.id, toStageId:c.s1.id, wt:'1', purity:'92', confirmed:true, opId:op()}, cb); }); ok(self.err, 'to himself');
+  ok(call(function(cb){ a.kgTransfer({jobId:c.j.id, fromStageId:c.s1.id, toStageId:'', wt:'1', purity:'92', confirmed:true, opId:op()}, cb); }).err, 'stage needed');
+  ok(call(function(cb){ a.kgTransfer({jobId:c.j.id, fromStageId:c.s1.id, toStageId:c.s2.id, wt:'1', purity:'49', confirmed:true, opId:op()}, cb); }).err, 'purity guard applies');
+  var u = call(function(cb){ a.kgTransfer({jobId:c.j.id, fromStageId:c.s1.id, toStageId:c.s2.id, wt:'1', purity:'91.82', opId:op()}, cb); }); ok(u.err && u.err.confirm, 'unusual purity asks first');
+  eq(a.S.kgLedger.length, 1, 'nothing was saved by the refused tries');
+});
+test('transfer: one save, all or nothing; a failed save leaves both karigars as they were; the same operation id saves once', function(){
+  var a = fresh(); var c = chain(a); issueV(a, c.j, '10', '92', c.s1.id); var id = op();
+  var r1 = xfer(a, c, '4', '92', id), r2 = xfer(a, c, '4', '92', id); ok(!r1.err && r2.dup === true); eq(a.S.kgLedger.length, 3);
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  ok(xfer(a, c, '1', '92').err); eq(a.S.kgLedger.length, 3, 'rolled back'); eq(a.kgKarigarJobFine(c.j, a.S.kgLedger, c.B.id), 3680);
+});
+test('transfer: reversed as a pair; one half alone is refused; not once he has passed the metal on', function(){
+  var a = fresh(); var c = chain(a); issueV(a, c.j, '10', '92', c.s1.id);
+  var r = xfer(a, c, '10', '92', 'tv1'); ok(!r.err);
+  var inn = a.S.kgLedger.filter(function(e){ return e.type === 'TRANSFER_IN'; })[0];
+  ok(call(function(cb){ a.kgReverse(inn.id, 'only one half', op(), cb); }).err, 'one half alone refused');
+  receiptV(a, c.j, {gross:'4', purity:'92'}, c.s2.id);                                   // B returns some of it
+  var blocked = call(function(cb){ a.kgReverseTransfer('tv1:v', 'sent to wrong karigar', op(), cb); }); ok(blocked.err && /passed that metal on/.test(blocked.err.message), 'B no longer holds it all');
+  var rb = a.S.kgLedger.filter(function(e){ return e.type === 'RECEIPT'; })[0];
+  ok(!call(function(cb){ a.kgReverse(rb.id, 'weighed wrong', op(), cb); }).err);
+  var ok1 = call(function(cb){ a.kgReverseTransfer('tv1:v', 'sent to wrong karigar', op(), cb); }); ok(ok1.err === null || ok1.err === undefined, ok1.err && ok1.err.message);
+  eq(a.kgKarigarJobFine(c.j, a.S.kgLedger, c.A.id), 9200); eq(a.kgKarigarJobFine(c.j, a.S.kgLedger, c.B.id), 0); eq(bal(a, c.j).transferIn, 0); eq(bal(a, c.j).transferOut, 0);
+  ok(call(function(cb){ a.kgReverseTransfer('tv1:v', 'again please', op(), cb); }).err, 'already reversed');
+});
+test('transfer: silver moves as silver; the gold account of both is untouched', function(){
+  var a = fresh(); var A = pk(a, 'SilverA'), B = pk(a, 'SilverB'); var j = pjob(a, A, {metal:'silver'});
+  var s1 = call(function(cb){ a.kgAddStage(j.id, 'Make', A.id, cb); }).v, s2 = call(function(cb){ a.kgAddStage(j.id, 'Polish', B.id, cb); }).v;
+  issueV(a, j, '100', '92.5', s1.id);
+  var r = call(function(cb){ a.kgTransfer({jobId:j.id, fromStageId:s1.id, toStageId:s2.id, wt:'40', purity:'92.5', confirmed:true, opId:op()}, cb); }); ok(!r.err, r.err && r.err.message);
+  eq(a.kgKarigarJobFine(j, a.S.kgLedger, B.id), 37000); eq(a.S.kgLedger.filter(function(e){ return e.metal === 'gold'; }).length, 0);
+});
+test('stage rule: a stage that returns to the shop first (receipt, then a fresh issue) and a direct transfer give the same custody', function(){
+  var a = fresh(); var c1 = chain(a, '0', '0'), c2 = chain(a, '0', '0');
+  issueV(a, c1.j, '10', '', c1.s1.id, '999'); receiptV(a, c1.j, {gross:'10', purity:'99.9'}, c1.s1.id); issueV(a, c1.j, '10', '99.9', c1.s2.id);
+  issueV(a, c2.j, '10', '', c2.s1.id, '999'); xfer(a, c2, '10', '99.9');
+  eq(a.kgKarigarJobFine(c1.j, a.S.kgLedger, c1.B.id), 9990); eq(a.kgKarigarJobFine(c2.j, a.S.kgLedger, c2.B.id), 9990);
+  eq(a.kgKarigarJobFine(c1.j, a.S.kgLedger, c1.A.id), 10); eq(a.kgKarigarJobFine(c2.j, a.S.kgLedger, c2.A.id), 10);
+  eq(bal(a, c1.j).openFine, bal(a, c2.j).openFine, 'both routes leave the same total open');
+});
+test('ledger switch ON: a transfer is refused like every new-style entry', function(){
+  var a = fresh(); var c = chain(a); issueV(a, c.j, '10', '92', c.s1.id); a.S.kgLedgerOn = true;
+  var r = xfer(a, c, '1', '92'); ok(r.err && /not available while the ledger is on/.test(r.err.message)); eq(a.S.kgLedger.length, 1);
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }
