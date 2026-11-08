@@ -70,6 +70,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-08 (hundred-and-eighty-seventh entry) · Claude Code (Sonnet) — `npm run test:e2e` run on Tanish's word against the E2E shop after batch70: 23 passed, 0 failed; nothing deployed or changed
+
+**Run:** `npm run test:e2e` (Playwright, chromium, 1 worker, local static server serving the repo at `c3c5ab6` = batch70, against the live backend with 014 applied). Shop: the "E2E Test Shop (do not delete)" from `.env.test` (the shop id `77c4aefe` is not written in that file, so I could not confirm the id from it). Result: **23 passed (3.9 min), 0 failed, no retries.** Specs: auth 5, daybook 1, edit-bill/reports/new-sale 4, failed-saves 2, girvi 1, invoice-date 1, invoice-numbers 1, offline 1, purchase 1, sale 2, session-restore 4. The suite writes test sales, loans and orders into that shop, as always.
+**What it says about 014:** nothing failed after 014 went live, so no sale, Girvi, purchase, Day Book, login or save path the suite touches was broken by it. 014 changes only the `store_history` trim (the suite's saves fire it) and the owner-only accrual trigger (not touched by these specs).
+**Not covered:** the new Karigar reverse-confirm screen (ledger off); a real customer shop; the `store_history` anchor under many saves; the live worker's own origin (the run used a local copy of the same files, byte-identical to live per the 186th entry).
+→ FOR COWORK: nothing — FYI only. Closes the "e2e not run" gap from the 184th-186th entries.
+→ FOR TANISH: nothing needed.
+
 ### 2026-11-08 (hundred-and-eighty-sixth entry) · Claude Code (Sonnet) — batch70 DEPLOYED to the Cloudflare worker on Tanish's word ("deploy batch70") and verified live; ledger flag still OFF everywhere
 
 **Deployed:** `main` at `c3c5ab6`, `APP_BUILD` 70, `sw.js` cache `jewelos-v25` (`docs/CHANGES-batch70.md`): the parked-entry Reverse screen shows the server journal (type, day, author, role, lines) before the owner confirms (`kgJournalSummary`). Only `js/00-config-state.js`, `js/11-karigar.js` and `sw.js` differ from batch69. `/careful` run first; `node build-cf-deploy-stage.js batch70`, `npx wrangler deploy --dry-run`, then `npx wrangler deploy`. Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`. Tag `batch70-live` (pushed, with `main`). Rollback: redeploy `batch69-live` (server side unchanged: 014 and `store-proxy` v18 work with both).
