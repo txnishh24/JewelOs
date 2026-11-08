@@ -1344,5 +1344,74 @@ test('order overlap chip: a points job linked to an order that has a stage for t
   var j2 = pjob(a, k); eq(a.kgOrderOverlap(j2).length, 0);
 });
 
+console.log('\nKarigar redesign batch 6 - rupee opening and statement, payments, refining lots');
+
+test('rupee opening balance: owner only, once, you-owe or he-owes, reversible', function(){
+  var a = fresh('owner'); var k = pk(a, 'R1');
+  function open(dir, amt){ return call(function(cb){ a.kgAddRupeeOpening({karigarId:k.id, dir:dir, amountText:amt, note:'from the old khata', opId:op()}, cb); }); }
+  ok(open('sideways', '1').err && /owe him or he owes you/.test(open('sideways', '1').err.message), 'direction must be owe or advance');
+  var o = open('owe', '12500'); ok(!o.err, o.err && o.err.message); eq(a.kgSalaryBalance(k.id).payable, 1250000);
+  ok(open('owe', '1').err, 'a second opening is refused');
+  ok(!call(function(cb){ a.kgAddSalary({type:'REVERSAL', opId:op(), karigarId:k.id, reversesId:o.v.id, reason:'wrong figure typed'}, cb); }).err); eq(a.kgSalaryBalance(k.id).payable, 0);
+  ok(!open('advance', '3000').err); eq(a.kgSalaryBalance(k.id).payable, -300000, 'he owes you: payable is negative, not netted into gold');
+  ok(a.kgAccount(k.id).gold.totalMg === 0, 'gold untouched');
+  a.SAAS.user.role = 'manager'; ok(call(function(cb){ a.kgAddRupeeOpening({karigarId:k.id, dir:'owe', amountText:'5', note:'manager try', opId:op()}, cb); }).err, 'manager refused');
+});
+test('payment: reduces what you owe, can be reversed; gold and rupees never meet', function(){
+  var a = fresh('owner'); var k = pk(a, 'R2', 'salary'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  a.S.kgSalary.push({id:'ac', opId:'ac', type:'ACCRUAL', karigarId:k.id, period:'2026-11', amountPaise:3000000, ts:'t', date:a.kgToday()});
+  var p = call(function(cb){ a.kgAddSalary({type:'PAYMENT', opId:op(), karigarId:k.id, amountPaise:1000000, mode:'cash'}, cb); }); ok(!p.err);
+  eq(a.kgAccount(k.id).rupees.payablePaise, 2000000); eq(a.kgAccount(k.id).gold.totalMg, 9200);
+  ok(!call(function(cb){ a.kgAddSalary({type:'REVERSAL', opId:op(), karigarId:k.id, reversesId:p.v.id, reason:'paid the wrong person'}, cb); }).err);
+  eq(a.kgAccount(k.id).rupees.payablePaise, 3000000);
+});
+test('rupee statement: running balance equals the register, opening line before the range, reversed rows at zero', function(){
+  var a = fresh('owner'); var k = pk(a, 'R3');
+  a.S.kgSalary.push({id:'o', opId:'o', type:'OPENING', dir:'owe', karigarId:k.id, amountPaise:100000, note:'open', ts:'2026-10-01T00:00:00Z', date:'2026-10-01'});
+  a.S.kgSalary.push({id:'a', opId:'a', type:'ACCRUAL', karigarId:k.id, period:'2026-11', amountPaise:300000, ts:'2026-11-02T00:00:00Z', date:'2026-11-02'});
+  a.S.kgSalary.push({id:'p', opId:'p', type:'PAYMENT', karigarId:k.id, amountPaise:50000, mode:'cash', ts:'2026-11-05T00:00:00Z', date:'2026-11-05'});
+  a.S.kgSalary.push({id:'r', opId:'r', type:'REVERSAL', karigarId:k.id, reversesId:'p', reason:'wrong person', ts:'2026-11-06T00:00:00Z', date:'2026-11-06'});
+  a.S.kgSalary.push({id:'d', opId:'d', type:'DEDUCTION', karigarId:k.id, amountPaise:20000, note:'loss bill', ts:'2026-11-07T00:00:00Z', date:'2026-11-07'});
+  var st = a.kgRupeeStatementRange(k.id, '2026-11-01', '2026-11-30');
+  eq(st.openingPaise, 100000); eq(st.rows.length, 3); eq(st.rows[0].balancePaise, 400000); eq(st.rows[1].state, 'reversed'); eq(st.rows[1].deltaPaise, 0); eq(st.rows[2].balancePaise, 380000);
+  eq(st.closingPaise, a.kgSalaryBalance(k.id).payable); eq(st.closingPaise, 380000);
+});
+test('refining lot: weighing sweepings lowers his account once and starts a pending lot; the assay credits the shop, not him', function(){
+  var a = fresh('owner'); var k = pk(a, 'F1'); var j = pjob(a, k); issueV(a, j, '10', '', '', '999');                                   // 10.000 fine
+  var b = a.kgBuildScrap(j.id, '', {wt:'0.5', purity:'80', confirmed:true, kind:'filings', opId:op()}); ok(b.entry, b.error);
+  ok(!call(function(cb){ a.kgAddEntry(b.entry, cb); }).err);
+  eq(a.kgAccount(k.id).gold.totalMg, 10000 - 400, 'his account drops by the fine in the sweepings (0.5 g at 80% = 0.400)');
+  var lots = a.kgRefineLots('gold'); eq(lots.length, 1); eq(lots[0].status, 'pending'); eq(lots[0].estFineMg, 400); eq(lots[0].kind, 'filings');
+  var v0 = a.kgShopMetalView('gold'); eq(v0.withKarigarsMg, 9600); eq(v0.refiningEstMg, 400); eq(v0.refinedMg, 0); eq(v0.withKarigarsMg + v0.refiningEstMg, 10000, 'nothing lost or doubled');
+  var c = call(function(cb){ a.kgRefineCredit({scrapId:lots[0].scrapId, fineText:'0.380', opId:op()}, cb); }); ok(!c.err, c.err && c.err.message);
+  eq(a.kgAccount(k.id).gold.totalMg, 9600, 'the assay does not touch his account');
+  var v1 = a.kgShopMetalView('gold'); eq(v1.refiningEstMg, 0); eq(v1.refinedMg, 380); eq(a.kgRefineLots('gold')[0].status, 'credited');
+});
+test('refining lot: owner only; once; not more than the weight sent; reversible; flag-off only', function(){
+  var a = fresh('owner'); var k = pk(a, 'F2'); var j = pjob(a, k); issueV(a, j, '10', '', '', '999');
+  var b = a.kgBuildScrap(j.id, '', {wt:'1', purity:'90', confirmed:true, kind:'dust', opId:op()}); call(function(cb){ a.kgAddEntry(b.entry, cb); });
+  var id = a.kgRefineLots('gold')[0].scrapId;
+  ok(call(function(cb){ a.kgRefineCredit({scrapId:id, fineText:'1.001', opId:op()}, cb); }).err, 'more fine than the weight sent');
+  ok(call(function(cb){ a.kgRefineCredit({scrapId:id, fineText:'abc', opId:op()}, cb); }).err);
+  a.SAAS.user.role = 'manager'; ok(call(function(cb){ a.kgRefineCredit({scrapId:id, fineText:'0.9', opId:op()}, cb); }).err, 'manager cannot record an assay'); a.SAAS.user.role = 'owner';
+  var c = call(function(cb){ a.kgRefineCredit({scrapId:id, fineText:'0.9', opId:op()}, cb); }); ok(!c.err);
+  ok(call(function(cb){ a.kgRefineCredit({scrapId:id, fineText:'0.8', opId:op()}, cb); }).err, 'once only');
+  ok(!call(function(cb){ a.kgReverse(c.v.id, 'assay slip was for another lot', op(), cb); }).err); eq(a.kgRefineLots('gold')[0].status, 'pending');
+  ok(!call(function(cb){ a.kgRefineCredit({scrapId:id, fineText:'0.85', opId:op()}, cb); }).err, 'can be re-entered after a reversal');
+  a.S.kgLedgerOn = true; ok(call(function(cb){ a.kgRefineCredit({scrapId:id, fineText:'0.5', opId:op()}, cb); }).err);
+});
+test('a reversed scrap entry drops out of the refining lots and gives the fine back to his account', function(){
+  var a = fresh('owner'); var k = pk(a, 'F3'); var j = pjob(a, k); issueV(a, j, '10', '', '', '999');
+  var b = a.kgBuildScrap(j.id, '', {wt:'1', purity:'90', confirmed:true, kind:'scrap', opId:op()}); var s = call(function(cb){ a.kgAddEntry(b.entry, cb); }).v;
+  eq(a.kgAccount(k.id).gold.totalMg, 9100);
+  ok(!call(function(cb){ a.kgReverse(s.id, 'weighed on the wrong scale', op(), cb); }).err);
+  eq(a.kgAccount(k.id).gold.totalMg, 10000); eq(a.kgRefineLots('gold').length, 0);
+});
+test('silver refining lots are separate from gold', function(){
+  var a = fresh('owner'); var k = pk(a, 'F4'); var j = pjob(a, k, {metal:'silver'}); issueV(a, j, '100', '', '', '999');
+  var b = a.kgBuildScrap(j.id, '', {wt:'5', purity:'90', confirmed:true, kind:'filings', opId:op()}); call(function(cb){ a.kgAddEntry(b.entry, cb); });
+  eq(a.kgRefineLots('silver').length, 1); eq(a.kgRefineLots('gold').length, 0); eq(a.kgShopMetalView('silver').refiningEstMg, 4500); eq(a.kgShopMetalView('gold').refiningEstMg, 0);
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }

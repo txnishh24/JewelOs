@@ -490,7 +490,8 @@ function kgSalaryBalance(karigarId){
   (S.kgSalary || []).forEach(function(e){ if(e.type === 'REVERSAL') rev[e.reversesId] = true; });
   (S.kgSalary || []).forEach(function(e){
     if(e.karigarId !== karigarId || e.type === 'REVERSAL' || rev[e.id]) return;
-    if(e.type === 'ACCRUAL' || e.type === 'JOB_LABOUR') t.accrued += e.amountPaise;
+    if(e.type === 'ACCRUAL' || e.type === 'JOB_LABOUR' || (e.type === 'OPENING' && e.dir === 'owe')) t.accrued += e.amountPaise;
+    else if(e.type === 'OPENING') t.advanced += e.amountPaise;
     else if(e.type === 'DEDUCTION') t.deducted += e.amountPaise;
     else if(e.type === 'ADVANCE') t.advanced += e.amountPaise;
     else if(e.type === 'PAYMENT') t.paid += e.amountPaise;
@@ -584,8 +585,16 @@ function kgValidateSalary(e, ctx){
     if(String(e.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
     return '';
   }
-  if(['ACCRUAL','ADVANCE','PAYMENT','DEDUCTION'].indexOf(e.type) === -1) return 'Unknown entry type';
+  if(['ACCRUAL','ADVANCE','PAYMENT','DEDUCTION','OPENING'].indexOf(e.type) === -1) return 'Unknown entry type';
   if(!(e.amountPaise > 0) || Math.floor(e.amountPaise) !== e.amountPaise) return 'Amount is not valid';
+  if(e.type === 'OPENING'){
+    if(e.dir !== 'owe' && e.dir !== 'advance') return 'Say whether you owe him or he owes you';
+    if(String(e.note || '').trim().length < 3) return 'A note is required';
+    var gone = {};
+    all.forEach(function(x){ if(x.type === 'REVERSAL') gone[x.reversesId] = true; });
+    for(var q = 0; q < all.length; q++) if(all[q].type === 'OPENING' && all[q].karigarId === k.id && !gone[all[q].id]) return 'An opening balance is already entered - reverse it first';
+    return '';
+  }
   if(e.type === 'ACCRUAL'){
     if(k.kind !== 'salary') return 'Only a salary karigar earns a salary accrual';
     var mode = k.salary && k.salary.mode;
@@ -1117,6 +1126,16 @@ function kgValidateKarigarLevel(e, ctx){
     }
     return '';
   }
+  if(t === 'REFINE_CREDIT'){
+    if(role !== 'owner') return 'Only the owner can record the assay result';
+    var sc = idx.byId[e.refId];
+    if(!sc || sc.type !== 'SCRAP' || sc.refine !== 'pending' || idx.reversed[sc.id]) return 'Refining lot not found';
+    if(kgMetalOf(sc) !== e.metal) return 'Metal does not match the lot';
+    if(!(e.fineMg > 0) || Math.floor(e.fineMg) !== e.fineMg) return 'Assay fine weight is not valid';
+    if(e.fineMg > sc.mg) return 'The fine gold cannot be more than the weight sent';
+    for(var m = 0; m < ledger.length; m++) if(ledger[m].type === 'REFINE_CREDIT' && ledger[m].refId === e.refId && !idx.reversed[ledger[m].id]) return 'The assay is already recorded - reverse it first';
+    return '';
+  }
   if(t === 'CARRY_IN'){
     if(!kgCan(role, 'manager')) return 'Only owner or manager can close with a carried balance';
     if(KG_METALS.indexOf(e.metal) === -1) return 'Metal is not valid';
@@ -1140,11 +1159,11 @@ function kgValidateKarigarLevel(e, ctx){
       if(kgLotRemaining(ledger, idx, tg) !== tg.fineMg) return 'Part of this carried balance is already used on another job';
       return '';
     }
-    if(!tg || tg.jobId !== '' || tg.type !== 'OPENING') return 'Entry not found';
+    if(!tg || tg.jobId !== '' || (tg.type !== 'OPENING' && tg.type !== 'REFINE_CREDIT')) return 'Entry not found';
     if(idx.reversed[tg.id]) return 'Already reversed';
     if(e.karigarId !== tg.karigarId) return 'Karigar does not match';
     if(String(e.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
-    return role === 'owner' ? '' : 'Only the owner can reverse an opening balance';
+    return role === 'owner' ? '' : 'Only the owner can reverse this entry';
   }
   return 'Unknown entry type';
 }
@@ -1374,6 +1393,63 @@ function kgOrderOverlap(job){
     (o.items || []).forEach(function(it){ (it.karigarStages || []).forEach(function(st){ if(st.karigarId && ids[st.karigarId] && out.indexOf(o.ordNo) === -1) out.push(o.ordNo); }); });
   });
   return out;
+}
+
+
+// ── Rupee opening balance, rupee statement, scrap refining lots (batch 6) ──
+// v: {karigarId, dir:'owe'|'advance', amountText, note, opId}. dir 'owe' = you owe him, 'advance' = he owes you. Owner only, once, reversible.
+function kgAddRupeeOpening(v, done){
+  var p = kgParsePaise(v.amountText);
+  if(p === null) return done(new Error('Enter the amount in rupees'));
+  kgAddSalary({type:'OPENING', opId:v.opId, karigarId:v.karigarId, dir:v.dir, amountPaise:p, note:String(v.note || '').trim()}, function(err, e, dup){ done(err, e, dup); });
+}
+// Effect of one salary entry on what you owe him (positive = you owe him more).
+function kgSalaryDelta(e){
+  if(e.type === 'ACCRUAL' || e.type === 'JOB_LABOUR' || (e.type === 'OPENING' && e.dir === 'owe')) return e.amountPaise;
+  if(e.type === 'DEDUCTION' || e.type === 'ADVANCE' || e.type === 'PAYMENT' || e.type === 'OPENING') return -e.amountPaise;
+  return 0;
+}
+function kgRupeeStatementRange(karigarId, from, to){
+  var rev = {}, rows = [], before = 0, run, open;
+  (S.kgSalary || []).forEach(function(e){ if(e.type === 'REVERSAL') rev[e.reversesId] = true; });
+  var list = (S.kgSalary || []).filter(function(e){ return e.karigarId === karigarId && e.type !== 'REVERSAL'; })
+    .sort(function(a, b){ return String(a.ts).localeCompare(String(b.ts)); });
+  list.forEach(function(e){ if(e.date < from && !rev[e.id]) before += kgSalaryDelta(e); });
+  run = before;
+  list.forEach(function(e){
+    if(e.date < from || e.date > to) return;
+    var d = rev[e.id] ? 0 : kgSalaryDelta(e); run += d;
+    rows.push({entry:e, date:e.date, type:e.type, state:(rev[e.id] ? 'reversed' : 'ok'), deltaPaise:d, balancePaise:run});
+  });
+  return {karigarId:karigarId, from:from, to:to, openingPaise:before, closingPaise:run, rows:rows};
+}
+
+// Sweepings, filings and dust belong to the shop. Weighing them returns the fine to the shop and lowers his account (SCRAP);
+// each one is a refining lot, pending until the assay says how much real fine came out (REFINE_CREDIT, shop stock, not his account).
+function kgRefineLots(metal){
+  var led = S.kgLedger || [], idx = kgIndex(led), credit = {}, out = [];
+  led.forEach(function(e){ if(e.type === 'REFINE_CREDIT' && !idx.reversed[e.id]) credit[e.refId] = e; });
+  led.forEach(function(e){
+    if(e.type !== 'SCRAP' || e.refine !== 'pending' || kgMetalOf(e) !== metal || idx.reversed[e.id]) return;
+    var c = credit[e.id], job = e.jobId ? kgFindJob(e.jobId) : null;
+    out.push({scrapId:e.id, date:e.date, jobNo:(job ? job.jobNo : ''), karigarId:e.karigarId, kind:e.kind, mg:e.mg, estFineMg:e.fineMg,
+      status:(c ? 'credited' : 'pending'), assayFineMg:(c ? c.fineMg : 0), creditId:(c ? c.id : '')});
+  });
+  return out;
+}
+// What the shop has in each state, per metal. Nothing here is added to anything else: held by karigars, being refined (estimate), refined (assay).
+function kgShopMetalView(metal){
+  var v = {withKarigarsMg:kgHeldFine(metal), refiningEstMg:0, refinedMg:0};
+  kgRefineLots(metal).forEach(function(l){ if(l.status === 'pending') v.refiningEstMg += l.estFineMg; else v.refinedMg += l.assayFineMg; });
+  return v;
+}
+// v: {scrapId, fineText (grams of real fine from the assay), opId, note}
+function kgRefineCredit(v, done){
+  var sc = null; (S.kgLedger || []).forEach(function(x){ if(x.id === v.scrapId) sc = x; });
+  if(!sc) return done(new Error('Refining lot not found'));
+  var mg = kgParseMg(v.fineText); if(mg === null) return done(new Error('Enter the fine gold from the assay in grams (up to 3 decimals)'));
+  kgAddEntries([{type:'REFINE_CREDIT', opId:v.opId, jobId:'', stageId:'', karigarId:'', metal:kgMetalOf(sc), refId:sc.id, fineMg:mg, note:String(v.note || '').trim()}],
+    function(err, list, dup){ done(err, list && list[0], dup); });
 }
 
 // Reverse any ledger entry by its own job and karigar (a stage entry belongs to the stage's karigar, not the job's).
