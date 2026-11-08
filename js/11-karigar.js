@@ -1294,6 +1294,88 @@ function kgReverseTransfer(voucherId, reason, opId, done){
   ], function(err, list, dup){ done(err, list, dup); });
 }
 
+
+// ── The karigar account (batch 5): everything the profile shows, derived on read ──
+// Fine gold with him, per metal = opening balance + what he holds on each job + his carried lots. Carrying a leftover moves it from
+// "on a job" to "carried", applying it moves it back: the total never changes. Rupees are a separate balance (the salary register).
+// Order-side stages (the old way) are NOT part of this; see kgOrderWork.
+function kgMetalAccount(karigarId, metal){
+  var led = S.kgLedger || [], idx = kgIndex(led), opening = 0, inJobs = 0;
+  led.forEach(function(e){
+    if(e.type === 'OPENING' && e.karigarId === karigarId && kgMetalOf(e) === metal && !idx.reversed[e.id]) opening += e.fineMg;
+  });
+  (S.kgJobs || []).forEach(function(j){
+    if(kgMetalOf(j) !== metal || j.status === 'cancelled') return;
+    if(j.model === 'points') inJobs += kgKarigarJobFine(j, led, karigarId);
+    else if(j.karigarId === karigarId && metal === 'gold') inJobs += kgJobBalance(j, led).openFine;   // old-rules jobs keep their own maths
+  });
+  var carry = kgCarryTotal(karigarId, metal), lots = kgCarryLots(karigarId, metal);
+  return {openingMg:opening, inJobsMg:inJobs, carryMg:carry, totalMg:opening + inJobs + carry, oldestCarryDays:(lots.length ? lots[0].ageDays : 0)};
+}
+function kgAccount(karigarId){
+  var today = kgToday(), inProgress = 0, overdue = 0, sal = kgSalaryBalance(karigarId);
+  (S.kgJobs || []).forEach(function(j){
+    if(j.status !== 'open') return;
+    var mine = (j.karigarId === karigarId) || (j.model === 'points' && kgJobKarigarOk(j, karigarId));
+    if(!mine) return;
+    inProgress++;
+    if(kgJobOverdueDays(j, today) > 0) overdue++;
+  });
+  return {gold:kgMetalAccount(karigarId, 'gold'), silver:kgMetalAccount(karigarId, 'silver'),
+    rupees:{payablePaise:sal.payable, accruedPaise:sal.accrued, paidPaise:sal.paid, advancedPaise:sal.advanced, deductedPaise:sal.deducted},
+    inProgress:inProgress, overdue:overdue, countDue:kgCountDue(karigarId)};
+}
+// What the shop holds with karigars, per metal: the metal side of "karigar-held metal counts as shop stock".
+function kgHeldFine(metal){
+  var t = 0; (S.karigars || []).forEach(function(k){ t += kgMetalAccount(k.id, metal).totalMg; });
+  return t;
+}
+// Effect of one entry on the karigar's TOTAL fine with him. Carry entries move metal between "on a job" and "carried": 0.
+function kgEntryDelta(e, idx){
+  if(idx.reversed[e.id]) return 0;
+  var t = e.type;
+  if(t === 'ISSUE' || t === 'OPENING' || t === 'TRANSFER_IN') return e.fineMg;
+  if(t === 'RECEIPT' || t === 'SCRAP' || t === 'ADJUST' || t === 'TRANSFER_OUT') return -e.fineMg;
+  if(t === 'LOSS') return kgLossState(e, idx) === 'approved' ? -e.fineMg : 0;
+  return 0;
+}
+var KG_STATEMENT_TYPES = ['OPENING', 'ISSUE', 'RECEIPT', 'SCRAP', 'LOSS', 'ADJUST', 'TRANSFER_OUT', 'TRANSFER_IN', 'CARRY_OUT', 'CARRY_IN', 'CARRY_APPLY'];
+// Statement of one metal for a date range ('YYYY-MM-DD', both inclusive). Opening line = balance before 'from'.
+function kgStatementRange(karigarId, metal, from, to){
+  var led = S.kgLedger || [], idx = kgIndex(led), before = 0, run, rows = [], closing, tIn = 0, tOut = 0;
+  var list = led.filter(function(e){
+    return e.karigarId === karigarId && kgMetalOf(e) === metal && KG_STATEMENT_TYPES.indexOf(e.type) !== -1;
+  }).sort(function(a, b){ return String(a.ts).localeCompare(String(b.ts)); });
+  list.forEach(function(e){ if(e.date < from) before += kgEntryDelta(e, idx); });
+  run = before;
+  list.forEach(function(e){
+    if(e.date < from || e.date > to) return;
+    var d = kgEntryDelta(e, idx), job = e.jobId ? kgFindJob(e.jobId) : null;
+    run += d; if(d > 0) tIn += d; else tOut -= d;
+    var state = idx.reversed[e.id] ? 'reversed' : (e.type === 'LOSS' ? kgLossState(e, idx) : 'ok');
+    rows.push({entry:e, date:e.date, type:e.type, jobNo:(job ? job.jobNo : ''), state:state, deltaMg:d, balanceMg:run});
+  });
+  closing = run;
+  return {karigarId:karigarId, metal:metal, from:from, to:to, openingMg:before, closingMg:closing, issuedMg:tIn, returnedMg:tOut, rows:rows};
+}
+// The old way, shown on its own (never added to the account above): metal held and money owed from order stages.
+function kgOrderWork(karigarId){
+  if(typeof karigarMetalHeld !== 'function') return {held:{gold:0, silver:0}, owed:{cash:0, gold:0, silver:0}, queue:[], any:false};
+  var held = karigarMetalHeld(karigarId), owed = karigarOwed(karigarId), queue = karigarQueue(karigarId);
+  return {held:held, owed:owed, queue:queue, any:(queue.length > 0 || held.gold > 0 || held.silver > 0 || owed.cash !== 0 || owed.gold !== 0 || owed.silver !== 0)};
+}
+// Order numbers (old way) where this job's karigars also have a stage: the one place two systems could confuse a person.
+function kgOrderOverlap(job){
+  var out = [];
+  if(!job || !job.orderRef || !job.orderRef.orderId) return out;
+  var ids = {}; ids[job.karigarId] = 1; (job.stages || []).forEach(function(s){ if(s.who) ids[s.who] = 1; });
+  (S.orders || []).forEach(function(o){
+    if(o.id !== job.orderRef.orderId) return;
+    (o.items || []).forEach(function(it){ (it.karigarStages || []).forEach(function(st){ if(st.karigarId && ids[st.karigarId] && out.indexOf(o.ordNo) === -1) out.push(o.ordNo); }); });
+  });
+  return out;
+}
+
 // Reverse any ledger entry by its own job and karigar (a stage entry belongs to the stage's karigar, not the job's).
 function kgReverse(entryId, reason, opId, done){
   var t = null;

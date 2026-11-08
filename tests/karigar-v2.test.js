@@ -1258,5 +1258,91 @@ test('ledger switch ON: a transfer is refused like every new-style entry', funct
   var r = xfer(a, c, '1', '92'); ok(r.err && /not available while the ledger is on/.test(r.err.message)); eq(a.S.kgLedger.length, 1);
 });
 
+console.log('\nKarigar redesign batch 5 - account, tiles, statement, order-side kept apart');
+
+test('account: opening + on jobs + carried, per metal; rupees are their own balance and never netted', function(){
+  var a = fresh('owner'); var k = pk(a, 'A1'); trust(a, k);
+  ok(!call(function(cb){ a.kgAddOpening({karigarId:k.id, metal:'gold', wt:'50', purity:'92', confirmed:true, opId:op()}, cb); }).err);    // 46.000
+  var j = pjob(a, k); issueV(a, j, '10', '92');                                                                                         // +9.200
+  var js = pjob(a, k, {metal:'silver'}); issueV(a, js, '100', '92.5');                                                                 // silver 92.500
+  a.S.kgSalary.push({id:'s1', opId:'s1', type:'ACCRUAL', karigarId:k.id, period:'2026-11', amountPaise:500000, ts:'t', date:a.kgToday()});
+  var ac = a.kgAccount(k.id);
+  eq(ac.gold.openingMg, 46000); eq(ac.gold.inJobsMg, 9200); eq(ac.gold.carryMg, 0); eq(ac.gold.totalMg, 55200);
+  eq(ac.silver.totalMg, 92500); eq(ac.rupees.payablePaise, 500000);
+  eq(ac.gold.totalMg + ac.silver.totalMg === 147700, true, 'only to show the two metals are kept as two numbers in the account object');
+  eq(ac.inProgress, 2);
+});
+test('account: a carry-forward and applying it never change the total; a double count would show here', function(){
+  var a = fresh(); var k = pk(a, 'A2'); trust(a, k);
+  var j = pjob(a, k); issueV(a, j, '10', '92'); receiptV(a, j, {gross:'5', purity:'92'});
+  var t0 = a.kgAccount(k.id).gold.totalMg; eq(t0, 4400);
+  closeV(a, j, {settle:'carry'}); var c = a.kgAccount(k.id).gold; eq(c.totalMg, t0); eq(c.carryMg, 4400); eq(c.inJobsMg, 0);
+  var j2 = pjob(a, k); ok(!call(function(cb){ a.kgApplyCarry(j2.id, '', 1000, 'ac1', cb); }).err);
+  var d = a.kgAccount(k.id).gold; eq(d.totalMg, t0); eq(d.carryMg, 3400); eq(d.inJobsMg, 1000);
+  issueV(a, j2, '5', '92'); eq(a.kgAccount(k.id).gold.totalMg, t0 + 4600, 'only the new physical issue adds');
+});
+test('account: a transfer moves metal between two karigars and the sum of both stays the same', function(){
+  var a = fresh(); var c = chain(a); issueV(a, c.j, '20', '92', c.s1.id);
+  var sum0 = a.kgAccount(c.A.id).gold.totalMg + a.kgAccount(c.B.id).gold.totalMg;
+  xfer(a, c, '10', '92');
+  eq(a.kgAccount(c.A.id).gold.totalMg, 9200); eq(a.kgAccount(c.B.id).gold.totalMg, 9200); eq(a.kgAccount(c.A.id).gold.totalMg + a.kgAccount(c.B.id).gold.totalMg, sum0);
+  eq(a.kgHeldFine('gold'), sum0, 'shop stock held by karigars counts the metal once'); eq(a.kgHeldFine('silver'), 0);
+});
+test('account: a reversal takes the entry out; a cancelled job is ignored; an old-rules job counts once by its own maths', function(){
+  var a = fresh(); var k = pk(a, 'A3'); var j = pjob(a, k); var e = issueV(a, j, '10', '92'); eq(a.kgAccount(k.id).gold.totalMg, 9200);
+  ok(!call(function(cb){ a.kgReverse(e.id, 'entered twice by mistake', op(), cb); }).err); eq(a.kgAccount(k.id).gold.totalMg, 0);
+  var ok2 = karigar(a, 'OldRules', {kind:'wastage', wastagePct:'4'}); var oj = job(a, ok2); metal(a, oj, 'ISSUE', 100000, '999');
+  eq(a.kgAccount(ok2.id).gold.totalMg, a.kgJobBalance(oj, a.S.kgLedger).openFine); eq(a.kgAccount(ok2.id).gold.totalMg, 96000);
+  eq(a.kgAccount(k.id).gold.totalMg, 0, 'the other karigar is not touched');
+});
+test('account: in progress and overdue count open jobs, including a job where he only has a stage', function(){
+  var a = fresh(); var c = chain(a); var past = pjob(a, c.A); past.dueDate = '2026-01-01';
+  var ca = a.kgAccount(c.A.id), cb = a.kgAccount(c.B.id);
+  eq(ca.inProgress, 2); eq(ca.overdue, 1); eq(cb.inProgress, 1, 'B is on the chain job through his stage'); eq(cb.overdue, 0);
+});
+test('statement: running balance equals the account, with opening line, date range and reversed rows at zero', function(){
+  var a = fresh('owner'); var k = pk(a, 'A4'); var j = pjob(a, k); trust(a, k);
+  ok(!call(function(cb){ a.kgAddOpening({karigarId:k.id, metal:'gold', wt:'10', purity:'92', confirmed:true, opId:op()}, cb); }).err);
+  var i1 = issueV(a, j, '10', '92'); i1.date = '2026-11-01'; a.S.kgLedger[0].date = '2026-10-01';
+  var r1 = receiptV(a, j, {gross:'5', purity:'92'}); r1.entry.date = '2026-11-05';
+  var i2 = issueV(a, j, '1', '92'); i2.date = '2026-11-10';
+  ok(!call(function(cb){ a.kgReverse(i2.id, 'entered twice by mistake', op(), cb); }).err);
+  var st = a.kgStatementRange(k.id, 'gold', '2026-11-01', '2026-11-30');
+  eq(st.openingMg, 9200, 'opening balance of 10 g at 92 before the range');
+  eq(st.rows.length, 3); eq(st.rows[0].type, 'ISSUE'); eq(st.rows[0].balanceMg, 9200 + 9200);
+  eq(st.rows[1].type, 'RECEIPT'); eq(st.rows[1].deltaMg, -4800); eq(st.rows[1].balanceMg, 18400 - 4800);
+  eq(st.rows[2].state, 'reversed'); eq(st.rows[2].deltaMg, 0);
+  eq(st.closingMg, a.kgAccount(k.id).gold.totalMg); eq(st.closingMg, 13600);
+  eq(a.kgStatementRange(k.id, 'gold', '2026-11-02', '2026-11-04').rows.length, 0, 'quiet days'); eq(a.kgStatementRange(k.id, 'gold', '2026-11-02', '2026-11-04').openingMg, 18400);
+  eq(a.kgStatementRange(k.id, 'silver', '2026-01-01', '2026-12-31').rows.length, 0, 'silver statement is separate');
+});
+test('statement: a pending loss is shown but moves nothing until the owner approves; carry rows show with zero effect', function(){
+  var a = fresh('manager'); var k = (function(){ a.SAAS.user.role = 'owner'; var kk = pk(a, 'A5'); trust(a, kk); return kk; })();
+  var j = pjob(a, k); issueV(a, j, '10', '92');
+  a.SAAS.user.role = 'manager';
+  var loss = {type:'LOSS', opId:op(), jobId:j.id, karigarId:k.id, metal:'gold', fineMg:500, category:'filing', reason:'filing loss', proposed:true};
+  ok(!call(function(cb){ a.kgAddEntry(loss, cb); }).err);
+  var st = a.kgStatementRange(k.id, 'gold', '2000-01-01', '2999-12-31'); eq(st.rows[1].state, 'pending'); eq(st.rows[1].deltaMg, 0); eq(st.closingMg, 9200);
+  a.SAAS.user.role = 'owner'; ok(!call(function(cb){ a.kgAddEntry({type:'APPROVAL', opId:op(), jobId:j.id, karigarId:k.id, refId:loss.id, decision:'approve'}, cb); }).err);
+  eq(a.kgStatementRange(k.id, 'gold', '2000-01-01', '2999-12-31').closingMg, 8700);
+  closeV(a, j, {settle:'carry'}); var st2 = a.kgStatementRange(k.id, 'gold', '2000-01-01', '2999-12-31');
+  eq(st2.closingMg, 8700); eq(st2.rows.filter(function(r){ return r.type === 'CARRY_OUT' || r.type === 'CARRY_IN'; }).length, 2);
+  eq(st2.rows.filter(function(r){ return r.type === 'CARRY_OUT' || r.type === 'CARRY_IN'; }).every(function(r){ return r.deltaMg === 0; }), true);
+});
+test('order-side work (old way) is read separately and is never part of the new account', function(){
+  var a = fresh(); var k = a.addOrGetKarigar('OrderMan');
+  a.S.orders = [{id:'o1', ordNo:'OR-1', status:'open', items:[{desc:'Chain', metal:'gold', purity:'22K', qty:1, weight:10,
+    karigarStages:[{task:'Make', karigarId:k.id, status:'assigned', karigarPayMode:'cash', karigarCost:500, issued:[{date:a.kgToday(), wt:10, purity:'22K'}]}]}]}];
+  var ow = a.kgOrderWork(k.id); ok(ow.any); ok(ow.held.gold > 0); eq(ow.queue.length, 1); eq(ow.queue[0].ordNo, 'OR-1');
+  var ac = a.kgAccount(k.id); eq(ac.gold.totalMg, 0, 'new account ignores order stages'); eq(ac.rupees.payablePaise, 0);
+  var other = a.addOrGetKarigar('NoOrders'); eq(a.kgOrderWork(other.id).any, false);
+});
+test('order overlap chip: a points job linked to an order that has a stage for the same karigar names that order', function(){
+  var a = fresh(); var k = pk(a, 'A6');
+  a.S.orders = [{id:'o9', ordNo:'OR-9', status:'open', items:[{desc:'Ring', karigarStages:[{task:'Make', karigarId:k.id, status:'assigned'}]}]}];
+  var j = pjob(a, k, {orderId:'o9'}); eq(a.kgOrderOverlap(j).join(','), 'OR-9');
+  var j2 = pjob(a, k); eq(a.kgOrderOverlap(j2).length, 0);
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }
