@@ -850,6 +850,10 @@ test('wastage credit: bad inputs return an error, never a silent wrong credit', 
   ok(a.kgWastageCredit(Infinity, 9200, 400, 9999).error, 'infinite'); ok(a.kgWastageCredit(10000, 9200, -1, 9999).error, 'negative points');
   eq(a.kgWastageCredit(10000, 9200, 400, 0).creditMg, 0, 'a cap of exactly 0 is valid: nothing left');
 });
+test('wastage credit: touch + points stops at 100%, so a 999 piece is never credited more than its own weight', function(){
+  var a = fresh(); var r = a.kgWastageCredit(19000, 9990, 400, 99999);
+  eq(r.rawMg, 19000); eq(r.creditMg, 19000); eq(r.actualMg, 18981);
+});
 test('wastage credit: zero points (salary karigar) credits only the real fine', function(){
   var a = fresh(); var r = a.kgWastageCredit(10000, 9182, 0, 99999);
   eq(r.creditMg, 9182); eq(r.creditMg, r.actualMg);
@@ -1208,7 +1212,7 @@ test('transfer: the receiving karigar can return it and is credited under his ow
   var a = fresh(); var c = chain(a, '4', '3'); issueV(a, c.j, '20', '', c.s1.id, '999'); ok(!xfer(a, c, '10', '99.9').err);
   eq(a.kgKarigarJobFine(c.j, a.S.kgLedger, c.B.id), 9990);
   var r = receiptV(a, c.j, {gross:'5', purity:'99.9'}, c.s2.id);
-  eq(r.entry.pointsPu, 300, 'B own points'); eq(r.entry.creditFineMg, 5145); eq(a.kgKarigarJobFine(c.j, a.S.kgLedger, c.B.id), 9990 - 5145);
+  eq(r.entry.pointsPu, 300, 'B own points'); eq(r.entry.creditFineMg, 5000, '99.9 + 3 points stops at 100%'); eq(a.kgKarigarJobFine(c.j, a.S.kgLedger, c.B.id), 9990 - 5000);
 });
 test('transfer: cannot move more than he holds, to himself, a missing stage, a wrong metal, or on a closed job', function(){
   var a = fresh(); var c = chain(a); issueV(a, c.j, '10', '92', c.s1.id);     // A holds 9.200
@@ -1411,6 +1415,23 @@ test('silver refining lots are separate from gold', function(){
   var a = fresh('owner'); var k = pk(a, 'F4'); var j = pjob(a, k, {metal:'silver'}); issueV(a, j, '100', '', '', '999');
   var b = a.kgBuildScrap(j.id, '', {wt:'5', purity:'90', confirmed:true, kind:'filings', opId:op()}); call(function(cb){ a.kgAddEntry(b.entry, cb); });
   eq(a.kgRefineLots('silver').length, 1); eq(a.kgRefineLots('gold').length, 0); eq(a.kgShopMetalView('silver').refiningEstMg, 4500); eq(a.kgShopMetalView('gold').refiningEstMg, 0);
+});
+test('rupee opening and refining assay: same operation id saves once; a failed save leaves both registers as they were', function(){
+  var a = fresh('owner'); var k = pk(a, 'G1'); var j = pjob(a, k); issueV(a, j, '10', '', '', '999');
+  var id = op(); function ro(){ return call(function(cb){ a.kgAddRupeeOpening({karigarId:k.id, dir:'owe', amountText:'100', note:'old khata', opId:id}, cb); }); }
+  ok(!ro().err); ro(); eq(a.S.kgSalary.length, 1, 'duplicate submit stores one row'); eq(a.kgSalaryBalance(k.id).payable, 10000);
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  ok(call(function(cb){ a.kgAddRupeeOpening({karigarId:k.id, dir:'advance', amountText:'5', note:'x', opId:op()}, cb); }).err, 'failed save reported');
+  eq(a.S.kgSalary.length, 1, 'rupee row rolled back'); eq(a.kgSalaryBalance(k.id).payable, 10000);
+  a.saveToCloud = function(cb){ cb(null); };
+  var b = a.kgBuildScrap(j.id, '', {wt:'1', purity:'90', confirmed:true, kind:'dust', opId:op()}); call(function(cb){ a.kgAddEntry(b.entry, cb); });
+  var sid = a.kgRefineLots('gold')[0].scrapId, n = a.S.kgLedger.length, held = a.kgHeldFine('gold');
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  ok(call(function(cb){ a.kgRefineCredit({scrapId:sid, fineText:'0.9', opId:op()}, cb); }).err, 'failed save reported');
+  eq(a.S.kgLedger.length, n, 'assay entry rolled back'); eq(a.kgRefineLots('gold')[0].status, 'pending'); eq(a.kgHeldFine('gold'), held);
+  a.saveToCloud = function(cb){ cb(null); };
+  var rid = op(); function rc(){ return call(function(cb){ a.kgRefineCredit({scrapId:sid, fineText:'0.9', opId:rid}, cb); }); }
+  ok(!rc().err); rc(); eq(a.S.kgLedger.length, n + 1, 'duplicate assay submit stores one entry'); eq(a.kgHeldFine('gold'), held, 'assay never moves a karigar account');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

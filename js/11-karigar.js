@@ -112,7 +112,7 @@ function kgWastageCredit(netMg, measuredPu, pointsPu, capMg){
   function whole(n){ return typeof n === 'number' && isFinite(n) && Math.floor(n) === n; }
   if(!whole(netMg) || netMg <= 0 || !whole(measuredPu) || measuredPu <= 0 || !whole(pointsPu) || pointsPu < 0 || !whole(capMg)) return {error:'Wastage credit needs whole numbers: net weight, measured touch, points and what is left to credit'};
   var actual = kgFineFromPu(netMg, measuredPu);
-  var raw = kgFineFromPu(netMg, measuredPu + pointsPu);
+  var raw = kgFineFromPu(netMg, Math.min(measuredPu + pointsPu, KG_PU_PURE));   // never more than the metal in the piece (touch + points stops at 100%)
   var cap = Math.max(0, capMg || 0);
   return {actualMg:actual, rawMg:raw, creditMg:Math.min(raw, cap), capped:raw > cap};
 }
