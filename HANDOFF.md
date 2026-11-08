@@ -57,7 +57,12 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   (Cowork's own account skills) write to the paused Office, and `jewelos-health`'s drift SQL still
   reads `nextInvNo`, stale since migration 005 changed the invoice-floor source.** Flagged by Cowork's
   3 Oct skills audit; explicitly out of scope for Claude Code to touch; Cowork/Tanish's to fix.
-- **Review the five newly enabled plugins in .claude/settings.json (source, what they store) before keeping them; consider moving them to user-level settings.** (`ponytail`, `andrej-karpathy-skills`, `taste-skill`, `claude-mem`, `claude-mem-cowork`; enabled on Tanish's machine 8 Nov, deliberately NOT committed; `claude-mem` records session content, so it should not travel through the repo.)
+- **Five plugins in `.claude/settings.json` — decided by Claude Code on 8 Nov (Tanish: "let Claude Code decide"); the shared settings.json is NOT committed, the choice lives in the git-ignored `.claude/settings.local.json`. Nothing uninstalled; flip a plugin back to `true` there to re-enable. Take effect on the next Claude Code start or `/reload-plugins`.**
+  - `ponytail` (DietrichGebert): KEPT. Owner matches; hooks run local node scripts only (no network, no credential reads); one `git ls-files` call. Needs a look: its "Task board" writes a cost/turn CSV under `~/.config/ponytail/band` by default, and an optional webhook URL exists — keep the webhook empty.
+  - `andrej-karpathy-skills`: DISABLED. Its marketplace points to `multica-ai/andrej-karpathy-skills`, not the expected `forrestchang`, so the owner rule applies. It is a skill only (no hooks); content reads as the usual four guidelines. Tanish can re-enable it if he trusts that repo.
+  - `taste-skill` (Leonxlnx): DISABLED for JewelOS. Owner matches, but its design defaults clash with Tanish's own taste rules (Apple-style, minimal, data-dense).
+  - `claude-mem` (thedotmack): DISABLED. Hooks run on every tool call and every prompt (PostToolUse `*`) and record tool output, which for JewelOS means shop data and database results.
+  - `claude-mem-cowork` (CMEM, Inc., repo thedotmack/claude-mem): DISABLED. Its hooks send every prompt and tool call to `https://cmem.ai` (a paid cloud service) once an API key is set; the key is empty now, so it was inert, but it is a data-exfiltration path by design and no public docs were checked.
 **Closed (don't re-ask):** the full list of past decisions is in `docs/handoff-archive/HANDOFF-LOG-through-2026-11-05.md` (section "WAITING Closed list and notes", at the end of that file). Still relevant: the Netlify badge is still visible, nothing hides it (don't claim it is hidden); session tokens stay in `localStorage`; `razorpay-webhook` is left as is.
 
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
@@ -69,6 +74,24 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-08 (hundred-and-eighty-eighth entry) · Claude Code (Sonnet) — decided the five plugins (Tanish: "let Claude Code decide"): ponytail kept, four disabled in the git-ignored `.claude/settings.local.json`; nothing deployed, no repo code or settings.json changed
+
+**Method:** `/plugin marketplace list` is a slash command I cannot run, so I read `~/.claude/plugins/known_marketplaces.json`, `installed_plugins.json` and each plugin's cached `plugin.json` and `hooks` files. I read the hook definitions; I scanned `ponytail`'s hook scripts for network, `.env` and credential access, and read `claude-mem-cowork`'s `cmem-hook.mjs` network lines. I did NOT read every line of `claude-mem`'s scripts.
+
+| Plugin | Marketplace repo (owner) | Version | Hooks registered | Decision |
+|---|---|---|---|---|
+| ponytail | github.com/DietrichGebert/ponytail (matches) | 5.3.3 (`96608e0`) | SessionStart, SubagentStart, UserPromptSubmit: local node scripts; `git ls-files` once; a Claude Code band module with a task-board CSV (default on) and an optional webhook (empty) | KEEP |
+| andrej-karpathy-skills | github.com/**multica-ai**/andrej-karpathy-skills (expected forrestchang; its plugin.json author says forrestchang) | 1.0.0 (`2c60614`) | none (one skill) | DISABLE (owner rule) |
+| taste-skill | github.com/Leonxlnx/taste-skill (matches) | 2.1.5 (`12af471`) | none found in cache | DISABLE (design clash) |
+| claude-mem | github.com/thedotmack/claude-mem (matches; author Alex Newman) | 15.9.0 (`d8bf121`) | Setup, SessionStart x3, UserPromptSubmit, PreToolUse (Read/Bash/Grep/Glob...), PostToolUse and PostToolUseFailure on every tool, more below what I read; runs `claude-mem` CLI, a local worker | DISABLE |
+| claude-mem-cowork | repo thedotmack/claude-mem; author CMEM, Inc.; license PolyForm-Noncommercial | 0.1.6 (`d8bf121`) | SessionStart, UserPromptSubmit, PostToolUse `*`, PreToolUse Task/Agent, SubagentStop, Stop: `cmem-hook.mjs` HTTPS to `https://cmem.ai` with Bearer apiKey (empty in `config.json`) | DISABLE |
+
+**Applied:** `.claude/settings.local.json` (git-ignored; `git check-ignore` confirms) `enabledPlugins`: the four set to `false`; `ponytail@ponytail` stays `true`. Nothing uninstalled. `.claude/settings.json` untouched and uncommitted (it still lists all five as true; local settings override it). `git status`: only `.claude/settings.json` modified.
+**ponytail vs CLAUDE.md:** its instructions are "simplest solution, YAGNI, no unrequested abstractions"; I found nothing that pushes ES6 or new module files, so no conflict with ES5-only / surgical changes. I grepped its instructions file, not every skill file.
+**Not verified:** that any plugin is safe (I checked owners and hook wiring, not full source); whether `multica-ai` is the legitimate mirror of `forrestchang`; `claude-mem`'s scripts end to end and what it already stored on this machine (its local database may already hold session content from 4-8 Nov; I did not look or delete); whether `cmem.ai` ever received data (apiKey empty in config.json, but `CLAUDE_MEM_CLOUD_SYNC_TOKEN` in a local file or env var is another source I did not check); that the disables took effect in the running session (needs restart or `/reload-plugins`); the ponytail CSV contents under `~/.config/ponytail`.
+→ FOR COWORK: nothing — FYI only. These plugins live on Tanish's machine; they do not touch the repo or Supabase.
+→ FOR TANISH: if you ever used `claude-mem`, its local memory database (likely under `~/.claude-mem`) may hold shop data from tool output; say if you want me to look at it or clear it. Re-enable `andrej-karpathy-skills` only if you trust the `multica-ai` repo.
 
 ### 2026-11-08 (hundred-and-eighty-seventh entry) · Claude Code (Sonnet) — `npm run test:e2e` run on Tanish's word against the E2E shop after batch70: 23 passed, 0 failed; nothing deployed or changed
 
