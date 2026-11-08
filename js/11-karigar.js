@@ -558,6 +558,7 @@ function kgValidateEntry(e, ctx){
     if(tgt.type === 'REVERSAL' || tgt.type === 'APPROVAL') return 'This entry cannot be reversed';
     if((tgt.type === 'CARRY_OUT' || tgt.type === 'TRANSFER_OUT' || tgt.type === 'TRANSFER_IN') && !e.pair) return 'This entry is reversed together with its pair';
     if(idx.reversed[tgt.id]) return 'Already reversed';
+    if(tgt.type === 'LOSS' && tgt.settle === 'cash' && kgLiveLossBill(ctx.salary, tgt.id)) return 'Reverse the loss bill first';
     if(String(e.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
     if(role === 'owner') return '';
     if(role === 'manager' && (tgt.date === kgToday() || job.model === 'points')) return '';
@@ -768,15 +769,20 @@ function kgCreateJob(fields, opId, done){
   }, function(err){ done(err, job, false); });
 }
 
-function kgCloseJob(jobId, done){
-  var job = kgFindJob(jobId), u = kgUser(), auditId = null, labourEntry = null;
+function kgCloseJob(jobId, done, opts){
+  var job = kgFindJob(jobId), u = kgUser(), auditId = null, labourEntry = null, pre = null;
   kgTxn('job:' + jobId, function(){
     if(!job) return 'Job not found';
     if(!kgCan(u.role, 'manager')) return 'Only owner or manager can close a job';
     if(job.status !== 'open') return 'Job is not open';
     var b = kgJobBalance(job, S.kgLedger || []);
     if(b.pendingLoss > 0) return 'A proposed loss is waiting for owner approval';
-    if(b.openFine !== 0) return 'Balance is ' + kgFmtG(b.openFine) + ' fine - record the metal, an owner-approved loss or an owner adjustment first';
+    if(opts && opts.settle && b.openFine !== 0){
+      pre = kgCloseSettle(job, u, opts);
+      if(pre.err){ var pe = pre.err; pre = null; return pe; }
+      b = kgJobBalance(job, S.kgLedger || []);
+    }
+    if(b.openFine !== 0){ if(pre){ pre.undo(); pre = null; } return 'Balance is ' + kgFmtG(b.openFine) + ' fine - record the metal, an owner-approved loss or an owner adjustment first'; }
     // Earnings are final from here (owner, 31 Oct: "when the job closes"). Net and fine weight
     // of the finished pieces are summed once and frozen on the job.
     var idx = kgIndex(S.kgLedger || []), net = 0, fineRet = 0;
@@ -796,6 +802,7 @@ function kgCloseJob(jobId, done){
     auditId = kgAudit('kg_job_close', 'kgJob', jobId, job.jobNo + (labourPaise > 0 ? ' labour ' + kgFmtRs(labourPaise) : ''));
     return '';
   }, function(){
+    if(pre) pre.undo();
     job.status = 'open'; delete job.closedAt; delete job.closedBy; delete job.earnings;
     if(labourEntry) S.kgSalary = S.kgSalary.filter(function(x){ return x.id !== labourEntry.id; });
     kgUndoAudit(auditId);
@@ -1061,6 +1068,20 @@ function kgValidateV3(e, ctx, idx){
     if(e.creditFineMg !== expect || e.fineMg !== expect) return 'Credit does not match the rules (' + kgFmtG(expect) + ' fine expected)';
     return '';
   }
+  if(t === 'CARRY_OUT'){
+    if(!(e.fineMg > 0) || Math.floor(e.fineMg) !== e.fineMg) return 'Carry weight is not valid';
+    if(!e.carryId) return 'Carry id missing';
+    if(kgKarigarJobFine(job, ledger, e.karigarId) < e.fineMg) return 'He does not hold that much on this job';
+    return '';
+  }
+  if(t === 'CARRY_APPLY'){
+    if(!(e.fineMg > 0) || Math.floor(e.fineMg) !== e.fineMg) return 'Carry weight is not valid';
+    var lot = idx.byId[e.lotId];
+    if(!lot || lot.type !== 'CARRY_IN' || idx.reversed[lot.id]) return 'Carried balance not found';
+    if(lot.karigarId !== e.karigarId || kgMetalOf(lot) !== e.metal) return 'The carried balance belongs to another karigar or metal';
+    if(kgLotRemaining(ledger, idx, lot) < e.fineMg) return 'Only ' + kgFmtG(kgLotRemaining(ledger, idx, lot)) + ' fine is left in that carried balance';
+    return '';
+  }
   return 'Unknown entry type';
 }
 function kgValidateKarigarLevel(e, ctx){
@@ -1076,8 +1097,29 @@ function kgValidateKarigarLevel(e, ctx){
     }
     return '';
   }
+  if(t === 'CARRY_IN'){
+    if(!kgCan(role, 'manager')) return 'Only owner or manager can close with a carried balance';
+    if(KG_METALS.indexOf(e.metal) === -1) return 'Metal is not valid';
+    if(!(e.fineMg > 0) || Math.floor(e.fineMg) !== e.fineMg || !e.carryId) return 'Carried weight is not valid';
+    var out = null;
+    for(var n = 0; n < ledger.length; n++){
+      var y = ledger[n];
+      if(y.carryId !== e.carryId || idx.reversed[y.id]) continue;
+      if(y.type === 'CARRY_OUT') out = y; else if(y.type === 'CARRY_IN') return 'This carry is already recorded';
+    }
+    if(!out || out.karigarId !== e.karigarId || out.fineMg !== e.fineMg || kgMetalOf(out) !== e.metal || out.jobId !== e.fromJobId) return 'No matching amount left the job';
+    return '';
+  }
   if(t === 'REVERSAL'){
     var tg = idx.byId[e.reversesId];
+    if(tg && tg.type === 'CARRY_IN' && tg.jobId === ''){
+      if(!e.pair) return 'This entry is reversed together with its pair';
+      if(idx.reversed[tg.id]) return 'Already reversed';
+      if(e.karigarId !== tg.karigarId || !kgCan(role, 'manager')) return 'Not allowed';
+      if(String(e.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
+      if(kgLotRemaining(ledger, idx, tg) !== tg.fineMg) return 'Part of this carried balance is already used on another job';
+      return '';
+    }
     if(!tg || tg.jobId !== '' || tg.type !== 'OPENING') return 'Entry not found';
     if(idx.reversed[tg.id]) return 'Already reversed';
     if(e.karigarId !== tg.karigarId) return 'Karigar does not match';
@@ -1191,6 +1233,17 @@ function kgAddOpening(v, done){
     fineMg:kgFineFromPu(mg, p.pu), note:String(v.note || '').trim()}], function(err, list, dup){ done(err, list && list[0], dup); });
 }
 
+// Undo a carry-forward: both halves together. The job must be open again (owner reopens it) and nothing of the lot may be used yet.
+function kgReverseCarry(carryId, reason, opId, done){
+  var out = null, inn = null, idx = kgIndex(S.kgLedger || []);
+  (S.kgLedger || []).forEach(function(x){ if(x.carryId === carryId && !idx.reversed[x.id]){ if(x.type === 'CARRY_OUT') out = x; else if(x.type === 'CARRY_IN') inn = x; } });
+  if(!out || !inn) return done(new Error('Carried balance not found'));
+  var why = String(reason || '').trim();
+  kgAddEntries([
+    {type:'REVERSAL', pair:true, opId:opId + ':o', jobId:out.jobId, stageId:'', karigarId:out.karigarId, metal:kgMetalOf(out), reversesId:out.id, reason:why},
+    {type:'REVERSAL', pair:true, opId:opId + ':i', jobId:'', stageId:'', karigarId:inn.karigarId, metal:kgMetalOf(inn), reversesId:inn.id, reason:why}
+  ], function(err, list, dup){ done(err, list, dup); });
+}
 // Reverse any ledger entry by its own job and karigar (a stage entry belongs to the stage's karigar, not the job's).
 function kgReverse(entryId, reason, opId, done){
   var t = null;
@@ -1198,6 +1251,163 @@ function kgReverse(entryId, reason, opId, done){
   if(!t) return done(new Error('Entry not found'));
   kgAddEntries([{type:'REVERSAL', opId:opId, jobId:t.jobId, stageId:t.stageId || '', karigarId:t.karigarId, metal:kgMetalOf(t), reversesId:entryId, reason:String(reason || '').trim()}],
     function(err, list, dup){ done(err, list && list[0], dup); });
+}
+
+
+// ── Carry-forward (batch 3) ──
+// A "trusted" karigar may keep a leftover when a job closes. CARRY_OUT takes it off the job (job balance 0), CARRY_IN makes it a
+// lot on the karigar ("Carried from KJ-0001"). CARRY_APPLY moves part of a lot onto the next job's issue: his total never changes
+// (lot down, job up), so nothing is counted twice. Gold and silver lots are separate.
+function kgLotRemaining(ledger, idx, lot){
+  var left = lot.fineMg;
+  (ledger || []).forEach(function(x){ if(x.type === 'CARRY_APPLY' && x.lotId === lot.id && !idx.reversed[x.id]) left -= x.fineMg; });
+  return left;
+}
+// Live lots of one karigar and metal, oldest first, with what is left and how many days old.
+function kgCarryLots(karigarId, metal){
+  var led = S.kgLedger || [], idx = kgIndex(led), today = kgToday(), out = [];
+  led.forEach(function(e){
+    if(e.type !== 'CARRY_IN' || e.karigarId !== karigarId || kgMetalOf(e) !== metal || idx.reversed[e.id]) return;
+    var left = kgLotRemaining(led, idx, e), job = kgFindJob(e.fromJobId);
+    if(left <= 0) return;
+    out.push({id:e.id, carryId:e.carryId, fromJobId:e.fromJobId, fromJobNo:(job ? job.jobNo : '?'), date:e.date, fineMg:e.fineMg, remainingMg:left,
+      ageDays:Math.max(0, Math.round((Date.parse(today + 'T00:00:00Z') - Date.parse(e.date + 'T00:00:00Z')) / 86400000))});
+  });
+  out.sort(function(a, b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+  return out;
+}
+function kgCarryTotal(karigarId, metal){
+  var t = 0; kgCarryLots(karigarId, metal).forEach(function(l){ t += l.remainingMg; }); return t;
+}
+// Would carrying addMg more take him over his limit? {total, ceiling, over}. ceiling 0 = no limit set.
+function kgCarryCheck(karigarId, metal, addMg){
+  var k = findKarigar(karigarId) || {}, cap = (k.carryCeilingMg && k.carryCeilingMg[metal]) || 0, total = kgCarryTotal(karigarId, metal) + (addMg || 0);
+  return {total:total, ceiling:cap, over:cap > 0 && total > cap};
+}
+// Weight to hand over so that (fine needed) minus (fine already with him from a lot) is covered at purity pu. Rounds UP to the mg.
+function kgNeededWeightMg(totalFineNeededMg, carryFineMg, pu){
+  var need = totalFineNeededMg - carryFineMg;
+  if(need <= 0) return 0;
+  var mg = Math.floor((need * 10000 + pu - 1) / pu);
+  while(kgFineFromPu(mg, pu) < need) mg++;
+  return mg;
+}
+// Put part of his carried balance onto this job (oldest lot first). wantFineMg > 0. Several lots = several entries, one save.
+function kgApplyCarry(jobId, stageId, wantFineMg, opId, done){
+  var job = kgFindJob(jobId);
+  if(!job) return done(new Error('Job not found'));
+  if(job.model !== 'points') return done(new Error('This job uses the old rules'));
+  if(!(wantFineMg > 0) || Math.floor(wantFineMg) !== wantFineMg) return done(new Error('Carry weight is not valid'));
+  var kid = kgStageKarigarId(job, stageId || ''), metal = kgMetalOf(job), lots = kgCarryLots(kid, metal), left = wantFineMg, list = [];
+  lots.forEach(function(l, i){
+    if(left <= 0) return;
+    var take = Math.min(left, l.remainingMg); left -= take;
+    list.push({type:'CARRY_APPLY', opId:opId + ':' + i, jobId:jobId, stageId:stageId || '', karigarId:kid, metal:metal, lotId:l.id, fineMg:take});
+  });
+  if(left > 0) return done(new Error('He has only ' + kgFmtG(wantFineMg - left) + ' fine carried'));
+  kgAddEntries(list, function(err, l, dup){ done(err, l, dup); });
+}
+
+// Close settlement: what to do with whatever is still open when the owner closes a points job.
+// opts: {settle:'carry'|'loss'|'loss-cash', reason, billText, ackCeiling, opId}. Returns {err} or {undo}.
+function kgCloseSettle(job, u, opts){
+  if(job.model !== 'points') return {err:'This job uses the old rules - record the metal or a loss first'};
+  var ids = {}, pos = [], i;
+  (S.kgLedger || []).forEach(function(e){ if(e.jobId === job.id && e.karigarId) ids[e.karigarId] = 1; });
+  for(var kid in ids){ if(!ids.hasOwnProperty(kid)) continue;
+    var f = kgKarigarJobFine(job, S.kgLedger || [], kid);
+    if(f < 0) return {err:'A karigar has returned more than he was given - fix it with an owner adjustment first'};
+    if(f > 0) pos.push({kid:kid, fine:f});
+  }
+  if(!pos.length) return {undo:function(){}};
+  var base = opts.opId || kgNewId(), metal = kgMetalOf(job), list = [], sal = null;
+  if(opts.settle === 'carry'){
+    for(i = 0; i < pos.length; i++){
+      var k = findKarigar(pos[i].kid);
+      if(!k || k.carryTrusted !== true) return {err:(k ? k.name : 'This karigar') + ' is not set to carry a balance'};
+      var ck = kgCarryCheck(pos[i].kid, metal, pos[i].fine);
+      if(ck.over && !opts.ackCeiling) return {err:'Over the carry limit: ' + k.name + ' would carry ' + kgFmtG(ck.total) + ' fine, the limit is ' + kgFmtG(ck.ceiling) + '. Confirm to go on.'};
+      var cid = base + ':c' + i;
+      list.push({type:'CARRY_OUT', opId:cid + 'o', jobId:job.id, stageId:'', karigarId:pos[i].kid, metal:metal, carryId:cid, fineMg:pos[i].fine});
+      list.push({type:'CARRY_IN', opId:cid + 'i', jobId:'', stageId:'', karigarId:pos[i].kid, metal:metal, carryId:cid, fromJobId:job.id, fineMg:pos[i].fine});
+    }
+  } else if(opts.settle === 'loss' || opts.settle === 'loss-cash'){
+    if(u.role !== 'owner') return {err:'Only the owner can accept a loss'};
+    var why = String(opts.reason || '').trim();
+    if(why.length < 5) return {err:'A reason (at least 5 letters) is required for a loss'};
+    var cash = opts.settle === 'loss-cash', bill = 0;
+    if(cash){
+      if(pos.length !== 1) return {err:'A cash bill can only settle one karigar at a time'};
+      bill = kgParsePaise(opts.billText); if(bill === null) return {err:'Enter the bill amount in rupees'};
+    }
+    pos.forEach(function(p, n){
+      list.push({type:'LOSS', opId:base + ':l' + n, jobId:job.id, stageId:'', karigarId:p.kid, metal:metal, fineMg:p.fine, category:'other', reason:why,
+        proposed:false, approvedBy:u.name, settle:(cash ? 'cash' : 'gold'), billPaise:bill});
+    });
+  } else return {err:'Choose how to settle what is still open'};
+  list.forEach(function(e){ kgStamp(e); });
+  var err = kgPushValidated(list, u);
+  if(err) return {err:err};
+  if(opts.settle === 'loss-cash'){
+    var loss = list[0];
+    sal = kgStamp({type:'DEDUCTION', opId:base + ':bill', karigarId:loss.karigarId, jobId:job.id, lossId:loss.id, amountPaise:loss.billPaise, note:'Loss bill ' + job.jobNo});
+    var serr = kgValidateSalary(sal, {karigar:findKarigar(loss.karigarId), role:u.role, all:S.kgSalary || []});
+    if(serr){ S.kgLedger = S.kgLedger.filter(function(x){ return list.indexOf(x) === -1; }); return {err:serr}; }
+    S.kgSalary = S.kgSalary || []; S.kgSalary.push(sal);
+  }
+  return {undo:function(){
+    S.kgLedger = S.kgLedger.filter(function(x){ return list.indexOf(x) === -1; });
+    if(sal) S.kgSalary = S.kgSalary.filter(function(x){ return x !== sal; });
+  }};
+}
+function kgLiveLossBill(salary, lossId){
+  var rev = {}, found = false;
+  (salary || []).forEach(function(x){ if(x.type === 'REVERSAL') rev[x.reversesId] = true; });
+  (salary || []).forEach(function(x){ if(x.type === 'DEDUCTION' && x.lossId === lossId && !rev[x.id]) found = true; });
+  return found;
+}
+
+// Owner settings on the karigar: may he carry a balance, and how much (per metal). ceilings are grams text, '' = no limit.
+function kgSetCarry(karigarId, v, done){
+  var k = findKarigar(karigarId), u = kgUser(), before = k ? JSON.stringify(k) : null, auditId = null;
+  kgTxn('karigar:' + karigarId, function(){
+    if(u.role !== 'owner') return 'Only the owner can change carry settings';
+    if(!k) return 'Karigar not found';
+    var cg = String(v.ceilingGold || '').trim() === '' ? 0 : kgParseMg(v.ceilingGold), cs = String(v.ceilingSilver || '').trim() === '' ? 0 : kgParseMg(v.ceilingSilver);
+    if(cg === null || cs === null) return 'The limit must be a weight in grams (up to 3 decimals)';
+    k.carryTrusted = v.trusted === true; k.carryCeilingMg = {gold:cg, silver:cs};
+    auditId = kgAudit('kg_carry_settings', 'karigar', karigarId, (k.carryTrusted ? 'carry on' : 'carry off'));
+    return '';
+  }, function(){
+    var old = JSON.parse(before);
+    Object.keys(k).forEach(function(x){ if(!(x in old)) delete k[x]; });
+    Object.keys(old).forEach(function(x){ k[x] = old[x]; });
+    kgUndoAudit(auditId);
+  }, function(err){ done(err); });
+}
+// Quarterly physical count: due when he carries a balance and has not been counted for 90 days.
+var KG_COUNT_DAYS = 90;
+function kgCountDue(karigarId){
+  var k = findKarigar(karigarId);
+  if(!k || k.carryTrusted !== true) return false;
+  if(!(kgCarryTotal(karigarId, 'gold') > 0 || kgCarryTotal(karigarId, 'silver') > 0)) return false;
+  if(!k.lastCountAt) return true;
+  return (Date.parse(kgToday() + 'T00:00:00Z') - Date.parse(String(k.lastCountAt).slice(0, 10) + 'T00:00:00Z')) / 86400000 >= KG_COUNT_DAYS;
+}
+function kgMarkCounted(karigarId, note, done){
+  var k = findKarigar(karigarId), u = kgUser(), before = k ? JSON.stringify(k) : null, auditId = null;
+  kgTxn('karigar:' + karigarId, function(){
+    if(!kgCan(u.role, 'manager')) return 'Only owner or manager can record a count';
+    if(!k) return 'Karigar not found';
+    k.lastCountAt = kgToday(); k.lastCountBy = u.name; k.lastCountNote = String(note || '').trim().slice(0, 120);
+    auditId = kgAudit('kg_count', 'karigar', karigarId, k.lastCountNote || 'counted');
+    return '';
+  }, function(){
+    var old = JSON.parse(before);
+    Object.keys(k).forEach(function(x){ if(!(x in old)) delete k[x]; });
+    Object.keys(old).forEach(function(x){ k[x] = old[x]; });
+    kgUndoAudit(auditId);
+  }, function(err){ done(err); });
 }
 
 // Runs after every load/restore (normaliseData): a retried or replayed save can

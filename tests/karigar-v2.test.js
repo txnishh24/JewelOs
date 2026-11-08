@@ -1038,5 +1038,148 @@ test('old-model jobs are untouched: percent wastage still computed, no points fi
   ok(j.model === undefined); metal(a, j, 'ISSUE', 100000, '999'); eq(bal(a, j).percentFine, 4000);
 });
 
+console.log('\nKarigar redesign batch 3 - close, carry-forward, accepted loss, loss bill');
+
+function trust(a, k, ceilG, ceilS){
+  var r = call(function(cb){ a.kgSetCarry(k.id, {trusted:true, ceilingGold:ceilG || '', ceilingSilver:ceilS || ''}, cb); });
+  if(r.err) throw new Error('trust: ' + r.err.message);
+}
+// everything he holds of one metal: open fine on all his jobs + carried lots. Must never change on a carry.
+function holds(a, k, metal){
+  var t = 0;
+  a.S.kgJobs.forEach(function(j){ if(a.kgMetalOf(j) === metal && j.model === 'points') t += a.kgKarigarJobFine(j, a.S.kgLedger, k.id); });
+  return t + a.kgCarryTotal(k.id, metal);
+}
+function closeV(a, j, opts){ return call(function(cb){ a.kgCloseJob(j.id, cb, opts); }); }
+
+test('close: a points job with nothing open closes; with something open it needs a settlement', function(){
+  var a = fresh(); var k = pk(a, 'C1'); var j = pjob(a, k); issueV(a, j, '10', '92'); receiptV(a, j, {gross:'9.2', purity:'100'.replace('100', '92')});
+  var r = closeV(a, j); ok(r.err && /Balance is/.test(r.err.message), 'open balance blocks a plain close');
+  var j2 = pjob(a, k); issueV(a, j2, '10', '92'); receiptV(a, j2, {gross:'10', purity:'92'});   // credit capped to 9.2 = all of it
+  ok(!closeV(a, j2).err); eq(j2.status, 'closed');
+});
+test('carry-forward: needs the "trusted" setting; the leftover leaves the job and becomes a lot "Carried from [job]"', function(){
+  var a = fresh(); var k = pk(a, 'C2'); var j = pjob(a, k); issueV(a, j, '10', '92'); receiptV(a, j, {gross:'5', purity:'92'});   // 9.2 issued, 5 g at 92+4 credits 4.8 -> 4.4 open
+  eq(bal(a, j).openFine, 4400);
+  var no = closeV(a, j, {settle:'carry'}); ok(no.err && /not set to carry/.test(no.err.message)); eq(j.status, 'open'); eq(a.S.kgLedger.length, 2);
+  trust(a, k);
+  var before = holds(a, k, 'gold');
+  var r = closeV(a, j, {settle:'carry', opId:'cf1'}); ok(!r.err, r.err && r.err.message);
+  eq(j.status, 'closed'); eq(bal(a, j).openFine, 0); eq(bal(a, j).carriedOut, 4400);
+  var lots = a.kgCarryLots(k.id, 'gold'); eq(lots.length, 1); eq(lots[0].remainingMg, 4400); eq(lots[0].fromJobNo, j.jobNo); eq(lots[0].ageDays, 0);
+  eq(holds(a, k, 'gold'), before, 'what he holds is unchanged by the carry (4.400 g before and after)');
+});
+test('carry-forward: next issue only needs the difference, and his total is not counted twice', function(){
+  var a = fresh(); var k = pk(a, 'C3'); trust(a, k);
+  var j1 = pjob(a, k); issueV(a, j1, '10', '92'); receiptV(a, j1, {gross:'5', purity:'92'}); closeV(a, j1, {settle:'carry'});   // carries 4.400 fine
+  var j2 = pjob(a, k), need = 10000;                                      // next job needs 10.000 g fine
+  eq(holds(a, k, 'gold'), 4400);
+  var w = a.kgNeededWeightMg(need, 4400, 10000); eq(w, 5600, 'hand over only 5.600 g of 999');
+  var ap = call(function(cb){ a.kgApplyCarry(j2.id, '', 4400, 'ap1', cb); }); ok(!ap.err, ap.err && ap.err.message);
+  eq(a.kgCarryTotal(k.id, 'gold'), 0); eq(bal(a, j2).issuedFine, 4400); eq(holds(a, k, 'gold'), 4400, 'lot down, job up: same total');
+  issueV(a, j2, String(w / 1000), '', '', '999');
+  eq(bal(a, j2).issuedFine, 10000, 'the job shows 10.000 fine issued'); eq(holds(a, k, 'gold'), 10000, 'he holds 10.000 in all, not 14.000');
+});
+test('carry-forward: a lot cannot be over-applied; two lots are used oldest first', function(){
+  var a = fresh(); var k = pk(a, 'C4'); trust(a, k);
+  var j1 = pjob(a, k); issueV(a, j1, '10', '92'); closeV(a, j1, {settle:'carry', opId:'x1'});     // lot 9.200
+  a.S.kgLedger.forEach(function(e){ if(e.type === 'CARRY_IN') e.date = '2026-01-01'; });
+  var j2 = pjob(a, k); issueV(a, j2, '5', '92'); closeV(a, j2, {settle:'carry', opId:'x2'});      // lot 4.600
+  var lots = a.kgCarryLots(k.id, 'gold'); eq(lots.length, 2); eq(lots[0].remainingMg, 9200, 'oldest first'); ok(lots[0].ageDays > 30);
+  var j3 = pjob(a, k);
+  ok(call(function(cb){ a.kgApplyCarry(j3.id, '', 13801, 'big', cb); }).err, 'more than he has carried is refused'); eq(a.kgCarryTotal(k.id, 'gold'), 13800);
+  ok(!call(function(cb){ a.kgApplyCarry(j3.id, '', 10000, 'two', cb); }).err);
+  var l2 = a.kgCarryLots(k.id, 'gold'); eq(l2.length, 1); eq(l2[0].remainingMg, 3800, 'first lot used up, second partly');
+  eq(holds(a, k, 'gold'), 13800);
+});
+test('carry-forward: a limit warns; confirming goes on', function(){
+  var a = fresh(); var k = pk(a, 'C5'); trust(a, k, '5');                                          // limit 5.000 g
+  var j = pjob(a, k); issueV(a, j, '10', '92');
+  var r = closeV(a, j, {settle:'carry'}); ok(r.err && /Over the carry limit/.test(r.err.message), 'warned'); eq(j.status, 'open'); eq(a.kgCarryTotal(k.id, 'gold'), 0);
+  ok(!closeV(a, j, {settle:'carry', ackCeiling:true}).err, 'confirmed'); eq(a.kgCarryTotal(k.id, 'gold'), 9200);
+  ok(a.kgCarryCheck(k.id, 'gold', 1).over);
+});
+test('carry-forward: gold and silver are separate lots', function(){
+  var a = fresh(); var k = pk(a, 'C6'); trust(a, k);
+  var js = pjob(a, k, {metal:'silver'}); issueV(a, js, '100', '92.5'); closeV(a, js, {settle:'carry'});
+  eq(a.kgCarryTotal(k.id, 'silver'), 92500); eq(a.kgCarryTotal(k.id, 'gold'), 0);
+  var jg = pjob(a, k); ok(call(function(cb){ a.kgApplyCarry(jg.id, '', 1000, 'mix', cb); }).err, 'silver cannot be applied to a gold job');
+});
+test('carry-forward: reversing the pair needs the job reopened; reversing one half alone is refused; a used lot cannot be reversed', function(){
+  var a = fresh(); var k = pk(a, 'C7'); trust(a, k);
+  var j = pjob(a, k); issueV(a, j, '10', '92'); closeV(a, j, {settle:'carry', opId:'rv1'});
+  var out = a.S.kgLedger.filter(function(e){ return e.type === 'CARRY_OUT'; })[0];
+  ok(call(function(cb){ a.kgReverse(out.id, 'trying only one half', op(), cb); }).err, 'one half alone refused');
+  ok(call(function(cb){ a.kgReverseCarry('rv1:c0', 'undo the carry now', op(), cb); }).err, 'closed job: reopen first');
+  ok(!call(function(cb){ a.kgReopenJob(j.id, cb); }).err);
+  var j2 = pjob(a, k); ok(!call(function(cb){ a.kgApplyCarry(j2.id, '', 1000, 'use1', cb); }).err);
+  var used = call(function(cb){ a.kgReverseCarry('rv1:c0', 'undo the carry now', op(), cb); }); ok(used.err, 'part of the lot is already used');
+  var ap = a.S.kgLedger.filter(function(e){ return e.type === 'CARRY_APPLY'; })[0];
+  ok(!call(function(cb){ a.kgReverse(ap.id, 'applied by mistake', op(), cb); }).err); eq(a.kgCarryTotal(k.id, 'gold'), 9200, 'reversing the apply gives the lot back');
+  var ok1 = call(function(cb){ a.kgReverseCarry('rv1:c0', 'undo the carry now', op(), cb); }); ok(!ok1.err, ok1.err && ok1.err.message);
+  eq(a.kgCarryTotal(k.id, 'gold'), 0); eq(bal(a, j).openFine, 9200, 'the job holds it again'); eq(holds(a, k, 'gold'), 9200);
+});
+test('accepted loss: owner only, reason needed; the job closes with nothing open', function(){
+  var a = fresh('owner'); var k = pk(a, 'S3', 'salary'); var j = pjob(a, k); issueV(a, j, '10', '92'); receiptV(a, j, {gross:'9.9', purity:'92'});   // 0.092 g short
+  a.SAAS.user.role = 'manager'; var m = closeV(a, j, {settle:'loss', reason:'filing loss accepted'}); ok(m.err && /Only the owner/.test(m.err.message)); eq(j.status, 'open');
+  a.SAAS.user.role = 'owner';
+  ok(closeV(a, j, {settle:'loss', reason:'no'}).err, 'short reason refused');
+  var r = closeV(a, j, {settle:'loss', reason:'filing and polishing loss'}); ok(!r.err, r.err && r.err.message);
+  eq(j.status, 'closed'); eq(bal(a, j).openFine, 0); eq(bal(a, j).approvedLoss, 92);
+});
+test('loss as a cash bill: the gold loss clears, the rupees reduce what you owe him, and the two are never netted', function(){
+  var a = fresh('owner'); var k = pk(a, 'W1'); var j = pjob(a, k); issueV(a, j, '10', '92'); receiptV(a, j, {gross:'9', purity:'92'});   // 9.2 issued; capped credit 9*(0.96)=8.64 -> 0.56 open
+  a.S.kgSalary.push({id:'acc1', opId:'acc1', type:'ACCRUAL', karigarId:k.id, period:'2026-11', amountPaise:3000000, ts:'t', date:a.kgToday()});
+  var payBefore = a.kgSalaryBalance(k.id).payable; eq(payBefore, 3000000);
+  ok(closeV(a, j, {settle:'loss-cash', reason:'cash bill for loss'}).err, 'bill amount needed');
+  var r = closeV(a, j, {settle:'loss-cash', reason:'cash bill for loss', billText:'1500'}); ok(!r.err, r.err && r.err.message);
+  eq(j.status, 'closed'); eq(bal(a, j).openFine, 0); eq(a.kgSalaryBalance(k.id).payable, payBefore - 150000, 'rupee balance down by the bill');
+  eq(a.S.kgSalary.filter(function(x){ return x.type === 'DEDUCTION'; }).length, 1);
+  var loss = a.S.kgLedger.filter(function(e){ return e.type === 'LOSS'; })[0]; eq(loss.settle, 'cash'); eq(loss.billPaise, 150000);
+  ok(!call(function(cb){ a.kgReopenJob(j.id, cb); }).err);
+  ok(call(function(cb){ a.kgReverse(loss.id, 'bill was wrong', op(), cb); }).err, 'the loss cannot be reversed while its bill stands');
+  var ded = a.S.kgSalary.filter(function(x){ return x.type === 'DEDUCTION'; })[0];
+  ok(!call(function(cb){ a.kgAddSalary({type:'REVERSAL', opId:op(), karigarId:k.id, reversesId:ded.id, reason:'bill was wrong'}, cb); }).err);
+  ok(!call(function(cb){ a.kgReverse(loss.id, 'bill was wrong', op(), cb); }).err, 'after the bill is reversed the loss can be');
+  eq(a.kgSalaryBalance(k.id).payable, payBefore);
+});
+test('a failed save rolls back a close with a carry: no entries, job still open', function(){
+  var a = fresh(); var k = pk(a, 'C8'); trust(a, k); var j = pjob(a, k); issueV(a, j, '10', '92');
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  var r = closeV(a, j, {settle:'carry'}); ok(r.err);
+  eq(j.status, 'open'); eq(a.S.kgLedger.length, 1); eq(a.kgCarryTotal(k.id, 'gold'), 0); eq(bal(a, j).openFine, 9200);
+});
+test('a failed save rolls back an accepted-loss close including the rupee bill', function(){
+  var a = fresh('owner'); var k = pk(a, 'W2'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  ok(closeV(a, j, {settle:'loss-cash', reason:'cash bill for loss', billText:'900'}).err);
+  eq(j.status, 'open'); eq(a.S.kgLedger.length, 1); eq(a.S.kgSalary.length, 0);
+});
+test('close settlement refuses an old-rules job and a karigar who returned too much', function(){
+  var a = fresh(); var k = karigar(a, 'Old2', {kind:'wastage', wastagePct:'4'}); var oj = job(a, k); metal(a, oj, 'ISSUE', 10000, '999');
+  var r = closeV(a, oj, {settle:'loss', reason:'whatever it is'}); ok(r.err, 'old job keeps its old rules');
+  var p = pk(a, 'C9', 'salary'); var j = pjob(a, p); issueV(a, j, '5', '92'); receiptV(a, j, {gross:'6', purity:'92'});   // returned 5.52 > 4.6 issued
+  ok(bal(a, j).openFine < 0); ok(closeV(a, j, {settle:'loss', reason:'cannot do this'}).err);
+});
+test('quarterly count: due only for a trusted karigar carrying a balance, 90 days after the last count', function(){
+  var a = fresh(); var k = pk(a, 'C10'); eq(a.kgCountDue(k.id), false, 'not trusted');
+  trust(a, k); eq(a.kgCountDue(k.id), false, 'nothing carried');
+  var j = pjob(a, k); issueV(a, j, '10', '92'); closeV(a, j, {settle:'carry'});
+  eq(a.kgCountDue(k.id), true, 'never counted');
+  ok(!call(function(cb){ a.kgMarkCounted(k.id, 'counted with him', cb); }).err); eq(a.kgCountDue(k.id), false);
+  a.findKarigar(k.id).lastCountAt = '2026-01-01'; eq(a.kgCountDue(k.id), true, 'old count');
+  a.SAAS.user.role = 'staff'; ok(call(function(cb){ a.kgMarkCounted(k.id, 'x', cb); }).err, 'staff cannot');
+});
+test('carry settings are owner only and validate the limit', function(){
+  var a = fresh('owner'); var k = pk(a, 'C11'); a.SAAS.user.role = 'manager'; ok(call(function(cb){ a.kgSetCarry(k.id, {trusted:true}, cb); }).err);
+  a.SAAS.user.role = 'owner'; ok(call(function(cb){ a.kgSetCarry(k.id, {trusted:true, ceilingGold:'abc'}, cb); }).err);
+  ok(!call(function(cb){ a.kgSetCarry(k.id, {trusted:true, ceilingGold:'25.5'}, cb); }).err); eq(a.findKarigar(k.id).carryCeilingMg.gold, 25500);
+});
+test('needed weight: rounds up so the fine covers the need, never overshoots by a whole mg', function(){
+  var a = fresh();
+  eq(a.kgNeededWeightMg(10000, 4000, 9200), 6522); ok(a.kgFineFromPu(6522, 9200) >= 6000); ok(a.kgFineFromPu(6521, 9200) < 6000);
+  eq(a.kgNeededWeightMg(5000, 5000, 9200), 0); eq(a.kgNeededWeightMg(5000, 9000, 9200), 0);
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }
