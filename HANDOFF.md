@@ -57,6 +57,7 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   (Cowork's own account skills) write to the paused Office, and `jewelos-health`'s drift SQL still
   reads `nextInvNo`, stale since migration 005 changed the invoice-floor source.** Flagged by Cowork's
   3 Oct skills audit; explicitly out of scope for Claude Code to touch; Cowork/Tanish's to fix.
+- **Review the five newly enabled plugins in .claude/settings.json (source, what they store) before keeping them; consider moving them to user-level settings.** (`ponytail`, `andrej-karpathy-skills`, `taste-skill`, `claude-mem`, `claude-mem-cowork`; enabled on Tanish's machine 8 Nov, deliberately NOT committed; `claude-mem` records session content, so it should not travel through the repo.)
 **Closed (don't re-ask):** the full list of past decisions is in `docs/handoff-archive/HANDOFF-LOG-through-2026-11-05.md` (section "WAITING Closed list and notes", at the end of that file). Still relevant: the Netlify badge is still visible, nothing hides it (don't claim it is hidden); session tokens stay in `localStorage`; `razorpay-webhook` is left as is.
 
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
@@ -68,6 +69,18 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-08 (hundred-and-eighty-fifth entry) · Claude Code (Sonnet) — `sql-kg-ledger` test date fixed (22 failures gone); `.claude/*.bak*` ignored; plugin review added to WAITING; nothing deployed, no migration, js/ and supabase/ untouched
+
+**Start state:** `git status` showed only `.claude/settings.json` (the five plugins) and the untracked `.bak`; `js/`, `supabase/`, `checks/` clean, so I went ahead.
+**Test date:** 011 (line ~230) compares a manager's `business_date` with `(now() at time zone 'Asia/Kolkata')::date` and allows today back to 7 days. `tests/sql-kg-ledger.test.mjs` now asks the database for that same value once (`TEST_DAY`) and uses it as the default date (was a fixed `'2026-10-31'`, line 29) and in the one direct insert (line ~400). No assertion changed. Same clock and zone as the rule, so no drift; a run that crosses midnight stays inside "today or up to 7 days back".
+**Runs:** before: `sql-kg-ledger` 22 FAILED (all "business date out of range"). After: `sql-kg-ledger` 215 ok, 0 FAIL, "all passed"; `sql-store-history` 16 ok, 0 FAIL, "all passed"; `npm run test:sql` all passed.
+**Other hard-coded 2026-10/11 dates in tests/ (not fixed; every suite passed today):** `edge-functions.test.js:999` (`business_date: '2026-10-31'` sent to a mocked/handler path, passes now; would break if that path ever applies the 7-day rule against the real clock); `karigar-ledger-client.test.js` (lines 356, 441-447, 594-597, 636-641, 662, 686-691, 708, 815, 827: `kgToday` is stubbed, other dates are data, so clock-independent as far as I read); `karigar-v2.test.js` (366, 578-588, 747-748, 767: dates passed explicitly to date-math functions with a stated `t`/day, clock-independent as far as I read); `regression.test.js` (973-975, 1395-1546: fixed inputs, comment at 973 explains the UTC case). `tests/e2e/edit-bill-reports-newsale.spec.js` also has one; not run. I read these by pattern, not each in context.
+**Ignore rule:** `.gitignore` now has `.claude/*.bak*` (CRLF like the rest of the file). The `.bak` file is NOT deleted.
+**Plugins:** `.claude/settings.json` left as it is on disk and NOT committed. WAITING ON TANISH has a new line to review the five plugins. Note: `.claude/settings.json` is tracked by git, so any future plugin toggle will show as dirty again; moving them to user-level settings (or `settings.local.json`, already ignored) would stop that.
+**Not verified:** e2e (not run); the edge-functions line 999 behaviour with a real clock; that midnight-crossing never flakes (reasoned, not run across midnight IST); whether `.gitignore` also ought to cover other `.claude` backup names.
+→ FOR COWORK: nothing — FYI only. `sql-kg-ledger` passes again (215 ok); you may quote that number.
+→ FOR TANISH: nothing needed. The plugin review is now in WAITING; the `.bak` file is still on disk.
 
 ### 2026-11-08 (hundred-and-eighty-fourth entry) · Claude Code (Sonnet) — housekeeping: globals.json committed, backup line fixed, check steps run by hand; FOUND `sql-kg-ledger` test fails by date (22 failures); e2e NOT run; nothing deployed, no migration
 
