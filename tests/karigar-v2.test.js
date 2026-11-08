@@ -859,5 +859,184 @@ test('stones through to credit: net after stones x (touch + points)', function()
   eq(net, 11000); eq(a.kgWastageCredit(net, 9200, 400, 99999).creditMg, 10560);
 });
 
+console.log('\nKarigar redesign batch 2 - points model, stages, silver, opening balance');
+
+// helpers for the points model
+function pk(a, name, kind, pts){
+  return karigar(a, name, kind === 'salary' ? {kind:'salary', salaryMode:'monthly', rate:'30000'} : {kind:'wastage', points:(pts == null ? '4' : pts)});
+}
+function pjob(a, k, extra){
+  var f = {karigarId:k.id, title:'Points job', model:'points'};
+  Object.keys(extra || {}).forEach(function(x){ f[x] = extra[x]; });
+  var r = call(function(cb){ a.kgCreateJob(f, op(), cb); });
+  if(r.err) throw new Error('pjob: ' + r.err.message);
+  return r.v;
+}
+function issueV(a, j, wt, pur, stageId, chip){
+  var b = a.kgBuildIssue(j.id, stageId || '', {wt:wt, purity:pur, chip:chip, confirmed:true, opId:op()});
+  if(!b.entry) throw new Error('issue build: ' + (b.error || b.confirm));
+  var r = call(function(cb){ a.kgAddEntry(b.entry, cb); });
+  if(r.err) throw new Error('issue: ' + r.err.message);
+  return r.v;
+}
+function receiptV(a, j, v, stageId){
+  v.opId = op(); v.confirmed = true; v.piece = v.piece || 'ring'; v.qty = v.qty || '1';
+  var b = a.kgBuildReceipt(j.id, stageId || '', v);
+  if(!b.entry) throw new Error('receipt build: ' + (b.error || b.confirm));
+  var r = call(function(cb){ a.kgAddEntry(b.entry, cb); });
+  if(r.err) throw new Error('receipt: ' + r.err.message);
+  return {entry:r.v, built:b};
+}
+
+test('terms can carry wastage points; salary terms have none', function(){
+  var a = fresh(); var k = pk(a, 'P1'); var ag = a.kgAgreementFor(k.id, a.kgToday());
+  eq(ag.wastagePoints, 400); eq(a.findKarigar(k.id).wastagePoints, 400);
+  var s = pk(a, 'S1', 'salary'); eq(a.kgAgreementFor(s.id, a.kgToday()).wastagePoints, null);
+  ok(call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'21'}, cb); }).err, '21 points refused');
+});
+test('points job: model, metal, tag, piece count, optional points override; bad input refused', function(){
+  var a = fresh(); var k = pk(a, 'P2');
+  var j = pjob(a, k, {metal:'silver', tag:'T-77', pieceCount:'3', pointsText:'5'});
+  eq(j.model, 'points'); eq(j.metal, 'silver'); eq(j.tag, 'T-77'); eq(j.pieceCount, 3); eq(j.pointsPu, 500); eq(j.wastageBp, 0);
+  eq(pjob(a, k).metal, 'gold'); eq(pjob(a, k).pointsPu, null);
+  ok(call(function(cb){ a.kgCreateJob({karigarId:k.id, title:'x', model:'points', metal:'platinum'}, op(), cb); }).err);
+  ok(call(function(cb){ a.kgCreateJob({karigarId:k.id, title:'x', model:'points', pointsText:'99'}, op(), cb); }).err);
+  ok(call(function(cb){ a.kgCreateJob({karigarId:k.id, title:'x', model:'points', pieceCount:'x'}, op(), cb); }).err);
+});
+test('issue: 10 g at 92 is 9.200 g fine; 91.82 stores as 9182; 999 chip counts 100%', function(){
+  var a = fresh(); var k = pk(a, 'P3'); var j = pjob(a, k);
+  var e = issueV(a, j, '10', '92'); eq(e.fineMg, 9200); eq(e.pu, 9200); eq(a.kgFmtG(e.fineMg), '9.200 g');
+  var o = issueV(a, j, '10', '91.82'); eq(o.fineMg, 9182); eq(o.pu, 9182);
+  var c = issueV(a, j, '10', '', '', '999'); eq(c.fineMg, 10000); eq(c.pu, 10000);
+  eq(bal(a, j).issuedFine, 9200 + 9182 + 10000);
+});
+test('issue: bad and odd purity are stopped or confirmed before anything is saved', function(){
+  var a = fresh(); var k = pk(a, 'P4'); var j = pjob(a, k);
+  ok(a.kgBuildIssue(j.id, '', {wt:'10', purity:'100', opId:op()}).error, '100 refused');
+  ok(a.kgBuildIssue(j.id, '', {wt:'10', purity:'49', opId:op()}).error, '49 refused');
+  ok(a.kgBuildIssue(j.id, '', {wt:'10', purity:'91.82', opId:op()}).confirm, 'unusual value asks first');
+  ok(!a.kgBuildIssue(j.id, '', {wt:'10', purity:'91.82', confirmed:true, opId:op()}).confirm);
+  ok(!a.kgBuildIssue(j.id, '', {wt:'10', purity:'92', opId:op()}).confirm, 'a usual touch needs no confirm');
+  ok(a.kgBuildIssue(j.id, '', {wt:'0', purity:'92', opId:op()}).error, 'zero weight refused');
+  eq(a.S.kgLedger.length, 0, 'nothing saved');
+});
+test('receipt, wastage karigar: 10 g net at 92 + 4 points credits 9.600 g, and the real fine in the piece is 9.200 g', function(){
+  var a = fresh(); var k = pk(a, 'P5'); var j = pjob(a, k); issueV(a, j, '10', '92'); issueV(a, j, '1', '', '', '999');   // fine issued 9.2 + 1.0 = 10.2
+  var r = receiptV(a, j, {gross:'10', purity:'92', agreed:'92'});
+  eq(r.entry.actualFineMg, 9200); eq(r.entry.creditFineMg, 9600); eq(r.entry.fineMg, 9600); eq(r.entry.pointsPu, 400); eq(r.entry.agreedPu, 9200); eq(r.entry.mg, 10000);
+  eq(bal(a, j).openFine, 10200 - 9600);
+});
+test('receipt: credit is capped at the fine he holds on the job; the saved wastage stays with the shop', function(){
+  var a = fresh(); var k = pk(a, 'P6'); var j = pjob(a, k); issueV(a, j, '10', '92');   // 9.200 fine issued
+  var r = receiptV(a, j, {gross:'10', purity:'92'});
+  eq(r.built.rawCreditMg, 9600); eq(r.built.capped, true); eq(r.entry.creditFineMg, 9200); eq(bal(a, j).openFine, 0);
+});
+test('receipt: credit follows the MEASURED touch, not the agreed one', function(){
+  var a = fresh(); var k = pk(a, 'P7'); var j = pjob(a, k); issueV(a, j, '20', '', '', '999');
+  var r = receiptV(a, j, {gross:'10', purity:'91.82', agreed:'92'});
+  eq(r.entry.agreedPu, 9200); eq(r.entry.pu, 9182); eq(r.entry.creditFineMg, 9582); eq(r.entry.actualFineMg, 9182);
+});
+test('receipt, per-job points override beats the karigar terms', function(){
+  var a = fresh(); var k = pk(a, 'P8'); var j = pjob(a, k, {pointsText:'2'}); issueV(a, j, '20', '', '', '999');
+  eq(receiptV(a, j, {gross:'10', purity:'92'}).entry.creditFineMg, 9400);
+});
+test('receipt, salary karigar: no wastage, credit = real fine; the loss is what is left open', function(){
+  var a = fresh(); var k = pk(a, 'S2', 'salary'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  var r = receiptV(a, j, {gross:'9.9', purity:'92'});
+  eq(r.entry.pointsPu, 0); eq(r.entry.creditFineMg, 9108); eq(r.entry.kind, 'salary'); eq(bal(a, j).openFine, 9200 - 9108);
+});
+test('receipt: stones are taken off the gross before the metal is counted (mode A or B)', function(){
+  var a = fresh(); var k = pk(a, 'P9'); var j = pjob(a, k); issueV(a, j, '30', '', '', '999');
+  var r = receiptV(a, j, {gross:'12', stoneCt:'5', stoneMode:'A', purity:'92'});
+  eq(r.entry.grossMg, 12000); eq(r.entry.stoneMg, 1000); eq(r.entry.mg, 11000); eq(r.entry.creditFineMg, 10560);
+  var g = receiptV(a, j, {gross:'5', stoneG:'0.5', stoneMode:'B', purity:'92'}); eq(g.entry.mg, 4500);
+  ok(a.kgBuildReceipt(j.id, '', {gross:'1', stoneG:'2', purity:'92', piece:'x', qty:'1', opId:op()}).error, 'stones heavier than the piece refused');
+});
+test('receipt: terms must be set; wastage needs points', function(){
+  var a = fresh(); var k = a.addOrGetKarigar('NoTerms'); a.kgSetTerms(k.id, {kind:'wastage'}, function(){});
+  var j = pjob(a, k); issueV(a, j, '10', '92');
+  ok(/points/.test(a.kgBuildReceipt(j.id, '', {gross:'5', purity:'92', piece:'x', qty:'1', opId:op()}).error), 'asks for wastage points');
+});
+test('the ledger refuses a tampered credit, a wrong net, a wrong metal and a wrong karigar', function(){
+  var a = fresh(); var k = pk(a, 'P10'); var j = pjob(a, k); issueV(a, j, '30', '', '', '999');
+  function build(){ return a.kgBuildReceipt(j.id, '', {gross:'10', purity:'92', piece:'ring', qty:'1', opId:op()}).entry; }
+  var e = build(); e.creditFineMg += 1; e.fineMg += 1; ok(call(function(cb){ a.kgAddEntry(e, cb); }).err, 'credit +1 mg refused');
+  e = build(); e.mg = 9999; ok(call(function(cb){ a.kgAddEntry(e, cb); }).err, 'net must be gross - stones');
+  e = build(); e.metal = 'silver'; ok(call(function(cb){ a.kgAddEntry(e, cb); }).err, 'silver entry on a gold job refused');
+  e = build(); e.karigarId = 'someone-else'; ok(call(function(cb){ a.kgAddEntry(e, cb); }).err, 'wrong karigar refused');
+  e = build(); e.pu = 4999; ok(call(function(cb){ a.kgAddEntry(e, cb); }).err, 'purity outside the guard refused');
+  e = build(); e.pu = 10000; ok(call(function(cb){ a.kgAddEntry(e, cb); }).err, '100% only as the 999 chip');
+  eq(a.S.kgLedger.length, 1, 'only the issue is in the ledger');
+});
+test('silver: its own metal on the job, same maths, never mixed with gold', function(){
+  var a = fresh(); var k = pk(a, 'P11'); var js = pjob(a, k, {metal:'silver'}); var jg = pjob(a, k);
+  var e = issueV(a, js, '100', '92.5'); eq(e.metal, 'silver'); eq(e.fineMg, 92500);
+  issueV(a, jg, '10', '92');
+  eq(bal(a, js).issuedFine, 92500); eq(bal(a, jg).issuedFine, 9200);
+  var bad = a.kgBuildIssue(jg.id, '', {wt:'1', purity:'92', confirmed:true, opId:op()}).entry; bad.metal = 'silver';
+  ok(call(function(cb){ a.kgAddEntry(bad, cb); }).err, 'silver entry cannot land on the gold job');
+});
+test('stage chain: each stage has its own karigar; stage 2 is a new issue after stage 1 returned to the shop; custody is never double counted', function(){
+  var a = fresh(); var A = pk(a, 'Maker'); var B = pk(a, 'Setter', 'wastage', '3');
+  var j = pjob(a, A);
+  var s1 = call(function(cb){ a.kgAddStage(j.id, 'Making', A.id, cb); }).v, s2 = call(function(cb){ a.kgAddStage(j.id, 'Setting', B.id, cb); }).v;
+  issueV(a, j, '20', '', s1.id, '999');                                      // A holds 20.000
+  var r1 = receiptV(a, j, {gross:'19', purity:'99.9'}, s1.id);               // A returns a piece: 19 g at 99.9 + 4 pts
+  issueV(a, j, '19', '', s2.id, '999');                                      // shop gives it on to B
+  var ledger = a.S.kgLedger;
+  eq(a.kgKarigarJobFine(j, ledger, A.id) + a.kgKarigarJobFine(j, ledger, B.id), bal(a, j).openFine, 'sum of the two karigars = job open fine');
+  eq(a.kgKarigarJobFine(j, ledger, B.id), 19000);
+  eq(a.kgKarigarJobFine(j, ledger, A.id), 20000 - r1.entry.creditFineMg);
+  var bad = a.kgBuildIssue(j.id, s2.id, {wt:'1', chip:'999', opId:op()}).entry; bad.karigarId = A.id;
+  ok(call(function(cb){ a.kgAddEntry(bad, cb); }).err, 'stage 2 metal cannot be booked to the stage 1 karigar');
+  var rb = receiptV(a, j, {gross:'10', purity:'99.9'}, s2.id); eq(rb.entry.karigarId, B.id); eq(rb.entry.pointsPu, 300, 'B\'s own points apply');
+});
+test('a stage that is not on the job is refused', function(){
+  var a = fresh(); var k = pk(a, 'P12'); var j = pjob(a, k);
+  var e = a.kgBuildIssue(j.id, '', {wt:'1', chip:'999', opId:op()}).entry; e.stageId = 'nope';
+  ok(call(function(cb){ a.kgAddEntry(e, cb); }).err);
+});
+test('opening balance: owner only, one per karigar and metal, reversible once with a reason, then re-enterable', function(){
+  var a = fresh('owner'); var k = pk(a, 'P13');
+  function open(metal, wt){ return call(function(cb){ a.kgAddOpening({karigarId:k.id, metal:metal, wt:wt, purity:'92', confirmed:true, opId:op()}, cb); }); }
+  var r = open('gold', '50'); ok(!r.err, r.err && r.err.message); eq(r.v.fineMg, 46000); eq(r.v.jobId, ''); eq(r.v.type, 'OPENING');
+  ok(open('gold', '10').err, 'a second gold opening is refused'); ok(!open('silver', '100').err, 'silver is a separate opening');
+  ok(call(function(cb){ a.kgReverse(r.v.id, 'no', op(), cb); }).err, 'reason too short');
+  var rv = call(function(cb){ a.kgReverse(r.v.id, 'typed the wrong weight', op(), cb); }); ok(!rv.err, rv.err && rv.err.message);
+  ok(call(function(cb){ a.kgReverse(r.v.id, 'again please', op(), cb); }).err, 'already reversed');
+  ok(!open('gold', '40').err, 're-enter after reversal');
+  a.SAAS.user.role = 'manager'; ok(open('silver', '1').err, 'manager cannot enter an opening balance');
+});
+test('opening is idempotent on its operation id and rolls back on a failed save', function(){
+  var a = fresh('owner'); var k = pk(a, 'P14'); var id = op();
+  var one = call(function(cb){ a.kgAddOpening({karigarId:k.id, metal:'gold', wt:'5', purity:'92', confirmed:true, opId:id}, cb); });
+  var two = call(function(cb){ a.kgAddOpening({karigarId:k.id, metal:'gold', wt:'5', purity:'92', confirmed:true, opId:id}, cb); });
+  ok(!one.err && two.dup === true); eq(a.S.kgLedger.length, 1);
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  var f = call(function(cb){ a.kgAddOpening({karigarId:k.id, metal:'silver', wt:'5', purity:'92', confirmed:true, opId:op()}, cb); });
+  ok(f.err, 'failed save reported'); eq(a.S.kgLedger.length, 1, 'rolled back');
+});
+test('a failed save rolls back a points receipt and leaves the balance as it was', function(){
+  var a = fresh(); var k = pk(a, 'P15'); var j = pjob(a, k); issueV(a, j, '10', '92'); var before = bal(a, j).openFine;
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  var b = a.kgBuildReceipt(j.id, '', {gross:'5', purity:'92', piece:'x', qty:'1', opId:op()});
+  ok(call(function(cb){ a.kgAddEntry(b.entry, cb); }).err); eq(bal(a, j).openFine, before); eq(a.S.kgLedger.length, 1);
+});
+test('ledger switch ON: new-style entries are refused (the server has no purity-in-hundredths or silver yet), old-style still go to the ledger path', function(){
+  var a = fresh(); var k = pk(a, 'P16'); var j = pjob(a, k); a.S.kgLedgerOn = true;
+  var e = a.kgBuildIssue(j.id, '', {wt:'1', chip:'999', opId:op()}).entry;
+  var r = call(function(cb){ a.kgAddEntry(e, cb); }); ok(r.err && /not available while the ledger is on/.test(r.err.message)); eq(a.S.kgLedger.length, 0);
+  var r2 = call(function(cb){ a.kgAddEntries([e], cb); }); ok(r2.err && /not available while the ledger is on/.test(r2.err.message));
+});
+test('a manager may reverse a points entry from an earlier day; old jobs keep their same-day rule', function(){
+  var a = fresh('owner'); var k = pk(a, 'P17'); var j = pjob(a, k); var e = issueV(a, j, '10', '92');
+  e.date = '2026-01-01'; a.SAAS.user.role = 'manager';
+  var r = call(function(cb){ a.kgReverse(e.id, 'weighed twice by mistake', op(), cb); }); ok(!r.err, r.err && r.err.message); eq(bal(a, j).issuedFine, 0);
+});
+test('old-model jobs are untouched: percent wastage still computed, no points fields', function(){
+  var a = fresh(); var k = karigar(a, 'Old', {kind:'wastage', wastagePct:'4'}); var j = job(a, k);
+  ok(j.model === undefined); metal(a, j, 'ISSUE', 100000, '999'); eq(bal(a, j).percentFine, 4000);
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }
