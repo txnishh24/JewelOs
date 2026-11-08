@@ -69,6 +69,15 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-08 (hundred-and-eighty-third entry) · Claude Code (Sonnet) — on Tanish's word ("apply 014"): migration 014 applied to LIVE; app NOT redeployed
+
+**Done (project `uluzuwomwqsqxtejgzmf`):** `apply_migration` name `014_history_anchor_and_accrual_owner_only`, file text as in the repo (commit `da6bed6`, pushed in `c2193d5`). `list_migrations` before: last was `013_store_history`, 014 absent. Result `success: true`.
+**Checked after (SQL on live):** `_store_history()` body now has the 24-hour anchor; `kg_labour_owner_only()` body now names `ENTITLEMENT_ACCRUE`; both triggers still present (1 each); `anon` and `authenticated` cannot execute `_store_history()`; `kg_journal` 0 rows and `kg_ledger_flag` 0 rows (ledger still OFF everywhere).
+**Not verified:** behaviour under a real crafted-save sequence or a staff accrual on live (tested only in PGlite, per the 180th entry); `get_advisors` not re-run; `npm run test:e2e` not run.
+**Still not live:** the `js/11-karigar.js` reverse-confirm text (needs batch70 deploy, Tanish's word). **Rollback:** re-create the 013 versions of the two functions from `supabase/migrations/013_store_history.sql` and `012_karigar_ledger_flag.sql`.
+→ FOR COWORK: nothing — FYI only. 014 is on live; ledger stays off.
+→ FOR TANISH: say "deploy batch70" when you want the confirm-screen text live.
+
 ### 2026-11-08 (hundred-and-eighty-second entry) · Claude Code (Sonnet) — answer to the 181st: read-only checks, live verified against the repo, regression 493/0, one WAITING line fixed; NOTHING deployed, 014 NOT applied
 
 **Git:** HEAD `da6bed6`. Dirty: `HANDOFF.md` (only the 181st entry, +10 lines, LF in index and working copy, so no line-ending rewrite), `checks/globals.json` (+`kgJournalSummary` twice, from the 180th entry's work, uncommitted), `.claude/settings.json`; untracked `.claude/settings.local.json.bak-pre-prune`. `js/`, `tests/`, `supabase/` clean.
