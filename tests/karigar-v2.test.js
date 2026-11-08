@@ -1035,7 +1035,7 @@ test('a manager may reverse an earlier-day points metal entry that a manager mad
   a.SAAS.user.role = 'owner';
   var adj = {type:'ADJUST', opId:op(), jobId:j.id, karigarId:k.id, fineMg:100, reason:'count correction', metal:'gold'}; ok(!call(function(cb){ a.kgAddEntry(adj, cb); }).err); adj.date = '2026-01-01';
   a.SAAS.user.role = 'manager'; ok(call(function(cb){ a.kgReverse(adj.id, 'manager tries owner adjust', op(), cb); }).err, 'ADJUST from an earlier day: owner only');
-  var r = call(function(cb){ a.kgReverse(e.id, 'weighed twice by mistake', op(), cb); }); ok(!r.err, r.err && r.err.message); eq(bal(a, j).issuedFine, 920, 'only the owner's 1 g issue is left');
+  var r = call(function(cb){ a.kgReverse(e.id, 'weighed twice by mistake', op(), cb); }); ok(!r.err, r.err && r.err.message); eq(bal(a, j).issuedFine, 920, 'only the 1 g owner issue is left');
 });
 test('old-model jobs are untouched: percent wastage still computed, no points fields', function(){
   var a = fresh(); var k = karigar(a, 'Old', {kind:'wastage', wastagePct:'4'}); var j = job(a, k);
