@@ -18,15 +18,19 @@ await db.exec(fs.readFileSync(MIG3, 'utf8'));           // idempotent too
 const MIG4 = fileURLToPath(new URL('../supabase/migrations/014_history_anchor_and_accrual_owner_only.sql', import.meta.url));
 await db.exec(fs.readFileSync(MIG4, 'utf8'));           // 014: entitlement accrual owner-only in the database
 await db.exec(fs.readFileSync(MIG4, 'utf8'));
+// Default business date = today by the SAME clock and zone 011 uses for its manager date window
+// (now() at time zone 'Asia/Kolkata'), asked of the database itself, so it cannot drift from the rule.
+// It was a fixed '2026-10-31', which stopped being inside the 7-day window on 8 Nov 2026.
+const TEST_DAY = (await db.query("select ((now() at time zone 'Asia/Kolkata')::date)::text as d")).rows[0].d;
 let failed = 0;
-const ok = (c, m) => { if (!c) { failed++; console.log('FAIL', m); } else console.log('ok  ', m); };
+const ok =(c, m) => { if (!c) { failed++; console.log('FAIL', m); } else console.log('ok  ', m); };
 
 let n = 0;
 async function post(shop, type, lines, o = {}) {
   const op = o.op || ('op' + (++n));
   const r = await db.query(
     'select * from kg_post_journal($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
-    [shop, op, type, ('job' in o ? o.job : 'J1'), o.voucher || null, o.reverses || null, o.date || '2026-10-31', o.note || '', 'tester', o.role || 'owner',
+    [shop, op, type, ('job' in o ? o.job : 'J1'), o.voucher || null, o.reverses || null, o.date || TEST_DAY, o.note || '', 'tester', o.role || 'owner',
      o.approved || null, '{}', JSON.stringify(lines), JSON.stringify(o.labour || [])]);
   return r.rows[0];
 }
@@ -397,7 +401,7 @@ r = await post('Z', 'OPENING', [L('KCUST', 'karZ1', 100), L('OPENING', '', -100)
 ok(r.ok && r.duplicate, 'migr: a rerun is a duplicate, nothing new');
 
 // ── 21 an old row under a migr: id (posted before the reservation existed) is never reported as an opening balance ──
-await db.query("insert into kg_journal(shop_id, op_id, type, business_date, by_user, by_role) values ('Z','migr:legacy01','ISSUE','2026-10-31','old','manager')");
+await db.query("insert into kg_journal(shop_id, op_id, type, business_date, by_user, by_role) values ('Z','migr:legacy01','ISSUE','" + TEST_DAY + "','old','manager')");
 r = await post('Z', 'OPENING', [L('KCUST', 'legacy01', 100), L('OPENING', '', -100)], { role: 'owner', op: 'migr:legacy01' });
 ok(!r.ok && /reserved/.test(r.error), 'migr: an existing non-OPENING row under a migr: id is refused, not reported as a duplicate');
 r = await post('Z', 'ISSUE', [L('VAULT', '', -100), L('KCUST', 'kz', 100)], { role: 'manager', op: 'migr:legacy01' });

@@ -54,3 +54,4 @@ Thumbs.db
 
 # Per-machine Claude Code permissions/plugins
 .claude/settings.local.json
+.claude/*.bak*
