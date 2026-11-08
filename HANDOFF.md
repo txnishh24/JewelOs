@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. **batch70 is LIVE on the Cloudflare worker** (8 Nov, Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`, commit `c3c5ab6`, tag `batch70-live`, rollback tag `batch69-live`). Backend: migrations to 014, `store-proxy` v18. Ledger flag OFF for every shop. Karigar redesign: batch 1 done (pure functions + tests, no UI); batch 2 next, waiting for nothing but the khata sample.
+> Nobody. **batch70 is LIVE on the Cloudflare worker** (8 Nov, Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`, commit `c3c5ab6`, tag `batch70-live`, rollback tag `batch69-live`). Backend: migrations to 014, `store-proxy` v18. Ledger flag OFF for every shop. Karigar redesign: logic batches 1-6 DONE (no UI); WAITING on Tanish's OK after the worked examples (`docs/KARIGAR-WORKED-EXAMPLES-2026-11-09.md`) before the screens (batches 7-9).
 ---
 
 ## WAITING ON TANISH
@@ -75,6 +75,16 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-09 (hundred-and-ninety-fifth entry) · Claude Code (Sonnet) — Karigar redesign BATCHES 2-6 (logic only, no UI, no deploy, ledger flag untouched, no migration): points-model entries, stages with their own karigar, silver, stones, opening balances, carry-forward, transfers, accepted loss and cash loss bill, account/statement, rupee opening, refining lots
+
+**Commits:** `227baeb` (2), `b111474` (3), `dcf34d4`/`cdb5e65` (security-review fix + test quote fix), `698f896` (4), `1cdcc88` (5), `2305dcc` (6), `d65021e` (credit cap). All in `js/11-karigar.js` + `tests/karigar-v2.test.js` (+ regenerated `checks/globals.json`). New data fields are optional; old jobs/entries keep their old maths; `S.kgJobs`/`S.kgLedger`/`S.kgSalary` shapes only gained optional fields, no new `S` key, no rewrite of stored data.
+**Rules built (all per Tanish):** fine = floor((mg x pu + 5000) / 10000), pu in 0.01% units, 999 chip = 100%; purity guard 50 to 99.99 with confirm outside 58.3 to 99.9 or not a saved touch; wastage credit = min(net x (measured touch + points), what that karigar still holds on the job), touch + points stops at 100% (my addition: a 999 piece cannot be credited above its own weight); stages carry their own karigar; stones deducted (ct x 200 mg); gold, silver, rupees separate; carry-forward lots (trusted flag, ceiling warning, ageing, 90-day count prompt); transfer pair; accepted loss (owner only) or cash bill (rupee DEDUCTION, not netted); rupee opening; refining lots (his account drops when weighed; assay credits shop stock only). Manager may reverse an earlier-day metal movement only if a manager made it (security review fix).
+**Verified:** karigar-v2 151/0 (71 new), regression 493/0, ledger client 91/0, `check.bat` passes; `jewelos-invariant-tester` found no violated invariant and added one test; worked examples run on the new code in `docs/KARIGAR-WORKED-EXAMPLES-2026-11-09.md`.
+**Review fixes (jewelos-bug-pattern-reviewer, all fixed with tests):** carry-forward close of a multi-karigar chain failed (carry entry lacked the holder's stage); a job total of zero could hide one karigar at plus and another at minus (now checked per karigar before closing); receipt quantity default; points entries now refused on old-rules jobs; a reversal can no longer leave a negative holding or orphan an assay result; a karigar's terms are frozen on the job when he joins (a later change of points does not touch metal already out, and hand-made points are refused); khata and lot order fixes.
+**Not verified / open:** no screen exists (batches 7-9); e2e not run (no flow touched); ledger-on path only checked as "new entries refused"; the old percent-wastage model is still in the code for old jobs (cleanup after the screens); "who can close" is the existing owner+manager rule, no shop setting was added (a new `S` key would touch six save/restore sites); order-side stages untouched.
+→ FOR COWORK: nothing — FYI only.
+→ FOR TANISH: read `docs/KARIGAR-WORKED-EXAMPLES-2026-11-09.md`; say OK and I build the screens (batches 7-9), then you check on your phone.
 
 ### 2026-11-09 (hundred-and-ninety-fourth entry) · Claude Code (Sonnet) — Karigar redesign BATCH 1 on Tanish's "approved": pure money/metal functions in `js/11-karigar.js` (purity in 0.01% units, half-up fine, net after stones, carat to mg, points, wastage credit with min() cap) + 14 tests; no UI, no caller yet, ledger flag untouched, nothing deployed
 

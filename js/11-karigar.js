@@ -235,7 +235,13 @@ function kgJobBalance(job, ledger){
 function kgKhata(karigarId){
   var t = {jobs:0, openJobs:0, issuedFine:0, earnedFine:0, returnedFine:0, approvedLoss:0, adjust:0, openFine:0};
   (S.kgJobs || []).forEach(function(j){
-    if(j.karigarId !== karigarId || j.status === 'cancelled') return;
+    if(j.status === 'cancelled') return;
+    if(j.model === 'points'){
+      if(!kgJobKarigarOk(j, karigarId)) return;
+      t.jobs++; if(j.status === 'open') t.openJobs++; t.openFine += kgKarigarJobFine(j, S.kgLedger || [], karigarId);
+      return;
+    }
+    if(j.karigarId !== karigarId) return;
     var b = kgJobBalance(j, S.kgLedger || []);
     t.jobs++; if(j.status === 'open') t.openJobs++;
     t.issuedFine += b.issuedFine; t.earnedFine += b.earnedFine; t.returnedFine += b.returnedFine;
@@ -425,7 +431,7 @@ function kgStageAction(jobId, stageId, action, arg, done){
       else return 'Nothing to undo';
     } else if(action === 'who'){
       if(arg && !findKarigar(arg)) return 'Karigar not found';
-      st.who = arg || '';
+      st.who = arg || ''; kgSnapTerms(job, arg);
     } else return 'Unknown stage action';
     st.log = (st.log || []).concat([{action:action, at:now, by:u.name, arg:(action === 'who' ? (arg || '') : '')}]);
     auditId = kgAudit('kg_stage_' + action, 'kgJob', jobId, job.jobNo + ' ' + st.name);
@@ -559,7 +565,8 @@ function kgValidateEntry(e, ctx){
     if(tgt.type === 'REVERSAL' || tgt.type === 'APPROVAL') return 'This entry cannot be reversed';
     if((tgt.type === 'CARRY_OUT' || tgt.type === 'TRANSFER_OUT' || tgt.type === 'TRANSFER_IN') && !e.pair) return 'This entry is reversed together with its pair';
     if(idx.reversed[tgt.id]) return 'Already reversed';
-    if(tgt.type === 'TRANSFER_IN' && kgKarigarJobFine(job, ledger, tgt.karigarId) < tgt.fineMg) return 'He has already passed that metal on - reverse that first';
+    if(job.model === 'points' && (tgt.type === 'TRANSFER_IN' || tgt.type === 'ISSUE' || tgt.type === 'CARRY_APPLY') && kgKarigarJobFine(job, ledger, tgt.karigarId, idx) < tgt.fineMg) return 'He has already returned or passed on some of that metal - reverse that first';
+    if(tgt.type === 'SCRAP'){ for(var rc = 0; rc < ledger.length; rc++) if(ledger[rc].type === 'REFINE_CREDIT' && ledger[rc].refId === tgt.id && !idx.reversed[ledger[rc].id]) return 'Reverse the assay result of this lot first'; }
     if(tgt.type === 'LOSS' && tgt.settle === 'cash' && kgLiveLossBill(ctx.salary, tgt.id)) return 'Reverse the loss bill first';
     if(String(e.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
     if(role === 'owner') return '';
@@ -769,7 +776,7 @@ function kgCreateJob(fields, opId, done){
            stages:(route ? route.stages.map(function(n){ return {id:kgNewId(), name:n, status:'pending', who:'', log:[]}; }) : []),
            status:'open', orderRef:(fields.orderId ? {orderId:fields.orderId} : null),
            createdAt:new Date().toISOString(), createdBy:u.name};
-    if(fields.model === 'points'){ job.model = 'points'; job.metal = jmetal; job.pointsPu = pts; job.tag = jtag; job.pieceCount = jpieces; job.wastageBp = 0; job.fixedMg = 0; }
+    if(fields.model === 'points'){ job.model = 'points'; job.metal = jmetal; job.pointsPu = pts; job.tag = jtag; job.pieceCount = jpieces; job.wastageBp = 0; job.fixedMg = 0; kgSnapTerms(job, k.id); }
     S.kgJobs.push(job);
     S.nextKgJobNo = prevNo + 1;
     auditId = kgAudit('kg_job_new', 'kgJob', job.id, job.jobNo + ' ' + title);
@@ -789,6 +796,10 @@ function kgCloseJob(jobId, done, opts){
     if(job.status !== 'open') return 'Job is not open';
     var b = kgJobBalance(job, S.kgLedger || []);
     if(b.pendingLoss > 0) return 'A proposed loss is waiting for owner approval';
+    if(job.model === 'points'){
+      var held = kgJobKarigarFines(job);
+      for(var hk = 0; hk < held.length; hk++) if(held[hk].fine < 0) return 'A karigar has returned more than he was given - fix it with an owner adjustment first';
+    }
     if(opts && opts.settle && b.openFine !== 0){
       pre = kgCloseSettle(job, u, opts);
       if(pre.err){ var pe = pre.err; pre = null; return pe; }
@@ -1022,8 +1033,8 @@ function kgParseMgOrZero(v){
   return (t === '' || /^0+(\.0{1,3})?$/.test(t)) ? 0 : kgParseMg(t);
 }
 // What one karigar holds on one job, from his own live entries (fine mg). Points jobs only.
-function kgKarigarJobFine(job, ledger, kid){
-  var idx = kgIndex(ledger), t = 0;
+function kgKarigarJobFine(job, ledger, kid, idxIn){
+  var idx = idxIn || kgIndex(ledger), t = 0;
   (ledger || []).forEach(function(e){
     if(e.jobId !== job.id || e.karigarId !== kid || idx.reversed[e.id]) return;
     if(e.type === 'ISSUE' || e.type === 'CARRY_APPLY' || e.type === 'TRANSFER_IN') t += e.fineMg;
@@ -1032,8 +1043,19 @@ function kgKarigarJobFine(job, ledger, kid){
   });
   return t;
 }
+// Freeze his terms on the job when he is put on it (until he has metal on it), so a later change of terms never touches work already handed out.
+function kgSnapTerms(job, kid){
+  if(job.model !== 'points' || !kid) return;
+  job.terms = job.terms || {};
+  var used = (S.kgLedger || []).some(function(e){ return e.jobId === job.id && e.karigarId === kid; });
+  if(job.terms[kid] && used) return;
+  var ag = kgAgreementFor(kid, kgToday()) || findKarigar(kid) || {};
+  var kind = ag.kind === 'salary' ? 'salary' : (ag.kind === 'wastage' ? 'wastage' : '');
+  job.terms[kid] = {kind:kind, pointsPu:(kind === 'salary' ? 0 : (job.pointsPu != null ? job.pointsPu : (ag.wastagePoints != null ? ag.wastagePoints : null)))};
+}
 // Kind and wastage points that apply to this karigar on this job today. A job override beats his terms.
 function kgTermsFor(job, karigarId){
+  if(job.terms && job.terms[karigarId]) return job.terms[karigarId];   // the terms in force when he joined the job
   var k = findKarigar(karigarId), ag = kgAgreementFor(karigarId, kgToday()) || k || {};
   var kind = ag.kind === 'salary' ? 'salary' : (ag.kind === 'wastage' ? 'wastage' : '');
   var pts = (job.pointsPu != null) ? job.pointsPu : (ag.wastagePoints != null ? ag.wastagePoints : null);
@@ -1050,6 +1072,7 @@ function kgMetalEntryOk(e, creditEntry){
 }
 function kgValidateV3(e, ctx, idx){
   var job = ctx.job, role = ctx.role, t = e.type, ledger = ctx.ledger || [], bad;
+  if(job.model !== 'points') return 'This job uses the old rules';
   if(!kgCan(role, 'manager')) return 'Only owner or manager can record metal';
   if(KG_METALS.indexOf(e.metal) === -1 || e.metal !== kgMetalOf(job)) return 'Metal does not match the job';
   if(e.stageId && !kgStageOf(job, e.stageId)) return 'Stage not found';
@@ -1070,9 +1093,12 @@ function kgValidateV3(e, ctx, idx){
     if(e.actualFineMg !== kgFineFromPu(e.mg, e.pu)) return 'Fine in the piece does not match';
     var expect;
     if(e.kind === 'salary'){
+      if(kgTermsFor(job, e.karigarId).kind !== 'salary') return 'This karigar is not on a salary';
       if(e.pointsPu !== 0) return 'A salary karigar has no wastage points';
       expect = e.actualFineMg;
     } else if(e.kind === 'wastage'){
+      var tm = kgTermsFor(job, e.karigarId);
+      if(tm.kind !== 'wastage' || tm.pointsPu !== e.pointsPu) return 'Wastage points do not match this karigar\'s terms on the job';
       var wc = kgWastageCredit(e.mg, e.pu, e.pointsPu, Math.max(0, kgKarigarJobFine(job, ledger, e.karigarId)));
       if(wc.error) return wc.error;
       expect = wc.creditMg;
@@ -1172,6 +1198,7 @@ function kgValidateKarigarLevel(e, ctx){
 // v: {wt, purity, chip, confirmed, opId, note, ...}. Nothing is saved here.
 function kgBuildIssue(jobId, stageId, v){
   var job = kgFindJob(jobId); if(!job) return {error:'Job not found'};
+  if(job.model !== 'points') return {error:'This job uses the old rules'};
   var mg = kgParseMg(v.wt); if(mg === null) return {error:'Enter the weight in grams (up to 3 decimals)'};
   var p = kgResolvePu(v.purity, v.chip, v.confirmed); if(p.error || p.confirm) return p;
   return {entry:{type:'ISSUE', opId:v.opId, jobId:jobId, stageId:stageId || '', karigarId:kgStageKarigarId(job, stageId || ''), metal:kgMetalOf(job),
@@ -1180,6 +1207,7 @@ function kgBuildIssue(jobId, stageId, v){
 // v: {gross, stoneG | stoneCt, stoneMode, purity (measured), chip, agreed (typed touch), piece, qty, tag, confirmed, opId}
 function kgBuildReceipt(jobId, stageId, v){
   var job = kgFindJob(jobId); if(!job) return {error:'Job not found'};
+  if(job.model !== 'points') return {error:'This job uses the old rules'};
   var kid = kgStageKarigarId(job, stageId || ''), terms = kgTermsFor(job, kid);
   if(!terms.kind) return {error:'Set this karigar\'s terms (wastage or salary) first'};
   if(terms.kind === 'wastage' && terms.pointsPu == null) return {error:'Set this karigar\'s wastage points first'};
@@ -1191,8 +1219,8 @@ function kgBuildReceipt(jobId, stageId, v){
   var p = kgResolvePu(v.purity, v.chip, v.confirmed); if(p.error || p.confirm) return p;
   var agreed = null;
   if(String(v.agreed || '').trim() !== ''){ var ap = kgResolvePu(v.agreed, v.agreedChip, true); if(ap.error) return ap; agreed = ap.pu; }
-  var qty = parseInt(v.qty, 10);
-  if(!/^\d{1,4}$/.test(String(v.qty == null ? '1' : v.qty).trim()) || !(qty >= 1)) return {error:'Quantity must be 1 or more'};
+  var qtyText = String(v.qty == null ? '1' : v.qty).trim(), qty = parseInt(qtyText, 10);
+  if(!/^\d{1,4}$/.test(qtyText) || !(qty >= 1)) return {error:'Quantity must be 1 or more'};
   var pieceDesc = String(v.piece || '').trim(); if(!pieceDesc) return {error:'Describe the piece received'};
   var actual = kgFineFromPu(net, p.pu), credit = actual, cap = false, raw = actual;
   if(terms.kind === 'wastage'){
@@ -1256,7 +1284,7 @@ function kgAddStage(jobId, name, karigarId, done){
     if(!nm || nm.length > 40) return 'Give the stage a short name';
     if(karigarId && !findKarigar(karigarId)) return 'Karigar not found';
     st = {id:kgNewId(), name:nm, status:'pending', who:karigarId || '', log:[]};
-    job.stages = (job.stages || []).concat([st]);
+    job.stages = (job.stages || []).concat([st]); kgSnapTerms(job, karigarId);
     auditId = kgAudit('kg_stage_add', 'kgJob', jobId, job.jobNo + ' ' + nm);
     return '';
   }, function(){ job.stages = job.stages.filter(function(x){ return x.id !== st.id; }); kgUndoAudit(auditId); }, function(err){ done(err, st); });
@@ -1325,7 +1353,7 @@ function kgMetalAccount(karigarId, metal){
   });
   (S.kgJobs || []).forEach(function(j){
     if(kgMetalOf(j) !== metal || j.status === 'cancelled') return;
-    if(j.model === 'points') inJobs += kgKarigarJobFine(j, led, karigarId);
+    if(j.model === 'points') inJobs += kgKarigarJobFine(j, led, karigarId, idx);
     else if(j.karigarId === karigarId && metal === 'gold') inJobs += kgJobBalance(j, led).openFine;   // old-rules jobs keep their own maths
   });
   var carry = kgCarryTotal(karigarId, metal), lots = kgCarryLots(karigarId, metal);
@@ -1478,10 +1506,10 @@ function kgCarryLots(karigarId, metal){
     if(e.type !== 'CARRY_IN' || e.karigarId !== karigarId || kgMetalOf(e) !== metal || idx.reversed[e.id]) return;
     var left = kgLotRemaining(led, idx, e), job = kgFindJob(e.fromJobId);
     if(left <= 0) return;
-    out.push({id:e.id, carryId:e.carryId, fromJobId:e.fromJobId, fromJobNo:(job ? job.jobNo : '?'), date:e.date, fineMg:e.fineMg, remainingMg:left,
+    out.push({id:e.id, ts:e.ts, carryId:e.carryId, fromJobId:e.fromJobId, fromJobNo:(job ? job.jobNo : '?'), date:e.date, fineMg:e.fineMg, remainingMg:left,
       ageDays:Math.max(0, Math.round((Date.parse(today + 'T00:00:00Z') - Date.parse(e.date + 'T00:00:00Z')) / 86400000))});
   });
-  out.sort(function(a, b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+  out.sort(function(a, b){ return a.date < b.date ? -1 : (a.date > b.date ? 1 : (String(a.ts) < String(b.ts) ? -1 : 1)); });
   return out;
 }
 function kgCarryTotal(karigarId, metal){
@@ -1517,15 +1545,26 @@ function kgApplyCarry(jobId, stageId, wantFineMg, opId, done){
 }
 
 // Close settlement: what to do with whatever is still open when the owner closes a points job.
+// What each karigar still holds on a points job: [{kid, fine}], from his own entries.
+function kgJobKarigarFines(job){
+  var led = S.kgLedger || [], idx = kgIndex(led), ids = {}, out = [];
+  led.forEach(function(e){ if(e.jobId === job.id && e.karigarId) ids[e.karigarId] = 1; });
+  Object.keys(ids).forEach(function(kid){ out.push({kid:kid, fine:kgKarigarJobFine(job, led, kid, idx)}); });
+  return out;
+}
+// The stage id that belongs to this karigar on the job ('' when he is the job's own karigar with no stage).
+function kgHolderStage(job, kid){
+  var a = job.stages || [];
+  for(var i = 0; i < a.length; i++) if(a[i].who === kid) return a[i].id;
+  return '';
+}
 // opts: {settle:'carry'|'loss'|'loss-cash', reason, billText, ackCeiling, opId}. Returns {err} or {undo}.
 function kgCloseSettle(job, u, opts){
   if(job.model !== 'points') return {err:'This job uses the old rules - record the metal or a loss first'};
-  var ids = {}, pos = [], i;
-  (S.kgLedger || []).forEach(function(e){ if(e.jobId === job.id && e.karigarId) ids[e.karigarId] = 1; });
-  for(var kid in ids){ if(!ids.hasOwnProperty(kid)) continue;
-    var f = kgKarigarJobFine(job, S.kgLedger || [], kid);
-    if(f < 0) return {err:'A karigar has returned more than he was given - fix it with an owner adjustment first'};
-    if(f > 0) pos.push({kid:kid, fine:f});
+  var all = kgJobKarigarFines(job), pos = [], i;
+  for(i = 0; i < all.length; i++){
+    if(all[i].fine < 0) return {err:'A karigar has returned more than he was given - fix it with an owner adjustment first'};
+    if(all[i].fine > 0) pos.push(all[i]);
   }
   if(!pos.length) return {undo:function(){}};
   var base = opts.opId || kgNewId(), metal = kgMetalOf(job), list = [], sal = null;
@@ -1536,7 +1575,7 @@ function kgCloseSettle(job, u, opts){
       var ck = kgCarryCheck(pos[i].kid, metal, pos[i].fine);
       if(ck.over && !opts.ackCeiling) return {err:'Over the carry limit: ' + k.name + ' would carry ' + kgFmtG(ck.total) + ' fine, the limit is ' + kgFmtG(ck.ceiling) + '. Confirm to go on.'};
       var cid = base + ':c' + i;
-      list.push({type:'CARRY_OUT', opId:cid + 'o', jobId:job.id, stageId:'', karigarId:pos[i].kid, metal:metal, carryId:cid, fineMg:pos[i].fine});
+      list.push({type:'CARRY_OUT', opId:cid + 'o', jobId:job.id, stageId:kgHolderStage(job, pos[i].kid), karigarId:pos[i].kid, metal:metal, carryId:cid, fineMg:pos[i].fine});
       list.push({type:'CARRY_IN', opId:cid + 'i', jobId:'', stageId:'', karigarId:pos[i].kid, metal:metal, carryId:cid, fromJobId:job.id, fineMg:pos[i].fine});
     }
   } else if(opts.settle === 'loss' || opts.settle === 'loss-cash'){
