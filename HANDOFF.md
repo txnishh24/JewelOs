@@ -63,7 +63,7 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   - `taste-skill` (Leonxlnx): DISABLED for JewelOS. Owner matches, but its design defaults clash with Tanish's own taste rules (Apple-style, minimal, data-dense).
   - `claude-mem` (thedotmack): DISABLED. Hooks run on every tool call and every prompt (PostToolUse `*`) and record tool output, which for JewelOS means shop data and database results.
   - `claude-mem-cowork` (CMEM, Inc., repo thedotmack/claude-mem): DISABLED. Its hooks send every prompt and tool call to `https://cmem.ai` (a paid cloud service) once an API key is set; the key is empty now, so it was inert, but it is a data-exfiltration path by design and no public docs were checked.
-- **[8 Nov, 189th entry] Supabase service-role key may be exposed in plaintext on Tanish's machine.** A full-length service-role JWT is stored in `~/.claude-mem/work-view/owner-goals/*/owner-prompts.md` (copied from a prompt on 4 Nov by the disabled `claude-mem` plugin). Not checked whether it is the live key. Tanish decides: rotate the key (recommended), then say "delete claude-mem data" so `~/.claude-mem` is removed. Nothing deleted yet.
+- **[8 Nov, 189th entry] Supabase service-role key may be exposed in plaintext on Tanish's machine.** A full-length service-role JWT is stored in `~/.claude-mem/work-view/owner-goals/*/owner-prompts.md` (copied from a prompt on 4 Nov by the disabled `claude-mem` plugin). Not checked whether it is the live key. `~/.claude-mem` and its copies were deleted on 8 Nov (190th entry), but the key is NOT rotated: Tanish decides whether to rotate it (recommended).
 **Closed (don't re-ask):** the full list of past decisions is in `docs/handoff-archive/HANDOFF-LOG-through-2026-11-05.md` (section "WAITING Closed list and notes", at the end of that file). Still relevant: the Netlify badge is still visible, nothing hides it (don't claim it is hidden); session tokens stay in `localStorage`; `razorpay-webhook` is left as is.
 
 **Closed 9 Sep — billing.** Not free: JewelOS is a **paid monthly subscription, collected
@@ -75,6 +75,14 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-08 (hundred-and-ninetieth entry) · Claude Code (Sonnet) — on Tanish's word ("delete claude-mem data"): the three claude-mem data folders deleted from his machine; the service-role key is NOT rotated; repo untouched
+
+**Deleted (checked gone afterwards):** `~/.claude-mem` (59 files), `~/.claude/projects/C--Users-User--claude-mem-observer-sessions` (70 files), `~/AppData/Local/claude-cli-nodejs/Cache/C--Users-User--claude-mem-work-view` (111 files). Worker was not running (port 37777 not listening) when I deleted.
+**Not deleted:** `~/AppData/Local/claude-mem` (83 MB `claude-mem.exe` + `user-path.bak`, no session data) and the plugin itself (still installed, disabled); Tanish did not ask. The same prompts, including the one that held the key, still exist in Claude Code's normal history under `~/.claude/projects` (not part of this delete).
+**Still open:** deleting does not undo exposure. The Supabase service-role key (full-length JWT found in the deleted files) has not been rotated; I do not know whether it is the live key.
+→ FOR COWORK: nothing — FYI only. If Tanish rotates the service-role key, whatever holds the old one must be updated.
+→ FOR TANISH: rotate the Supabase service-role key (check its age in the dashboard first); say so if you also want `claude-mem` uninstalled and `~/AppData/Local/claude-mem` removed.
 
 ### 2026-11-08 (hundred-and-eighty-ninth entry) · Claude Code (Sonnet) — read-only scan of the `claude-mem` data on Tanish's machine: it holds JewelOS session content from 4-6 Nov INCLUDING a full-length Supabase service-role JWT; worker is not running; nothing deleted, changed or printed (counts and paths only)
 
