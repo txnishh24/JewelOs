@@ -61,7 +61,7 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
   - `ponytail` (DietrichGebert): KEPT. Owner matches; hooks run local node scripts only (no network, no credential reads); one `git ls-files` call. Needs a look: its "Task board" writes a cost/turn CSV under `~/.config/ponytail/band` by default, and an optional webhook URL exists — keep the webhook empty.
   - `andrej-karpathy-skills`: ENABLED again on 8 Nov by Tanish's explicit choice ("they have useful things in them"). Its marketplace points to `multica-ai/andrej-karpathy-skills`, not the expected `forrestchang`, so the owner rule would have disabled it; that mismatch is unresolved. It is a skill only (no hooks); content reads as the usual four guidelines.
   - `taste-skill` (Leonxlnx): DISABLED for JewelOS. Owner matches, but its design defaults clash with Tanish's own taste rules (Apple-style, minimal, data-dense).
-  - `claude-mem` (thedotmack): DISABLED. Hooks run on every tool call and every prompt (PostToolUse `*`) and record tool output, which for JewelOS means shop data and database results.
+  - `claude-mem` (thedotmack): UNINSTALLED on 8 Nov (191st entry); was DISABLED. Hooks run on every tool call and every prompt (PostToolUse `*`) and record tool output, which for JewelOS means shop data and database results.
   - `claude-mem-cowork` (CMEM, Inc., repo thedotmack/claude-mem): DISABLED. Its hooks send every prompt and tool call to `https://cmem.ai` (a paid cloud service) once an API key is set; the key is empty now, so it was inert, but it is a data-exfiltration path by design and no public docs were checked.
 - **[8 Nov, 189th entry] Supabase service-role key may be exposed in plaintext on Tanish's machine.** A full-length service-role JWT is stored in `~/.claude-mem/work-view/owner-goals/*/owner-prompts.md` (copied from a prompt on 4 Nov by the disabled `claude-mem` plugin). Not checked whether it is the live key. `~/.claude-mem` and its copies were deleted on 8 Nov (190th entry), but the key is NOT rotated: Tanish decides whether to rotate it (recommended).
 **Closed (don't re-ask):** the full list of past decisions is in `docs/handoff-archive/HANDOFF-LOG-through-2026-11-05.md` (section "WAITING Closed list and notes", at the end of that file). Still relevant: the Netlify badge is still visible, nothing hides it (don't claim it is hidden); session tokens stay in `localStorage`; `razorpay-webhook` is left as is.
@@ -75,6 +75,15 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-08 (hundred-and-ninety-first entry) · Claude Code (Sonnet) — on Tanish's word ("uninstall claude-mem"): `claude-mem` plugin uninstalled; nothing else changed, repo code untouched
+
+**Done:** `claude plugin uninstall claude-mem@thedotmack` first failed because the plugin was enabled at project scope (shared `.claude/settings.json`); re-ran with `--scope project`: "Successfully uninstalled plugin: claude-mem (scope: project)". `claude plugin list` no longer shows `claude-mem@thedotmack`.
+**Side effect:** that command removed the `claude-mem@thedotmack` line from `.claude/settings.json`. The file is still modified and NOT committed (as before); its diff now adds `ponytail`, `andrej-karpathy-skills`, `taste-skill`, `claude-mem-cowork` only. `.claude/settings.local.json` still has `claude-mem@thedotmack: false` (harmless).
+**Still there:** `claude-mem-cowork` (installed, disabled), `~/AppData/Local/claude-mem` (83 MB `claude-mem.exe` + `user-path.bak`; no session data). Tanish did not ask to remove them. The WAITING plugin line still describes `claude-mem` as DISABLED; it is now uninstalled.
+**Not done / open:** the Supabase service-role key is still not rotated (190th entry).
+→ FOR COWORK: nothing — FYI only.
+→ FOR TANISH: say so if you also want `claude-mem-cowork` uninstalled and `~/AppData/Local/claude-mem` deleted; rotate the service-role key.
 
 ### 2026-11-08 (hundred-and-ninetieth entry) · Claude Code (Sonnet) — on Tanish's word ("delete claude-mem data"): the three claude-mem data folders deleted from his machine; the service-role key is NOT rotated; repo untouched
 
