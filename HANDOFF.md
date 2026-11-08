@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. **batch69 is LIVE on the Cloudflare worker** (7 Nov, Version ID `4077aa65-baed-4841-a974-c45509489f7a`, commit `9fbbfe4`, tag `batch69-live`, rollback tag `batch68-live`). Backend: migrations to 013, `store-proxy` v18. Ledger flag OFF for every shop.
+> Nobody. **batch70 is LIVE on the Cloudflare worker** (8 Nov, Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`, commit `c3c5ab6`, tag `batch70-live`, rollback tag `batch69-live`). Backend: migrations to 014, `store-proxy` v18. Ledger flag OFF for every shop.
 ---
 
 ## WAITING ON TANISH
@@ -69,6 +69,15 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-08 (hundred-and-eighty-sixth entry) · Claude Code (Sonnet) — batch70 DEPLOYED to the Cloudflare worker on Tanish's word ("deploy batch70") and verified live; ledger flag still OFF everywhere
+
+**Deployed:** `main` at `c3c5ab6`, `APP_BUILD` 70, `sw.js` cache `jewelos-v25` (`docs/CHANGES-batch70.md`): the parked-entry Reverse screen shows the server journal (type, day, author, role, lines) before the owner confirms (`kgJournalSummary`). Only `js/00-config-state.js`, `js/11-karigar.js` and `sw.js` differ from batch69. `/careful` run first; `node build-cf-deploy-stage.js batch70`, `npx wrangler deploy --dry-run`, then `npx wrangler deploy`. Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`. Tag `batch70-live` (pushed, with `main`). Rollback: redeploy `batch69-live` (server side unchanged: 014 and `store-proxy` v18 work with both).
+**Before deploying:** `jewelos-bug-pattern-reviewer` no findings (read-only, no git); it flagged the ledger path as high risk per MODEL-POLICY section 8, so an Opus Code Reviewer reviewed the diff and the reverse flow: SHIP (no write path added, fetch failure opens nothing, journal fields escaped, owner-only guards unchanged). Nits, not fixed: the summary shows the raw `owner_ref` id, not the karigar name; no double-tap guard; the ledger is read twice per reversal. Local: syntax ok; regression 493/0; karigar-v2 66/0; ledger client 91/0; edge-functions all passed; `sql-kg-ledger` and `sql-store-history` all passed; `roundtrip` PASS; `backup-check` same `kgLedgerOn` note as the 184th entry. The pre-commit hook re-ran regression: 493/0.
+**Live check (`jewelos-deploy-verifier`, no-cache fetch, one edge):** PASS. Every `js/` file, `sw.js` and `index.html` byte-identical to the repo at `c3c5ab6` (index.html CRLF as before); `APP_BUILD = 70`; cache `jewelos-v25`; `kgJournalSummary` present in live `11-karigar.js`; `/wrangler.jsonc`, `/.wrangler`, `/.git/config` all 404. Headers: HSTS, nosniff, SAMEORIGIN, referrer-policy; CSP is report-only (not enforced); no Permissions-Policy.
+**Not verified:** the deployment id over HTTP (content matched; `wrangler deployments list` not run); the new confirm screen in a browser (unreachable while the ledger is off); returning users' service-worker cache; `npm run test:e2e` (not run); `MIN_CLIENT_BUILD` and server side over HTTP.
+→ FOR COWORK: nothing — FYI only. Live is batch70 with 014 applied. Do not switch any shop's ledger on without Tanish.
+→ FOR TANISH: nothing needed. Still open from before: the two-row test bill in `3720af09`, and the plugin review in WAITING.
 
 ### 2026-11-08 (hundred-and-eighty-fifth entry) · Claude Code (Sonnet) — `sql-kg-ledger` test date fixed (22 failures gone); `.claude/*.bak*` ignored; plugin review added to WAITING; nothing deployed, no migration, js/ and supabase/ untouched
 
