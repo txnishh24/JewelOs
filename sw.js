@@ -1,4 +1,4 @@
-var CACHE='jewelos-v24';
+var CACHE='jewelos-v25';
 var SHELL=['./','manifest.json','icon-192.png','icon-512.png',
   'js/00-config-state.js','js/01-sync-core.js','js/02-ui-inactivity-modals.js',
   'js/03-billing-numbers.js','js/04-orders-detail.js','js/05-auth-login.js',
