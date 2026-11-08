@@ -17,9 +17,7 @@ Full previous version (all history): `docs/CLAUDE-MD-FULL-2026-11-05.md`.
    is the only thing both read. Claim **NOW** before code work, release it when done, and
    append a LOG entry before hand-back. End every entry with:
    `→ FOR COWORK: <the one thing to do next, or "nothing — FYI only">`
-2. **Pick the model with `MODEL-POLICY.md`.** Sonnet is the default; Opus for architecture,
-   hard bugs, security, data integrity and final review of high-risk work. Risk (🟢/🟡/🔴)
-   decides the model, not length.
+2. **Use whatever model fits the task.** No model policy applies.
 3. **This folder is the source of truth.** Never use a zip from `~/Downloads`. Zip *out* of
    here to hand off a build; never build a copy elsewhere.
 4. **Run `git status` and `git log --oneline -5`.** If files in `js/`, `tests/`, `supabase/`

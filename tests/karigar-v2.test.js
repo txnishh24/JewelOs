@@ -770,5 +770,94 @@ test('closing never blocks on stages in the logic (the screen asks first); exist
   ok(!call(function(cb){ a.kgAddLine(old.id, {desc:'Ring', qty:1}, op(), cb); }).err, 'a job saved before phase 4 can take lines'); eq(old.lines.length, 1);
 });
 
+console.log('\nKarigar redesign batch 1 - purity in 0.01% units, rounding, stones, wastage cap');
+
+test('kgPuFromText: 2 decimals at most, integers out', function(){
+  var a = fresh();
+  eq(a.kgPuFromText('91.82'), 9182); eq(a.kgPuFromText('92'), 9200); eq(a.kgPuFromText('91.6'), 9160); eq(a.kgPuFromText(' 75 '), 7500);
+  eq(a.kgPuFromText('91.825'), null); eq(a.kgPuFromText('abc'), null); eq(a.kgPuFromText(''), null); eq(a.kgPuFromText('-5'), null); eq(a.kgPuFromText('9,2'), null);
+});
+test('purity guard: rejects outside 50 to 99.99, accepts the edges', function(){
+  var a = fresh();
+  ok(a.kgCheckPurity('49.99', [5000]).error, '49.99 rejected'); ok(a.kgCheckPurity('100', []).error, '100 rejected'); ok(a.kgCheckPurity('0', []).error);
+  eq(a.kgCheckPurity('50', [5000]).pu, 5000); ok(!a.kgCheckPurity('50', [5000]).error);
+  ok(!a.kgCheckPurity('99.99', []).error, '99.99 is typeable (but asks to confirm)');
+  ok(a.kgCheckPurity('1e2', []).error); ok(a.kgCheckPurity('91.825', []).error);
+});
+test('purity guard: odd values ask for confirm, saved usual touches do not', function(){
+  var a = fresh(), saved = [9200, 9160, 7500];
+  var r = a.kgCheckPurity('92', saved); eq(r.pu, 9200); ok(!r.confirm && !r.error, 'saved touch: no confirm');
+  ok(a.kgCheckPurity('91.82', saved).confirm, 'not saved: confirm'); eq(a.kgCheckPurity('91.82', saved).pu, 9182);
+  ok(a.kgCheckPurity('55', [5500]).confirm, 'below 58.3 asks even when saved');
+  ok(a.kgCheckPurity('99.95', [9995]).confirm, 'above 99.9 asks even when saved');
+  ok(!a.kgCheckPurity('58.3', [5830]).confirm && !a.kgCheckPurity('99.9', [9990]).confirm, 'edges of the usual range do not ask when saved');
+});
+test('kgPuOf reads pu, falls back to permille x 10, null when neither', function(){
+  var a = fresh();
+  eq(a.kgPuOf({pu:9182, permille:916}), 9182); eq(a.kgPuOf({permille:916}), 9160); eq(a.kgPuOf({permille:1000}), 10000); eq(a.kgPuOf({}), null);
+  eq(a.KG_PU_PURE, 10000, '999 chip counts as 100%');
+});
+test('kgFineFromPu: round half up to the milligram, once, and agrees with the old permille maths', function(){
+  var a = fresh();
+  eq(a.kgFineFromPu(10000, 9182), 9182);
+  eq(a.kgFineFromPu(1, 5000), 1);
+  eq(a.kgFineFromPu(1, 4999), 0); eq(a.kgFineFromPu(3, 5000), 2); eq(a.kgFineFromPu(1, 10000), 1);
+  eq(a.kgFineFromPu(33333, 9160), 30533); eq(a.kgFineFromPu(99999, 9950), 99499);
+  eq(a.kgFineFromPu(100000000, 9999), 99990000, 'the 100 kg limit stays exact');
+  [1, 7, 333, 33333, 99999, 123457].forEach(function(mg){ [750, 916, 920, 995, 1000].forEach(function(pm){
+    eq(a.kgFineFromPu(mg, pm * 10), a.kgFineMg(mg, pm), mg + 'mg at ' + pm); }); });
+  eq(a.kgFineFromPu(-3, 5000), -2, 'a negative line mirrors the positive one');
+});
+test('kgNetMg: net = gross - stones, refuses a stone weight larger than the gross', function(){
+  var a = fresh();
+  eq(a.kgNetMg(25000, 3200), 21800); eq(a.kgNetMg(25000, 0), 25000); eq(a.kgNetMg(25000), 25000); eq(a.kgNetMg(25000, 25000), 0);
+  eq(a.kgNetMg(25000, 25001), null); eq(a.kgNetMg(0, 0), null); eq(a.kgNetMg(100.5, 0), null); eq(a.kgNetMg(100, 1.5), null); eq(a.kgNetMg(100, -1), null);
+});
+test('kgCtToMg: 0.2 g per carat, half-up once', function(){
+  var a = fresh();
+  eq(a.kgCtToMg('1'), 200); eq(a.kgCtToMg('0.5'), 100); eq(a.kgCtToMg('12.345'), 2469); eq(a.kgCtToMg('0.001'), 0); eq(a.kgCtToMg('0.003'), 1);
+  eq(a.kgCtToMg('1.2345'), null); eq(a.kgCtToMg('x'), null); eq(a.kgCtToMg(''), null);
+});
+test('kgPointsFromText: 4 -> 400, 4.5 -> 450, limited to 0..20', function(){
+  var a = fresh();
+  eq(a.kgPointsFromText('4'), 400); eq(a.kgPointsFromText('4.5'), 450); eq(a.kgPointsFromText('0'), 0); eq(a.kgPointsFromText('20'), 2000);
+  eq(a.kgPointsFromText('20.01'), null); eq(a.kgPointsFromText('-1'), null); eq(a.kgPointsFromText('abc'), null);
+});
+test('wastage credit: 92 + 4 = 96 on the net metal, measured touch is what counts', function(){
+  var a = fresh();
+  var r = a.kgWastageCredit(10000, 9200, 400, 99999);
+  eq(r.rawMg, 9600); eq(r.creditMg, 9600); eq(r.actualMg, 9200); eq(r.capped, false);
+  var m = a.kgWastageCredit(10000, 9182, 400, 99999);
+  eq(m.creditMg, 9582); eq(m.actualMg, 9182);
+});
+test('wastage credit: min() cap bites when the job has less fine left than the credit', function(){
+  var a = fresh();
+  var r = a.kgWastageCredit(10000, 9200, 400, 9500);
+  eq(r.rawMg, 9600); eq(r.creditMg, 9500); eq(r.capped, true);
+  eq(a.kgWastageCredit(10000, 9200, 400, 9600).creditMg, 9600, 'exactly at the cap: not capped'); eq(a.kgWastageCredit(10000, 9200, 400, 9600).capped, false);
+  eq(a.kgWastageCredit(10000, 9200, 400, 0).creditMg, 0, 'nothing left to credit'); eq(a.kgWastageCredit(10000, 9200, 400, -5).creditMg, 0, 'never negative');
+});
+test('wastage credit: batches never credit more than was issued in total', function(){
+  var a = fresh(), issued = 19000, given = 0;
+  [[10000, 9200], [10000, 9200]].forEach(function(b){
+    var r = a.kgWastageCredit(b[0], b[1], 400, issued - given); given += r.creditMg; });
+  ok(given <= issued, 'credited ' + given + ' of ' + issued); eq(given, 19000, 'second batch is capped to what is left');
+});
+test('wastage credit: bad inputs return an error, never a silent wrong credit', function(){
+  var a = fresh();
+  ok(a.kgWastageCredit(10000, null, 400, 9999).error, 'null touch'); ok(a.kgWastageCredit(10000, 9200, 400, undefined).error, 'missing cap');
+  ok(a.kgWastageCredit(10000, 9200, 400, NaN).error, 'NaN cap'); ok(a.kgWastageCredit(0, 9200, 400, 9999).error, 'zero net'); ok(a.kgWastageCredit(100.5, 9200, 400, 9999).error, 'fractional mg');
+  ok(a.kgWastageCredit(Infinity, 9200, 400, 9999).error, 'infinite'); ok(a.kgWastageCredit(10000, 9200, -1, 9999).error, 'negative points');
+  eq(a.kgWastageCredit(10000, 9200, 400, 0).creditMg, 0, 'a cap of exactly 0 is valid: nothing left');
+});
+test('wastage credit: zero points (salary karigar) credits only the real fine', function(){
+  var a = fresh(); var r = a.kgWastageCredit(10000, 9182, 0, 99999);
+  eq(r.creditMg, 9182); eq(r.creditMg, r.actualMg);
+});
+test('stones through to credit: net after stones x (touch + points)', function(){
+  var a = fresh(); var net = a.kgNetMg(12000, a.kgCtToMg('5'));
+  eq(net, 11000); eq(a.kgWastageCredit(net, 9200, 400, 99999).creditMg, 10560);
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }

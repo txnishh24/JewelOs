@@ -58,6 +58,65 @@ function kgPctToPermille(v){
 }
 function kgFineMg(mg, permille){ return Math.round(mg * permille / 1000); }
 
+// ── Karigar redesign, batch 1: purity in 0.01% units ("pu"), integers only, round half-up once per line ──
+// pu: 9182 = 91.82%. Old entries carry permille (0.1% steps); kgPuOf reads either, so history never changes.
+var KG_PU_MIN = 5000, KG_PU_MAX = 9999;       // typed purity guard: 50.00 to 99.99
+var KG_PU_PURE = 10000;                         // the 999 chip counts as 100% (owner rule); never reachable by typing
+var KG_PU_CONFIRM_LO = 5830, KG_PU_CONFIRM_HI = 9990; // outside this, or not a saved touch, the screen asks first
+var KG_MG_PER_CT = 200;                         // 1 carat = 0.2 g
+function kgPuOf(e){ return (e && e.pu != null) ? e.pu : ((e && e.permille != null) ? e.permille * 10 : null); }
+// '91.82' -> 9182. null unless digits with at most 2 decimals (no float anywhere).
+function kgPuFromText(v){
+  var t = String(v == null ? '' : v).trim();
+  if(!/^\d{1,3}(\.\d{1,2})?$/.test(t)) return null;
+  var p = t.split('.');
+  return parseInt(p[0], 10) * 100 + parseInt(((p[1] || '') + '00').slice(0, 2), 10);
+}
+// saved: array of pu integers the shop already uses. Returns {pu} or {error} or {pu, confirm:'reason'}.
+function kgCheckPurity(text, saved){
+  var pu = kgPuFromText(text);
+  if(pu === null) return {error:'Purity must be a number like 91.82 (two decimals at most)'};
+  if(pu < KG_PU_MIN || pu > KG_PU_MAX) return {error:'Purity must be between 50 and 99.99'};
+  var known = (saved || []).indexOf(pu) !== -1;
+  if(pu < KG_PU_CONFIRM_LO || pu > KG_PU_CONFIRM_HI) return {pu:pu, confirm:'This purity is unusual. Is it right?'};
+  if(!known) return {pu:pu, confirm:'This purity is not one you use often. Is it right?'};
+  return {pu:pu};
+}
+function kgFineFromPu(mg, pu){
+  if(mg < 0) return -kgFineFromPu(-mg, pu);
+  return Math.floor((mg * pu + 5000) / 10000);
+}
+// net metal = gross - stones. null when the stone weight is not a whole mg or is more than the gross.
+function kgNetMg(grossMg, stoneMg){
+  var s = stoneMg || 0;
+  if(!(grossMg > 0) || Math.floor(grossMg) !== grossMg || Math.floor(s) !== s || s < 0 || s > grossMg) return null;
+  return grossMg - s;
+}
+// carat text (3 decimals at most) -> mg at 0.2 g per carat, rounded half-up once. null when invalid.
+function kgCtToMg(v){
+  var t = String(v == null ? '' : v).trim();
+  if(!/^\d{1,5}(\.\d{1,3})?$/.test(t)) return null;
+  var p = t.split('.');
+  var milliCt = parseInt(p[0], 10) * 1000 + parseInt(((p[1] || '') + '000').slice(0, 3), 10);
+  return Math.floor((milliCt * KG_MG_PER_CT + 500) / 1000);
+}
+// wastage points text '4' or '4.5' -> 400 / 450 (0.01 point units). 0 to 20 points. null when invalid.
+function kgPointsFromText(v){
+  var pt = kgPuFromText(v);
+  return (pt === null || pt > 2000) ? null : pt;
+}
+// Wastage credit for one receipt: min(net x (measured touch + points) / 100, capMg).
+// capMg = fine issued on the whole job minus credit already given on it (so batches never credit more than was issued).
+// Returns {actualMg: fine really in the piece, rawMg: before the cap, creditMg: what reduces his account, capped}.
+function kgWastageCredit(netMg, measuredPu, pointsPu, capMg){
+  function whole(n){ return typeof n === 'number' && isFinite(n) && Math.floor(n) === n; }
+  if(!whole(netMg) || netMg <= 0 || !whole(measuredPu) || measuredPu <= 0 || !whole(pointsPu) || pointsPu < 0 || !whole(capMg)) return {error:'Wastage credit needs whole numbers: net weight, measured touch, points and what is left to credit'};
+  var actual = kgFineFromPu(netMg, measuredPu);
+  var raw = kgFineFromPu(netMg, measuredPu + pointsPu);
+  var cap = Math.max(0, capMg || 0);
+  return {actualMg:actual, rawMg:raw, creditMg:Math.min(raw, cap), capped:raw > cap};
+}
+
 // Built-in purities plus the touches the owner added (S.kgPurities, e.g. 92, 95, 96).
 // Entries copy the permille at write time, so editing this list never changes history.
 function kgPurityList(){

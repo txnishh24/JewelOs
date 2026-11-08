@@ -23,7 +23,7 @@ You review JewelOS changes against bug patterns that have specifically hit THIS 
 
 - Raw `innerHTML` writes missing `escHtml()`, or inline `onclick="fn('...')"` built without `jsAttrEsc()` — this project had ~25 stored-XSS sinks from exactly this gap.
 - Any site that changes `qty` without recomputing `weight = unitWeight * qty` — weight is derived, not stored independently, and a past miss here silently drifted stock valuation.
-- Anything touching `girviLedgerState` or the interest waterfall — this module is explicitly not to be simplified or rewritten. Flag it for Opus-level review per `MODEL-POLICY.md` §8 (🔴) rather than approving it yourself.
+- Anything touching `girviLedgerState` or the interest waterfall — this module is explicitly not to be simplified or rewritten. Flag it for a careful human or senior review rather than approving it yourself.
 
 ## Output format
 

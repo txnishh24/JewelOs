@@ -59,7 +59,7 @@ logic, never touch production data, and never invent a new test framework.
   a way that writes to it — `tests/e2e/` already runs against a real *test* shop by design
   (that's fine, that's what it's for); don't point it at anything else.
 - If a diff touches `girviLedgerState` or the interest waterfall, say the change itself
-  needs Opus review per `MODEL-POLICY.md` §8 — your job is the test coverage, not approving
+  needs a careful senior review — your job is the test coverage, not approving
   the logic.
 
 ## Report format

@@ -62,7 +62,7 @@ Also read `checks/README.md`'s false-positive list before treating a static hit 
   it as "needs `get_advisors` against the live project — not run, pending approval" rather
   than guessing an answer.
 - Don't rebuild `checks/*.js` — run them, don't reinvent them.
-- Don't approve a ledger/girvi/auth-touching diff yourself. Per `MODEL-POLICY.md` §8 (🔴),
+- Don't approve a ledger/girvi/auth-touching diff yourself. Because this is high-risk,
   say it needs Opus review and stop there, same as `jewelos-bug-pattern-reviewer`.
 
 ## Report format
