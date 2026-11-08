@@ -561,7 +561,9 @@ function kgValidateEntry(e, ctx){
     if(tgt.type === 'LOSS' && tgt.settle === 'cash' && kgLiveLossBill(ctx.salary, tgt.id)) return 'Reverse the loss bill first';
     if(String(e.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
     if(role === 'owner') return '';
-    if(role === 'manager' && (tgt.date === kgToday() || job.model === 'points')) return '';
+    if(role === 'manager' && tgt.date === kgToday()) return '';
+    // points jobs: a manager may also correct an earlier-day metal movement that a manager (not the owner) recorded. ADJUST, loss and owner entries stay owner-only.
+    if(role === 'manager' && job.model === 'points' && tgt.role !== 'owner' && ['ISSUE', 'RECEIPT', 'SCRAP', 'CARRY_APPLY', 'CARRY_OUT', 'TRANSFER_OUT', 'TRANSFER_IN'].indexOf(tgt.type) !== -1) return '';
     return 'Only the owner can reverse an entry from an earlier day';
   }
   return 'Unknown entry type';

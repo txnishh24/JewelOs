@@ -1028,10 +1028,14 @@ test('ledger switch ON: new-style entries are refused (the server has no purity-
   var r = call(function(cb){ a.kgAddEntry(e, cb); }); ok(r.err && /not available while the ledger is on/.test(r.err.message)); eq(a.S.kgLedger.length, 0);
   var r2 = call(function(cb){ a.kgAddEntries([e], cb); }); ok(r2.err && /not available while the ledger is on/.test(r2.err.message));
 });
-test('a manager may reverse a points entry from an earlier day; old jobs keep their same-day rule', function(){
-  var a = fresh('owner'); var k = pk(a, 'P17'); var j = pjob(a, k); var e = issueV(a, j, '10', '92');
-  e.date = '2026-01-01'; a.SAAS.user.role = 'manager';
-  var r = call(function(cb){ a.kgReverse(e.id, 'weighed twice by mistake', op(), cb); }); ok(!r.err, r.err && r.err.message); eq(bal(a, j).issuedFine, 0);
+test('a manager may reverse an earlier-day points metal entry that a manager made; owner entries, ADJUST and loss stay owner-only', function(){
+  var a = fresh('owner'); var k = pk(a, 'P17'); var j = pjob(a, k); var own = issueV(a, j, '1', '92'); own.date = '2026-01-01';
+  a.SAAS.user.role = 'manager'; var e = issueV(a, j, '10', '92'); e.date = '2026-01-01';
+  ok(call(function(cb){ a.kgReverse(own.id, 'owner made this one', op(), cb); }).err, 'owner-made entry from an earlier day: owner only');
+  a.SAAS.user.role = 'owner';
+  var adj = {type:'ADJUST', opId:op(), jobId:j.id, karigarId:k.id, fineMg:100, reason:'count correction', metal:'gold'}; ok(!call(function(cb){ a.kgAddEntry(adj, cb); }).err); adj.date = '2026-01-01';
+  a.SAAS.user.role = 'manager'; ok(call(function(cb){ a.kgReverse(adj.id, 'manager tries owner adjust', op(), cb); }).err, 'ADJUST from an earlier day: owner only');
+  var r = call(function(cb){ a.kgReverse(e.id, 'weighed twice by mistake', op(), cb); }); ok(!r.err, r.err && r.err.message); eq(bal(a, j).issuedFine, 920, 'only the owner's 1 g issue is left');
 });
 test('old-model jobs are untouched: percent wastage still computed, no points fields', function(){
   var a = fresh(); var k = karigar(a, 'Old', {kind:'wastage', wastagePct:'4'}); var j = job(a, k);
