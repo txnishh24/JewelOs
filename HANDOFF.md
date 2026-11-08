@@ -48,7 +48,7 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
 - **[uncertain — resurfaced 3 Oct] Phone test of the new (premium redesign) design.** Listed as
   pending in Cowork's 3 Oct batch47 entry; not previously tracked here.
 - **[open since 30 Sep, resurfaced 3 Oct, root cause found 22 Oct] Call the jeweller of shop `3720af09`**
-  (a real shop, 0 saved bills ever; someone tried a bill 30 Sep and it didn't save). Raised 30 Sep,
+  (Tanish's own shop, not a customer's [corrected 8 Nov, 181st entry]; 0 saved bills ever; someone tried a bill 30 Sep and it didn't save). Raised 30 Sep,
   repeated 3 Oct. **22 Oct: likely root cause found** — a captured Sentry crash (`JEWELOS-2`, 1 Oct,
   on the Netlify URL) shows a `splitRows` crash in New Sale firing right as Save is clicked, before the
   save call ever fires — no error banner, looks like Save just does nothing (see 65th LOG entry). Still
@@ -68,6 +68,26 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-08 (hundred-and-eighty-second entry) · Claude Code (Sonnet) — answer to the 181st: read-only checks, live verified against the repo, regression 493/0, one WAITING line fixed; NOTHING deployed, 014 NOT applied
+
+**Git:** HEAD `da6bed6`. Dirty: `HANDOFF.md` (only the 181st entry, +10 lines, LF in index and working copy, so no line-ending rewrite), `checks/globals.json` (+`kgJournalSummary` twice, from the 180th entry's work, uncommitted), `.claude/settings.json`; untracked `.claude/settings.local.json.bak-pre-prune`. `js/`, `tests/`, `supabase/` clean.
+**Live (`jewelos-deploy-verifier`, host `https://jewelos.jewelos-e2e.workers.dev`, no-cache fetch, one edge):** PASS. Every `js/` file, `sw.js` and `index.html` on live match `9fbbfe4` (batch69) by SHA-256 (index.html served at `/`, CRLF form from a Windows checkout; LF-stripped hash equals the git blob). `APP_BUILD = 69`; `sw.js` cache `jewelos-v24`. Only difference from the working copy: `js/11-karigar.js` (`da6bed6`, reverse-confirm text, not deployed, expected).
+**Regression:** 493 passed, 0 failed. "JEWELOS-2 (Sentry, 1 Oct): a stale split-payment row handler..." pass; "QA 1 Oct #3: opening the Girvi Pay dialog leaves the sale form payment rows alone" pass. Other suites not run this session.
+**Doc fix:** WAITING ON TANISH, the `3720af09` line now says Tanish's own shop, not a customer's. Other lines untouched. The backup line still says "Sri Sai's shop (`3720af09`...)", which is stale by the same correction; left alone as instructed.
+**Not verified:** that the `splitRows` crash was the real cause for `3720af09` (needs Tanish's test bill); service-worker cache on a returning device; `/wrangler.jsonc` and `/.wrangler` 404s and full security headers on live (not re-checked); other test suites.
+→ FOR COWORK: nothing — FYI only. Live matches batch69; the 014 fix and the confirm text are not live.
+→ FOR TANISH: the two-row test bill in `3720af09` is still yours to do. Say if the backup line should also drop "Sri Sai's shop" for `3720af09`.
+
+### 2026-11-08 (hundred-and-eighty-first entry) · Cowork (Sonnet) — read-only live check of the Supabase project; Track A (bill-save crash) status; NOTHING changed anywhere
+
+**Context:** Tanish asked the assistant chat (his new "second brain" folder) to act as Cowork for JewelOS. This entry is that session's first. Read-only; no migration, no deploy, no edit outside this file.
+**Live project `uluzuwomwqsqxtejgzmf`, read 8 Nov:** migrations through `013_store_history` applied; **014 is NOT applied** (consistent with the 180th entry). Edge functions: `store-proxy` v18 ACTIVE (`verify_jwt` true), `auth-gateway` v13, `razorpay-webhook` v4 (`verify_jwt` false, as before). Shop `3720af09`: **0 sales, 12 girvi loans, last save 2026-10-23 16:06 UTC**, unchanged from the WAITING section, so no bill has ever saved there.
+**Track A (`splitRows` crash):** in the repo the fix is present (`js/01-sync-core.js` `renderSplitRows` handlers close over the row object; JEWELOS-2 comment) and `tests/regression.test.js` has two tests for the family ("JEWELOS-2 ... stale split-payment row" and "QA 1 Oct #3 ... Girvi Pay dialog"). Repo `APP_BUILD` 69, `sw.js` `jewelos-v24`. Not verified: that live serves this code (the live host is not reachable from this session), and that this crash was the real cause for `3720af09`; the suite was not run by me.
+**Correction from Tanish (8 Nov):** shop `3720af09` is **his own shop**, not a customer's. The WAITING ON TANISH section still calls it a real customer ("Sri Sai"); treat that as stale. I did not edit that section.
+**Asked of Tanish:** save one test bill in `3720af09` on the live app using two split-payment rows, and report what happens. No call to a jeweller is needed.
+→ FOR CLAUDE CODE: read-only. (1) Run `jewelos-deploy-verifier` on live (every `js/` file, `sw.js`, `index.html` by hash; APP_BUILD 69; cache `jewelos-v24`). (2) Run the regression suite and report counts. (3) Fix the WAITING line about shop `3720af09` (his own shop, not a customer's). Do not deploy; do not apply 014.
+→ FOR TANISH: save the two-row test bill in `3720af09` and tell me the result.
 
 ### 2026-11-07 (hundred-and-eightieth entry) · Claude Code (Sonnet) — small fixes from the pre-release audit, in the repo only: migration 014 written (NOT applied to live), reverse-confirm shows the ledger journal, CORS test fixed; NOT deployed
 
