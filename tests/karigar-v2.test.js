@@ -1490,5 +1490,81 @@ test('lots made on the same day keep a fixed oldest-first order', function(){
   var lots = a.kgCarryLots(k.id, 'gold'); eq(lots.length, 2); eq(lots[0].remainingMg, 920, 'earlier ts first'); eq(lots[1].remainingMg, 1840);
 });
 
+console.log('\nKarigar profile screens (kg3) - markup, switch, statement text');
+
+test('the switch is off by default, per shop, and the nav shows the old tabs', function(){
+  var a = fresh(); eq(a.kg3On(), false);
+  ok(a.kg2NavHtml().indexOf('Terms') === -1, 'old nav while off');
+  a.kg3Switch(true); eq(a.kg3On(), true); ok(a.kg2NavHtml().indexOf('Terms') !== -1, 'new nav while on');
+  a.kg3Switch(false); eq(a.kg3On(), false);
+});
+test('people list: hostile name is escaped, totals shown, nothing breaks with no karigars', function(){
+  var a = fresh(); ok(a.kg3PeopleHtml().indexOf('No karigars yet') !== -1);
+  var k = pk(a, '<img src=x onerror=alert(1)>'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  var h = a.kg3PeopleHtml();
+  ok(h.indexOf('<img') === -1, 'name escaped'); ok(h.indexOf('&lt;img') !== -1);
+  ok(h.indexOf('9.200') !== -1, 'fine total shown');
+});
+test('profile: owner sees payment and carry buttons, manager does not; order work stays separate', function(){
+  var a = fresh('owner'); var k = pk(a, 'Prof'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  var h = a.kg3ProfileHtml(k.id);
+  ok(h.indexOf('Record payment') !== -1 && h.indexOf('Carry settings') !== -1, 'owner buttons'); ok(h.indexOf('9.200') !== -1);
+  ok(h.indexOf('Order work') === -1, 'no order card when there is no order work');
+  a.SAAS.user.role = 'manager'; h = a.kg3ProfileHtml(k.id);
+  ok(h.indexOf('Record payment') === -1 && h.indexOf('Carry settings') === -1, 'manager sees no payment or carry buttons');
+  ok(h.indexOf('You owe him') !== -1 || h.indexOf('Rupees') !== -1, 'manager still sees the rupee tile');
+});
+test('profile of an unknown karigar does not throw', function(){
+  var a = fresh(); ok(a.kg3ProfileHtml('nope').indexOf('not found') !== -1);
+});
+test('statement text equals the ledger and marks a reversed line', function(){
+  var a = fresh(); var k = pk(a, 'Stm'); var j = pjob(a, k); var e = issueV(a, j, '10', '92'); issueV(a, j, '5', '92');
+  var d = a.kgToday();
+  var t = a.kg3StatementText(k.id, 'gold', d, d);
+  ok(t.indexOf('Opening: 0.000') !== -1 && t.indexOf('Closing: 13.800') !== -1 && /fine$/.test(t), t);
+  var r = call(function(cb){ a.kgReverse(e.id, 'wrong entry', op(), cb); }); ok(!r.err, r.err && r.err.message);
+  t = a.kg3StatementText(k.id, 'gold', d, d);
+  ok(t.indexOf('(reversed)') !== -1 && t.indexOf('Closing: 4.600') !== -1, t);
+  ok(a.kg3StatementData(k.id, 'rupees', d, d).rows.length === 0);
+});
+test('statement view refuses bad dates instead of showing a wrong total', function(){
+  var a = fresh(); var k = pk(a, 'Dt'); a._kg2.stFrom = '2026-13-45'; a._kg2.stTo = '2026-01-01';
+  ok(a.kg3StatementHtml(k.id).indexOf('must be real days') !== -1);
+  a._kg2.stFrom = '2026-02-01'; a._kg2.stTo = '2026-01-01'; ok(a.kg3StatementHtml(k.id).indexOf('must be real days') !== -1);
+});
+test('odd purity asks for a tick; the 999 chip and a saved touch do not', function(){
+  var a = fresh();
+  eq(a.kg3NeedsConfirm({purity:'92'}), false); eq(a.kg3NeedsConfirm({purity:'91.82'}), true); eq(a.kg3NeedsConfirm({purity:'40'}), false, 'hard reject is an error, not a confirm');
+  eq(a.kg3NeedsConfirm({purity:'', chip:true}), false); eq(a.kg3NeedsConfirm({purity:'99.95'}), true);
+  var v = a.kg3PuV({purity:'92', chip:true, confirmed:false}); eq(v.chip, '999'); eq(v.confirmed, false);
+});
+test('job page: points job shows holders, slip and reverse buttons; old job keeps the old page', function(){
+  var a = fresh(); var k = pk(a, 'Jp'); var j = pjob(a, k, {title:'<b>Set</b>'}); issueV(a, j, '10', '92');
+  var h = a.kg3JobHtml(j);
+  ok(h.indexOf('<b>Set') === -1 && h.indexOf('&lt;b&gt;Set') !== -1, 'title escaped');
+  ok(h.indexOf('Slip') !== -1 && h.indexOf('Reverse') !== -1 && h.indexOf('Give metal') !== -1 && h.indexOf('Close job') !== -1);
+  a.SAAS.user.role = 'owner'; var c = closeV(a, j, {settle:'loss', reason:'melted in the furnace', opId:'x1'}); ok(!c.err, c.err && c.err.message);
+  h = a.kg3JobHtml(j); ok(h.indexOf('Give metal') === -1 && h.indexOf('Reverse') === -1, 'closed job has no action buttons');
+});
+test('issue slip text carries date, weight, purity and fine, and no photo field', function(){
+  var a = fresh(); var k = pk(a, 'Slip'); var j = pjob(a, k); var e = issueV(a, j, '10', '91.82');
+  var t = a.kg3SlipText(e); ok(t.indexOf('10.000') !== -1 && t.indexOf('91.82%') !== -1 && t.indexOf('Fine: 9.182') !== -1, t);
+});
+test('shop metal block lists a pending refining lot with an assay button', function(){
+  var a = fresh(); var k = pk(a, 'Rf'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  var b = a.kgBuildScrap(j.id, '', {wt:'1', purity:'50', confirmed:true, kind:'dust', opId:op()}); ok(b.entry, b.error || b.confirm);
+  var r = call(function(cb){ a.kgAddEntry(b.entry, cb); }); ok(!r.err, r.err && r.err.message);
+  var h = a.kg3ShopMetalHtml('gold'); ok(h.indexOf('Assay result') !== -1 && h.indexOf('dust') !== -1, h);
+});
+
+test('manager sees no owner-only buttons: opening balances, assay result', function(){
+  var a = fresh('owner'); var k = pk(a, 'Gate'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  var b = a.kgBuildScrap(j.id, '', {wt:'1', purity:'50', confirmed:true, kind:'dust', opId:op()}); call(function(cb){ a.kgAddEntry(b.entry, cb); });
+  ok(a.kg3ProfileHtml(k.id).indexOf('Opening balance') !== -1 && a.kg3ShopMetalHtml('gold').indexOf('Assay result') !== -1, 'owner has them');
+  a.SAAS.user.role = 'manager';
+  ok(a.kg3ProfileHtml(k.id).indexOf('Opening balance') === -1 && a.kg3ProfileHtml(k.id).indexOf('Rupee opening') === -1, 'no opening buttons');
+  ok(a.kg3ShopMetalHtml('gold').indexOf('Assay result') === -1, 'no assay button');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }

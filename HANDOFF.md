@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> Nobody. **batch70 is LIVE on the Cloudflare worker** (8 Nov, Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`, commit `c3c5ab6`, tag `batch70-live`, rollback tag `batch69-live`). Backend: migrations to 014, `store-proxy` v18. Ledger flag OFF for every shop. Karigar redesign: logic batches 1-6 DONE (no UI); WAITING on Tanish's OK after the worked examples (`docs/KARIGAR-WORKED-EXAMPLES-2026-11-09.md`) before the screens (batches 7-9).
+> **Claude Code (Sonnet), 10 Nov: building the Karigar redesign SCREENS (profile list, profile, sheets, statement) on branch `claude/yoo-0ebd1a`, in `js/11-karigar.js` + `index.html`; no deploy, no migration, ledger flag untouched.** Batch70 is LIVE on the Cloudflare worker** (8 Nov, Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`, commit `c3c5ab6`, tag `batch70-live`, rollback tag `batch69-live`). Backend: migrations to 014, `store-proxy` v18. Ledger flag OFF for every shop. Karigar redesign: logic batches 1-6 DONE (no UI); WAITING on Tanish's OK after the worked examples (`docs/KARIGAR-WORKED-EXAMPLES-2026-11-09.md`) before the screens (batches 7-9).
 ---
 
 ## WAITING ON TANISH
