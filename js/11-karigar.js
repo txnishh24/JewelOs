@@ -2797,7 +2797,7 @@ function kg3RupeeOpening(kid){
   var k = findKarigar(kid); if(!k) return;
   kgForm({title:'Rupee opening for ' + k.name, submitLabel:'Save', doneToast:'\u2713 Saved',
     fields:[{id:'dir', label:'Who owes whom', type:'select', options:[['owe', 'You owe him'], ['advance', 'He owes you (advance)']], value:'owe'},
-      {id:'amt', label:'Amount (\u20b9)', mode:'decimal'}, {id:'note', label:'Note (optional)'}],
+      {id:'amt', label:'Amount (\u20b9)', mode:'decimal'}, {id:'note', label:'Note (required, e.g. from his khata)'}],
     onSubmit:function(v, fin){ kgAddRupeeOpening({karigarId:kid, dir:v.dir, amountText:v.amt, note:v.note, opId:v.opId}, function(err){ fin(err); }); }});
 }
 function kg3Carry(kid){
