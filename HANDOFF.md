@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Claude Code (Sonnet), 10 Nov: building the Karigar redesign SCREENS (profile list, profile, sheets, statement) on branch `claude/yoo-0ebd1a`, in `js/11-karigar.js` + `index.html`; no deploy, no migration, ledger flag untouched.** Batch70 is LIVE on the Cloudflare worker** (8 Nov, Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`, commit `c3c5ab6`, tag `batch70-live`, rollback tag `batch69-live`). Backend: migrations to 014, `store-proxy` v18. Ledger flag OFF for every shop. Karigar redesign: logic batches 1-6 DONE (no UI); WAITING on Tanish's OK after the worked examples (`docs/KARIGAR-WORKED-EXAMPLES-2026-11-09.md`) before the screens (batches 7-9).
+> **Nobody.** Batch70 is LIVE (as before) on the Cloudflare worker (8 Nov, Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`, commit `c3c5ab6`, tag `batch70-live`, rollback tag `batch69-live`). Backend: migrations to 014, `store-proxy` v18. Ledger flag OFF for every shop. Karigar redesign: logic batches 1-6 plus the SCREENS (commit `1341f8a` on branch `claude/yoo-0ebd1a`, NOT yet merged to main) done; WAITING on Tanish's phone look and OK.
 ---
 
 ## WAITING ON TANISH
@@ -75,6 +75,19 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-10 (hundred-and-ninety-sixth entry) · Claude Code (Sonnet) - Karigar redesign SCREENS built behind a per-device switch; NOT deployed, no migration, ledger flag untouched
+
+**Commit:** `1341f8a` on branch `claude/yoo-0ebd1a`. This worktree branch was fast-forwarded to main (`67309a9`) first; main is checked out in another worktree, so the commit sits on the branch and still needs merging.
+**What changed:** about 370 lines (`kg3*` functions) added at the end of `js/11-karigar.js`, plus 3 small edits (`renderKgV2` routing, `kg2NavHtml`, `kg2ReportsHtml` owner switch row). The switch is a localStorage key via `shopScopedKey('kgProfileUi')`, per device; the owner toggles it on the Reports tab. It is OFF by default, so nothing changes for anyone until it is switched on (no new `S` key).
+**Screens:** people list with shop-metal block and refining lots; karigar profile (gold, silver and rupee tiles, jobs, order work shown separately, count/ceiling/ageing notes); date-range statement with WhatsApp share text (gold, silver, rupees); points-job page. Sheets: new job, give metal, receive piece (live preview of net, real fine, credit, cap), scrap/dust, hand over to another karigar, use carried balance (main karigar only), add stage, close job (carry / accept loss / loss bill; owner-only options hidden from managers), reverse, opening balance and rupee opening (owner only), carry settings, record count, assay result (owner only), issue slip share text (no photo).
+**Review:** `jewelos-bug-pattern-reviewer` found 4 role-gating gaps (buttons a manager would be refused on), a carry-sheet stage mismatch and non-ASCII literals; all fixed.
+**Verified:** karigar-v2 162/0 (11 new), regression 493/0, `check.bat` passes (needed `npm ci` in `checks/` in this worktree for acorn), roundtrip PASS, `backup-check` only warns `kgLedgerOn` (same 16 refs as before, not new), pre-commit hook passed. Real-browser pass (Playwright, 390px wide, synthetic in-memory data with saves stubbed, no shop touched): people list, profile, job page, Receive sheet preview matches the worked example (5.000 net, 4.600 real, 4.800 credit), save and statement correct, hostile name shown as text; only console error was the favicon 404.
+**Flaky test:** one existing karigar-v2 test ('closing a chain with a carry', expected 13800 got 9200) failed once in 7 runs, then passed 6 times in a row. Looks timing-dependent and pre-existing; not investigated.
+**NOT verified:** sheets other than Receive were not clicked in a browser (give metal, scrap, hand over, close, opening, new job, carry settings); dark mode; desktop width; a real phone; `npm run test:e2e` not run (no login/sale/Girvi flow touched, but the Karigars tab render path was edited); Opus review of the ledger maths not done this session.
+**NOT built from the plan:** karigar-held metal counted in shop stock elsewhere in the app (batch 8 grep not done; the held-metal figure exists only inside the Karigars tab); removal of the old Karigar 2.0 chrome and old percent-wastage model; printable statement (WhatsApp text only); per-karigar default wastage points UI (points are typed per job; the Terms sheet still asks the old percent); owner Reverse for an assay result (REFINE_CREDIT) is not reachable from any screen; a stage-karigar's carried balance cannot be applied from the sheet.
+→ FOR COWORK: nothing — FYI only.
+→ FOR TANISH: switch the screens on (Karigars > Reports > Switch on) on a test shop or E2E shop `77c4aefe`, look on your phone, say what to change; do NOT switch on in a customer shop yet; and say "go" for the service-role key plan (still waiting).
 
 ### 2026-11-09 (hundred-and-ninety-fifth entry) · Claude Code (Sonnet) — Karigar redesign BATCHES 2-6 (logic only, no UI, no deploy, ledger flag untouched, no migration): points-model entries, stages with their own karigar, silver, stones, opening balances, carry-forward, transfers, accepted loss and cash loss bill, account/statement, rupee opening, refining lots
 
