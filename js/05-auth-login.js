@@ -1075,6 +1075,8 @@ function karigarInitials(name){
 function renderKarigarList(){
   var wrap = document.getElementById('karigar-list');
   if(!wrap) return;
+  // The new Karigar screens replace these cards entirely (their profile shows the order work and has Edit details and Pay for order work).
+  if(typeof kg3On === 'function' && kg3On()){ wrap.innerHTML = ''; if(typeof renderKgV2 === 'function') renderKgV2(); return; }
   var monthKey = dbDayKey(new Date()).slice(0,7);
   var cards = (S.karigars||[]).map(function(k){
     var owed = karigarOwed(k.id);

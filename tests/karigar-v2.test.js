@@ -738,7 +738,7 @@ test('stage summary and the dashboard: overdue, awaiting approval, surplus, read
   eq(d.pendingApprovals.length, 1); eq(d.pendingApprovals[0].fine, 100);
   eq(d.surplus.length, 1); eq(d.surplus[0].job.id, j3.id); eq(d.surplus[0].fine, 400);
   eq(d.readyToClose.length, 1); eq(d.readyToClose[0].job.id, j1.id); eq(d.readyToClose[0].openFine, 0);
-  eq(d.withKarigarFine, (50000 - 2000) + (10000 - 400), 'only jobs with gold still out (j2, j4)');
+  eq(d.withKarigarFine, (50000 - 2000) + (10000 - 400) - 400, 'what he holds in all: j2 and j4 still out, net of the 0.4 g he returned over on j3');
   call(function(cb){ a.kgCloseJob(j1.id, cb); }); eq(a.kgDashboard().openJobs, 3, 'closed jobs leave the dashboard');
 });
 test('overdue days: only open jobs with a past due date', function(){
@@ -1166,7 +1166,7 @@ test('a failed save rolls back an accepted-loss close including the rupee bill',
 test('close settlement refuses an old-rules job and a karigar who returned too much', function(){
   var a = fresh(); var k = karigar(a, 'Old2', {kind:'wastage', wastagePct:'4'}); var oj = job(a, k); metal(a, oj, 'ISSUE', 10000, '999');
   var r = closeV(a, oj, {settle:'loss', reason:'whatever it is'}); ok(r.err, 'old job keeps its old rules');
-  var p = pk(a, 'C9', 'salary'); var j = pjob(a, p); issueV(a, j, '5', '92'); receiptV(a, j, {gross:'6', purity:'92'});   // returned 5.52 > 4.6 issued
+  var p = pk(a, 'C9', 'salary'); var j = pjob(a, p); issueV(a, j, '5', '92'); a.S.kgLedger.push({id:'legacy1', opId:'legacy1', type:'RECEIPT', jobId:j.id, stageId:'', karigarId:p.id, metal:'gold', mg:6000, grossMg:6000, stoneMg:0, pu:9200, purityKey:'92', fineMg:5520, actualFineMg:5520, creditFineMg:5520, kind:'salary', pointsPu:0, pieceDesc:'x', qty:1, date:a.kgToday(), ts:'t', by:'t', role:'owner'});   // returned 5.52 > 4.6 issued (older data: the app now refuses to record this)
   ok(bal(a, j).openFine < 0); ok(closeV(a, j, {settle:'loss', reason:'cannot do this'}).err);
 });
 test('quarterly count: due only for a trusted karigar carrying a balance, 90 days after the last count', function(){
@@ -1446,7 +1446,8 @@ test('closing a chain with a carry: each karigar who still holds metal carries h
 test('closing: one karigar holding +4.6 and another -4.6 does not hide behind a job total of zero', function(){
   var a = fresh(); var A = pk(a, 'HidA'); var B = pk(a, 'HidB', 'salary');
   var j3 = pjob(a, A); var u1 = call(function(cb){ a.kgAddStage(j3.id, 'Make', A.id, cb); }).v, u2 = call(function(cb){ a.kgAddStage(j3.id, 'Set', B.id, cb); }).v;
-  issueV(a, j3, '5', '92', u1.id); issueV(a, j3, '5', '92', u2.id); receiptV(a, j3, {gross:'10', purity:'92'}, u2.id);
+  issueV(a, j3, '5', '92', u1.id); issueV(a, j3, '5', '92', u2.id);
+  a.S.kgLedger.push({id:'legacy2', opId:'legacy2', type:'RECEIPT', jobId:j3.id, stageId:u2.id, karigarId:B.id, metal:'gold', mg:10000, grossMg:10000, stoneMg:0, pu:9200, purityKey:'92', fineMg:9200, actualFineMg:9200, creditFineMg:9200, kind:'salary', pointsPu:0, pieceDesc:'x', qty:1, date:a.kgToday(), ts:'t', by:'t', role:'owner'});   // older data; the app now refuses this return
   eq(bal(a, j3).openFine, 0, 'job total is zero');
   ok(a.kgJobKarigarFines(j3).some(function(x){ return x.fine < 0; }) && a.kgJobKarigarFines(j3).some(function(x){ return x.fine > 0; }), 'A is positive, B negative');
   var z = closeV(a, j3); ok(z.err && /returned more than he was given/.test(z.err.message), 'refused even though the job total is zero'); eq(j3.status, 'open');
@@ -1599,6 +1600,126 @@ test('screens: a credited assay shows in the shop block with Reverse for the own
   ok(!call(function(cb){ a.kgRefineCredit({scrapId:id, fineText:'0.85', opId:op()}, cb); }).err);
   ok(a.kg3ShopMetalHtml('gold').indexOf('Reverse assay') !== -1 && a.kg3ShopMetalHtml('gold').indexOf('assay 0.850') !== -1, 'owner sees the credited lot with Reverse');
   a.SAAS.user.role = 'manager'; ok(a.kg3ShopMetalHtml('gold').indexOf('Reverse assay') === -1, 'manager does not');
+});
+
+console.log('\nKarigar review round (11 Nov) - P1 fixes');
+
+function openG(a, k, metal, wt, pur, chip){
+  var r = call(function(cb){ a.kgAddOpening({karigarId:k.id, metal:metal, wt:wt, purity:pur || '92', chip:chip, confirmed:true, opId:op()}, cb); });
+  if(r.err) throw new Error('opening: ' + r.err.message); return r.v;
+}
+test('P1.1 opening balance is consumed by receipts (drawn after what he holds on the job), and a reversal gives it back', function(){
+  var a = fresh('owner'); var k = pk(a, 'O1'); openG(a, k, 'gold', '50', '92');                           // 46.000 fine
+  var j = pjob(a, k); issueV(a, j, '10', '92');                                                           // 9.200 on the job
+  var r = receiptV(a, j, {gross:'15', purity:'92'});                                                      // credit 15 x 96% = 14.400
+  eq(r.entry.creditFineMg, 14400); eq(r.entry.openingUseMg, 5200, 'the part above what he holds on the job comes out of the opening');
+  var ac = a.kgAccount(k.id).gold; eq(ac.openingMg, 40800); eq(ac.inJobsMg, 0); eq(ac.totalMg, 40800);
+  eq(bal(a, j).openFine, 0, 'the job itself balances');
+  ok(!call(function(cb){ a.kgReverse(r.entry.id, 'weighed the wrong ring', op(), cb); }).err);
+  eq(a.kgAccount(k.id).gold.openingMg, 46000); eq(a.kgAccount(k.id).gold.totalMg, 55200);
+});
+test('P1.1 a return with nothing issued on the job still draws from the opening; more than he holds in all is capped / refused', function(){
+  var a = fresh('owner'); var k = pk(a, 'O2'); openG(a, k, 'gold', '5', '92');                            // 4.600
+  var j = pjob(a, k);
+  var r = receiptV(a, j, {gross:'4', purity:'92'});                                                       // 4 x 96% = 3.840
+  eq(r.entry.openingUseMg, 3840); eq(a.kgAccount(k.id).gold.totalMg, 760);
+  var r2 = receiptV(a, j, {gross:'5', purity:'92'});                                                      // raw 4.8 but only 0.76 left
+  eq(r2.entry.creditFineMg, 760); eq(r2.entry.openingUseMg, 760); eq(a.kgAccount(k.id).gold.totalMg, 0);
+  var s = pk(a, 'O3', 'salary'); var j2 = pjob(a, s); openG(a, s, 'gold', '1', '92');
+  ok(a.kgBuildReceipt(j2.id, '', {gross:'2', purity:'92', confirmed:true, piece:'x', qty:'1', opId:op()}).error, 'a salary karigar cannot return more fine than he holds in all');
+});
+test('P1.2 a points job refuses old-style entries (permille, no pu); an old job refuses points entries', function(){
+  var a = fresh(); var k = pk(a, 'V1'); var j = pjob(a, k);
+  ok(metal(a, j, 'ISSUE', 10000, '999').err, 'old-style issue on a points job');
+  ok(metal(a, j, 'SCRAP', 1000, '999', {kind:'scrap'}).err, 'old-style scrap');
+  issueV(a, j, '10', '92');
+  ok(metal(a, j, 'RECEIPT', 1000, '999', {pieceDesc:'x', qty:1, stoneMg:0}).err, 'old-style receipt');
+  var ok2 = karigar(a, 'V2', {kind:'wastage', wastagePct:'4'}); var oj = job(a, ok2);
+  var b = a.kgBuildIssue(j.id, '', {wt:'1', purity:'92', confirmed:true, opId:op()}); b.entry.jobId = oj.id; b.entry.karigarId = ok2.id;
+  ok(call(function(cb){ a.kgAddEntry(b.entry, cb); }).err, 'points entry on an old-rules job');
+});
+test('P1.3 khata, dashboard and report never add gold and silver together and include opening and carry', function(){
+  var a = fresh('owner'); var k = pk(a, 'H1'); openG(a, k, 'gold', '50', '92');
+  var j = pjob(a, k); issueV(a, j, '10', '92');
+  var js = pjob(a, k, {metal:'silver'}); issueV(a, js, '100', '', '', '999');
+  var kh = a.kgKhata(k.id); eq(kh.openFine, 46000 + 9200, 'gold only, opening included'); eq(kh.openSilver, 100000);
+  var d = a.kgDashboard(); eq(d.withKarigarFine, 55200); eq(d.withKarigarSilver, 100000);
+  var b = a.kgBuildScrap(js.id, '', {wt:'5', purity:'90', confirmed:true, kind:'filings', opId:op()}); call(function(cb){ a.kgAddEntry(b.entry, cb); });
+  var b2 = a.kgBuildScrap(j.id, '', {wt:'1', purity:'90', confirmed:true, kind:'dust', opId:op()}); call(function(cb){ a.kgAddEntry(b2.entry, cb); });
+  var rp = a.kgReport('2000-01-01', '2999-12-31'); eq(rp.scrapTotal, 900, 'gold scrap only'); eq(rp.scrapSilverTotal, 4500);
+});
+test('P1.3 the blob-to-ledger migration and the reconcile are blocked while a points job exists', function(){
+  var a = fresh('owner'); var k = pk(a, 'M1'); pjob(a, k);
+  var r = call(function(cb){ a.kgMigrateBlobToLedger(cb, {dryRun:true}); }); ok(r.err && /points/i.test(r.err.message), r.err && r.err.message);
+  var rc = a.kgReconcile([]); ok(rc.blocked, 'reconcile says it cannot compare');
+});
+test('P1.4 scrap, loss and approval cannot take more than he holds on the job', function(){
+  var a = fresh('owner'); var k = pk(a, 'L1'); var j = pjob(a, k); issueV(a, j, '10', '92');            // holds 9.200
+  var big = a.kgBuildScrap(j.id, '', {wt:'11', purity:'92', confirmed:true, kind:'scrap', opId:op()});
+  ok(big.error || call(function(cb){ a.kgAddEntry(big.entry, cb); }).err, 'scrap 10.12 fine > 9.2');
+  function loss(mg, extra){ var e = {type:'LOSS', opId:op(), jobId:j.id, karigarId:k.id, metal:'gold', fineMg:mg, category:'other', reason:'filing loss', proposed:false, approvedBy:'Tester'};
+    Object.keys(extra || {}).forEach(function(x){ e[x] = extra[x]; }); return call(function(cb){ a.kgAddEntry(e, cb); }); }
+  ok(loss(9300).err, 'loss above what he holds');
+  a.SAAS.user.role = 'manager'; var pr = loss(5000, {proposed:true, approvedBy:''}); ok(!pr.err, pr.err && pr.err.message);
+  ok(loss(9000, {proposed:true, approvedBy:''}).err, 'proposals together above what he holds');
+  a.SAAS.user.role = 'owner'; receiptV(a, j, {gross:'5', purity:'92'});                                     // credit 4.8, holds 4.4
+  var ap = call(function(cb){ a.kgAddEntry({type:'APPROVAL', opId:op(), jobId:j.id, karigarId:k.id, refId:pr.v.id, decision:'approve'}, cb); });
+  ok(ap.err, 'approving 5.0 when he now holds 4.4');
+  ok(!call(function(cb){ a.kgAddEntry({type:'APPROVAL', opId:op(), jobId:j.id, karigarId:k.id, refId:pr.v.id, decision:'reject'}, cb); }).err, 'rejecting is always possible');
+  ok(!loss(4400).err, 'exactly what he holds is fine');
+});
+test('P1.5 a salary karigar cannot return more fine than he holds', function(){
+  var a = fresh(); var k = pk(a, 'S9', 'salary'); var j = pjob(a, k); issueV(a, j, '5', '92');
+  var b = a.kgBuildReceipt(j.id, '', {gross:'6', purity:'92', confirmed:true, piece:'x', qty:'1', opId:op()});
+  ok(b.error && /hold/i.test(b.error), b.error);
+});
+test('P1.6 wastage points set after the job was made reach the job until he first holds metal; blank points can be fixed later', function(){
+  var a = fresh(); var k = karigar(a, 'T1', {kind:'wastage', wastagePct:'4'}); var j = pjob(a, k);
+  ok(a.kgBuildReceipt(j.id, '', {gross:'1', purity:'92', confirmed:true, piece:'x', qty:'1', opId:op()}).error, 'no points yet');
+  ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'4'}, cb); }).err);
+  issueV(a, j, '10', '92');                                                                                 // first metal: points were refreshed to 4 and are now frozen
+  eq(a.kgTermsFor(j, k.id).pointsPu, 400);
+  ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'6'}, cb); }).err);
+  eq(a.kgTermsFor(j, k.id).pointsPu, 400, 'frozen once he holds metal');
+  var k2 = karigar(a, 'T2', {kind:'wastage', wastagePct:'4'}); var j2 = pjob(a, k2); issueV(a, j2, '10', '92');   // issued with blank points
+  ok(!call(function(cb){ a.kgSetTerms(k2.id, {kind:'wastage', points:'4'}, cb); }).err);
+  eq(a.kgTermsFor(j2, k2.id).pointsPu, 400, 'a job whose points were never set can still pick them up');
+  ok(a.kgBuildReceipt(j2.id, '', {gross:'5', purity:'92', confirmed:true, piece:'x', qty:'1', opId:op()}).entry);
+});
+test('P1.7 re-saving terms never wipes wastage points; the subtitle shows points, not a percent', function(){
+  var a = fresh(); var k = karigar(a, 'P7', {kind:'wastage', points:'4'});
+  ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', wastagePct:'4'}, cb); }).err);
+  eq(a.kgAgreementFor(k.id, a.kgToday()).wastagePoints, 400, 'points kept when the form does not send them');
+  eq(k.wastagePoints, 400);
+  var txt = a.kgAgreementText(a.kgAgreementFor(k.id, a.kgToday()));
+  ok(/4 points/.test(txt) && !/%/.test(txt), txt);
+  ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'5.5'}, cb); }).err); eq(k.wastagePoints, 550);
+});
+test('P1.8 a points job carries no labour; conceded wastage is shown on the job and in the report', function(){
+  var a = fresh('owner'); var k = karigar(a, 'P8', {kind:'wastage', points:'4', labourRate:'10', labourBase:'net'}); var j = pjob(a, k);
+  eq(j.labour, null); eq(j.wastageBp, 0); eq(j.fixedMg, 0);
+  issueV(a, j, '10', '92'); receiptV(a, j, {gross:'5', purity:'92'});                                       // credit 4.800 - real 4.600 = 0.200 conceded
+  eq(bal(a, j).concededFine, 200);
+  var rp = a.kgReport('2000-01-01', '2999-12-31'); eq(rp.concededTotal, 200); eq(rp.conceded[0].karigarId, k.id); eq(rp.conceded[0].fineMg, 200);
+  var html = a.kg3JobHtml(j); ok(html.indexOf('0.200') !== -1 && /conceded|allowed/i.test(html), 'job page shows it');
+});
+
+test('P1.9 with the new screens on, the old Today / Jobs / Khata pages and the old karigar cards are gone', function(){
+  var a = fresh('owner'); var k = pk(a, 'One'); openG(a, k, 'gold', '50', '92');
+  var off = a.kg2NavHtml(); ok(off.indexOf('Today') !== -1 && off.indexOf('Khata') !== -1, 'old nav while off');
+  a.kg3Switch(true);
+  var nav = a.kg2NavHtml(); ok(nav.indexOf('Today') === -1 && nav.indexOf('Khata') === -1 && nav.indexOf('>Jobs<') === -1, 'old tabs hidden while on: ' + nav);
+  ok(nav.indexOf('Karigars') !== -1 && nav.indexOf('Reports') !== -1 && nav.indexOf('Terms') !== -1);
+  a.kg3Switch(false);
+  var wrap = {innerHTML:'x'}; var realGet = a.document.getElementById;
+  a.document.getElementById = function(id){ return id === 'karigar-list' ? wrap : realGet.call(a.document, id); };
+  a.kg3Switch(true); a.renderKarigarList(); eq(wrap.innerHTML, '', 'old cards not drawn while the new screens are on');
+  a.kg3Switch(false); a.renderKarigarList(); ok(wrap.innerHTML !== '', 'old cards drawn again when off');
+  a.document.getElementById = realGet;
+});
+test('P1.9 the profile keeps what the old cards were used for: edit details and paying for order work', function(){
+  var a = fresh('owner'); var k = pk(a, 'Two');
+  ok(a.kg3ProfileHtml(k.id).indexOf('Edit details') !== -1);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

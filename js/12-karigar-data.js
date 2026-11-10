@@ -286,6 +286,7 @@ function kgOutboxFlush(cb){
 function kgMigrateBlobToLedger(cb, opts){
   if(kgUser().role !== 'owner') return cb(new Error('Only the owner can open the ledger balances'));
   if(S.kgLedgerOn === true) return cb(new Error('The ledger is already on. Opening balances can only be posted before it is switched on.'));
+  if(kgHasPointsJobs()) return cb(new Error('Opening balances cannot be posted to the ledger while jobs on the points rules exist: the old balance figures do not cover them.'));
   var dry = !!(opts && opts.dryRun), conf = Object.create(null); // no prototype: an id like 'constructor' must not match
   if(!dry){
     if(!opts || !Array.isArray(opts.confirmed)) return cb(new Error('Preview the balances and confirm them first'));
@@ -406,7 +407,9 @@ function kgFetchBalances(cb){
 // unknown = ledger balances whose owner reference matches no karigar in the shop data (D11).
 // shortcut: custody only; a wastage karigar's earned share is not accrued on the ledger yet, so with the ledger flag on
 // it shows as a diff until ENTITLEMENT_ACCRUE is wired to job close (Task 4 follow-up).
+function kgHasPointsJobs(){ return (S.kgJobs || []).some(function(j){ return j && j.model === 'points' && j.status !== 'cancelled'; }); }
 function kgReconcile(rows){
+  if(kgHasPointsJobs()) return {rows:[], mismatches:[], unknown:[], blocked:'Cannot compare the shop data with the ledger while jobs on the points rules exist.'};
   var led = Object.create(null), known = Object.create(null), unknown = [], byKarigar = ['KCUST', 'ENT', 'EARNED', 'PAYOUT', 'SCRAP', 'LOSS'];
   (S.karigars || []).forEach(function(k){ known[k.id] = true; });
   (rows || []).forEach(function(r){
