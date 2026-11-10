@@ -1173,7 +1173,8 @@ test('quarterly count: due only for a trusted karigar carrying a balance, 90 day
   var a = fresh(); var k = pk(a, 'C10'); eq(a.kgCountDue(k.id), false, 'not trusted');
   trust(a, k); eq(a.kgCountDue(k.id), false, 'nothing carried');
   var j = pjob(a, k); issueV(a, j, '10', '92'); closeV(a, j, {settle:'carry'});
-  eq(a.kgCountDue(k.id), true, 'never counted');
+  eq(a.kgCountDue(k.id), false, 'a balance carried today is not due for a count at 0 days');
+  a.S.kgLedger.forEach(function(x){ if(x.type === 'CARRY_IN') x.date = '2026-01-01'; }); eq(a.kgCountDue(k.id), true, 'never counted and the carried balance is older than the count interval');
   ok(!call(function(cb){ a.kgMarkCounted(k.id, 'counted with him', cb); }).err); eq(a.kgCountDue(k.id), false);
   a.findKarigar(k.id).lastCountAt = '2026-01-01'; eq(a.kgCountDue(k.id), true, 'old count');
   a.SAAS.user.role = 'staff'; ok(call(function(cb){ a.kgMarkCounted(k.id, 'x', cb); }).err, 'staff cannot');
@@ -1311,11 +1312,13 @@ test('statement: running balance equals the account, with opening line, date ran
   var r1 = receiptV(a, j, {gross:'5', purity:'92'}); r1.entry.date = '2026-11-05';
   var i2 = issueV(a, j, '1', '92'); i2.date = '2026-11-10';
   ok(!call(function(cb){ a.kgReverse(i2.id, 'entered twice by mistake', op(), cb); }).err);
+  a.S.kgLedger[a.S.kgLedger.length - 1].date = '2026-11-12';   // the reversal happened on the 12th
   var st = a.kgStatementRange(k.id, 'gold', '2026-11-01', '2026-11-30');
   eq(st.openingMg, 9200, 'opening balance of 10 g at 92 before the range');
-  eq(st.rows.length, 3); eq(st.rows[0].type, 'ISSUE'); eq(st.rows[0].balanceMg, 9200 + 9200);
+  eq(st.rows.length, 4); eq(st.rows[0].type, 'ISSUE'); eq(st.rows[0].balanceMg, 9200 + 9200);
   eq(st.rows[1].type, 'RECEIPT'); eq(st.rows[1].deltaMg, -4800); eq(st.rows[1].balanceMg, 18400 - 4800);
-  eq(st.rows[2].state, 'reversed'); eq(st.rows[2].deltaMg, 0);
+  eq(st.rows[2].type, 'ISSUE'); eq(st.rows[2].deltaMg, 920, 'the original row keeps its figure'); eq(st.rows[3].type, 'REVERSAL'); eq(st.rows[3].state, 'reversal'); eq(st.rows[3].deltaMg, -920); eq(st.rows[3].reason, 'entered twice by mistake');
+  var early = a.kgStatementRange(k.id, 'gold', '2026-11-01', '2026-11-11'); eq(early.rows.length, 3, 'a past range does not change after a later reversal'); eq(early.closingMg, 14520);
   eq(st.closingMg, a.kgAccount(k.id).gold.totalMg); eq(st.closingMg, 13600);
   eq(a.kgStatementRange(k.id, 'gold', '2026-11-02', '2026-11-04').rows.length, 0, 'quiet days'); eq(a.kgStatementRange(k.id, 'gold', '2026-11-02', '2026-11-04').openingMg, 18400);
   eq(a.kgStatementRange(k.id, 'silver', '2026-01-01', '2026-12-31').rows.length, 0, 'silver statement is separate');
@@ -1377,7 +1380,8 @@ test('rupee statement: running balance equals the register, opening line before 
   a.S.kgSalary.push({id:'r', opId:'r', type:'REVERSAL', karigarId:k.id, reversesId:'p', reason:'wrong person', ts:'2026-11-06T00:00:00Z', date:'2026-11-06'});
   a.S.kgSalary.push({id:'d', opId:'d', type:'DEDUCTION', karigarId:k.id, amountPaise:20000, note:'loss bill', ts:'2026-11-07T00:00:00Z', date:'2026-11-07'});
   var st = a.kgRupeeStatementRange(k.id, '2026-11-01', '2026-11-30');
-  eq(st.openingPaise, 100000); eq(st.rows.length, 3); eq(st.rows[0].balancePaise, 400000); eq(st.rows[1].state, 'reversed'); eq(st.rows[1].deltaPaise, 0); eq(st.rows[2].balancePaise, 380000);
+  eq(st.openingPaise, 100000); eq(st.rows.length, 4); eq(st.rows[0].balancePaise, 400000); eq(st.rows[1].balancePaise, 350000); eq(st.rows[2].state, 'reversal'); eq(st.rows[2].deltaPaise, 50000); eq(st.rows[2].reason, 'wrong person'); eq(st.rows[3].balancePaise, 380000);
+  eq(a.kgRupeeStatementRange(k.id, '2026-11-01', '2026-11-05').closingPaise, 350000, 'a range ending before the reversal does not change');
   eq(st.closingPaise, a.kgSalaryBalance(k.id).payable); eq(st.closingPaise, 380000);
 });
 test('refining lot: weighing sweepings lowers his account once and starts a pending lot; the assay credits the shop, not him', function(){
@@ -1525,7 +1529,7 @@ test('statement text equals the ledger and marks a reversed line', function(){
   ok(t.indexOf('Opening: 0.000') !== -1 && t.indexOf('Closing: 13.800') !== -1 && /fine$/.test(t), t);
   var r = call(function(cb){ a.kgReverse(e.id, 'wrong entry', op(), cb); }); ok(!r.err, r.err && r.err.message);
   t = a.kg3StatementText(k.id, 'gold', d, d);
-  ok(t.indexOf('(reversed)') !== -1 && t.indexOf('Closing: 4.600') !== -1, t);
+  ok(t.indexOf('Reversed: given') !== -1 && t.indexOf('Reason: wrong entry') !== -1 && t.indexOf('+9.200') !== -1 && t.indexOf('-9.200') !== -1 && t.indexOf('Closing: 4.600') !== -1 && !/ISSUE|RECEIPT|TRANSFER/.test(t), t);
   ok(a.kg3StatementData(k.id, 'rupees', d, d).rows.length === 0);
 });
 test('statement view refuses bad dates instead of showing a wrong total', function(){
@@ -1700,6 +1704,7 @@ test('P1.8 a points job carries no labour; conceded wastage is shown on the job 
   eq(j.labour, null); eq(j.wastageBp, 0); eq(j.fixedMg, 0);
   issueV(a, j, '10', '92'); receiptV(a, j, {gross:'5', purity:'92'});                                       // credit 4.800 - real 4.600 = 0.200 conceded
   eq(bal(a, j).concededFine, 200);
+  a._kg2Month = a.kgToday().slice(0, 7); ok(a.kg2ReportsHtml().indexOf('Total allowed') !== -1, 'report page shows the wastage allowed');
   var rp = a.kgReport('2000-01-01', '2999-12-31'); eq(rp.concededTotal, 200); eq(rp.conceded[0].karigarId, k.id); eq(rp.conceded[0].fineMg, 200);
   var html = a.kg3JobHtml(j); ok(html.indexOf('0.200') !== -1 && /conceded|allowed/i.test(html), 'job page shows it');
 });
@@ -1720,6 +1725,58 @@ test('P1.9 with the new screens on, the old Today / Jobs / Khata pages and the o
 test('P1.9 the profile keeps what the old cards were used for: edit details and paying for order work', function(){
   var a = fresh('owner'); var k = pk(a, 'Two');
   ok(a.kg3ProfileHtml(k.id).indexOf('Edit details') !== -1);
+});
+
+console.log('\nKarigar review round (11 Nov) - P2 and P3 fixes');
+
+test('P2 a stage cannot be given to another karigar once metal is recorded on it', function(){
+  var a = fresh(); var A = pk(a, 'SA'), B = pk(a, 'SB'), C = pk(a, 'SC'); var j = pjob(a, A);
+  var st = call(function(cb){ a.kgAddStage(j.id, 'Make', B.id, cb); }).v;
+  ok(!call(function(cb){ a.kgStageAction(j.id, st.id, 'who', C.id, cb); }).err, 'free to change before any metal');
+  issueV(a, j, '5', '92', st.id);
+  var r = call(function(cb){ a.kgStageAction(j.id, st.id, 'who', B.id, cb); }); ok(r.err && /already been recorded/.test(r.err.message), r.err && r.err.message);
+});
+test('P2 plain words and a sign instead of raw codes (rows, statement, WhatsApp text)', function(){
+  var a = fresh('owner'); var A = pk(a, 'Imran'), B = pk(a, 'Pooja'); trust(a, A); var j = pjob(a, A);
+  var st = call(function(cb){ a.kgAddStage(j.id, 'Set', B.id, cb); }).v;
+  issueV(a, j, '10', '92');
+  var t = call(function(cb){ a.kgTransfer({jobId:j.id, fromStageId:'', toStageId:st.id, wt:'2', purity:'92', confirmed:true, opId:op()}, cb); }); ok(!t.err, t.err && t.err.message);
+  var d = a.kgToday(), txt = a.kg3StatementText(A.id, 'gold', d, d);
+  ok(txt.indexOf('Handed to Pooja') !== -1 && txt.indexOf('+9.200') !== -1 && txt.indexOf('-1.840') !== -1 && !/ISSUE|TRANSFER_OUT|CARRY_|RECEIPT/.test(txt), txt);
+  var html = a.kg3JobHtml(j); ok(html.indexOf('Given') !== -1 && html.indexOf('Handed to Pooja') !== -1 && html.indexOf('Taken over from Imran') !== -1 && !/>(ISSUE|TRANSFER_OUT|TRANSFER_IN)</.test(html), 'job rows use words');
+  eq(html.split('Reverse</button>').length - 1, 2, 'one Reverse for the issue and ONE for the transfer pair, not two');
+  var r = pjob(a, A); issueV(a, r, '10', '92'); receiptV(a, r, {gross:'5', purity:'92'}); closeV(a, r, {settle:'carry'});
+  ok(a.kg3StatementText(A.id, 'gold', d, d).indexOf('Carried forward') !== -1, 'carry rows in words');
+});
+test('P2 weight errors say what is wrong', function(){
+  var a = fresh(); var k = pk(a, 'W'); var j = pjob(a, k);
+  function msg(w){ var b = a.kgBuildIssue(j.id, '', {wt:w, purity:'92', confirmed:true, opId:op()}); return b.error || ''; }
+  ok(/cannot be zero/.test(msg('0')), msg('0')); ok(/cannot be negative/.test(msg('-5')), msg('-5')); ok(/dot, not a comma/.test(msg('1,5')), msg('1,5'));
+  ok(/too large/.test(msg('9999999')), msg('9999999')); ok(/at most 3 decimals/.test(msg('1.2345')), msg('1.2345')); ok(/Enter the weight/.test(msg('')), msg('')); ok(/must be a number/.test(msg('abc')), msg('abc'));
+  var g = a.kgBuildReceipt(j.id, '', {gross:'0', purity:'92', confirmed:true, piece:'x', qty:'1', opId:op()}); ok(/Gross weight cannot be zero/.test(g.error), g.error);
+  var m = {}; ['0', '-5', '1,5', '9999999', '1.2345', ''].forEach(function(w){ m[msg(w)] = 1; }); eq(Object.keys(m).length, 6, 'six different messages');
+});
+test('P2 the preview shows no fine for a purity the save refuses; silver sheets say silver', function(){
+  var a = fresh();
+  ['49.99', '100', '120'].forEach(function(p){ var h = a.kg3FineLine({wt:'10', purity:p}, 'Fine given'); ok(/warn/.test(h) && h.indexOf('<b>') === -1, p + ': ' + h); });
+  ok(a.kg3FineLine({wt:'10', purity:'92'}, 'Fine given').indexOf('9.200') !== -1);
+  ok(a.kg3FineLine({wt:'10', chip:true}, 'Fine given').indexOf('10.000') !== -1);
+  ok(/silver/.test(a.kg3PurFields('Purity %', 'silver')[0].label) && !/gold/.test(a.kg3PurFields('Purity %', 'silver')[0].label), 'silver label');
+  ok(/gold/.test(a.kg3PurFields('Purity %', 'gold')[0].label));
+});
+test('P3 a failed save says nothing was saved; closing respects the ledger flag; retry with the same operation id is a duplicate, not an error', function(){
+  var a = fresh('owner'); var k = pk(a, 'R1'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  a.saveToCloud = function(cb){ cb(new Error('Failed to fetch')); };
+  var b = a.kgBuildIssue(j.id, '', {wt:'1', purity:'92', confirmed:true, opId:op()});
+  var f = call(function(cb){ a.kgAddEntry(b.entry, cb); }); ok(f.err && /Nothing was saved/.test(f.err.message) && f.err.transient === true, f.err && f.err.message);
+  a.saveToCloud = function(cb){ cb(null); };
+  a.S.kgLedgerOn = true; var c = closeV(a, j, {settle:'loss', reason:'accepted loss here'}); ok(c.err && /ledger is on/.test(c.err.message), c.err && c.err.message); a.S.kgLedgerOn = false;
+  var o1 = {karigarId:k.id, metal:'gold', wt:'5', purity:'92', confirmed:true, opId:'dup-open'};
+  ok(!call(function(cb){ a.kgAddOpening(o1, cb); }).err); var again = call(function(cb){ a.kgAddOpening(o1, cb); }); ok(!again.err && again.dup === true, 'opening retry: ' + (again.err && again.err.message));
+  var cl = closeV(a, j, {settle:'loss', reason:'accepted loss here', opId:'dup-close'}); ok(!cl.err, cl.err && cl.err.message);
+  var cl2 = closeV(a, j, {settle:'loss', reason:'accepted loss here', opId:'dup-close'}); ok(!cl2.err && cl2.dup === true, 'close retry: ' + (cl2.err && cl2.err.message));
+  var ro = {karigarId:k.id, dir:'owe', amountText:'100', note:'old khata', opId:'dup-rup'};
+  ok(!call(function(cb){ a.kgAddRupeeOpening(ro, cb); }).err); var again2 = call(function(cb){ a.kgAddRupeeOpening(ro, cb); }); ok(!again2.err && again2.dup === true, 'rupee opening retry: ' + (again2.err && again2.err.message));
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
