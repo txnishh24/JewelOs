@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody.** Batch70 is LIVE (as before) on the Cloudflare worker (8 Nov, Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`, commit `c3c5ab6`, tag `batch70-live`, rollback tag `batch69-live`). Backend: migrations to 014, `store-proxy` v18. Ledger flag OFF for every shop. Karigar redesign: logic batches 1-6 plus the SCREENS (commit `1341f8a` on branch `claude/yoo-0ebd1a`, NOT yet merged to main) done; WAITING on Tanish's phone look and OK.
+> **Nobody.** Batch70 is LIVE (as before) on the Cloudflare worker (8 Nov, Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`, commit `c3c5ab6`, tag `batch70-live`, rollback tag `batch69-live`). Backend: migrations to 014, `store-proxy` v18. Ledger flag OFF for every shop. Karigar redesign: logic batches 1-6 plus the SCREENS (`1341f8a`) and the 197th-entry additions (`093637f` on branch `claude/yoo-0d8ca6`, which contains the screens; NOT merged to main) done; WAITING on Tanish's phone look and OK.
 ---
 
 ## WAITING ON TANISH
@@ -84,6 +84,7 @@ or re-add tier UI.
 **Code (`js/11-karigar.js`):** with the screens switch on, the Terms sheet asks for wastage points (not the old percent / fixed gold / labour); the shop metal block lists credited assay lots with an owner-only "Reverse assay" (closes the 196th entry's "REFINE_CREDIT not reachable" gap). Switch off: Terms sheet unchanged.
 **Tests:** `tests/karigar-v2.test.js` 165/0 (3 new: rounding, 999 at 999, assay reverse button). `check.bat` passes. `jewelos-bug-pattern-reviewer`: no blocking findings. Its note: with the switch on, re-saving a wastage karigar's terms drops his old percent/fixed/labour from the NEW version (earlier versions and existing jobs untouched).
 **Still NOT built (from the 196th list):** karigar-held metal counted in shop stock elsewhere (batch 8 grep not done); removal of old chrome / old percent model; printable statement; applying a stage-karigar's carried balance from the sheet.
+**Test-runner (after the commit):** syntax ok; regression 493/0; karigar-v2 165/0; ledger client 91/0; sql suites passed; roundtrip PASS; backup-check OK (kgLedgerOn warning as before); `edge-functions` skipped (no sucrase); `tests/cowork-live-check.js` FAILS on clean `25ff9aa` too (GST bill without a GST %), not caused by this change.
 **NOT verified:** a browser look at the two edited sheets; manager role in a browser; dark mode; a real phone; e2e not run; Opus review of the ledger maths not done; flaky test from the 196th entry not investigated.
 → FOR COWORK: nothing — FYI only.
 → FOR TANISH: phone check (Karigars > Reports > Switch on, on the E2E shop `77c4aefe`); say whether pure gold at 999 should keep zero wastage; the branch is not merged to main.
