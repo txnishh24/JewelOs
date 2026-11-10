@@ -2163,19 +2163,22 @@ function kg2Terms(karigarId){
     fields:[
       {id:'from', label:'Effective from (YYYY-MM-DD)', value:kgToday(), hint: hist ? 'History: ' + hist : 'A new version never changes earlier ones.'},
       {id:'kind', label:'Type', type:'select', options:[['wastage', 'Wastage (keeps a share of the gold)'], ['salary', 'Fixed salary (no gold earning)']], value:cur.kind || 'wastage'},
+      {id:'points', label:'Wastage points on his touch (e.g. 4)', value:(cur.wastagePoints != null ? String(cur.wastagePoints / 100) : ''), mode:'decimal',
+        hint:'Measured touch + points = what he is credited. Each new job starts with this; you can change it per job. Existing jobs keep their own.', show:function(v){ return v.kind === 'wastage' && kg3On(); }},
       {id:'pct', label:'Wastage % of fine gold issued', value:String((cur.wastageBp != null ? cur.wastageBp : KG_DEFAULT_WASTAGE_BP) / 100), mode:'decimal',
-        hint:'Applies to jobs created from the date above. Existing jobs keep their own terms.', show:function(v){ return v.kind === 'wastage'; }},
+        hint:'Applies to jobs created from the date above. Existing jobs keep their own terms.', show:function(v){ return v.kind === 'wastage' && !kg3On(); }},
       {id:'fixed', label:'Extra fixed gold per job, grams (optional)', value:(cur.fixedMg ? String(cur.fixedMg / 1000) : ''), mode:'decimal',
-        hint:'Counted from the first issue, final when the job closes.', show:function(v){ return v.kind === 'wastage'; }},
-      {id:'lab', label:'Labour per gram, \u20b9 (optional)', value:(cur.labour ? String(cur.labour.perGramPaise / 100) : ''), mode:'decimal', show:function(v){ return v.kind === 'wastage'; }},
+        hint:'Counted from the first issue, final when the job closes.', show:function(v){ return v.kind === 'wastage' && !kg3On(); }},
+      {id:'lab', label:'Labour per gram, \u20b9 (optional)', value:(cur.labour ? String(cur.labour.perGramPaise / 100) : ''), mode:'decimal', show:function(v){ return v.kind === 'wastage' && !kg3On(); }},
       {id:'labBase', label:'Labour is on', type:'select', options:[['net', 'Net weight of finished pieces'], ['fine', 'Fine weight of finished pieces']], value:(cur.labour && cur.labour.base) || 'net',
-        show:function(v){ return v.kind === 'wastage' && String(v.lab || '').trim() !== ''; }},
+        show:function(v){ return v.kind === 'wastage' && !kg3On() && String(v.lab || '').trim() !== ''; }},
       {id:'mode', label:'Salary is', type:'select', options:[['monthly', 'Monthly'], ['daily', 'Daily']], value:(cur.salary && cur.salary.mode) || 'monthly', show:function(v){ return v.kind === 'salary'; }},
       {id:'rate', label:'Salary rate (\u20b9 per month / per day)', value:(cur.salary ? String(cur.salary.ratePaise / 100) : ''), mode:'decimal', show:function(v){ return v.kind === 'salary'; }}],
     onSubmit:function(v, fin){
       var w = v.kind === 'wastage';
-      kgAddAgreement(karigarId, {kind:v.kind, wastagePct:v.pct, fixedGrams:(w ? v.fixed : ''), labourRate:(w ? v.lab : ''), labourBase:v.labBase,
-        salaryMode:v.mode, rate:v.rate}, String(v.from || '').trim(), v.opId, function(err){ fin(err); });
+      var on = kg3On();
+      kgAddAgreement(karigarId, {kind:v.kind, wastagePct:(on ? '' : v.pct), points:(w && on ? v.points : ''), fixedGrams:(w && !on ? v.fixed : ''), labourRate:(w && !on ? v.lab : ''), labourBase:v.labBase,
+        salaryMode:v.mode, rate:v.rate},String(v.from || '').trim(), v.opId, function(err){ fin(err); });
     }});
 }
 function kg2Accrue(karigarId){
@@ -2503,6 +2506,10 @@ function kg3ShopMetalHtml(metal){
   var html = '<div class="kg2-sec">Shop ' + escHtml(metal) + ' (fine)</div><div class="kg2-kpis">' +
     kg3Tile('With karigars', escHtml(kgFmtG(v.withKarigarsMg))) + kg3Tile('Being refined (estimate)', escHtml(kgFmtG(v.refiningEstMg))) +
     kg3Tile('Refined (assay)', escHtml(kgFmtG(v.refinedMg))) + '</div>';
+  kgRefineLots(metal).filter(function(l){ return l.status === 'credited'; }).forEach(function(l){
+    html += '<div class="kg2-line"><div><b>' + escHtml(l.kind) + ' assay ' + escHtml(kgFmtG(l.assayFineMg)) + ' fine</b><div class="kg2-sub">sent ' + escHtml(kgFmtG(l.estFineMg)) + ' est. &middot; ' + escHtml(l.date) +
+      ' &middot; ' + escHtml(kg3Name(l.karigarId)) + '</div></div>' + (kgUser().role === 'owner' && !S.kgLedgerOn ? kg2Btn('Reverse assay', 'kg3Reverse(' + kg2Q(l.creditId) + ')') : '') + '</div>';
+  });
   lots.forEach(function(l){
     html += '<div class="kg2-line"><div><b>' + escHtml(l.kind) + ' ' + escHtml(kgFmtG(l.estFineMg)) + ' fine</b><div class="kg2-sub">' + escHtml(l.date) + (l.jobNo ? ' &middot; ' + escHtml(l.jobNo) : '') +
       ' &middot; ' + escHtml(kg3Name(l.karigarId)) + '</div></div>' + (kgUser().role === 'owner' ? kg2Btn('Assay result', 'kg3Refine(' + kg2Q(l.scrapId) + ')') : '') + '</div>';

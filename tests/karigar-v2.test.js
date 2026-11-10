@@ -1566,5 +1566,40 @@ test('manager sees no owner-only buttons: opening balances, assay result', funct
   ok(a.kg3ShopMetalHtml('gold').indexOf('Assay result') === -1, 'no assay button');
 });
 
+console.log('\nKarigar redesign - rounding over many small returns, and 999 returned at 999');
+
+test('rounding: 21 small returns on one job - every line whole mg, each within 0.5 mg of exact, open = issued - sum of credits', function(){
+  var a = fresh(); var k = pk(a, 'Rnd'); var j = pjob(a, k); issueV(a, j, '10', '91.82');
+  var sumReal = 0, sumCredit = 0, i;
+  for(i = 0; i < 21; i++){
+    var e = receiptV(a, j, {gross:'0.333', purity:'91.82'}).entry;
+    eq(e.creditFineMg, 319); eq(e.actualFineMg, 306);                       // 333 x 95.82% = 319.08, 333 x 91.82% = 305.76, half-up once per line
+    ok(Math.abs(e.creditFineMg - 333 * 9582 / 10000) < 0.5 && Math.abs(e.actualFineMg - 333 * 9182 / 10000) < 0.5, 'line error under 0.5 mg');
+    sumReal += e.actualFineMg; sumCredit += e.creditFineMg;
+  }
+  eq(sumCredit, 6699); eq(sumReal, 6426);
+  eq(bal(a, j).openFine, 9182 - 6699, 'open is exactly issued minus the sum of the stored credits');
+  ok(Math.abs(sumCredit - 6993 * 9582 / 10000) <= 21 * 0.5 && Math.abs(sumReal - 6993 * 9182 / 10000) <= 21 * 0.5, 'drift against the exact total is bounded by 0.5 mg per line');
+});
+test('999 returned at 999: no wastage, credit = the weight returned (touch + points stops at 100%)', function(){
+  var a = fresh(); var k = pk(a, 'Pure'); var j = pjob(a, k); issueV(a, j, '10', '', '', '999');
+  var e = receiptV(a, j, {gross:'4', chip:'999', purity:''}).entry;
+  eq(e.actualFineMg, 4000); eq(e.creditFineMg, 4000); eq(bal(a, j).openFine, 6000);
+  var w = a.kgWastageCredit(4000, 10000, 400, 1e9); eq(w.creditMg, 4000); eq(w.rawMg, 4000);
+  eq(a.kgWastageCredit(4000, 9900, 400, 1e9).creditMg, 4000, '99.00 + 4 points also stops at 100%');
+  eq(a.kgWastageCredit(4000, 9600, 400, 1e9).creditMg, 4000, '96.00 + 4 points reaches 100% exactly');
+  eq(a.kgWastageCredit(4000, 9200, 400, 1e9).creditMg, 3840, '92.00 + 4 points = 96%');
+});
+
+test('screens: a credited assay shows in the shop block with Reverse for the owner only', function(){
+  var a = fresh('owner'); var k = pk(a, 'Scr'); var j = pjob(a, k); issueV(a, j, '10', '', '', '999');
+  var b = a.kgBuildScrap(j.id, '', {wt:'1', purity:'90', confirmed:true, kind:'dust', opId:op()}); call(function(cb){ a.kgAddEntry(b.entry, cb); });
+  var id = a.kgRefineLots('gold')[0].scrapId;
+  ok(a.kg3ShopMetalHtml('gold').indexOf('Reverse assay') === -1, 'nothing to reverse yet');
+  ok(!call(function(cb){ a.kgRefineCredit({scrapId:id, fineText:'0.85', opId:op()}, cb); }).err);
+  ok(a.kg3ShopMetalHtml('gold').indexOf('Reverse assay') !== -1 && a.kg3ShopMetalHtml('gold').indexOf('assay 0.850') !== -1, 'owner sees the credited lot with Reverse');
+  a.SAAS.user.role = 'manager'; ok(a.kg3ShopMetalHtml('gold').indexOf('Reverse assay') === -1, 'manager does not');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }

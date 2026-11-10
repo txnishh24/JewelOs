@@ -76,6 +76,18 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-11 (hundred-and-ninety-seventh entry) · Claude Code (Sonnet) - Karigar redesign: 9 more worked examples, rounding + 999 tests, two screen gaps closed; branch `claude/yoo-0d8ca6` (fast-forwarded to the screens commit `25ff9aa`); NOT deployed, no migration, ledger flag untouched
+
+**Cowork's OK arrived after the screens (196th entry) already existed on `claude/yoo-0ebd1a`.** I did not rebuild them. I fast-forwarded this branch to that commit and added on top.
+**Docs:** `docs/KARIGAR-WORKED-EXAMPLES-2026-11-09.md` now has examples 8 to 16 (salary close, accepted loss, cash loss bill, stones deducted, sweepings + refining lot + assay, opening balances gold/silver/rupees, reversing a receipt already carried forward, 21 small returns, 999 at 999), run on the real code. Plus a written 999 answer: **pure gold returned at 999 gets no wastage** (credit = weight returned; touch + points stops at 100%). That cap was Claude's addition, not in the plan: **Tanish to confirm or change.**
+**Findings:** (a) a receipt already carried forward cannot be reversed directly; the app says "Job is closed - reopen it first", and the order is reopen job, undo the carry, then reverse the receipt (works, ends at 9.200 g). (b) 21 identical 0.333 g returns: real fine 6,426 mg by lines vs 6,421 mg weighed once (exact 6,420.7); credit 6,699 vs 6,701; each line within 0.5 mg, identical lines drift the same way.
+**Code (`js/11-karigar.js`):** with the screens switch on, the Terms sheet asks for wastage points (not the old percent / fixed gold / labour); the shop metal block lists credited assay lots with an owner-only "Reverse assay" (closes the 196th entry's "REFINE_CREDIT not reachable" gap). Switch off: Terms sheet unchanged.
+**Tests:** `tests/karigar-v2.test.js` 165/0 (3 new: rounding, 999 at 999, assay reverse button). `check.bat` passes. `jewelos-bug-pattern-reviewer`: no blocking findings. Its note: with the switch on, re-saving a wastage karigar's terms drops his old percent/fixed/labour from the NEW version (earlier versions and existing jobs untouched).
+**Still NOT built (from the 196th list):** karigar-held metal counted in shop stock elsewhere (batch 8 grep not done); removal of old chrome / old percent model; printable statement; applying a stage-karigar's carried balance from the sheet.
+**NOT verified:** a browser look at the two edited sheets; manager role in a browser; dark mode; a real phone; e2e not run; Opus review of the ledger maths not done; flaky test from the 196th entry not investigated.
+→ FOR COWORK: nothing — FYI only.
+→ FOR TANISH: phone check (Karigars > Reports > Switch on, on the E2E shop `77c4aefe`); say whether pure gold at 999 should keep zero wastage; the branch is not merged to main.
+
 ### 2026-11-10 (hundred-and-ninety-sixth entry) · Claude Code (Sonnet) - Karigar redesign SCREENS built behind a per-device switch; NOT deployed, no migration, ledger flag untouched
 
 **Commit:** `1341f8a` on branch `claude/yoo-0ebd1a`. This worktree branch was fast-forwarded to main (`67309a9`) first; main is checked out in another worktree, so the commit sits on the branch and still needs merging.
