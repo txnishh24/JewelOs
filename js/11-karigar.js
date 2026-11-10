@@ -1262,6 +1262,7 @@ function kgValidateKarigarLevel(e, ctx){
     }
     if(!tg || tg.jobId !== '' || (tg.type !== 'OPENING' && tg.type !== 'REFINE_CREDIT')) return 'Entry not found';
     if(idx.reversed[tg.id]) return 'Already reversed';
+    if(tg.type === 'OPENING' && kgOpeningLeft(ledger, idx, tg.karigarId, kgMetalOf(tg)) < tg.fineMg) return 'Receipts or scrap have already drawn from this opening balance - reverse those first';
     if(e.karigarId !== tg.karigarId) return 'Karigar does not match';
     if(String(e.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
     return role === 'owner' ? '' : 'Only the owner can reverse this entry';
@@ -2747,7 +2748,7 @@ function kg3ShareSlip(entryId){
 function kg3JobHtml(job){
   var u = kgUser(), led = S.kgLedger || [], idx = kgIndex(led), open = job.status === 'open', metal = kgMetalOf(job);
   var html = '<div class="kg2-row">' + kg2Btn('\u2190 ' + kg3Name(job.karigarId), 'kg3Open(' + kg2Q(job.karigarId) + ')') + '</div><div class="kg2-head"><div class="kg2-title">' + escHtml(job.jobNo) + ' &middot; ' + escHtml(job.title) + '</div>' +
-    '<div class="kg2-sub">' + escHtml(metal) + ' &middot; ' + escHtml(job.status) + (job.tag ? ' &middot; tag ' + escHtml(job.tag) : '') + (job.pieceCount ? ' &middot; ' + job.pieceCount + ' pieces' : '') +
+    '<div class="kg2-sub">' + escHtml(metal) + ' &middot; ' + escHtml(job.status) + (job.tag ? ' &middot; tag ' + escHtml(job.tag) : '') + (job.pieceCount ? ' &middot; ' + escHtml(String(job.pieceCount)) + ' pieces' : '') +
     (job.dueDate ? ' &middot; due ' + escHtml(job.dueDate) : '') + '</div></div>';
   html += '<div class="kg2-sec">Who holds the metal</div>';
   var fines = kgJobKarigarFines(job);

@@ -1779,5 +1779,43 @@ test('P3 a failed save says nothing was saved; closing respects the ledger flag;
   ok(!call(function(cb){ a.kgAddRupeeOpening(ro, cb); }).err); var again2 = call(function(cb){ a.kgAddRupeeOpening(ro, cb); }); ok(!again2.err && again2.dup === true, 'rupee opening retry: ' + (again2.err && again2.err.message));
 });
 
+test('opening draw: statement closing equals the account through a receipt and a scrap that draw from the opening, and each reversal row restores it exactly', function(){
+  var a = fresh('owner'); var k = pk(a, 'OD1'); openG(a, k, 'gold', '50', '92');                         // 46.000 fine
+  var j = pjob(a, k); issueV(a, j, '10', '92');                                                           // 9.200 on the job
+  var r = receiptV(a, j, {gross:'15', purity:'92'});                                                      // 14.400 credit, 5.200 from the opening
+  var sb = a.kgBuildScrap(j.id, '', {wt:'2', purity:'92', confirmed:true, kind:'dust', opId:op()});      // job is empty, all 1.840 from the opening
+  eq(sb.entry.openingUseMg, 1840); ok(!call(function(cb){ a.kgAddEntry(sb.entry, cb); }).err);
+  var acc = a.kgAccount(k.id).gold; eq(acc.openingMg, 46000 - 5200 - 1840); eq(acc.inJobsMg, 0); eq(acc.totalMg, 38960);
+  eq(acc.totalMg, acc.openingMg + acc.inJobsMg + acc.carryMg, 'total = opening left + on jobs + carried');
+  var st = a.kgStatementRange(k.id, 'gold', '2000-01-01', '2999-12-31'); eq(st.closingMg, acc.totalMg, 'statement closing = account');
+  ok(!call(function(cb){ a.kgReverse(sb.entry.id, 'weighed the wrong dust', op(), cb); }).err);
+  eq(a.kgAccount(k.id).gold.totalMg, 38960 + 1840); eq(a.kgAccount(k.id).gold.openingMg, 46000 - 5200);
+  ok(!call(function(cb){ a.kgReverse(r.entry.id, 'weighed the wrong ring', op(), cb); }).err);
+  var ac2 = a.kgAccount(k.id).gold; eq(ac2.openingMg, 46000); eq(ac2.inJobsMg, 9200); eq(ac2.totalMg, 55200, 'back to opening + issue, nothing counted twice');
+  var st2 = a.kgStatementRange(k.id, 'gold', '2000-01-01', '2999-12-31');
+  eq(st2.closingMg, ac2.totalMg); eq(st2.rows.filter(function(x){ return x.state === 'reversal'; }).length, 2, 'each reversal is its own row');
+});
+test('opening draw: a forged openingUseMg is refused, an issue cannot carry one, and silver and rupees stay out of the gold account', function(){
+  var a = fresh('owner'); var k = pk(a, 'OD2'); openG(a, k, 'gold', '5', '92'); openG(a, k, 'silver', '100', '', '999');
+  a.kgAddRupeeOpening({karigarId:k.id, dir:'owe', amountText:'500', note:'old', opId:op()}, function(){});
+  var j = pjob(a, k);
+  var b = a.kgBuildReceipt(j.id, '', {gross:'2', purity:'92', confirmed:true, piece:'x', qty:'1', opId:op()}); ok(b.entry, b.error || b.confirm);
+  var good = b.entry.openingUseMg; eq(good, 1920); b.entry.openingUseMg = 0; ok(call(function(cb){ a.kgAddEntry(b.entry, cb); }).err, 'receipt that hides its opening draw');
+  var i = a.kgBuildIssue(j.id, '', {wt:'1', purity:'92', confirmed:true, opId:op()}); i.entry.openingUseMg = 500;
+  ok(call(function(cb){ a.kgAddEntry(i.entry, cb); }).err, 'issue with an opening draw');
+  b.entry.openingUseMg = good; var rr = call(function(cb){ a.kgAddEntry(b.entry, cb); }); ok(!rr.err, rr.err && rr.err.message);
+  eq(a.kgAccount(k.id).gold.totalMg, 4600 - 1920); eq(a.kgAccount(k.id).silver.totalMg, 100000, 'silver untouched'); eq(a.kgAccount(k.id).rupees.payablePaise, 50000, 'rupees untouched');
+  eq(a.kgStatementRange(k.id, 'silver', '2000-01-01', '2999-12-31').closingMg, 100000);
+});
+
+test('opening balance cannot be reversed while receipts or scrap have drawn from it', function(){
+  var a = fresh('owner'); var k = pk(a, 'RO'); var o = openG(a, k, 'gold', '5', '92');                      // 4.600
+  var j = pjob(a, k); var r = receiptV(a, j, {gross:'4', purity:'92'});                                      // draws 3.840 from the opening
+  var bad = call(function(cb){ a.kgReverse(o.id, 'typed the wrong weight', op(), cb); }); ok(bad.err && /drawn from|reverse those first/i.test(bad.err.message), bad.err && bad.err.message);
+  eq(a.kgAccount(k.id).gold.openingMg, 760, 'nothing changed');
+  ok(!call(function(cb){ a.kgReverse(r.entry.id, 'weighed the wrong ring', op(), cb); }).err);
+  ok(!call(function(cb){ a.kgReverse(o.id, 'typed the wrong weight', op(), cb); }).err, 'allowed once the receipt is reversed'); eq(a.kgAccount(k.id).gold.totalMg, 0);
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }
