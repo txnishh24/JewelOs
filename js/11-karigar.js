@@ -2949,7 +2949,7 @@ function kg3ReceivePreview(jobId, v){
 var KG_PAY_UNITS = {cash:'\u20b9', gold:'g gold', silver:'g silver'};
 function kg3OrderOwedText(type, n){ return type === 'cash' ? '\u20b9' + (Math.round(n * 100) / 100) : (Math.round(n * 1000) / 1000) + ' g ' + type; }
 function kg3PayOrderCheck(kid, type, text){
-  if(!KG_PAY_UNITS[type]) return {error:'Choose cash, gold or silver'};
+  if(!Object.prototype.hasOwnProperty.call(KG_PAY_UNITS, type)) return {error:'Choose cash, gold or silver'};
   var t = String(text == null ? '' : text).trim(), cash = type === 'cash';
   if(!(cash ? /^\d{1,9}(\.\d{1,2})?$/ : /^\d{1,6}(\.\d{1,3})?$/).test(t) || !(parseFloat(t) > 0)) return {error:'Enter an amount above zero (' + (cash ? 'rupees, at most 2 decimals' : 'grams, at most 3 decimals') + ')'};
   var unit = cash ? 100 : 1000;
