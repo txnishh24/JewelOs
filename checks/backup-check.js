@@ -29,7 +29,9 @@ for (const f of files) {
     seen.set(m[1], (seen.get(m[1]) || 0) + 1);
 }
 // account/auth state is deliberately excluded from backups
-const ACCOUNT = new Set(['shop', 'user', 'plan', 'sessionToken', 'shopId', 'trialEndsAt', 'planExpiry']);
+const ACCOUNT = new Set(['shop', 'user', 'plan', 'sessionToken', 'shopId', 'trialEndsAt', 'planExpiry',
+  // kgLedgerOn: server-side flag, kept in memory, asked from the server after sign-in. Restoring it from a backup could flip a shop's ledger by accident, so it is deliberately NOT backed up.
+  'kgLedgerOn']);
 const uncovered = [...seen.entries()]
   .filter(([k, n]) => n >= 8 && !exported.includes(k) && !ACCOUNT.has(k))
   .sort((a, b) => b[1] - a[1]);

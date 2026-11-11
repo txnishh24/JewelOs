@@ -76,6 +76,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-11 (two-hundred-and-fifth entry) - Claude Code (Sonnet) - backup-check no longer warns about kgLedgerOn (branch `karigar-review-fixes`, NOT merged, NOT deployed)
+
+- Tanish's decision: `kgLedgerOn` is a server-side flag, kept in memory and asked from the server after sign-in. It is NOT added to the backup (restoring it could flip a shop's ledger by accident). Added to the ignore list in `checks/backup-check.js` with that comment. Closes the open question in the 204th entry.
+- Checked: backup-check prints no "SHOP STATE NOT IN BACKUP" line and exits 0; roundtrip unchanged.
+
+→ FOR COWORK: nothing - FYI only.
+→ FOR TANISH: nothing.
+
 ### 2026-11-11 (two-hundred-and-fourth entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R7.md items 24-27 on branch `karigar-review-fixes` (NOT merged, NOT deployed, no migration, ledger flag untouched)
 
 - 24: reversing a negative ADJUST is refused (points jobs) when he no longer has that metal free; a new positive ADJUST (credit) is refused if it would leave him with less than a pending loss. Clear messages. Existing test P1.4 edited: its 4.8 g credit against a 5.0 g pending loss is now refused up front (the approval guard stays as a second line).
