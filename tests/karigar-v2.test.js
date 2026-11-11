@@ -13,7 +13,7 @@ function test(name, fn){
   catch(e){ failed++; failures.push(name + ': ' + e.message); console.log('  \u2717 ' + name + '\n      ' + e.message); }
 }
 function eq(a, b, msg){ if(a !== b) throw new Error((msg || 'expected') + ': ' + JSON.stringify(a) + ' !== ' + JSON.stringify(b)); }
-function ok(c, msg){ if(!c) throw new Error(msg || 'assertion failed'); }
+function ok(c, msg){ if(!c) throw new Error(msg || ('assertion failed at line ' + ((new Error().stack.split('\n')[2] || '').match(/:(\d+):\d+\)?$/) || [0, '?'])[1])); }
 
 // fresh app + shop state per scenario
 function fresh(role){
@@ -441,7 +441,7 @@ test('report: reversed entries are left out and a surplus job is listed on its o
   var i1 = metal(a, j, 'ISSUE', 100000, '999').v; metal(a, j, 'SCRAP', 96200, '999', {kind:'scrap'});
   var d = a.kgToday(); eq(a.kgReport(d, d).surplus.length, 1); eq(a.kgReport(d, d).open.length, 0);
   call(function(cb){ a.kgAddEntry({type:'REVERSAL', opId:op(), jobId:j.id, karigarId:k.id, reversesId:i1.id, reason:'wrong issue'}, cb); });
-  eq(a.kgReport(d, d).wastage.length, 0, 'reversed issue not counted');
+  eq(a.kgReport(d, d).wastage.length, 0, 'an issue and its reversal on the same day net to nothing');
 });
 
 console.log('\nKarigar V2 - touches (92 / 95 / 96) and Day Book');
@@ -1666,7 +1666,7 @@ test('P1.4 scrap, loss and approval cannot take more than he holds on the job', 
   ok(loss(9300).err, 'loss above what he holds');
   a.SAAS.user.role = 'manager'; var pr = loss(5000, {proposed:true, approvedBy:''}); ok(!pr.err, pr.err && pr.err.message);
   ok(loss(9000, {proposed:true, approvedBy:''}).err, 'proposals together above what he holds');
-  a.SAAS.user.role = 'owner'; receiptV(a, j, {gross:'5', purity:'92'});                                     // credit 4.8, holds 4.4
+  a.SAAS.user.role = 'owner'; ok(!call(function(cb){ a.kgAddEntry({type:'ADJUST', opId:op(), jobId:j.id, karigarId:k.id, fineMg:4800, reason:'count corrected'}, cb); }).err);   // holds 4.4
   var ap = call(function(cb){ a.kgAddEntry({type:'APPROVAL', opId:op(), jobId:j.id, karigarId:k.id, refId:pr.v.id, decision:'approve'}, cb); });
   ok(ap.err, 'approving 5.0 when he now holds 4.4');
   ok(!call(function(cb){ a.kgAddEntry({type:'APPROVAL', opId:op(), jobId:j.id, karigarId:k.id, refId:pr.v.id, decision:'reject'}, cb); }).err, 'rejecting is always possible');
@@ -1815,6 +1815,110 @@ test('opening balance cannot be reversed while receipts or scrap have drawn from
   eq(a.kgAccount(k.id).gold.openingMg, 760, 'nothing changed');
   ok(!call(function(cb){ a.kgReverse(r.entry.id, 'weighed the wrong ring', op(), cb); }).err);
   ok(!call(function(cb){ a.kgReverse(o.id, 'typed the wrong weight', op(), cb); }).err, 'allowed once the receipt is reversed'); eq(a.kgAccount(k.id).gold.totalMg, 0);
+});
+
+console.log('\nKarigar review round 3 (11 Nov) - group A maths');
+
+test('R3.A1 a receipt that draws opening freezes the points: terms changed before it apply to it and to every later receipt', function(){
+  var a = fresh('owner'); var k = pk(a, 'A1'); openG(a, k, 'gold', '50', '92');
+  var j = pjob(a, k);                                                                                       // made at 4 points, nothing issued
+  ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'6'}, cb); }).err);
+  var r1 = receiptV(a, j, {gross:'5', purity:'92'}); eq(r1.entry.pointsPu, 600); ok(r1.entry.openingUseMg > 0, 'drew from the opening');
+  ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'8'}, cb); }).err);
+  eq(receiptV(a, j, {gross:'5', purity:'92'}).entry.pointsPu, 600, 'same points for the whole job');
+  var s = pjob(a, k); ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'3'}, cb); }).err);
+  var sb = a.kgBuildScrap(s.id, '', {wt:'1', purity:'92', confirmed:true, kind:'scrap', opId:op()}); ok(sb.entry, sb.error);
+  ok(!call(function(cb){ a.kgAddEntry(sb.entry, cb); }).err);                                              // scrap that draws opening also freezes (at 3 points)
+  ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'2'}, cb); }).err);
+  eq(receiptV(a, s, {gross:'2', purity:'92'}).entry.pointsPu, 300, 'frozen by the scrap that drew opening');
+});
+test('R3.A2 a job made with blank points freezes at the first receipt after points are set', function(){
+  var a = fresh('owner'); var k = karigar(a, 'A2', {kind:'wastage', wastagePct:'4'}); var j = pjob(a, k); issueV(a, j, '20', '92');
+  ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'4'}, cb); }).err);
+  eq(receiptV(a, j, {gross:'5', purity:'92'}).entry.pointsPu, 400);
+  ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'6'}, cb); }).err);
+  eq(a.kgTermsFor(j, k.id).pointsPu, 400, 'never changes after the first receipt'); eq(receiptV(a, j, {gross:'5', purity:'92'}).entry.pointsPu, 400);
+});
+test('R3.A2b a failed save of the first receipt does not freeze blank points', function(){
+  var a = fresh('owner'); var k = karigar(a, 'A2b', {kind:'wastage', wastagePct:'4'}); var j = pjob(a, k); issueV(a, j, '20', '92');
+  ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'4'}, cb); }).err);
+  var b = a.kgBuildReceipt(j.id, '', {gross:'5', purity:'92', confirmed:true, piece:'x', qty:'1', opId:op()}); ok(b.entry, b.error);
+  var good = a.saveToCloud; a.saveToCloud = function(cb){ cb(new Error('offline')); };
+  ok(call(function(cb){ a.kgAddEntry(b.entry, cb); }).err, 'save failed'); a.saveToCloud = good;
+  ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'6'}, cb); }).err);
+  eq(receiptV(a, j, {gross:'5', purity:'92'}).entry.pointsPu, 600, 'nothing was saved, so the points were not frozen');
+});
+test('R3.A3 openingUseMg is refused on every entry type except RECEIPT and SCRAP, and is ignored in what is left of the opening', function(){
+  var a = fresh('owner'); var k = pk(a, 'A3'); openG(a, k, 'gold', '10', '92'); var j = pjob(a, k); issueV(a, j, '5', '92');
+  var i = a.kgBuildIssue(j.id, '', {wt:'1', purity:'92', confirmed:true, opId:op()}); i.entry.openingUseMg = 100;
+  ok(call(function(cb){ a.kgAddEntry(i.entry, cb); }).err, 'issue');
+  var l = {type:'LOSS', opId:op(), jobId:j.id, karigarId:k.id, metal:'gold', fineMg:100, category:'filing', reason:'melting loss here', approvedBy:'Tester', openingUseMg:100};
+  ok(call(function(cb){ a.kgAddEntry(l, cb); }).err, 'loss');
+  var e = a.kgValidateEntry({type:'OPENING', opId:op(), jobId:'', karigarId:k.id, metal:'gold', mg:1000, pu:9200, purityKey:'92', fineMg:920, openingUseMg:5}, {job:null, role:'owner', ledger:a.S.kgLedger, karigar:k, salary:[]});
+  ok(e && /opening/i.test(e), e);
+  a.S.kgLedger.push({id:'fx', opId:'fx', type:'ISSUE', jobId:j.id, karigarId:k.id, metal:'gold', fineMg:50, mg:50, pu:10000, openingUseMg:999, date:a.kgToday(), ts:'t'});
+  eq(a.kgOpeningLeft(a.S.kgLedger, a.kgIndex(a.S.kgLedger), k.id, 'gold'), 9200, 'a stray field on an issue does not eat the opening');
+});
+test('R3.A4 a job cannot be cancelled while a receipt or scrap on it drew from the opening balance', function(){
+  var a = fresh('owner'); var k = pk(a, 'A4'); openG(a, k, 'gold', '10', '92'); var j = pjob(a, k);
+  var r = receiptV(a, j, {gross:'2', purity:'92'}); ok(r.entry.openingUseMg > 0);
+  var c = call(function(cb){ a.kgCancelJob(j.id, 'made by mistake', cb); }); ok(c.err && /opening/i.test(c.err.message), c.err && c.err.message);
+  eq(j.status, 'open'); eq(a.kgAccount(k.id).gold.openingMg, 9200 - r.entry.openingUseMg);
+  ok(!call(function(cb){ a.kgReverse(r.entry.id, 'weighed the wrong ring', op(), cb); }).err);
+  ok(!call(function(cb){ a.kgCancelJob(j.id, 'made by mistake', cb); }).err, 'allowed once the draw is reversed'); eq(a.kgAccount(k.id).gold.openingMg, 9200);
+});
+test('R3.A5 receipts and scrap count a loss that is waiting for approval in what he holds', function(){
+  var a = fresh('owner'); var k = pk(a, 'A5'); var j = pjob(a, k); issueV(a, j, '10', '92');                 // 9.200 on the job
+  a.SAAS.user.role = 'manager';
+  var l = {type:'LOSS', opId:op(), jobId:j.id, karigarId:k.id, metal:'gold', fineMg:2000, category:'filing', reason:'melting loss here', proposed:true};
+  ok(!call(function(cb){ a.kgAddEntry(l, cb); }).err); a.SAAS.user.role = 'owner';
+  var b = a.kgBuildReceipt(j.id, '', {gross:'9', purity:'92', confirmed:true, piece:'x', qty:'1', opId:op()});
+  ok(b.entry && b.capped && b.entry.creditFineMg === 7200, 'wastage credit is capped at what is free (7.200), not 9.2 less nothing: ' + (b.error || (b.entry && b.entry.creditFineMg)));
+  var s = a.kgBuildScrap(j.id, '', {wt:'8', purity:'92', confirmed:true, kind:'scrap', opId:op()}); ok(s.error && /hold/i.test(s.error), s.error);
+  var forged = a.kgBuildScrap(j.id, '', {wt:'5', purity:'92', confirmed:true, kind:'scrap', opId:op()}); ok(forged.entry, forged.error);
+  forged.entry.fineMg = 8000; forged.entry.mg = 8696; ok(call(function(cb){ a.kgAddEntry(forged.entry, cb); }).err, 'validation refuses it too');
+  var okB = a.kgBuildReceipt(j.id, '', {gross:'7', purity:'92', confirmed:true, piece:'x', qty:'1', opId:op()}); ok(okB.entry, okB.error);
+});
+test('R3.A6 a report for a past range does not change after a later reversal; the reversal shows in the period it happened', function(){
+  var a = fresh('owner'); var k = pk(a, 'A6'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  var sc = a.kgBuildScrap(j.id, '', {wt:'1', purity:'92', confirmed:true, kind:'scrap', opId:op()}); ok(!call(function(cb){ a.kgAddEntry(sc.entry, cb); }).err);
+  var today = a.kgToday();
+  a.S.kgLedger.forEach(function(e){ e.date = '2026-01-10'; });
+  function period(from, to){ var r = a.kgReport(from, to); delete r.open; delete r.surplus; return JSON.stringify(r); }   // open / surplus are today's state, not the period
+  var before = period('2026-01-01', '2026-01-31');
+  ok(!call(function(cb){ a.kgReverse(sc.entry.id, 'wrong scrap tin', op(), cb); }).err);
+  eq(period('2026-01-01', '2026-01-31'), before, 'January is unchanged');
+  eq(a.kgReport(today, today).scrapTotal, -sc.entry.fineMg, 'the reversal is in today\'s period');
+  eq(a.kgReport('2000-01-01', '2999-12-31').scrapTotal, 0, 'whole range nets to zero');
+});
+test('R3.A7 the points subtitle says +1 point / +N points, and "not set" when blank', function(){
+  var a = fresh('owner'); eq(a.kgPointsLabel(100), '+1 point'); eq(a.kgPointsLabel(400), '+4 points'); eq(a.kgPointsLabel(450), '+4.5 points'); eq(a.kgPointsLabel(0), '+0 points');
+  eq(a.kgPointsLabel(null), 'Wastage points not set');
+  var k = pk(a, 'A7', 'wastage', '1'); var j = pjob(a, k);
+  ok(/\+1 point(?!s)/.test(a.kg2JobHtml(j)), 'job subtitle singular');
+  var k2 = karigar(a, 'A7b', {kind:'wastage', wastagePct:'4'}); var j2 = pjob(a, k2);
+  ok(a.kg2JobHtml(j2).indexOf('Wastage points not set') !== -1, 'blank');
+});
+
+test('R3.A8 a loss proposed in one period and approved in a later one is in the statement and the report of the approval period, and no period loses it', function(){
+  var a = fresh('owner'); var k = pk(a, 'A8'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  a.SAAS.user.role = 'manager';
+  var pr = call(function(cb){ a.kgAddEntry({type:'LOSS', opId:op(), jobId:j.id, karigarId:k.id, metal:'gold', fineMg:2000, category:'filing', reason:'filing loss here', proposed:true}, cb); }); ok(!pr.err);
+  a.SAAS.user.role = 'owner';
+  var ap = call(function(cb){ a.kgAddEntry({type:'APPROVAL', opId:op(), jobId:j.id, karigarId:k.id, refId:pr.v.id, decision:'approve'}, cb); }); ok(!ap.err, ap.err && ap.err.message);
+  a.S.kgLedger.forEach(function(e){ e.date = '2026-01-01'; }); pr.v.date = '2026-01-01'; ap.v.date = '2026-01-10';
+  var mid = a.kgStatementRange(k.id, 'gold', '2026-01-06', '2026-01-10'), after = a.kgStatementRange(k.id, 'gold', '2026-01-11', '2026-01-31');
+  eq(mid.rows.filter(function(r){ return r.type === 'LOSS'; }).length, 1, 'the loss is in the period it was approved');
+  eq(mid.closingMg, after.openingMg, 'closing of one period = opening of the next');
+  eq(a.kgReport('2026-01-06', '2026-01-10').lossTotal, 2000); eq(a.kgReport('2026-01-01', '2026-01-05').lossTotal, 0);
+});
+test('R3.A9 an old-rules receipt cannot carry an opening draw, and a reversed issue in a later month nets to nothing in the old wastage report', function(){
+  var a = fresh('owner'); var k = karigar(a, 'A9', {kind:'wastage', wastagePct:'10'}); var j = job(a, k);
+  var r = metal(a, j, 'RECEIPT', 1000, '999', {pieceDesc:'x', qty:1, stoneMg:0, openingUseMg:500}); ok(r.err && /opening/i.test(r.err.message), r.err && r.err.message);
+  var i = metal(a, j, 'ISSUE', 250, '999'); ok(!i.err); i.v.date = '2026-01-10';
+  ok(!call(function(cb){ a.kgAddEntry({type:'REVERSAL', opId:op(), jobId:j.id, karigarId:k.id, reversesId:i.v.id, reason:'wrong issue here'}, cb); }).err);
+  var jan = a.kgReport('2026-01-01', '2026-01-31').wastage[0], tod = a.kgReport(a.kgToday(), a.kgToday()).wastage[0];
+  eq((jan ? jan.keptFine : 0) + (tod ? tod.keptFine : 0), 0, 'kept wastage cancels exactly');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

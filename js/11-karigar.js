@@ -300,25 +300,38 @@ function kgReport(from, to){
   var r = {wastage:[], losses:[], lossByCategory:{}, lossTotal:0, scrapByKind:{}, scrapTotal:0, scrapSilverTotal:0, conceded:[], concededTotal:0, open:[], surplus:[]};
   var cByK = {};
   var perJob = {};
-  led.forEach(function(e){
-    if(idx.reversed[e.id] || e.date < from || e.date > to) return;
-    if(e.type === 'RECEIPT' && e.actualFineMg != null && kgMetalOf(e) === 'gold' && e.fineMg > e.actualFineMg){ cByK[e.karigarId] = (cByK[e.karigarId] || 0) + (e.fineMg - e.actualFineMg); r.concededTotal += e.fineMg - e.actualFineMg; }
-    if(kgMetalOf(e) !== 'gold'){ if(e.type === 'SCRAP') r.scrapSilverTotal += e.fineMg; return; }   // this report is the gold ledger; silver is never added in
-    if(e.type === 'ISSUE') perJob[e.jobId] = (perJob[e.jobId] || 0) + e.fineMg;
-    else if(e.type === 'SCRAP') { r.scrapByKind[e.kind] = (r.scrapByKind[e.kind] || 0) + e.fineMg; r.scrapTotal += e.fineMg; }
-    else if(e.type === 'LOSS' && kgLossState(e, idx) === 'approved'){
+  // A past period never changes when something is reversed later: an entry counts on the day it was made, and its reversal counts (as a minus) on the day the reversal was made.
+  var apr = {};
+  led.forEach(function(x){ if(x.type === 'APPROVAL') apr[x.refId] = x; });
+  function inRange(d){ return d >= from && d <= to; }
+  function count(e, sign, onDate, rev){
+    if(!inRange(onDate)) return;
+    if(e.type === 'RECEIPT' && e.actualFineMg != null && kgMetalOf(e) === 'gold' && e.fineMg > e.actualFineMg){ cByK[e.karigarId] = (cByK[e.karigarId] || 0) + sign * (e.fineMg - e.actualFineMg); r.concededTotal += sign * (e.fineMg - e.actualFineMg); }
+    if(kgMetalOf(e) !== 'gold'){ if(e.type === 'SCRAP') r.scrapSilverTotal += sign * e.fineMg; return; }   // this report is the gold ledger; silver is never added in
+    if(e.type === 'ISSUE') perJob[e.jobId] = (perJob[e.jobId] || 0) + sign * e.fineMg;
+    else if(e.type === 'SCRAP') { r.scrapByKind[e.kind] = (r.scrapByKind[e.kind] || 0) + sign * e.fineMg; r.scrapTotal += sign * e.fineMg; }
+    else if(e.type === 'LOSS'){
       var job = kgFindJob(e.jobId);
-      r.losses.push({date:e.date, jobNo:job ? job.jobNo : '?', karigarId:e.karigarId, category:e.category, fineMg:e.fineMg, reason:e.reason, approvedBy:e.approvedBy || ''});
-      r.lossByCategory[e.category] = (r.lossByCategory[e.category] || 0) + e.fineMg;
-      r.lossTotal += e.fineMg;
+      r.losses.push({date:onDate, jobNo:job ? job.jobNo : '?', karigarId:e.karigarId, category:e.category, fineMg:sign * e.fineMg, reason:(rev ? rev.reason : e.reason), approvedBy:e.approvedBy || (apr[e.id] ? apr[e.id].by : ''), reversed:sign < 0});
+      r.lossByCategory[e.category] = (r.lossByCategory[e.category] || 0) + sign * e.fineMg;
+      r.lossTotal += sign * e.fineMg;
     }
+  }
+  led.forEach(function(e){
+    if(e.type === 'REVERSAL'){
+      var t = idx.byId[e.reversesId];
+      if(t && t.type !== 'REVERSAL' && t.type !== 'APPROVAL' && (t.type !== 'LOSS' || !t.proposed || (apr[t.id] && apr[t.id].decision === 'approve'))) count(t, -1, e.date, e);
+      return;
+    }
+    if(e.type === 'LOSS' && e.proposed){ var ap = apr[e.id]; if(ap && ap.decision === 'approve') count(e, 1, ap.date, null); return; }   // a proposed loss counts on the day the owner approved it
+    count(e, 1, e.date, null);
   });
   var byK = {};
   Object.keys(perJob).forEach(function(jid){
-    var job = kgFindJob(jid); if(!job || job.kind !== 'wastage') return;
+    var job = kgFindJob(jid); if(!job || job.kind !== 'wastage' || !perJob[jid]) return;
     var t = byK[job.karigarId] || (byK[job.karigarId] = {karigarId:job.karigarId, issuedFine:0, keptFine:0, fixedFine:0});
     t.issuedFine += perJob[jid];
-    t.keptFine += Math.round(perJob[jid] * (job.wastageBp || 0) / 10000);
+    t.keptFine += (perJob[jid] < 0 ? -1 : 1) * Math.round(Math.abs(perJob[jid]) * (job.wastageBp || 0) / 10000);
   });
   (S.kgJobs || []).forEach(function(j){
     if(j.status !== 'closed' || !j.earnings || !(j.earnings.fixedFine > 0)) return;
@@ -328,7 +341,7 @@ function kgReport(from, to){
     t.fixedFine += j.earnings.fixedFine;
   });
   Object.keys(byK).forEach(function(k){ r.wastage.push(byK[k]); });
-  Object.keys(cByK).forEach(function(k){ r.conceded.push({karigarId:k, fineMg:cByK[k]}); });
+  Object.keys(cByK).forEach(function(k){ if(cByK[k] !== 0) r.conceded.push({karigarId:k, fineMg:cByK[k]}); });
   (S.kgJobs || []).forEach(function(j){
     if(j.status !== 'open' || kgMetalOf(j) !== 'gold') return;
     var b = kgJobBalance(j, led);
@@ -482,6 +495,11 @@ function kgCancelJob(jobId, reason, done){
     var b = kgJobBalance(job, S.kgLedger || []);
     if(b.issuedFine !== 0) return 'Gold has been issued on this job - return it and close the job instead';
     if(b.pendingLoss > 0) return 'A proposed loss is waiting - reject it first';
+    var cIdx = kgIndex(S.kgLedger || []);
+    for(var ci = 0; ci < (S.kgLedger || []).length; ci++){
+      var ce = S.kgLedger[ci];
+      if(ce.jobId === job.id && (ce.type === 'RECEIPT' || ce.type === 'SCRAP') && ce.openingUseMg > 0 && !cIdx.reversed[ce.id]) return 'A receipt or scrap on this job drew from his opening balance - reverse it first';
+    }
     job.status = 'cancelled'; job.cancelledAt = new Date().toISOString(); job.cancelledBy = u.name; job.cancelReason = String(reason).trim();
     auditId = kgAudit('kg_job_cancel', 'kgJob', jobId, job.jobNo + ': ' + job.cancelReason);
     return '';
@@ -539,8 +557,10 @@ function kgValidateEntry(e, ctx){
   var job = ctx.job, role = ctx.role, ledger = ctx.ledger || [];
   if(!e || !e.type) return 'Missing entry type';
   if(!e.opId) return 'Missing operation id';
+  if(e.openingUseMg != null && e.openingUseMg !== 0 && e.type !== 'RECEIPT' && e.type !== 'SCRAP') return 'Only a receipt or scrap can draw from an opening balance';
   if(!job && e.jobId === '') return kgValidateKarigarLevel(e, ctx);
   if(!job) return 'Job not found';
+  if(e.openingUseMg && job.model !== 'points') return 'Only a points job can draw from an opening balance';
   if(job.status !== 'open') return 'Job is ' + job.status + ' - reopen it first';
   var t = e.type, idx = kgIndex(ledger), tgt;
   var metalType = (t === 'ISSUE' || t === 'RECEIPT' || t === 'SCRAP');
@@ -764,13 +784,13 @@ function kgAddEntry(entry, done){
   kgCommitEntry(entry, job, u, function(err){ done(err, entry, false); });
 }
 function kgCommitEntry(entry, job, u, onDone){
-  var auditId = null, added = false;
+  var auditId = null, added = false, termsUndo = null;
   kgTxn('job:' + entry.jobId, function(){
     var err = kgValidateEntry(entry, {job:job, ledger:S.kgLedger, role:u.role, karigar:findKarigar(entry.karigarId), salary:S.kgSalary || []});
     if(err) return err;
     for(var d = 0; d < S.kgLedger.length; d++) if(S.kgLedger[d].opId === entry.opId) return ''; // already there: add nothing
     added = true;
-    kgFreezeTerms(job, entry);
+    termsUndo = kgFreezeTerms(job, entry);
     S.kgLedger.push(entry);
     auditId = kgAudit('kg_' + entry.type.toLowerCase(), 'kgJob', entry.jobId,
       entry.type + (entry.fineMg != null ? ' ' + kgFmtG(entry.fineMg) + ' fine' : ''));
@@ -778,6 +798,7 @@ function kgCommitEntry(entry, job, u, onDone){
   }, function(){
     if(!added) return; // nothing of ours to undo: the first copy stays
     S.kgLedger = S.kgLedger.filter(function(x){ return x.id !== entry.id; });
+    if(termsUndo) termsUndo();
     kgUndoAudit(auditId);
   }, onDone);
 }
@@ -935,10 +956,16 @@ function kgAgreementHistory(karigarId){
   return (S.kgAgreements || []).filter(function(a){ return a && a.karigarId === karigarId; })
     .sort(function(a, b){ return a.effectiveFrom < b.effectiveFrom ? -1 : (a.effectiveFrom > b.effectiveFrom ? 1 : 0); });
 }
+// '+1 point' / '+4 points' / 'Wastage points not set'
+function kgPointsLabel(pu){
+  if(pu == null) return 'Wastage points not set';
+  var n = pu / 100;
+  return '+' + n + (n === 1 ? ' point' : ' points');
+}
 function kgAgreementText(a){
   if(!a || (a.kind !== 'wastage' && a.kind !== 'salary')) return 'Terms not set';
   if(a.kind === 'salary') return 'Salary ' + (a.salary ? a.salary.mode + ' ' + kgFmtRs(a.salary.ratePaise) : '');
-  var t = (a.wastagePoints != null) ? ('Wastage +' + (a.wastagePoints / 100) + ' points') : ('Wastage ' + ((a.wastageBp != null ? a.wastageBp : KG_DEFAULT_WASTAGE_BP) / 100) + '%');
+  var t = (a.wastagePoints != null) ? ('Wastage ' + kgPointsLabel(a.wastagePoints)) : ('Wastage ' + ((a.wastageBp != null ? a.wastageBp : KG_DEFAULT_WASTAGE_BP) / 100) + '%');
   if(a.fixedMg > 0) t += ' + ' + kgFmtG(a.fixedMg) + ' per job';
   if(a.labour && a.labour.perGramPaise > 0) t += ' + labour ' + kgFmtRs(a.labour.perGramPaise) + '/g on ' + a.labour.base + ' weight';
   return t;
@@ -1092,11 +1119,15 @@ function kgKarigarJobFine(job, ledger, kid, idxIn){
   return t;
 }
 // What is still left of his opening balance (fine mg): the opening less what receipts and scrap have drawn from it.
+// What he can hand back from this job right now: what he holds, less any loss still waiting for approval.
+function kgFreeOnJob(job, ledger, idx, kid){
+  return Math.max(0, kgKarigarJobFine(job, ledger, kid, idx) - kgPendingLoss(ledger, idx, job, kid, ''));
+}
 function kgOpeningLeft(ledger, idx, kid, metal){
   var t = 0;
   (ledger || []).forEach(function(e){
     if(e.karigarId !== kid || idx.reversed[e.id] || kgMetalOf(e) !== metal) return;
-    if(e.type === 'OPENING') t += e.fineMg; else if(e.openingUseMg > 0) t -= e.openingUseMg;
+    if(e.type === 'OPENING') t += e.fineMg; else if((e.type === 'RECEIPT' || e.type === 'SCRAP') && e.openingUseMg > 0) t -= e.openingUseMg;
   });
   return t;
 }
@@ -1149,7 +1180,7 @@ function kgValidateV3(e, ctx, idx){
     if(t === 'ISSUE' && e.openingUseMg) return 'An issue cannot draw from an opening balance';
     if(t === 'SCRAP'){
       if(KG_SCRAP_KINDS.indexOf(e.kind) === -1) return 'Scrap kind is not valid';
-      var sHeld = Math.max(0, kgKarigarJobFine(job, ledger, e.karigarId, idx)), sLeft = kgOpeningLeft(ledger, idx, e.karigarId, e.metal);
+      var sHeld = kgFreeOnJob(job, ledger, idx, e.karigarId), sLeft = kgOpeningLeft(ledger, idx, e.karigarId, e.metal);
       if(e.fineMg > sHeld + sLeft) return 'He does not hold that much (' + kgFmtG(sHeld + sLeft) + ' fine on this job and in his opening balance)';
       if((e.openingUseMg || 0) !== Math.max(0, e.fineMg - sHeld)) return 'Opening balance use does not match';
     }
@@ -1164,7 +1195,7 @@ function kgValidateV3(e, ctx, idx){
     if(stone > 0 && e.stoneMode !== 'A' && e.stoneMode !== 'B') return 'Say whether the shop or the karigar weighed the stones';
     if(e.agreedPu != null && !(Math.floor(e.agreedPu) === e.agreedPu && e.agreedPu >= KG_PU_MIN && e.agreedPu <= KG_PU_PURE)) return 'Agreed touch is not valid';
     if(e.actualFineMg !== kgFineFromPu(e.mg, e.pu)) return 'Fine in the piece does not match';
-    var expect, rHeld = Math.max(0, kgKarigarJobFine(job, ledger, e.karigarId, idx)), rLeft = kgOpeningLeft(ledger, idx, e.karigarId, e.metal);
+    var expect, rHeld = kgFreeOnJob(job, ledger, idx, e.karigarId), rLeft = kgOpeningLeft(ledger, idx, e.karigarId, e.metal);
     if(e.kind === 'salary'){
       if(kgTermsFor(job, e.karigarId).kind !== 'salary') return 'This karigar is not on a salary';
       if(e.pointsPu !== 0) return 'A salary karigar has no wastage points';
@@ -1299,7 +1330,7 @@ function kgBuildReceipt(jobId, stageId, v){
   if(!/^\d{1,4}$/.test(qtyText) || !(qty >= 1)) return {error:'Quantity must be 1 or more'};
   var pieceDesc = String(v.piece || '').trim(); if(!pieceDesc) return {error:'Describe the piece received'};
   var actual = kgFineFromPu(net, p.pu), credit = actual, cap = false, raw = actual;
-  var led0 = S.kgLedger || [], idx0 = kgIndex(led0), held0 = Math.max(0, kgKarigarJobFine(job, led0, kid, idx0)), left0 = kgOpeningLeft(led0, idx0, kid, kgMetalOf(job));
+  var led0 = S.kgLedger || [], idx0 = kgIndex(led0), held0 = kgFreeOnJob(job, led0, idx0, kid), left0 = kgOpeningLeft(led0, idx0, kid, kgMetalOf(job));
   if(terms.kind === 'wastage'){
     var wc = kgWastageCredit(net, p.pu, terms.pointsPu, held0 + left0);
     if(wc.error) return {error:wc.error};
@@ -1315,24 +1346,37 @@ function kgBuildScrap(jobId, stageId, v){
   var b = kgBuildIssue(jobId, stageId, v); if(!b.entry) return b;
   b.entry.type = 'SCRAP'; b.entry.kind = v.kind; b.entry.refine = 'pending';   // belongs to the shop; a pending refining lot until assay
   var job = kgFindJob(jobId), led = S.kgLedger || [], idx = kgIndex(led), kid = b.entry.karigarId;
-  var held = Math.max(0, kgKarigarJobFine(job, led, kid, idx)), left = kgOpeningLeft(led, idx, kid, b.entry.metal);
+  var held = kgFreeOnJob(job, led, idx, kid), left = kgOpeningLeft(led, idx, kid, b.entry.metal);
   if(b.entry.fineMg > held + left) return {error:'He does not hold that much: ' + kgFmtG(held + left) + ' fine on this job and in his opening balance'};
   b.entry.openingUseMg = Math.max(0, b.entry.fineMg - held);
   return b;
 }
 
 // Until a karigar first holds metal on a points job the job follows his terms; the first metal in freezes them.
+// Returns an undo function (a failed save puts the job's terms back exactly as they were).
 function kgFreezeTerms(job, e){
-  if(job && job.model === 'points' && (e.type === 'ISSUE' || e.type === 'CARRY_APPLY' || e.type === 'TRANSFER_IN')) kgSnapTerms(job, e.karigarId);
+  if(!job || job.model !== 'points') return function(){};
+  var before = JSON.stringify(job.terms === undefined ? null : job.terms), t = e.type;
+  function undo(){ if(before === 'null') delete job.terms; else job.terms = JSON.parse(before); }
+  if(t === 'ISSUE' || t === 'CARRY_APPLY' || t === 'TRANSFER_IN') kgSnapTerms(job, e.karigarId);
+  else if(t === 'RECEIPT' || t === 'SCRAP'){
+    // the first receipt or scrap (even one that only draws his opening balance) freezes his terms; a job whose points were blank takes the points of its first receipt and keeps them
+    kgSnapTerms(job, e.karigarId);
+    var fr = job.terms && job.terms[e.karigarId];
+    if(t === 'RECEIPT' && fr && fr.kind === 'wastage' && fr.pointsPu == null && e.kind === 'wastage' && e.pointsPu != null) fr.pointsPu = e.pointsPu;
+  }
+  return undo;
 }
 // Push already-built entries in ONE saved step: all of them or none (rolled back on a failed save).
-function kgPushValidated(list, u){
-  var pushed = [];
+function kgUndoTerms(undos){ while(undos && undos.length) undos.pop()(); }
+// undos: an array the caller owns; each frozen set of terms puts its undo function in it.
+function kgPushValidated(list, u, undos){
+  var pushed = []; undos = undos || [];
   for(var i = 0; i < list.length; i++){
     var e = list[i], job = e.jobId ? kgFindJob(e.jobId) : null;
     var err = kgValidateEntry(e, {job:job, role:u.role, ledger:S.kgLedger, karigar:findKarigar(e.karigarId), salary:S.kgSalary || []});
-    if(err){ S.kgLedger = S.kgLedger.filter(function(x){ return pushed.indexOf(x.id) === -1; }); return err; }
-    kgFreezeTerms(job, e);
+    if(err){ S.kgLedger = S.kgLedger.filter(function(x){ return pushed.indexOf(x.id) === -1; }); kgUndoTerms(undos); return err; }
+    undos.push(kgFreezeTerms(job, e));
     S.kgLedger.push(e); pushed.push(e.id);
   }
   return '';
@@ -1346,15 +1390,16 @@ function kgAddEntries(list, done){
   if(live) return done(new Error('Part of this was already saved - check the account before trying again'), list, false);
   if(_kgFlagUnknown){ try{ kgLoadLedgerFlag(); }catch(x){} return done(new Error('Checking whether the ledger is on. Try again in a moment. Nothing was saved.'), list, false); }
   if(S.kgLedgerOn === true) return done(new Error('New karigar entries are not available while the ledger is on yet. Nothing was saved.'), list, false);
-  var u = kgUser(), first = list[0], key = first.jobId ? 'job:' + first.jobId : 'karigar:' + first.karigarId, ids = [], auditId = null;
+  var u = kgUser(), first = list[0], key = first.jobId ? 'job:' + first.jobId : 'karigar:' + first.karigarId, ids = [], auditId = null, termsUndos = [];
   list.forEach(function(e){ kgStamp(e); ids.push(e.id); });
   kgTxn(key, function(){
-    var err = kgPushValidated(list, u);
+    var err = kgPushValidated(list, u, termsUndos);
     if(err) return err;
     auditId = kgAudit('kg_batch', 'kgJob', first.jobId || first.karigarId, list.map(function(e){ return e.type; }).join('+'));
     return '';
   }, function(){
     S.kgLedger = S.kgLedger.filter(function(x){ return ids.indexOf(x.id) === -1; });
+    kgUndoTerms(termsUndos);
     kgUndoAudit(auditId);
   }, function(err){ done(err, list, false); });
 }
@@ -1484,17 +1529,19 @@ function kgStatementRange(karigarId, metal, from, to){
   function dOf(x, cut){ return x.t ? -kgRawDelta(x.t, apr, cut) : kgRawDelta(x.e, apr, cut); }
   function beforeCut(d){ return d < from; }
   function toCut(d){ return d <= to; }
-  list.forEach(function(x){ if(x.e.date < from) before += dOf(x, beforeCut); });
+  // the day a row belongs to: a proposed loss that the owner approved counts on the approval day (so no period loses it); everything else on its own day
+  function dayOf(x){ var ap = (!x.t && x.e.type === 'LOSS' && x.e.proposed) ? apr[x.e.id] : null; return (ap && ap.decision === 'approve') ? ap.date : x.e.date; }
+  list.forEach(function(x){ if(dayOf(x) < from) before += dOf(x, beforeCut); });
   run = before;
   list.forEach(function(x){
     var e = x.e;
-    if(e.date < from || e.date > to) return;
+    if(dayOf(x) < from || dayOf(x) > to) return;
     var d = dOf(x, toCut), job = (x.t ? x.t : e).jobId ? kgFindJob((x.t ? x.t : e).jobId) : null;
     run += d; if(d > 0) tIn += d; else tOut -= d;
     var state = 'ok';
     if(x.t) state = 'reversal';
     else if(e.type === 'LOSS' && e.proposed){ var ap = apr[e.id]; state = (!ap || !toCut(ap.date)) ? 'pending' : (ap.decision === 'approve' ? 'ok' : 'rejected'); }
-    rows.push({entry:e, target:x.t || null, date:e.date, type:e.type, jobNo:(job ? job.jobNo : ''), state:state, reason:(x.t ? (e.reason || '') : ''), deltaMg:d, balanceMg:run});
+    rows.push({entry:e, target:x.t || null, date:dayOf(x), type:e.type, jobNo:(job ? job.jobNo : ''), state:state, reason:(x.t ? (e.reason || '') : ''), deltaMg:d, balanceMg:run});
   });
   return {karigarId:karigarId, metal:metal, from:from, to:to, openingMg:before, closingMg:run, issuedMg:tIn, returnedMg:tOut, rows:rows};
 }
@@ -1692,17 +1739,18 @@ function kgCloseSettle(job, u, opts){
     });
   } else return {err:'Choose how to settle what is still open'};
   list.forEach(function(e){ kgStamp(e); });
-  var err = kgPushValidated(list, u);
+  var closeUndos = [], err = kgPushValidated(list, u, closeUndos);
   if(err) return {err:err};
   if(opts.settle === 'loss-cash'){
     var loss = list[0];
     sal = kgStamp({type:'DEDUCTION', opId:base + ':bill', karigarId:loss.karigarId, jobId:job.id, lossId:loss.id, amountPaise:loss.billPaise, note:'Loss bill ' + job.jobNo});
     var serr = kgValidateSalary(sal, {karigar:findKarigar(loss.karigarId), role:u.role, all:S.kgSalary || []});
-    if(serr){ S.kgLedger = S.kgLedger.filter(function(x){ return list.indexOf(x) === -1; }); return {err:serr}; }
+    if(serr){ S.kgLedger = S.kgLedger.filter(function(x){ return list.indexOf(x) === -1; }); kgUndoTerms(closeUndos); return {err:serr}; }
     S.kgSalary = S.kgSalary || []; S.kgSalary.push(sal);
   }
   return {undo:function(){
     S.kgLedger = S.kgLedger.filter(function(x){ return list.indexOf(x) === -1; });
+    kgUndoTerms(closeUndos);
     if(sal) S.kgSalary = S.kgSalary.filter(function(x){ return x !== sal; });
   }};
 }
@@ -1908,7 +1956,7 @@ function kg2JobHtml(job){
   var html = '<div class="kg2-row">' + kg2Btn('\u2190 All jobs', 'kg2Go(\'jobs\')') + '</div>' +
     '<div class="kg2-head"><div class="kg2-title">' + escHtml(job.jobNo) + ' &middot; ' + escHtml(job.title) + '</div>' +
     '<div class="kg2-sub">' + escHtml(k ? k.name : '?') + ' &middot; ' + escHtml(job.kind) +
-    (job.kind === 'wastage' ? (job.model === 'points' ? ' +' + ((kgTermsFor(job, job.karigarId).pointsPu || 0) / 100) + ' points' : ' ' + (job.wastageBp / 100) + '%') : '') + ' &middot; ' + escHtml(job.status) +
+    (job.kind === 'wastage' ? (job.model === 'points' ? ' ' + (kgTermsFor(job, job.karigarId).kind === 'salary' ? 'salary' : kgPointsLabel(kgTermsFor(job, job.karigarId).pointsPu)) : ' ' + (job.wastageBp / 100) + '%') : '') + ' &middot; ' + escHtml(job.status) +
     (job.orderRef ? ' &middot; linked to order' : '') + (job.category ? ' &middot; ' + escHtml(job.category) : '') +
     (job.mode === 'external' ? ' &middot; external' + (job.workshop ? ' (' + escHtml(job.workshop) + ')' : '') : ' &middot; in-house') +
     (job.dueDate ? ' &middot; due ' + escHtml(job.dueDate) : '') + '</div>' +
@@ -2478,7 +2526,7 @@ function kg2ReportsHtml(){
   if(!r.losses.length) html += '<div class="kg2-empty">No approved loss this month.</div>';
   r.losses.forEach(function(l){
     html += '<div class="kg2-line"><div><b>' + escHtml(l.category) + '</b> &middot; ' + name(l.karigarId) + '<div class="kg2-sub">' + escHtml(l.date) + ' &middot; ' + escHtml(l.jobNo) +
-      ' &middot; ' + escHtml(l.reason) + ' &middot; approved by ' + escHtml(l.approvedBy) + '</div></div><div class="kg2-num">' + kgFmtG(l.fineMg) + '</div></div>';
+      ' &middot; ' + escHtml(l.reason) + (l.reversed ? ' &middot; reversed' : ' &middot; approved by ' + escHtml(l.approvedBy)) + '</div></div><div class="kg2-num">' + kgFmtG(l.fineMg) + '</div></div>';
   });
   if(r.losses.length) html += '<div class="kg2-line"><b>Total loss</b><div class="kg2-num">' + kgFmtG(r.lossTotal) + '</div></div>';
   html += '<div class="kg2-sec">Scrap and dust recovered</div>';

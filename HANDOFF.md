@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody.** Batch70 is LIVE (as before) on the Cloudflare worker (8 Nov, Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`, commit `c3c5ab6`, tag `batch70-live`, rollback tag `batch69-live`). Backend: migrations to 014, `store-proxy` v18. Ledger flag OFF for every shop. Karigar redesign: logic batches 1-6, the SCREENS and the 197th-entry additions are on `main` (local, not pushed, not deployed). Cowork's review fixes (198th entry) are on branch `karigar-review-fixes` (NOT merged to main); WAITING on Tanish's phone look.
+> **Claude Code (Sonnet), 11 Nov, round 3 of Cowork's review:** working on branch `karigar-review-fixes` (groups A maths, B screens, C docs). No deploy, no merge, no migration. Previous state: Batch70 LIVE on the Cloudflare worker; Karigar logic and screens on `main` (local); review fixes (198th entry) on this branch.
 ---
 
 ## WAITING ON TANISH
