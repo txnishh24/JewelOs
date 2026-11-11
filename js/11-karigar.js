@@ -607,6 +607,10 @@ function kgValidateEntry(e, ctx){
   if(t === 'ADJUST'){
     if(role !== 'owner') return 'Only the owner can adjust the gold account';
     if(!e.fineMg || Math.floor(e.fineMg) !== e.fineMg) return 'Adjustment weight is not valid';
+    if(job.model === 'points' && e.fineMg > 0){
+      var adjKid = e.karigarId || job.karigarId, adjPend = kgPendingLoss(ledger, idx, job, adjKid, '');
+      if(adjPend > 0 && kgKarigarJobFine(job, ledger, adjKid, idx) - e.fineMg < adjPend) return 'A loss of ' + kgFmtG(adjPend) + ' fine is waiting for approval and this adjustment would leave him with less than that. Decide the loss first';
+    }
     if(String(e.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
     return '';
   }
@@ -626,6 +630,7 @@ function kgValidateEntry(e, ctx){
     if((tgt.type === 'CARRY_OUT' || tgt.type === 'TRANSFER_OUT' || tgt.type === 'TRANSFER_IN') && !e.pair) return 'This entry is reversed together with its pair';
     if(idx.reversed[tgt.id]) return 'Already reversed';
     if(job.model === 'points' && (tgt.type === 'TRANSFER_IN' || tgt.type === 'ISSUE' || tgt.type === 'CARRY_APPLY') && kgFreeOnJob(job, ledger, idx, tgt.karigarId) < tgt.fineMg) return 'He has already returned or passed on some of that metal - reverse that first';
+    if(job.model === 'points' && tgt.type === 'ADJUST' && tgt.fineMg < 0 && kgFreeOnJob(job, ledger, idx, tgt.karigarId) < -tgt.fineMg) return 'He has already returned, passed on or lost some of that metal, or a loss is waiting for approval - deal with that first, then reverse this adjustment';
     if(tgt.type === 'SCRAP'){ for(var rc = 0; rc < ledger.length; rc++) if(ledger[rc].type === 'REFINE_CREDIT' && ledger[rc].refId === tgt.id && !idx.reversed[ledger[rc].id]) return 'Reverse the assay result of this lot first'; }
     if(tgt.type === 'LOSS' && tgt.settle === 'cash' && kgLiveLossBill(ctx.salary, tgt.id)) return 'Reverse the loss bill first';
     if(String(e.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
@@ -717,12 +722,16 @@ function kgStamp(entry){
   entry.by = u.name; entry.role = u.role;
   return entry;
 }
+var _kgAuditDropped = {id:'', line:null};   // the oldest line auditLog() pushed out for the latest audit line (one slot, so it never grows)
 function kgAudit(action, entity, id, note){
+  var full = Array.isArray(S.auditLog) && S.auditLog.length >= AUDIT_MAX, oldest = full ? S.auditLog[S.auditLog.length - 1] : null;
   var a = auditLog(action, entity, id, note);
+  if(a) _kgAuditDropped = {id:a.id, line:oldest};
   return a ? a.id : null;
 }
 function kgUndoAudit(auditId){
   if(auditId && Array.isArray(S.auditLog)) S.auditLog = S.auditLog.filter(function(x){ return x.id !== auditId; });
+  if(auditId && _kgAuditDropped.id === auditId && _kgAuditDropped.line){ if(Array.isArray(S.auditLog)) S.auditLog.push(_kgAuditDropped.line); _kgAuditDropped = {id:'', line:null}; }
 }
 
 // With the shop's ledger flag on (S.kgLedgerOn === true), gold entries go to the server ledger first and the blob entry
@@ -1435,7 +1444,7 @@ function kgAddEntries(list, done){
 
 // Add a stage to a job with its own karigar (ad-hoc chain: making > setting > polish). Manager or owner.
 function kgAddStage(jobId, name, karigarId, done){
-  var job = kgFindJob(jobId), u = kgUser(), st = null, auditId = null;
+  var job = kgFindJob(jobId), u = kgUser(), st = null, auditId = null, termsBefore = 'null';
   kgTxn('job:' + jobId, function(){
     if(!job) return 'Job not found';
     if(!kgCan(u.role, 'manager')) return 'Only owner or manager can update a job';
@@ -1444,10 +1453,11 @@ function kgAddStage(jobId, name, karigarId, done){
     if(!nm || nm.length > 40) return 'Give the stage a short name';
     if(karigarId && !findKarigar(karigarId)) return 'Karigar not found';
     st = {id:kgNewId(), name:nm, status:'pending', who:karigarId || '', log:[]};
+    termsBefore = JSON.stringify(job.terms === undefined ? null : job.terms);
     job.stages = (job.stages || []).concat([st]); kgSnapTerms(job, karigarId);
     auditId = kgAudit('kg_stage_add', 'kgJob', jobId, job.jobNo + ' ' + nm);
     return '';
-  }, function(){ job.stages = job.stages.filter(function(x){ return x.id !== st.id; }); kgUndoAudit(auditId); }, function(err){ done(err, st); });
+  }, function(){ job.stages = job.stages.filter(function(x){ return x.id !== st.id; }); if(termsBefore === 'null') delete job.terms; else job.terms = JSON.parse(termsBefore); kgUndoAudit(auditId); }, function(err){ done(err, st); });
 }
 
 // Opening balance of metal a karigar already holds (owner, once per karigar and metal; reverse to redo).
@@ -3042,7 +3052,7 @@ function kgPayId(prefix){
 // the payment posts a Karigar payment line to the Day Book, derived at read time in js/10-daybook.js).
 // One operation id, one save: a repeat that arrives while the first save is still in flight waits for it and hears the same answer
 // (it used to see the record already in the list and say OK before the save had landed).
-var _kgPayBusy = {};
+var _kgPayBusy = Object.create(null);   // a plain {} would throw on an opId like 'constructor' or '__proto__'
 function kgPayOnce(opId, done, run){
   if(typeof opId !== 'string' || !opId) return done(new Error('Missing operation id. Nothing was saved.'));
   if(_kgPayBusy[opId]){ _kgPayBusy[opId].push(done); return; }

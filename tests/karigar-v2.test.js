@@ -1666,11 +1666,10 @@ test('P1.4 scrap, loss and approval cannot take more than he holds on the job', 
   ok(loss(9300).err, 'loss above what he holds');
   a.SAAS.user.role = 'manager'; var pr = loss(5000, {proposed:true, approvedBy:''}); ok(!pr.err, pr.err && pr.err.message);
   ok(loss(9000, {proposed:true, approvedBy:''}).err, 'proposals together above what he holds');
-  a.SAAS.user.role = 'owner'; ok(!call(function(cb){ a.kgAddEntry({type:'ADJUST', opId:op(), jobId:j.id, karigarId:k.id, fineMg:4800, reason:'count corrected'}, cb); }).err);   // holds 4.4
-  var ap = call(function(cb){ a.kgAddEntry({type:'APPROVAL', opId:op(), jobId:j.id, karigarId:k.id, refId:pr.v.id, decision:'approve'}, cb); });
-  ok(ap.err, 'approving 5.0 when he now holds 4.4');
+  a.SAAS.user.role = 'owner'; var adj = call(function(cb){ a.kgAddEntry({type:'ADJUST', opId:op(), jobId:j.id, karigarId:k.id, fineMg:4800, reason:'count corrected'}, cb); });   // would leave 4.4 against a 5.0 proposal
+  ok(adj.err && /waiting for approval/.test(adj.err.message), 'a credit that starves a pending loss is refused up front (R7.24)');
   ok(!call(function(cb){ a.kgAddEntry({type:'APPROVAL', opId:op(), jobId:j.id, karigarId:k.id, refId:pr.v.id, decision:'reject'}, cb); }).err, 'rejecting is always possible');
-  ok(!loss(4400).err, 'exactly what he holds is fine');
+  ok(!loss(9200).err, 'exactly what he holds is fine');
 });
 test('P1.5 a salary karigar cannot return more fine than he holds', function(){
   var a = fresh(); var k = pk(a, 'S9', 'salary'); var j = pjob(a, k); issueV(a, j, '5', '92');
@@ -2430,6 +2429,38 @@ test('TE.22/23 Rupees tile says Owes when he owes the shop; one phrase "he owes 
   eq(a.kg3RupeeTile({payablePaise:0}, 0).indexOf('Owes'), -1);
   var fs = require('fs'), src = fs.readFileSync(__dirname + '/../js/11-karigar.js', 'utf8') + fs.readFileSync(__dirname + '/../js/05-auth-login.js', 'utf8');
   ok(!/owes you['" ]/i.test(src.replace(/\/\/.*$/mg, '')), 'no owes-you left in the screens');
+});
+
+console.log('\nTO-CLAUDE-CODE R7 (11 Nov) - ADJUST reversal, stage terms undo, audit at the cap, busy-map keys');
+
+function adjustV(a, j, k, fine, reason){ return call(function(cb){ a.kgAddEntry({type:'ADJUST', opId:op(), jobId:j.id, karigarId:k.id, fineMg:fine, reason:reason || 'owner correction'}, cb); }); }
+test('R7.24 reversing a negative ADJUST after the metal was consumed is refused; a positive ADJUST may not leave less than a pending loss', function(){
+  var a = fresh('owner'); var k = pk(a, 'R24'); var j = pjob(a, k);
+  var ad = adjustV(a, j, k, -5000); ok(!ad.err, ad.err && ad.err.message);
+  receiptV(a, j, {gross:'4', purity:'92'});
+  var rv = call(function(cb){ a.kgReverse(ad.v.id, 'put in by mistake', op(), cb); }); ok(rv.err, 'refused'); ok(!(a.S.kgLedger || []).some(function(x){ return x.type === 'REVERSAL'; }), 'nothing written');
+  var b = fresh('owner'); var k2 = pk(b, 'R24b'); var j2 = pjob(b, k2); var ad2 = adjustV(b, j2, k2, -5000); ok(!ad2.err);
+  ok(!call(function(cb){ b.kgReverse(ad2.v.id, 'put in by mistake', op(), cb); }).err, 'allowed while the metal is still there');
+  var c = fresh('owner'); var k3 = pk(c, 'R24c'); var j3 = pjob(c, k3); issueV(c, j3, '10', '99.9'); proposeLoss(c, j3, k3, 4000);
+  var big = adjustV(c, j3, k3, 7000); ok(big.err && /waiting for approval/.test(big.err.message), big.err && big.err.message);
+  ok(!adjustV(c, j3, k3, 1000).err, 'a credit that leaves the loss covered is fine');
+});
+test('R7.25 a failed kgAddStage leaves job.terms exactly as it was', function(){
+  var a = fresh('owner'); var k = pk(a, 'R25'); var j = pjob(a, k); var before = JSON.stringify(j.terms === undefined ? null : j.terms);
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  var r = call(function(cb){ a.kgAddStage(j.id, 'Setting', k.id, cb); }); ok(r.err); eq(JSON.stringify(j.terms === undefined ? null : j.terms), before); eq((j.stages || []).length, 0);
+});
+test('R7.26 a failed save at the audit cap brings the dropped oldest line back', function(){
+  var a = fresh('owner'); var k = pk(a, 'R26'); var j = pjob(a, k);
+  a.S.auditLog = []; for(var i = 0; i < a.AUDIT_MAX; i++) a.S.auditLog.push({id:'old' + i, ts:'x', action:'a', entity:'e', entityId:'', note:''});
+  var oldest = a.S.auditLog[a.AUDIT_MAX - 1].id; a.saveToCloud = function(cb){ cb(new Error('network')); };
+  var r = call(function(cb){ a.kgAddStage(j.id, 'Setting', k.id, cb); }); ok(r.err);
+  eq(a.S.auditLog.length, a.AUDIT_MAX); eq(a.S.auditLog[a.AUDIT_MAX - 1].id, oldest, 'oldest line is back'); ok(!a.S.auditLog.some(function(x){ return x.action === 'kg_stage_add'; }));
+});
+test('R7.27 an opId like constructor or __proto__ does not throw in the pay lock', function(){
+  var a = fresh('owner'); ['constructor', '__proto__', 'toString', 'hasOwnProperty'].forEach(function(id){
+    var got = null; a.kgPayOnce(id, function(err){ got = err || 'ok'; }, function(fin){ fin(null); }); ok(got === 'ok', id + ' ' + got);
+  });
 });
 
 console.log('\nTO-CLAUDE-CODE (11 Nov) - invariant gap tests (money paths)');
