@@ -989,7 +989,7 @@ function kgPointsLabel(pu){
 function kgAgreementText(a){
   if(!a || (a.kind !== 'wastage' && a.kind !== 'salary')) return 'Terms not set';
   if(a.kind === 'salary') return 'Salary ' + (a.salary ? a.salary.mode + ' ' + kgFmtRs(a.salary.ratePaise) : '');
-  var t = (a.wastagePoints != null) ? ('Wastage ' + kgPointsLabel(a.wastagePoints)) : ('Wastage ' + ((a.wastageBp != null ? a.wastageBp : KG_DEFAULT_WASTAGE_BP) / 100) + '%');
+  var t = (a.wastagePoints != null) ? ('Wastage ' + kgPointsLabel(a.wastagePoints)) : (kg3On() ? kgPointsLabel(null) : ('Wastage ' + ((a.wastageBp != null ? a.wastageBp : KG_DEFAULT_WASTAGE_BP) / 100) + '%'));   // the new screens never show an old percent
   if(a.fixedMg > 0) t += ' + ' + kgFmtG(a.fixedMg) + ' per job';
   if(a.labour && a.labour.perGramPaise > 0) t += ' + labour ' + kgFmtRs(a.labour.perGramPaise) + '/g on ' + a.labour.base + ' weight';
   return t;
@@ -1574,7 +1574,8 @@ function kgStatementRange(karigarId, metal, from, to){
     var d = dOf(x, toCut), job = (x.t ? x.t : e).jobId ? kgFindJob((x.t ? x.t : e).jobId) : null;
     run += d;
     // Given = metal issued; Returned = pieces and scrap handed back; everything else (reversals, hand-overs, carry, loss, opening, adjust) is 'other', so the tiles always add up to the closing line
-    if(x.t) tOther += d; else if(e.type === 'ISSUE') tGiven += d; else if(e.type === 'RECEIPT' || e.type === 'SCRAP') tBack -= d; else tOther += d;
+    if(x.t){ if(x.t.type === 'ISSUE') tGiven += d; else if(x.t.type === 'RECEIPT' || x.t.type === 'SCRAP') tBack -= d; else tOther += d; }   // reversing an issue takes it out of Given, reversing a receipt out of Returned
+    else if(e.type === 'ISSUE') tGiven += d; else if(e.type === 'RECEIPT' || e.type === 'SCRAP') tBack -= d; else tOther += d;
     var state = 'ok';
     if(x.t) state = 'reversal';
     else if(x.phase === 'proposal'){ var ap = apr[e.id]; state = (!ap || !toCut(ap.date)) ? 'pending' : (ap.decision === 'approve' ? 'ok' : 'rejected'); }
@@ -2563,9 +2564,9 @@ function kg2ReportsHtml(){
     '<input type="text" class="kg2-sel" value="' + escHtml(month) + '" placeholder="YYYY-MM" onchange="kg2SetMonth(this)">' +
     (kgUser().role === 'owner' ? '<div class="kg2-note">New karigar screens (profile, statement, points jobs) on this device: <b>' + (kg3On() ? 'ON' : 'OFF') + '</b> ' +
       kg2Btn(kg3On() ? 'Switch off' : 'Switch on', 'kg3Switch(' + (kg3On() ? 'false' : 'true') + ')') + '</div>' : '');
-  html += '<div class="kg2-sec">Wastage kept by karigars</div>';
-  if(!r.wastage.length) html += '<div class="kg2-empty">No gold issued to wastage karigars this month.</div>';
-  r.wastage.forEach(function(w){
+  if(!kg3On()) html += '<div class="kg2-sec">Wastage kept by karigars</div>';   // the old percent model: hidden with the new screens on
+  if(!kg3On() && !r.wastage.length) html += '<div class="kg2-empty">No gold issued to wastage karigars this month.</div>';
+  (kg3On() ? [] : r.wastage).forEach(function(w){
     html += '<div class="kg2-line"><div><b>' + name(w.karigarId) + '</b><div class="kg2-sub">issued ' + kgFmtG(w.issuedFine) + ' fine' + (w.fixedFine ? ' &middot; plus ' + kgFmtG(w.fixedFine) + ' fixed (jobs closed)' : '') + '</div></div><div class="kg2-num">' + kgFmtG(w.keptFine + (w.fixedFine || 0)) + '</div></div>';
   });
   html += '<div class="kg2-sec">Wastage allowed on points jobs</div>';
@@ -2748,9 +2749,12 @@ function kg3ProfileHtml(kid){
     if(ck.over) notes += '<div class="kg2-note warn">Carried ' + escHtml(m[0]) + ' ' + escHtml(kgFmtG(ck.total)) + ' is over his limit of ' + escHtml(kgFmtG(ck.ceiling)) + '.</div>';
     if(m[1].oldestCarryDays > 30) notes += '<div class="kg2-note">Oldest carried ' + escHtml(m[0]) + ' is ' + m[1].oldestCarryDays + ' days old.</div>';
   });
-  html += notes + '<div class="kg2-row">' + kg2Btn('+ New job', 'kg3NewJob(' + kg2Q(kid) + ')', 'btn-gold') + kg2Btn('Statement', 'kg3Statement(' + kg2Q(kid) + ')') +
-    (u.role === 'owner' ? kg2Btn('Opening balance', 'kg3Opening(' + kg2Q(kid) + ')') + kg2Btn('Rupee opening', 'kg3RupeeOpening(' + kg2Q(kid) + ')') + kg2Btn('Give advance', 'kg3PayOrder(' + kg2Q(kid) + ', \'advance\')') + kg2Btn('Record payment', 'kg2Money(' + kg2Q(kid) + ', \'PAYMENT\')') + kg2Btn('Carry settings', 'kg3Carry(' + kg2Q(kid) + ')') : '') +
-    (k.carryTrusted ? kg2Btn('Record count', 'kg3Count(' + kg2Q(kid) + ')') : '') + kg2Btn('Edit details', 'kg3EditDetails(' + kg2Q(kid) + ')') + '</div>';
+  // five buttons up front (owner: New job, Statement, Give advance, Edit details, More); the rest under More
+  var moreBtns = (u.role === 'owner' ? kg2Btn('Opening balance', 'kg3Opening(' + kg2Q(kid) + ')') + kg2Btn('Rupee opening', 'kg3RupeeOpening(' + kg2Q(kid) + ')') + kg2Btn('Record payment', 'kg2Money(' + kg2Q(kid) + ', \'PAYMENT\')') + kg2Btn('Carry settings', 'kg3Carry(' + kg2Q(kid) + ')') : '') +
+    (k.carryTrusted ? kg2Btn('Record count', 'kg3Count(' + kg2Q(kid) + ')') : ''), moreOpen = (_kg2.more === 'p:' + kid);
+  html += notes + '<div class="kg2-row" id="kg3-pactions">' + kg2Btn('+ New job', 'kg3NewJob(' + kg2Q(kid) + ')', 'btn-gold') + kg2Btn('Statement', 'kg3Statement(' + kg2Q(kid) + ')') +
+    (u.role === 'owner' ? kg2Btn('Give advance', 'kg3PayOrder(' + kg2Q(kid) + ', \'advance\')') : '') + kg2Btn('Edit details', 'kg3EditDetails(' + kg2Q(kid) + ')') +
+    (moreBtns ? kg2Btn(moreOpen ? 'Less' : 'More', 'kg3MoreProfile(' + kg2Q(kid) + ')') : '') + '</div>' + (moreBtns && moreOpen ? '<div class="kg2-row" id="kg3-pmore">' + moreBtns + '</div>' : '');
   html += '<div class="kg2-sec">Jobs</div>';
   var jobs = (S.kgJobs || []).filter(function(j){ return j.status !== 'cancelled' && (j.karigarId === kid || (j.model === 'points' && kgJobKarigarOk(j, kid))); })
     .sort(function(x, y){ return (x.status === 'open' ? 0 : 1) - (y.status === 'open' ? 0 : 1) || String(y.createdAt).localeCompare(String(x.createdAt)); });
@@ -2764,8 +2768,8 @@ function kg3ProfileHtml(kid){
   if(ow.any){
     html += '<div class="kg2-sec">Order work (old way, not added to the account above)</div><div class="kg2-line"><div><b>' + (ow.queue.length) + ' order stage' + (ow.queue.length === 1 ? '' : 's') + ' in progress</b>' +
       '<div class="kg2-sub">Metal with him on orders: gold ' + escHtml(Number(ow.held.gold).toFixed(3)) + ' g, silver ' + escHtml(Number(ow.held.silver).toFixed(3)) + ' g &middot; owed to him: ' +
-      escHtml(ow.owed.cash < 0 ? 'nothing (he owes the shop ' + fmt(-ow.owed.cash) + ')' : fmt(ow.owed.cash)) + (ow.owed.gold ? ' + ' + escHtml(Number(ow.owed.gold).toFixed(3)) + ' g gold' : '') + (ow.owed.silver ? ' + ' + escHtml(Number(ow.owed.silver).toFixed(3)) + ' g silver' : '') + (adv0.given > 0 ? '<br>Advance given \u20b9' + escHtml(String(adv0.given)) + ': \u20b9' + escHtml(String(adv0.adjusted)) + ' adjusted against his order work so far' + (adv0.outstanding > 0 ? ', \u20b9' + escHtml(String(adv0.outstanding)) + ' still to adjust' : '') : '') + '</div></div>' +
-      (u.role === 'owner' ? kg2Btn('Pay for order work', 'kg3PayOrder(' + kg2Q(kid) + ')') : '') + '</div>';
+      escHtml(ow.owed.cash < 0 ? 'nothing (he owes the shop ' + fmt(-ow.owed.cash) + ')' : fmt(ow.owed.cash)) + (ow.owed.gold ? ' + ' + escHtml(Number(ow.owed.gold).toFixed(3)) + ' g gold' : '') + (ow.owed.silver ? ' + ' + escHtml(Number(ow.owed.silver).toFixed(3)) + ' g silver' : '') + (adv0.given > 0 ? '<br>Advance given ' + escHtml(fmt(adv0.given)) + ': ' + escHtml(fmt(adv0.adjusted)) + ' adjusted against his order work so far' + (adv0.outstanding > 0 ? ', ' + escHtml(fmt(adv0.outstanding)) + ' still to adjust' : '') : '') + '</div></div>' +
+      (u.role === 'owner' && (ow.owed.cash > 0 || ow.owed.gold > 0 || ow.owed.silver > 0) ? kg2Btn('Pay for order work', 'kg3PayOrder(' + kg2Q(kid) + ')') : '') + '</div>';   // nothing owed: nothing to pay (an advance has its own button)
   }
   html += kg3PayOrderRecentHtml(kid);
   return html;
@@ -2815,7 +2819,8 @@ function kg3StatementHtml(kid){
     '<input type="text" class="kg2-sel" aria-label="To date" value="' + escHtml(to) + '" placeholder="To YYYY-MM-DD" onchange="kg3StSet(\'To\', this)"></div>';
   if(!kgValidDateKey(from) || !kgValidDateKey(to) || from > to) return html + '<div class="kg2-note warn">Dates must be real days (YYYY-MM-DD) and From must not be after To.</div>';
   var d = kg3StatementData(kid, metal, from, to);
-  html += '<div id="kg3-print"><div class="kg3-printhead">' + escHtml(k.name) + ' &middot; ' + escHtml(metal) + ' statement &middot; ' + escHtml(from) + ' to ' + escHtml(to) + '</div><div class="kg2-kpis">' + kg3Tile('Opening', escHtml(d.openingText)) + (d.issuedText ? kg3Tile('Given', escHtml(d.issuedText)) + kg3Tile('Returned', escHtml(d.returnedText)) + (d.otherText ? kg3Tile('Other changes', escHtml(d.otherText), 'opening, reversals, hand-overs, carry, loss') : '') : '') + kg3Tile('Closing', escHtml(d.closingText)) + '</div>';
+  var shopName = (typeof SAAS !== 'undefined' && SAAS.shop && SAAS.shop.name) ? SAAS.shop.name : '';
+  html += '<div id="kg3-print"><div class="kg3-printhead">' + (shopName ? '<div>' + escHtml(shopName) + '</div>' : '') + '<div>' + escHtml(k.name) + ' &middot; ' + escHtml(metal) + ' statement</div><div class="kg3-printdates">' + escHtml(from) + ' to ' + escHtml(to) + '</div></div><div class="kg2-kpis">' + kg3Tile('Opening', escHtml(d.openingText)) + (d.issuedText ? kg3Tile('Given', escHtml(d.issuedText)) + kg3Tile('Returned', escHtml(d.returnedText)) + (d.otherText ? kg3Tile('Other changes', escHtml(d.otherText), 'opening, reversals, hand-overs, carry, loss') : '') : '') + kg3Tile('Closing', escHtml(d.closingText), '', 'wide') + '</div>';
   if(!d.rows.length) html += '<div class="kg2-empty">Nothing in this period.</div>';
   d.rows.forEach(function(r){
     html += '<div class="kg2-line"><div><b>' + escHtml(r.label) + '</b><div class="kg2-sub">' + escHtml(r.date) + (r.state !== 'ok' && r.state !== 'reversal' ? ' &middot; ' + escHtml(r.state) : '') +
@@ -2833,7 +2838,8 @@ function kg3PrintStatement(){
 }
 function kg3StatementText(kid, metal, from, to){
   var d = kg3StatementData(kid, metal, from, to), unit = metal === 'rupees' ? '' : ' fine';
-  var lines = [(metal === 'rupees' ? 'Rupee' : metal.charAt(0).toUpperCase() + metal.slice(1)) + ' statement - ' + kg3Name(kid), from + ' to ' + to, 'Opening: ' + d.openingText + unit];
+  var shopName = (typeof SAAS !== 'undefined' && SAAS.shop && SAAS.shop.name) ? SAAS.shop.name : '';
+  var lines = (shopName ? [shopName] : []).concat([(metal === 'rupees' ? 'Rupee' : metal.charAt(0).toUpperCase() + metal.slice(1)) + ' statement - ' + kg3Name(kid), from + ' to ' + to, 'Opening: ' + d.openingText + unit]);
   d.rows.forEach(function(r){ lines.push(r.date + '  ' + r.label + (r.note ? ' - ' + r.note : '') + '  ' + r.deltaText + '  bal ' + r.balText); });
   lines.push('Closing: ' + d.closingText + unit);
   return lines.join('\n');
@@ -2853,11 +2859,17 @@ function kg3ShareSlip(entryId){
 }
 
 // \u2500\u2500 Job page for the points model \u2500\u2500
+function kg3MoreProfile(kid){ _kg2.more = (_kg2.more === 'p:' + kid) ? '' : 'p:' + kid; renderKgV2(); }
 function kg3More(){ _kg2.more = (_kg2.more === _kg2.jobId) ? '' : _kg2.jobId; renderKgV2(); }
 function kgOrderLabel(job){
   if(!job || !job.orderRef || !job.orderRef.orderId) return '';
   var o = null; (S.orders || []).forEach(function(x){ if(x.id === job.orderRef.orderId) o = x; });
   return o ? o.ordNo + (o.customer ? ' (' + o.customer + ')' : '') : 'an order that is no longer in the list';
+}
+// The signed fine shown on a job row: + more with him, - less. A reversal shows the opposite of what it undoes, for every type (a reversed carry used to show 0).
+function kgJobRowSign(e, tgt){
+  function base(x){ return (x.type === 'ISSUE' || x.type === 'CARRY_APPLY' || x.type === 'TRANSFER_IN') ? (x.fineMg || 0) : (['RECEIPT', 'SCRAP', 'LOSS', 'ADJUST', 'TRANSFER_OUT', 'CARRY_OUT'].indexOf(x.type) !== -1 ? -(x.fineMg || 0) : 0); }
+  return tgt ? -base(tgt) : base(e);
 }
 function kg3JobHtml(job){
   var u = kgUser(), led = S.kgLedger || [], idx = kgIndex(led), open = job.status === 'open', metal = kgMetalOf(job);
@@ -2900,7 +2912,7 @@ function kg3JobHtml(job){
     var tgt = e.type === 'REVERSAL' ? idx.byId[e.reversesId] : null;
     var sub = escHtml(e.date || '') + ' &middot; ' + escHtml(kg3Name(e.karigarId)) + (e.mg ? ' &middot; ' + escHtml(kgFmtG(e.mg)) + ' at ' + (e.pu ? e.pu / 100 + '%' : '') : '') +
       (e.pieceDesc ? ' &middot; ' + escHtml(e.pieceDesc) + (e.qty > 1 ? ' x' + e.qty : '') : '') + (e.reason ? ' &middot; reason: ' + escHtml(e.reason) : '') + (rev ? ' &middot; reversed' : '');
-    var sgn = tgt ? -kgRawDelta(tgt, {}, function(){ return true; }) : (e.type === 'ISSUE' || e.type === 'CARRY_APPLY' || e.type === 'TRANSFER_IN' ? (e.fineMg || 0) : (['RECEIPT', 'SCRAP', 'LOSS', 'ADJUST', 'TRANSFER_OUT', 'CARRY_OUT'].indexOf(e.type) !== -1 ? -(e.fineMg || 0) : 0));
+    var sgn = kgJobRowSign(e, tgt);
     html += '<div class="kg2-line' + (rev ? ' kg2-struck' : '') + '"><div><b>' + escHtml(kgEntryWords(e, tgt)) + '</b><div class="kg2-sub">' + sub + '</div></div><div class="kg2-right"><div class="kg2-num">' + escHtml(kgSigned(sgn, kgFmtG)) + '</div>' +
       (e.type === 'ISSUE' && !rev ? kg2Btn('Slip', 'kg3ShareSlip(' + kg2Q(e.id) + ')') : '') + (can ? kg2Btn('Reverse', 'kg3Reverse(' + kg2Q(e.id) + ')') : '') + '</div></div>';
   });
@@ -2981,7 +2993,14 @@ function kg3RecV(v, confirmed){
 }
 function kg3ReceivePreview(jobId, v){
   var b = kgBuildReceipt(jobId, v.stage, kg3RecV(v, true));
-  if(!b.entry) return (b.error && String(v.gross || '').trim() !== '') ? '<span class="warn">' + escHtml(b.error) + '</span>' : '';
+  if(!b.entry){
+    if(!b.error || String(v.gross || '').trim() === '') return '';
+    // the touch and the piece name come after the weight: until they are typed, say what is missing in plain grey, never in red
+    var touchBlank = !v.chip && String(v.purity || '').trim() === '', pieceBlank = String(v.piece || '').trim() === '';
+    if(touchBlank) return '<span class="kg2-hint">Type the measured touch to see the credit.</span>';
+    if(pieceBlank && /Describe the piece/.test(b.error)) return '<span class="kg2-hint">Name the piece to save.</span>';
+    return '<span class="warn">' + escHtml(b.error) + '</span>';
+  }
   return 'Net <b>' + escHtml(kgFmtG(b.entry.mg)) + '</b> &middot; real fine <b>' + escHtml(kgFmtG(b.entry.actualFineMg)) + '</b> &middot; credited to him <b>' + escHtml(kgFmtG(b.entry.creditFineMg)) + '</b>' +
     (b.capped ? ' (capped at what he holds)' : '') +
     (b.entry.openingUseMg > 0 ? '<br>Drawn from his opening balance: ' + escHtml(kgFmtG(b.entry.openingUseMg)) : '');
@@ -2989,7 +3008,7 @@ function kg3ReceivePreview(jobId, v){
 // Pay a karigar for old-way order work: cash, gold or silver, never more than is owed. Owner only.
 var KG_PAY_UNITS = {cash:'\u20b9', gold:'g gold', silver:'g silver'};
 function kg3OrderOwedText(type, n){
-  if(type === 'cash') return n < 0 ? 'he owes the shop \u20b9' + (Math.round(-n * 100) / 100) : '\u20b9' + (Math.round(n * 100) / 100);
+  if(type === 'cash') return n < 0 ? 'he owes the shop ' + fmt(Math.round(-n * 100) / 100) : fmt(Math.round(n * 100) / 100);
   return (Math.round(n * 1000) / 1000) + ' g ' + type;
 }
 function kg3PayOrderCheck(kid, type, text, advance){
@@ -3076,7 +3095,7 @@ function kg3PayOrderPreviewText(kid, type, text, advance){
   var ow = kgOrderWork(kid).owed, owed = ow[type] || 0, c = String(text || '').trim() === '' ? null : kg3PayOrderCheck(kid, type, text, advance === true);
   var html = (advance ? 'Now: <b>' + escHtml(kg3OrderOwedText(type, owed)) + '</b>' : (owed < 0 ? '<b>' + escHtml(kg3OrderOwedText(type, owed).replace(/^he/, 'He')) + '</b>' : 'Owed to him: <b>' + escHtml(kg3OrderOwedText(type, owed)) + '</b>'));
   var ai = type === 'cash' ? kg3OrderAdvanceInfo(kid) : null;
-  if(ai && ai.given > 0) html += '<br>Advance given \u20b9' + escHtml(String(ai.given)) + ': \u20b9' + escHtml(String(ai.adjusted)) + ' already adjusted against his order work' + (ai.outstanding > 0 ? ', \u20b9' + escHtml(String(ai.outstanding)) + ' still to adjust' : '');
+  if(ai && ai.given > 0) html += '<br>Advance given ' + escHtml(fmt(ai.given)) + ': ' + escHtml(fmt(ai.adjusted)) + ' already adjusted against his order work' + (ai.outstanding > 0 ? ', ' + escHtml(fmt(ai.outstanding)) + ' still to adjust' : '');
   if(c && c.error) return html + '<br><span class="warn">' + escHtml(c.error) + '</span>';
   if(c && advance) return html + '<br>After this: <b>' + escHtml(kg3OrderOwedText('cash', Math.round((owed - c.amount) * 100) / 100)) + '</b> (an advance, adjusted against his next order work)';
   if(c) return html + '<br>Recording ' + escHtml(kg3OrderOwedText(type, c.amount)) + ' paid';
@@ -3150,12 +3169,13 @@ function kg3Receive(jobId){
   var job = kgFindJob(jobId); if(!job) return;
   kgForm({title:'Receive finished piece', submitLabel:'Record receipt', doneToast:'\u2713 Receipt recorded',
     fields:[{id:'stage', label:'Stage / karigar', type:'select', options:kg3StageOpts(job), value:''},
-      {id:'piece', label:'Piece (e.g. necklace)'}, {id:'qty', label:'Quantity', value:'1', mode:'numeric'}, {id:'tag', label:'Tag (optional)'},
-      {id:'gross', label:'Gross weight (grams)', mode:'decimal'},
-      {id:'stone', label:'Stone weight (optional)', mode:'decimal'},
+      {id:'gross', label:'Gross weight (grams)', mode:'decimal'}]
+      .concat(kg3PurFields('Measured touch %', kgMetalOf(job)))
+      .concat([{id:'stone', label:'Stone weight (optional)', mode:'decimal'},
       {id:'unit', label:'Stone weight is in', type:'select', options:[['g', 'Grams'], ['ct', 'Carats']], value:'g', show:function(v){ return String(v.stone || '').trim() !== ''; }},
-      {id:'stoneMode', label:'Stones weighed by', type:'select', options:[['A', 'The shop'], ['B', 'The karigar (slip)']], value:'A', show:function(v){ return String(v.stone || '').trim() !== ''; }}]
-      .concat(kg3PurFields('Measured touch %', kgMetalOf(job))).concat([{id:'agreed', label:'Touch he was told (optional)', mode:'decimal'}]),
+      {id:'stoneMode', label:'Stones weighed by', type:'select', options:[['A', 'The shop'], ['B', 'The karigar (slip)']], value:'A', show:function(v){ return String(v.stone || '').trim() !== ''; }},
+      {id:'agreed', label:'Touch he was told (optional)', mode:'decimal'},
+      {id:'piece', label:'Piece (e.g. necklace)'}, {id:'qty', label:'Quantity', value:'1', mode:'numeric'}, {id:'tag', label:'Tag (optional)'}]),
     preview:function(v){ return kg3ReceivePreview(jobId, v); },
     onSubmit:function(v, fin){ kg3Save(kgBuildReceipt(jobId, v.stage, kg3RecV(v, false)), fin); }});
 }
