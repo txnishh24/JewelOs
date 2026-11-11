@@ -1921,5 +1921,93 @@ test('R3.A9 an old-rules receipt cannot carry an opening draw, and a reversed is
   eq((jan ? jan.keptFine : 0) + (tod ? tod.keptFine : 0), 0, 'kept wastage cancels exactly');
 });
 
+console.log('\nKarigar review round 3 (11 Nov) - group B screens');
+
+test('R3.B8 a closed points job shows Reopen job to the owner only, an open one does not', function(){
+  var a = fresh('owner'); var k = pk(a, 'B8'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  ok(a.kg3JobHtml(j).indexOf('kg2Reopen') === -1, 'open job');
+  j.status = 'closed';
+  ok(a.kg3JobHtml(j).indexOf('kg2Reopen(') !== -1, 'owner sees Reopen'); a.SAAS.user.role = 'manager'; ok(a.kg3JobHtml(j).indexOf('kg2Reopen(') === -1, 'manager does not');
+});
+test('R3.B9 a points job can be linked to a customer order; the page shows it; an unknown order is refused; the order stage is never added to his account', function(){
+  var a = fresh('owner'); var k = pk(a, 'B9'); openG(a, k, 'gold', '10', '92');
+  a.S.orders = [{id:'o9', ordNo:'OR-9', customer:'Mrs Shah', status:'open', items:[{desc:'Ring', metal:'gold', karigarStages:[{task:'Make', karigarId:k.id, status:'assigned', issued:[{date:a.kgToday(), wt:10, purity:'22K'}]}]}]}];
+  var before = a.kgAccount(k.id).gold.totalMg, heldBefore = a.kgHeldFine('gold');
+  var bad = call(function(cb){ a.kgCreateJob({karigarId:k.id, title:'L', model:'points', orderId:'nope'}, op(), cb); }); ok(bad.err && /order/i.test(bad.err.message), bad.err && bad.err.message);
+  var j = pjob(a, k, {orderId:'o9'}); eq(j.orderRef.orderId, 'o9');
+  var html = a.kg3JobHtml(j); ok(html.indexOf('OR-9') !== -1 && html.indexOf('Mrs Shah') !== -1, 'linked order shown');
+  issueV(a, j, '5', '92');
+  eq(a.kgAccount(k.id).gold.totalMg, before + 4600, 'only the ledger metal is in his account'); eq(a.kgHeldFine('gold'), heldBefore + 4600);
+  ok(a.kgOrderWork(k.id).held.gold > 0, 'order stage metal is shown apart'); ok(a.kgOrderWork(k.id).held.gold < 100, 'in its own units, not added');
+  ok(a.kg3ProfileHtml(k.id).indexOf('Order work') !== -1);
+  a.S.orders[0].items[0].karigarStages[0].karigarId = k.id; ok(a.kg3JobHtml(j).indexOf('also has a stage on order OR-9') !== -1, 'overlap warning shown');
+  a.S.orders[0].status = 'delivered'; var late = call(function(cb){ a.kgCreateJob({karigarId:k.id, title:'L2', model:'points', orderId:'o9'}, op(), cb); }); ok(late.err, 'a delivered order cannot be linked');
+});
+test('R3.B10 statement tiles match the rows: a reversal is not Given, a hand-over is not Returned, closing is unchanged', function(){
+  var a = fresh('owner'); var A = pk(a, 'B10a'); var B = pk(a, 'B10b'); var j = pjob(a, A); issueV(a, j, '10', '92');                  // given 9.200
+  var r = receiptV(a, j, {gross:'5', purity:'92'});                                                                                  // returned 4.800
+  ok(!call(function(cb){ a.kgReverse(r.entry.id, 'weighed the wrong ring', op(), cb); }).err);                                        // +4.800 back to him (a reversal)
+  var s = a.kgStatementRange(A.id, 'gold', '2000-01-01', '2999-12-31');
+  eq(s.issuedMg, 9200, 'only the issue is Given'); eq(s.returnedMg, 4800, 'the receipt is Returned'); eq(s.otherMg, 4800, 'the reversal is other');
+  eq(s.openingMg + s.issuedMg - s.returnedMg + s.otherMg, s.closingMg, 'tiles add up to closing'); eq(s.closingMg, 9200);
+  var h = call(function(cb){ a.kgAddStage(j.id, 'Setting', B.id, cb); }); ok(!h.err, h.err && h.err.message);
+  var t = call(function(cb){ a.kgTransfer({jobId:j.id, fromStageId:'', toStageId:j.stages[0].id, wt:'2', purity:'92', chip:'', confirmed:true, opId:op(), note:''}, cb); }); ok(!t.err, t.err && t.err.message);
+  var s2 = a.kgStatementRange(A.id, 'gold', '2000-01-01', '2999-12-31');
+  eq(s2.returnedMg, 4800, 'a hand-over is not Returned'); eq(s2.otherMg, 4800 - 1840); eq(s2.openingMg + s2.issuedMg - s2.returnedMg + s2.otherMg, s2.closingMg);
+  var html = a.kg3StatementHtml(A.id); ok(html.indexOf('Other changes') !== -1);
+  var C = pk(a, 'B10c'); var jc = pjob(a, C); issueV(a, jc, '1', '92'); ok(a.kg3StatementHtml(C.id).indexOf('Other changes') === -1, 'no empty Other tile');
+});
+test('R3.B11 reports: gold on open points jobs is per karigar like the job page; with the new screens on, the old blocks are hidden', function(){
+  var a = fresh('owner'); var A = pk(a, 'B11a'); var B = pk(a, 'B11b'); var j = pjob(a, A); issueV(a, j, '10', '92');
+  call(function(cb){ a.kgAddStage(j.id, 'Setting', B.id, cb); });
+  call(function(cb){ a.kgTransfer({jobId:j.id, fromStageId:'', toStageId:j.stages[0].id, wt:'4', purity:'92', chip:'', confirmed:true, opId:op(), note:''}, cb); });
+  var r = a.kgReport('2000-01-01', '2999-12-31'); eq(r.open.length, 1); eq(r.open[0].openFine, 9200, 'both karigars hold in all what was issued');
+  eq(r.open[0].byKarigar.length, 2); eq(r.open[0].byKarigar[0].fine + r.open[0].byKarigar[1].fine, 9200);
+  var off = a.kg2ReportsHtml(); ok(off.indexOf('Opening balances') !== -1 && off.indexOf('Ledger switch') !== -1, 'old blocks shown with the switch off');
+  a.kg3Switch(true); var on = a.kg2ReportsHtml();
+  ok(on.indexOf('Opening balances') === -1 && on.indexOf('Blob vs ledger') === -1 && on.indexOf('Ledger switch') === -1, 'hidden with the switch on'); ok(on.indexOf('Switch off') !== -1, 'the switch row stays');
+  ok(on.indexOf('B11b') !== -1, 'per-karigar line');
+});
+test('R3.B12 silver 92.5 and 80 are known touches beside 91.6, 75 and 99.9', function(){
+  var a = fresh('owner'); var saved = a.kgSavedPus();
+  ['92.5', '80', '91.6', '75', '99.9', '92'].forEach(function(t){ var c = a.kgCheckPurity(t, saved); ok(c.pu && !c.confirm && !c.error, t + ' should not ask'); });
+  ok(a.kgCheckPurity('93', saved).confirm, 'an unknown touch still asks');
+});
+test('R3.B13 the receive preview says how much is drawn from his opening balance', function(){
+  var a = fresh('owner'); var k = pk(a, 'B13'); openG(a, k, 'gold', '30', '92'); var j = pjob(a, k);
+  var t = a.kg3ReceivePreview(j.id, {stage:'', gross:'20', purity:'92', piece:'x', qty:'1'});
+  ok(t.indexOf('Drawn from his opening balance: 19.200 g') !== -1, t);
+  issueV(a, j, '30', '92'); var t2 = a.kg3ReceivePreview(j.id, {stage:'', gross:'5', purity:'92', piece:'x', qty:'1'}); ok(t2.indexOf('opening balance') === -1, 'not when the job holds enough');
+});
+test('R3.B14 Pay for order work is a sheet, checked against what is owed, not prompt() / confirm()', function(){
+  var a = fresh('owner'); var k = pk(a, 'B14');
+  a.S.orders = [{id:'o1', ordNo:'OR-1', status:'open', items:[{desc:'Ring', metal:'gold', karigarStages:[{task:'Make', karigarId:k.id, status:'submitted', karigarPayMode:'cash', karigarCost:500}]}]}];
+  eq(a.kgOrderWork(k.id).owed.cash, 500);
+  ok(a.kg3PayOrderCheck(k.id, 'cash', '600').error, 'more than owed'); ok(a.kg3PayOrderCheck(k.id, 'cash', '500.005').error, 'not whole paise'); eq(a.kg3PayOrderCheck(k.id, 'cash', '500').amount, 500); ok(a.kg3PayOrderCheck(k.id, 'cash', 'abc').error, 'not a number'); ok(a.kg3PayOrderCheck(k.id, 'cash', '0').error, 'zero');
+  ok(a.kg3PayOrderCheck(k.id, 'gold', '1').error, 'no gold owed'); eq(a.kg3PayOrderCheck(k.id, 'cash', '300').amount, 300);
+  var r = call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 300, 'part', op(), cb); }); ok(!r.err, r.err && r.err.message); eq(a.kgOrderWork(k.id).owed.cash, 200);
+  var good = a.saveToCloud; a.saveToCloud = function(cb){ cb(new Error('offline')); };
+  ok(call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 100, '', op(), cb); }).err); a.saveToCloud = good; eq(a.kgOrderWork(k.id).owed.cash, 200, 'a failed save changes nothing');
+  a.SAAS.user.role = 'manager'; ok(call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 100, '', op(), cb); }).err, 'owner only');
+  ok(a.kg3ProfileHtml(k.id).indexOf('promptKarigarPayment') === -1); a.SAAS.user.role = 'owner'; ok(a.kg3ProfileHtml(k.id).indexOf('kg3PayOrder(') !== -1);
+});
+test('R3.B15 job page: no "Use carried balance" when nothing is carried, at most 5 buttons up front, the rest under More', function(){
+  var a = fresh('owner'); var k = pk(a, 'B15'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  var html = a.kg3JobHtml(j); ok(html.indexOf('kg3UseCarry') === -1, 'nothing carried');
+  function firstRow(h){ var m = h.match(/<div class="kg2-row" id="kg3-actions">([\s\S]*?)<\/div>/); ok(m, 'actions row'); return m[1]; }
+  var row = firstRow(html); ok((row.match(/<button/g) || []).length <= 5, 'at most 5 buttons: ' + (row.match(/<button/g) || []).length);
+  ok(html.indexOf('kg3More(') !== -1, 'More button');
+  a._kg2.jobId = j.id; a.kg3More(); var more = a.kg3JobHtml(j); ok(a.kg3JobHtml(pjob(a, k)).indexOf('kg3Transfer(') === -1, 'More is per job'); ok(more.indexOf('kg3Close(') !== -1 && more.indexOf('kg3Transfer(') !== -1, 'the rest after More');
+  var o = pk(a, 'B15c'); call(function(cb){ a.kgSetCarry(o.id, {trusted:true, ceilingGold:'100', ceilingSilver:''}, cb); });
+  var j2 = pjob(a, o); issueV(a, j2, '10', '92'); receiptV(a, j2, {gross:'4', purity:'92'});
+  ok(!call(function(cb){ a.kgCloseJob(j2.id, cb, {settle:'carry', ackCeiling:true, opId:op()}); }).err); var j3 = pjob(a, o); a._kg2.more = j3.id;
+  ok(a.kg3JobHtml(j3).indexOf('kg3UseCarry') !== -1, 'shown when something is carried');
+});
+test('R3.B16 the statement has a Print / PDF button and print rules that show only the statement', function(){
+  var a = fresh('owner'); var k = pk(a, 'B16'); var html = a.kg3StatementHtml(k.id);
+  ok(html.indexOf('kg3PrintStatement(') !== -1 && html.indexOf('id="kg3-print"') !== -1, 'button and printable block');
+  var css = require('fs').readFileSync(__dirname + '/../index.html', 'utf8'); ok(/kg-printing/.test(css), 'print css'); ok(/\.kg2-chk[^{]*\{[^}]*display:flex/.test(css) && /label\.kg2-chk/.test(css), 'tick box row stays a flex row');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }

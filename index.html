@@ -1709,6 +1709,17 @@ tr:hover td{background:var(--bg2);}
 .kg2-foot{position:sticky;bottom:-16px;z-index:2;background:var(--surface);margin:12px -16px -16px;padding:10px 16px 16px;border-top:1px solid var(--border);}
 .kg2-chk{display:flex;align-items:center;gap:12px;min-height:44px;font-size:14px;color:var(--text);cursor:pointer;}.kg2-chk input{width:24px;height:24px;flex:none;}
 .kg2-fchk{margin-top:4px;}
+.kg2-f label.kg2-chk{display:flex;align-items:center;margin-bottom:0;}   /* .kg2-f label{display:block} used to win and push the tick box away from its words */
+#kg2-root{padding-bottom:96px;}   /* the toast sits above the nav bar: leave room so it never covers the last row */
+.kg3-printhead{display:none;}
+@media print{
+  body.kg-printing .main{display:block!important;margin:0!important;padding:0!important;}
+  body.kg-printing .main *{visibility:hidden;}
+  body.kg-printing #kg3-print,body.kg-printing #kg3-print *{visibility:visible;}
+  body.kg-printing #kg3-print{position:absolute;left:0;top:0;width:100%;}
+  body.kg-printing .kg3-printhead{display:block;font-weight:700;font-size:16px;margin-bottom:8px;}
+  body.kg-printing #kg3-print .btn{display:none!important;}
+}
 .kg2-line>div:first-child{min-width:0;overflow-wrap:anywhere;}.kg2-num{white-space:nowrap;flex:none;}
 .kg2-row .btn,.kg2-nav .btn{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:left;}
 .kg2-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0;}
