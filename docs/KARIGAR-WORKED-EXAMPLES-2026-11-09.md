@@ -58,20 +58,21 @@ Close: ok, job closed
 Gold with him: 0.000 g   Salary owed: Rs 30000 (his salary is a rupee register; gold never touches it)
 Second job, he returns 9.900 g at 92 (credit 9.108 g, open 0.092 g). Plain close -> REFUSED: Balance is 0.092 g fine - record the metal, an owner-approved loss or an owner adjustment first  (a salary karigar gets no wastage allowance, so a short return must be settled: next two examples)
 
-=== 9. Accepted loss (owner only) ===
-Issue 10.000 g at 92 (9.200 fine). Returns 9.000 g at 92 -> real fine 8.280, credit at 96% = 8.640. Open: 0.560 g
+=== 9. Accepted loss (owner only), wastage karigar ===
+Wasim is a WASTAGE karigar (+4 points). Issue 10.000 g at 92 (9.200 fine). Returns 9.000 g at 92 -> real fine 8.280, credit at 96% = 8.640. Open: 0.560 g
 Manager tries to accept the loss -> REFUSED: Only the owner can accept a loss
 Owner, reason "no" -> REFUSED: A reason (at least 5 letters) is required for a loss
 Owner, reason "filing and polishing loss" -> ok, job closed
 Open now 0.000 g; approved loss 0.560 g; gold with him 0.000 g. The loss is a ledger entry with who, why and when; nothing is deleted. Rupees untouched: Rs 0
 
-=== 10. Loss as a cash bill (rupees go down, gold clears, never netted) ===
-Same job as example 9 (open 0.560 g). You owe him Rs 30000 for the month.
+=== 10. Loss as a cash bill, SALARY karigar (rupees go down, gold clears, never netted) ===
+Sita is a SALARY karigar (Rs 30000 a month, no wastage points), so a short return gets no allowance. Issue 10.000 g at 92 (9.200 fine). Returns 9.000 g at 92 -> real fine 8.280, credit 8.280 (points 0). Open: 0.920 g
+The month's salary is recorded: you owe her Rs 30000.
 Close as cash bill without an amount -> REFUSED: Enter the bill amount in rupees
 Close with a bill of Rs 1500 -> ok, job closed
-Gold open 0.000 g. You now owe him Rs 28500 (Rs 30000 less the Rs 1500 DEDUCTION row). Gold and rupees are two numbers: the bill is not converted from grams.
+Gold open 0.000 g. You now owe her Rs 28500 (Rs 30000 less the Rs 1500 DEDUCTION row). Gold and rupees are two numbers: the bill is not converted from grams.
 Reopen, then reverse the loss while the bill stands -> REFUSED: Reverse the loss bill first
-Reverse the bill first, then the loss -> ok. You owe him Rs 30000 again; open on the job 0.560 g
+Reverse the bill first, then the loss -> ok. You owe her Rs 30000 again; open on the job 0.920 g
 
 === 11. Stones deducted before the metal is counted ===
 Issue 20.000 g at 92 -> fine 18.400 g. Points 4.
@@ -109,7 +110,7 @@ Issue 10.000 g at 91.82 (fine 9.182 g). 21 returns of 0.333 g at 91.82, points 4
 Each return: real fine 0.306 g (exact 0.305761), credit 0.319 g (exact 0.319081). Rounded half-up ONCE per line.
 Sum of 21 lines: real fine 6426 mg, credit 6699 mg.
 Same 6.993 g weighed as ONE return: real fine 6421 mg, credit 6701 mg.
-Exact maths: real 6.993 x 91.82% = 6420.7 mg; credit 6.993 x 95.82% = 6700.8 mg.
+Exact maths: real 6.993 x 91.82% = 6420.97 mg; credit 6.993 x 95.82% = 6700.69 mg.
 Difference (21 lines vs one): real 5 mg, credit -2 mg  -> each line can be off by under 0.5 mg, so the drift over 21 lines is bounded by 10.5 mg and is never carried as a hidden remainder.
 Open on the job = issued - sum of credits = 2.483 g (a whole number of mg, always equals the ledger sum).
 
@@ -130,4 +131,4 @@ This cap was added by Claude (HANDOFF 195th entry), not stated in the plan. **De
 
 ## Rounding finding (example 15)
 
-Every line rounds half-up once, to the whole mg. 21 identical returns of 0.333 g at 91.82: real fine 6,426 mg on the lines against 6,421 mg if weighed once (exact 6,420.7), a 5 mg difference; credit 6,699 mg against 6,701 mg (exact 6,700.8). Each line is within 0.5 mg of exact, so the worst case over 21 lines is 10.5 mg. The job balance always equals issued minus the stored credits, to the mg. Identical lines round the same way every time, so the drift adds up rather than cancelling; for many tiny identical lines, weigh them together if exactness matters.
+Every line rounds half-up once, to the whole mg. 21 identical returns of 0.333 g at 91.82: real fine 6,426 mg on the lines against 6,421 mg if weighed once (exact 6,420.97), a 5 mg difference; credit 6,699 mg against 6,701 mg (exact 6,700.69). Each line is within 0.5 mg of exact, so the worst case over 21 lines is 10.5 mg. The job balance always equals issued minus the stored credits, to the mg. Identical lines round the same way every time, so the drift adds up rather than cancelling; for many tiny identical lines, weigh them together if exactness matters.
