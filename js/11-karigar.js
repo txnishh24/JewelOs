@@ -1559,6 +1559,7 @@ function kgStatementRange(karigarId, metal, from, to){
 function kgOrderWork(karigarId){
   if(typeof karigarMetalHeld !== 'function') return {held:{gold:0, silver:0}, owed:{cash:0, gold:0, silver:0}, queue:[], any:false};
   var held = karigarMetalHeld(karigarId), owed = karigarOwed(karigarId), queue = karigarQueue(karigarId);
+  owed = {cash:Math.round(owed.cash * 100) / 100, gold:Math.round(owed.gold * 1000) / 1000, silver:Math.round(owed.silver * 1000) / 1000};   // whole paise / mg: 0.7 + 0.1 - 0.8 is zero, not -1e-16
   return {held:held, owed:owed, queue:queue, any:(queue.length > 0 || held.gold > 0 || held.silver > 0 || owed.cash !== 0 || owed.gold !== 0 || owed.silver !== 0)};
 }
 // Order numbers (old way) where this job's karigars also have a stage: the one place two systems could confuse a person.
@@ -2709,7 +2710,7 @@ function kg3ProfileHtml(kid){
     if(m[1].oldestCarryDays > 30) notes += '<div class="kg2-note">Oldest carried ' + escHtml(m[0]) + ' is ' + m[1].oldestCarryDays + ' days old.</div>';
   });
   html += notes + '<div class="kg2-row">' + kg2Btn('+ New job', 'kg3NewJob(' + kg2Q(kid) + ')', 'btn-gold') + kg2Btn('Statement', 'kg3Statement(' + kg2Q(kid) + ')') +
-    (u.role === 'owner' ? kg2Btn('Opening balance', 'kg3Opening(' + kg2Q(kid) + ')') + kg2Btn('Rupee opening', 'kg3RupeeOpening(' + kg2Q(kid) + ')') + kg2Btn('Record payment', 'kg2Money(' + kg2Q(kid) + ', \'PAYMENT\')') + kg2Btn('Carry settings', 'kg3Carry(' + kg2Q(kid) + ')') : '') +
+    (u.role === 'owner' ? kg2Btn('Opening balance', 'kg3Opening(' + kg2Q(kid) + ')') + kg2Btn('Rupee opening', 'kg3RupeeOpening(' + kg2Q(kid) + ')') + kg2Btn('Give advance', 'kg3PayOrder(' + kg2Q(kid) + ', \'advance\')') + kg2Btn('Record payment', 'kg2Money(' + kg2Q(kid) + ', \'PAYMENT\')') + kg2Btn('Carry settings', 'kg3Carry(' + kg2Q(kid) + ')') : '') +
     (k.carryTrusted ? kg2Btn('Record count', 'kg3Count(' + kg2Q(kid) + ')') : '') + kg2Btn('Edit details', 'kg3EditDetails(' + kg2Q(kid) + ')') + '</div>';
   html += '<div class="kg2-sec">Jobs</div>';
   var jobs = (S.kgJobs || []).filter(function(j){ return j.status !== 'cancelled' && (j.karigarId === kid || (j.model === 'points' && kgJobKarigarOk(j, kid))); })
@@ -2720,11 +2721,11 @@ function kg3ProfileHtml(kid){
     html += '<div class="kg2-line kg2-click" role="button" tabindex="0" onclick="kg2OpenJob(' + kg2Q(j.id) + ')"><div><b>' + escHtml(j.jobNo) + ' &middot; ' + escHtml(j.title) + '</b>' +
       '<div class="kg2-sub">' + escHtml(j.status) + (j.model === 'points' ? '' : ' &middot; old rules') + (j.tag ? ' &middot; ' + escHtml(j.tag) : '') + '</div></div><div class="kg2-right"><div class="kg2-num">' + escHtml(kg3G(held, kgMetalOf(j))) + '</div></div></div>';
   });
-  var ow = kgOrderWork(kid);
+  var ow = kgOrderWork(kid), adv0 = kg3OrderAdvanceInfo(kid);
   if(ow.any){
     html += '<div class="kg2-sec">Order work (old way, not added to the account above)</div><div class="kg2-line"><div><b>' + (ow.queue.length) + ' order stage' + (ow.queue.length === 1 ? '' : 's') + ' in progress</b>' +
       '<div class="kg2-sub">Metal with him on orders: gold ' + escHtml(Number(ow.held.gold).toFixed(3)) + ' g, silver ' + escHtml(Number(ow.held.silver).toFixed(3)) + ' g &middot; owed to him: ' +
-      escHtml(fmt(ow.owed.cash)) + (ow.owed.gold ? ' + ' + escHtml(Number(ow.owed.gold).toFixed(3)) + ' g gold' : '') + (ow.owed.silver ? ' + ' + escHtml(Number(ow.owed.silver).toFixed(3)) + ' g silver' : '') + '</div></div>' +
+      escHtml(ow.owed.cash < 0 ? 'nothing (he owes the shop ' + fmt(-ow.owed.cash) + ')' : fmt(ow.owed.cash)) + (ow.owed.gold ? ' + ' + escHtml(Number(ow.owed.gold).toFixed(3)) + ' g gold' : '') + (ow.owed.silver ? ' + ' + escHtml(Number(ow.owed.silver).toFixed(3)) + ' g silver' : '') + (adv0.given > 0 ? '<br>Advance given \u20b9' + escHtml(String(adv0.given)) + ': \u20b9' + escHtml(String(adv0.adjusted)) + ' adjusted against his order work so far' + (adv0.outstanding > 0 ? ', \u20b9' + escHtml(String(adv0.outstanding)) + ' still to adjust' : '') : '') + '</div></div>' +
       (u.role === 'owner' ? kg2Btn('Pay for order work', 'kg3PayOrder(' + kg2Q(kid) + ')') : '') + '</div>';
   }
   html += kg3PayOrderRecentHtml(kid);
@@ -2948,14 +2949,19 @@ function kg3ReceivePreview(jobId, v){
 }
 // Pay a karigar for old-way order work: cash, gold or silver, never more than is owed. Owner only.
 var KG_PAY_UNITS = {cash:'\u20b9', gold:'g gold', silver:'g silver'};
-function kg3OrderOwedText(type, n){ return type === 'cash' ? '\u20b9' + (Math.round(n * 100) / 100) : (Math.round(n * 1000) / 1000) + ' g ' + type; }
-function kg3PayOrderCheck(kid, type, text){
+function kg3OrderOwedText(type, n){
+  if(type === 'cash') return n < 0 ? 'he owes the shop \u20b9' + (Math.round(-n * 100) / 100) : '\u20b9' + (Math.round(n * 100) / 100);
+  return (Math.round(n * 1000) / 1000) + ' g ' + type;
+}
+function kg3PayOrderCheck(kid, type, text, advance){
   if(!Object.prototype.hasOwnProperty.call(KG_PAY_UNITS, type)) return {error:'Choose cash, gold or silver'};
+  if(advance === true && type !== 'cash') return {error:'An advance is money only'};
   var t = String(text == null ? '' : text).trim(), cash = type === 'cash';
   if(!(cash ? /^\d{1,9}(\.\d{1,2})?$/ : /^\d{1,6}(\.\d{1,3})?$/).test(t)) return {error:'Enter the amount as a plain number (' + (cash ? 'rupees, at most 2 decimals' : 'grams, at most 3 decimals') + ')'};
   if(!(parseFloat(t) > 0)) return {error:'Enter an amount above zero'};
   var unit = cash ? 100 : 1000;
   var amountU = Math.round(parseFloat(t) * unit), owedU = Math.round((kgOrderWork(kid).owed[type] || 0) * unit);   // whole paise / whole mg: no float dust
+  if(advance === true) return {amount:amountU / unit, owed:owedU / unit};   // an advance is not payment for work done: no 'owed' limit
   if(!(owedU > 0)) return {error:'Nothing is owed to him in ' + (cash ? 'cash' : type)};
   if(amountU > owedU) return {error:'More than is owed: ' + kg3OrderOwedText(type, owedU / unit) + ' is owed to him'};
   return {amount:amountU / unit, owed:owedU / unit};
@@ -2972,23 +2978,54 @@ function kgPayId(prefix){
 // its old fields, posts nothing to the Day Book); otherwise {mode:'cash'|'UPI'|'Bank', dbPost:true} = the new sheet (cash/UPI/Bank is kept and
 // the payment posts a Karigar payment line to the Day Book, derived at read time in js/10-daybook.js).
 function kg3PayOrderSave(kid, type, amount, note, opId, done, opts){
-  opts = opts || {};
+  opts = opts || {};   // opts.advance:true (owner only, cash only, opts.reason 5+ letters, opts.confirmed:true) = money lent to him: it makes what he is owed negative
   var u = kgUser(), added = null, auditId = null;
   S.karigarPayments = S.karigarPayments || [];
   for(var i = 0; i < S.karigarPayments.length; i++) if(S.karigarPayments[i].opId === opId) return done(null);
   kgTxn('karigar:' + kid, function(){
     if(u.role !== 'owner') return 'Only the owner can record a payment';
     if(!findKarigar(kid)) return 'Karigar not found';
-    var c = kg3PayOrderCheck(kid, type, String(amount)); if(c.error) return c.error;
+    var adv = opts.advance === true;
+    if(adv){
+      if(opts.legacy) return 'An advance is given from the Karigars screen';
+      if(String(opts.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required for an advance';
+      if(opts.confirmed !== true) return 'Confirm the advance first';
+    }
+    var c = kg3PayOrderCheck(kid, type, String(amount), adv); if(c.error) return c.error;
     var mode = '';
     if(!opts.legacy && type === 'cash'){ mode = String(opts.mode || 'cash'); if(KG_PAY_MODES.indexOf(mode) === -1) return 'Choose cash, UPI or bank'; }
     added = {id:kgPayId('kp'), opId:opId, karigarId:kid, date:kgToday(), type:type, amount:c.amount, note:String(note || '').trim()};
     if(!opts.legacy){ if(mode) added.mode = mode; if(opts.dbPost === true && type === 'cash') added.dbPost = true; }
+    if(adv){ added.advance = true; added.reason = String(opts.reason).trim(); }
     S.karigarPayments.push(added);
-    auditId = kgAudit('kg_order_payment', 'karigar', kid, type + ' ' + kg3OrderOwedText(type, c.amount));
+    auditId = kgAudit(adv ? 'kg_order_advance' : 'kg_order_payment', 'karigar', kid, (adv ? 'advance ' : '') + type + ' ' + kg3OrderOwedText(type, c.amount) + (adv ? ': ' + added.reason : ''));
     return '';
   }, function(){ S.karigarPayments = S.karigarPayments.filter(function(x){ return x !== added; }); kgUndoAudit(auditId); },
   function(err){ done(err); });
+}
+// How much advance was given, how much of it later order work has already absorbed (advance is adjusted first), and what is still out.
+function kg3OrderAdvanceInfo(kid){
+  var all = S.karigarPayments || [], undone = {}, given = 0, other = 0;
+  all.forEach(function(x){ if(x.type === 'reversal') undone[x.reversesId] = true; });
+  all.forEach(function(x){
+    if(x.karigarId !== kid || x.type !== 'cash' || undone[x.id]) return;
+    if(x.advance) given += parseFloat(x.amount) || 0; else other += parseFloat(x.amount) || 0;
+  });
+  var owed = kgOrderWork(kid).owed.cash || 0, labour = Math.round((owed + other + given) * 100) / 100;
+  given = Math.round(given * 100) / 100;
+  var adjusted = Math.min(given, Math.max(0, Math.round((labour - other) * 100) / 100));
+  return {given:given, adjusted:adjusted, outstanding:Math.round((given - adjusted) * 100) / 100, labour:labour};
+}
+// The line under the pay sheet: what is owed, any advance already adjusted, and what this entry would do.
+function kg3PayOrderPreviewText(kid, type, text, advance){
+  var ow = kgOrderWork(kid).owed, owed = ow[type] || 0, c = String(text || '').trim() === '' ? null : kg3PayOrderCheck(kid, type, text, advance === true);
+  var html = (advance ? 'Now: <b>' + escHtml(kg3OrderOwedText(type, owed)) + '</b>' : (owed < 0 ? '<b>' + escHtml(kg3OrderOwedText(type, owed).replace(/^he/, 'He')) + '</b>' : 'Owed to him: <b>' + escHtml(kg3OrderOwedText(type, owed)) + '</b>'));
+  var ai = type === 'cash' ? kg3OrderAdvanceInfo(kid) : null;
+  if(ai && ai.given > 0) html += '<br>Advance given \u20b9' + escHtml(String(ai.given)) + ': \u20b9' + escHtml(String(ai.adjusted)) + ' already adjusted against his order work' + (ai.outstanding > 0 ? ', \u20b9' + escHtml(String(ai.outstanding)) + ' still to adjust' : '');
+  if(c && c.error) return html + '<br><span class="warn">' + escHtml(c.error) + '</span>';
+  if(c && advance) return html + '<br>After this: <b>' + escHtml(kg3OrderOwedText('cash', Math.round((owed - c.amount) * 100) / 100)) + '</b> (an advance, adjusted against his next order work)';
+  if(c) return html + '<br>Recording ' + escHtml(kg3OrderOwedText(type, c.amount)) + ' paid';
+  return html;
 }
 // Reverse an order payment (owner, with a reason). The payment stays in the list; a 'reversal' record points at it, owed comes back
 // (karigarOwed skips reversed payments) and, if the payment posted to the Day Book, the same amount goes back IN on the reversal day.
@@ -3025,25 +3062,30 @@ function kg3PayOrderRecentHtml(kid){
   if(!mine.length) return '';
   var html = '<div class="kg2-sec">Order work payments</div>';
   mine.forEach(function(x){
-    html += '<div class="kg2-line"><div><b>' + escHtml(kg3OrderOwedText(x.type, parseFloat(x.amount) || 0)) + ' paid</b><div class="kg2-sub">' + escHtml(x.date || '') + (x.mode ? ' &middot; ' + escHtml(x.mode) : '') + (x.note ? ' &middot; ' + escHtml(x.note) : '') + '</div></div>' +
+    html += '<div class="kg2-line"><div><b>' + escHtml(kg3OrderOwedText(x.type, parseFloat(x.amount) || 0)) + (x.advance ? ' advance' : ' paid') + '</b><div class="kg2-sub">' + escHtml(x.date || '') + (x.mode ? ' &middot; ' + escHtml(x.mode) : '') + (x.reason ? ' &middot; ' + escHtml(x.reason) : '') + (x.note ? ' &middot; ' + escHtml(x.note) : '') + '</div></div>' +
       '<div class="kg2-right">' + kg2Btn('Reverse', 'kg3PayOrderReverseSheet(' + kg2Q(x.id) + ')') + '</div></div>';
   });
   return html;
 }
-function kg3PayOrder(kid){
+function kg3PayOrder(kid, startKind){
   var k = findKarigar(kid); if(!k) return;
   var ow = kgOrderWork(kid).owed;
   kgForm({title:'Pay ' + k.name + ' for order work', submitLabel:'Record payment', doneToast:'\u2713 Payment recorded',
-    fields:[{id:'type', label:'Paid in', type:'select', options:[['cash', 'Cash (\u20b9)'], ['gold', 'Gold (g)'], ['silver', 'Silver (g)']], value:(ow.cash > 0 ? 'cash' : (ow.gold > 0 ? 'gold' : 'silver'))},
-      {id:'mode', label:'Paid by', type:'select', options:[['cash', 'Cash'], ['UPI', 'UPI'], ['Bank', 'Bank transfer']], value:'cash', show:function(v){ return v.type === 'cash'; }},
-      {id:'amount', label:'Amount (\u20b9 or grams)', mode:'decimal'}, {id:'note', label:'Note (optional)'}],
-    preview:function(v){
-      var c = String(v.amount || '').trim() === '' ? null : kg3PayOrderCheck(kid, v.type, v.amount);
-      return 'Owed to him: <b>' + escHtml(kg3OrderOwedText(v.type, ow[v.type] || 0)) + '</b>' + (c && c.error ? '<br><span class="warn">' + escHtml(c.error) + '</span>' : (c ? '<br>Recording ' + escHtml(kg3OrderOwedText(v.type, c.amount)) + ' paid to ' + escHtml(k.name) : ''));
-    },
+    fields:[{id:'kind', label:'What is this?', type:'select', options:[['pay', 'Payment for work done'], ['advance', 'Advance (money he owes the shop)']], value:(startKind === 'advance' ? 'advance' : 'pay'),
+        hint:'A payment is never more than is owed. An advance is money given before the work: it is cash only, needs a reason, and is adjusted against his next order work.'},
+      {id:'type', label:'Paid in', type:'select', options:[['cash', 'Cash (\u20b9)'], ['gold', 'Gold (g)'], ['silver', 'Silver (g)']], value:(ow.cash > 0 ? 'cash' : (ow.gold > 0 ? 'gold' : (ow.silver > 0 ? 'silver' : 'cash'))), show:function(v){ return v.kind !== 'advance'; }},
+      {id:'mode', label:'Paid by', type:'select', options:[['cash', 'Cash'], ['UPI', 'UPI'], ['Bank', 'Bank transfer']], value:'cash', show:function(v){ return v.kind === 'advance' || v.type === 'cash'; }},
+      {id:'amount', label:'Amount (\u20b9 or grams)', mode:'decimal'},
+      {id:'reason', label:'Reason for the advance (at least 5 letters)', show:function(v){ return v.kind === 'advance'; }},
+      {id:'confirm', label:'I confirm: this is money he owes back, not payment for work', type:'check', show:function(v){ return v.kind === 'advance'; }},
+      {id:'note', label:'Note (optional)'}],
+    preview:function(v){ var adv = v.kind === 'advance'; return kg3PayOrderPreviewText(kid, adv ? 'cash' : v.type, v.amount, adv); },
     onSubmit:function(v, fin){
-      var c = kg3PayOrderCheck(kid, v.type, v.amount); if(c.error) return kg2Err(c.error, fin);
-      kg3PayOrderSave(kid, v.type, c.amount, v.note, v.opId, function(err){ fin(err); }, {mode:(v.type === 'cash' ? v.mode : ''), dbPost:true});
+      var adv = v.kind === 'advance', type = adv ? 'cash' : v.type;
+      var c = kg3PayOrderCheck(kid, type, v.amount, adv); if(c.error) return kg2Err(c.error, fin);
+      if(adv && String(v.reason || '').trim().length < 5) return kg2Err('A reason (at least 5 letters) is required for an advance', fin);
+      if(adv && !v.confirm) return kg2Err('Tick the box to confirm the advance', fin);
+      kg3PayOrderSave(kid, type, c.amount, v.note, v.opId, function(err){ fin(err); }, {mode:(type === 'cash' ? v.mode : ''), dbPost:true, advance:adv, reason:v.reason, confirmed:(adv && v.confirm === true)});
     }});
 }
 function kg3Receive(jobId){

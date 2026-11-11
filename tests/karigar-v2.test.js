@@ -2132,5 +2132,104 @@ test('PAY.8 month range: trend and totals count a payment once and a reversal on
   eq(tr.reduce(function(n, t){ return n + a.dbNetMovement(t.date); }, 0), 0, 'net over the month is zero');
 });
 
+console.log('\nKarigar advance - owner-only, reason, confirm, Day Book, reversible, never netted with metal');
+
+function adv(a, kid, amount, o){
+  o = o || {};
+  return call(function(cb){ a.kg3PayOrderSave(kid, o.type || 'cash', amount, '', op(), cb, {advance:true, reason:(o.reason == null ? 'festival advance' : o.reason), confirmed:(o.confirmed == null ? true : o.confirmed), mode:o.mode || 'cash', dbPost:true}); });
+}
+test('ADV.1 a plain payment is still refused when nothing is owed; an owner can give an advance with a reason and a confirm; it makes the payable negative (he owes the shop)', function(){
+  var a = fresh('owner'); a.dbInit(); var k = pk(a, 'ADV1'); a.S.orders = [];
+  ok(call(function(cb){ a.recordKarigarPayment(k.id, 'cash', 500, '', cb); }).err, 'old button: refused'); ok(a.kg3PayOrderCheck(k.id, 'cash', '500').error, 'sheet payment: refused');
+  var r = adv(a, k.id, '500'); ok(!r.err, r.err && r.err.message); eq(a.karigarOwed(k.id).cash, -500, 'he owes the shop 500');
+  var p = a.S.karigarPayments[0]; eq(p.advance, true); eq(p.reason, 'festival advance'); eq(p.type, 'cash'); eq(p.amount, 500); eq(p.dbPost, true);
+  ok(adv(a, k.id, '100', {reason:'no'}).err, 'reason of 5+ letters'); ok(adv(a, k.id, '100', {reason:''}).err); ok(adv(a, k.id, '100', {confirmed:false}).err, 'confirm step is required');
+  ok(adv(a, k.id, '100', {type:'gold'}).err, 'cash only: never a metal advance'); ok(adv(a, k.id, '0').err); ok(adv(a, k.id, '10.555').err); ok(adv(a, k.id, 'abc').err);
+  a.SAAS.user.role = 'manager'; ok(adv(a, k.id, '100').err, 'owner only'); a.SAAS.user.role = 'staff'; ok(adv(a, k.id, '100').err); a.SAAS.user.role = 'owner';
+  eq(a.S.karigarPayments.length, 1, 'only the good one was recorded');
+  var same = call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', '50', '', 'adv-fixed', cb, {advance:true, reason:'advance again', confirmed:true, dbPost:true}); }); ok(!same.err);
+  call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', '50', '', 'adv-fixed', cb, {advance:true, reason:'advance again', confirmed:true, dbPost:true}); }); eq(a.S.karigarPayments.length, 2, 'a repeated operation is a duplicate');
+  var good = a.saveToCloud; a.saveToCloud = function(cb){ cb(new Error('offline')); }; var audits = (a.S.auditLog || []).length;
+  ok(adv(a, k.id, '70').err); a.saveToCloud = good; eq(a.S.karigarPayments.length, 2, 'failed save leaves nothing'); eq((a.S.auditLog || []).length, audits);
+});
+test('ADV.2 an advance posts a Day Book outflow like a payment (cash or UPI), reversing posts the opposite, and the two net to zero', function(){
+  var a = fresh('owner'); a.dbInit(); var k = pk(a, 'ADV2'); a.S.orders = []; var d = a.kgToday();
+  var c = adv(a, k.id, '400'); var u = adv(a, k.id, '250', {mode:'UPI'}); ok(!c.err && !u.err);
+  var ls = a.dbAutoLines(d).filter(function(l){ return l.cat === 'karigar-payment'; }); eq(ls.length, 2); ls.forEach(function(l){ eq(l.dir, 'out'); ok(/Karigar advance/.test(l.label), l.label); });
+  eq(ls.filter(function(l){ return !l.nonCash; })[0].amount, 400); eq(ls.filter(function(l){ return l.nonCash; })[0].mode, 'UPI'); eq(a.dbAutoTotals(d).out, 400);
+  eq(a.dbAutoLines(d).filter(function(l){ return l.cat === 'karigar-payment'; }).length, 2, 're-reading never double posts');
+  var id = a.S.karigarPayments[0].id; ok(call(function(cb){ a.kg3PayOrderReverse(id, 'no', op(), cb); }).err, 'reversal needs a reason');
+  a.SAAS.user.role = 'manager'; ok(call(function(cb){ a.kg3PayOrderReverse(id, 'given by mistake', op(), cb); }).err, 'owner only'); a.SAAS.user.role = 'owner';
+  var r = call(function(cb){ a.kg3PayOrderReverse(id, 'given by mistake', op(), cb); }); ok(!r.err, r.err && r.err.message);
+  eq(a.karigarOwed(k.id).cash, -250, 'only the UPI advance is left'); eq(a.dbAutoTotals(d).out, 400); eq(a.dbAutoTotals(d).in, 400); eq(a.dbNetMovement(d), 0, 'the cash advance and its reversal net to zero');
+  ok(call(function(cb){ a.kg3PayOrderReverse(id, 'given by mistake', op(), cb); }).err, 'once only');
+});
+test('ADV.3 never netted with gold or silver, the salary register or the metal ledger', function(){
+  var a = fresh('owner'); a.dbInit(); var k = pk(a, 'ADV3'); openG(a, k, 'gold', '10', '92'); a.S.orders = [];
+  a.S.karigarPayments = [{id:'kp-old', karigarId:k.id, date:'2026-10-30', type:'gold', amount:2, note:''}];
+  var acBefore = JSON.stringify(a.kgAccount(k.id)); var oBefore = a.karigarOwed(k.id);
+  ok(!adv(a, k.id, '300').err); var o = a.karigarOwed(k.id);
+  eq(o.gold, oBefore.gold, 'gold bucket untouched'); eq(o.silver, oBefore.silver); eq(o.cash, -300);
+  eq(JSON.stringify(a.kgAccount(k.id)), acBefore, 'ledger account (gold, silver, rupees) untouched'); eq(a.S.kgSalary.length, 0, 'not in the salary register');
+  eq(JSON.stringify(a.S.karigarPayments[0]), JSON.stringify({id:'kp-old', karigarId:k.id, date:'2026-10-30', type:'gold', amount:2, note:''}), 'old record byte-identical');
+});
+test('ADV.4 the next order work is adjusted against the advance first; the next payment is capped at what is left; the profile says so', function(){
+  var a = fresh('owner'); a.dbInit(); var k = pk(a, 'ADV4'); a.S.orders = []; ok(!adv(a, k.id, '300').err);
+  var i0 = a.kg3OrderAdvanceInfo(k.id); eq(i0.given, 300); eq(i0.adjusted, 0); eq(i0.outstanding, 300);
+  ok(a.kg3ProfileHtml(k.id).indexOf('owes the shop') !== -1, 'the profile says he owes the shop'); ok(/Advance/.test(a.kg3ProfileHtml(k.id)));
+  owedShop(a, k, 1000);                                                                                    // order work of 1000 is submitted
+  eq(a.karigarOwed(k.id).cash, 700, 'labour 1000 less the advance 300'); var i1 = a.kg3OrderAdvanceInfo(k.id); eq(i1.adjusted, 300); eq(i1.outstanding, 0);
+  ok(/adjusted/i.test(a.kg3ProfileHtml(k.id)), 'profile shows the advance adjusted');
+  ok(a.kg3PayOrderCheck(k.id, 'cash', '800').error, 'capped at the 700 that is really owed'); ok(!a.kg3PayOrderCheck(k.id, 'cash', '700').error);
+  ok(a.kg3PayOrderPreviewText(k.id, 'cash', '700').indexOf('300') !== -1, 'the sheet preview mentions the advance');
+  var recent = a.kg3PayOrderRecentHtml(k.id); ok(/advance/i.test(recent) && /festival advance/.test(recent), 'recent list shows the advance and its reason');
+  var b = fresh('owner'); var k2 = pk(b, 'ADV4b'); b.S.orders = []; ok(b.kg3ProfileHtml(k2.id).indexOf("'advance')") !== -1, 'owner can reach Give advance even when nothing is owed'); b.SAAS.user.role = 'manager'; ok(b.kg3ProfileHtml(k2.id).indexOf("'advance')") === -1, 'not a manager');
+});
+test('ADV.5 closed Day Book day: an advance or its reversal landing on a closed day is restated once by the sweep; a reversal made today leaves the closed day frozen', function(){
+  function setup(){
+    var a = fresh('owner'); a.dbInit(); var k = pk(a, 'ADV5'); a.S.orders = [];
+    ok(!adv(a, k.id, '400').err); a.S.karigarPayments[0].date = '2026-11-01';
+    ok(!call(function(cb){ a.dbCloseDay('2026-11-01', 0, cb); }).err, 'close the advance day');
+    return {a:a, k:k};
+  }
+  var s = setup(), a = s.a; eq(a.dbCloseFor('2026-11-01').autoOut, 400);
+  ok(!call(function(cb){ a.kg3PayOrderReverse(a.S.karigarPayments[0].id, 'given by mistake', op(), cb); }).err);
+  eq(a.dbCloseFor('2026-11-01').autoOut, 400, 'closed totals not rewritten'); eq(call(function(cb){ a.dbSweepRestatements(cb); }).v, 0, 'nothing restated');
+  eq(a.dbNetMovement(a.kgToday()), 400, 'today carries the inflow');
+  var s2 = setup(), b = s2.a; ok(!adv(b, s2.k.id, '100').err); b.S.karigarPayments[1].date = '2026-11-01';
+  eq(call(function(cb){ b.dbSweepRestatements(cb); }).v, 1); var adj = b.S.dayBook.entries.filter(function(e){ return e.kind === 'adjust'; });
+  eq(adj.length, 1); eq(adj[0].dir, 'out'); eq(adj[0].amount, 100); eq(b.dbCloseFor('2026-11-01').autoOut, 500);
+  eq(call(function(cb){ b.dbSweepRestatements(cb); }).v, 0, 'second sweep posts nothing'); eq(b.S.dayBook.entries.filter(function(e){ return e.kind === 'adjust'; }).length, 1);
+  var s3 = setup(), d = s3.a; call(function(cb){ d.kg3PayOrderReverse(d.S.karigarPayments[0].id, 'given by mistake', op(), cb); }); d.S.karigarPayments[1].date = '2026-11-01';
+  eq(call(function(cb){ d.dbSweepRestatements(cb); }).v, 1); var ad = d.S.dayBook.entries.filter(function(e){ return e.kind === 'adjust'; });
+  eq(ad.length, 1); eq(ad[0].dir, 'in'); eq(ad[0].amount, 400); eq(d.dbCloseFor('2026-11-01').autoIn, 400);
+});
+test('ADV.6 reversing an advance after later labour absorbed it, two advances, and advance then plain payment cap', function(){
+  var a = fresh('owner'); a.dbInit(); var k = pk(a, 'ADV6'); a.S.orders = [];
+  ok(!adv(a, k.id, '300').err); ok(!adv(a, k.id, '200').err); eq(a.karigarOwed(k.id).cash, -500); var i = a.kg3OrderAdvanceInfo(k.id); eq(i.given, 500); eq(i.outstanding, 500);
+  owedShop(a, k, 400); eq(a.karigarOwed(k.id).cash, -100); i = a.kg3OrderAdvanceInfo(k.id); eq(i.adjusted, 400, 'labour 400 absorbed 400 of the 500'); eq(i.outstanding, 100);
+  var first = a.S.karigarPayments[0].id; ok(!call(function(cb){ a.kg3PayOrderReverse(first, 'given by mistake', op(), cb); }).err);
+  eq(a.karigarOwed(k.id).cash, 200, 'reversing the 300 advance after the labour: he is owed 400 - 200'); i = a.kg3OrderAdvanceInfo(k.id); eq(i.given, 200); eq(i.adjusted, 200); eq(i.outstanding, 0);
+  ok(a.kg3PayOrderCheck(k.id, 'cash', '201').error, 'plain payment capped at the 200 really owed'); ok(!call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 200, '', op(), cb, {mode:'cash', dbPost:true}); }).err);
+  eq(a.karigarOwed(k.id).cash, 0); ok(a.kg3PayOrderCheck(k.id, 'cash', '1').error, 'nothing owed after the cap is paid');
+  eq(a.kg3OrderAdvanceInfo(k.id).given, 200); eq(a.kg3OrderAdvanceInfo(k.id).labour, 400, 'labour is the same however it was settled');
+  eq(a.dbNetMovement(a.kgToday()), -400, 'out 300+200+200, in 300 (the reversal): no double posting');
+});
+
+test('ADV.7 advance adjusted after earlier payments; owed has no float dust; negative balance reads plainly; the sheet opens on cash', function(){
+  var a = fresh('owner'); a.dbInit(); var k = pk(a, 'ADV7'); owedShop(a, k, 1000);
+  ok(!call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 800, '', op(), cb, {mode:'cash', dbPost:true}); }).err);              // 800 of the 1000 labour paid
+  ok(!adv(a, k.id, '500').err); eq(a.karigarOwed(k.id).cash, -300, 'he owes the shop 300');
+  var i = a.kg3OrderAdvanceInfo(k.id); eq(i.adjusted, 200, 'only 200 of the advance was absorbed by labour not yet paid'); eq(i.outstanding, 300, 'the profile and the balance agree');
+  ok(a.kg3ProfileHtml(k.id).indexOf('he owes the shop \u20b9300') !== -1 || a.kg3ProfileHtml(k.id).indexOf('he owes the shop ₹300') !== -1);
+  ok(/^<b>He owes the shop/.test(a.kg3PayOrderPreviewText(k.id, 'cash', '', false)), 'plain wording on the pay path');
+  var d = fresh('owner'); var k2 = pk(d, 'ADV7b');
+  d.S.orders = [{id:'o1', ordNo:'OR-1', status:'open', items:[{desc:'Ring', metal:'gold', karigarStages:[{task:'A', karigarId:k2.id, status:'submitted', karigarPayMode:'cash', karigarCost:0.7}, {task:'B', karigarId:k2.id, status:'submitted', karigarPayMode:'cash', karigarCost:0.1}]}]}];
+  d.S.karigarPayments = [{id:'kp-x', karigarId:k2.id, date:'2026-10-30', type:'cash', amount:0.8, note:''}];
+  eq(d.kgOrderWork(k2.id).owed.cash, 0, 'rounded to paise'); eq(d.kgOrderWork(k2.id).any, false, 'no empty Order work block');
+  var e = fresh('owner'); var k3 = pk(e, 'ADV7c'); e.S.orders = []; var sheet = ''; e.kgForm = function(o){ sheet = o; };
+  e.kg3PayOrder(k3.id); eq(sheet.fields[1].value, 'cash', 'nothing owed: opens on cash, not silver'); e.kg3PayOrder(k3.id, 'advance'); eq(sheet.fields[0].value, 'advance');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }

@@ -312,7 +312,7 @@ function dbAutoLines(dateKey){
     if(dbDayKey(e.date || e.ts) !== dateKey) return;
     var krev = (e.type === 'reversal'), kn = (findKarigar(base.karigarId) || {}).name || '';
     var kmode2 = base.mode || 'cash', kamt = dbRound(parseFloat(base.amount));
-    var kl = 'Karigar payment' + (kn ? ' - ' + kn : '') + (krev ? ' (reversed)' : '') + (!dbIsCash(kmode2) ? ' (' + kmode2 + ')' : '');
+    var kl = (base.advance ? 'Karigar advance' : 'Karigar payment') + (kn ? ' - ' + kn : '') + (krev ? ' (reversed)' : '') + (!dbIsCash(kmode2) ? ' (' + kmode2 + ')' : '');
     var kline = {dir:(krev ? 'in' : 'out'), amount:kamt, cat:(krev ? 'karigar-payment-reversal' : 'karigar-payment'), label:kl, src:'karigar', srcId:base.karigarId, ref:e.id};
     if(!dbIsCash(kmode2)){ kline.nonCash = true; kline.mode = kmode2; }
     lines.push(kline);
