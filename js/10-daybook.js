@@ -747,7 +747,9 @@ function dbSweepRestatements(cb){
   var dirty = [];
   (S.dayBook.closes||[]).forEach(function(close){
     var t = dbAutoTotals(close.date);
-    if(Math.abs(t.in - close.autoIn) > DB_RESTATE_THRESHOLD || Math.abs(t.out - close.autoOut) > DB_RESTATE_THRESHOLD){
+    // a day with karigar payment lines is restated on ANY real paise difference (a 40 paise payment must not vanish into the rounding allowance)
+    var th = dbAutoLines(close.date).some(function(l){ return l.src === 'karigar'; }) ? 0.005 : DB_RESTATE_THRESHOLD;
+    if(Math.abs(t.in - close.autoIn) > th || Math.abs(t.out - close.autoOut) > th){
       dirty.push({close:close, newIn:t.in, newOut:t.out});
     }
   });

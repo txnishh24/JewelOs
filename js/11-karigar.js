@@ -863,8 +863,11 @@ function kgCreateJob(fields, opId, done){
   }, function(err){ done(err, job, false); });
 }
 
+var KG_JOB_CLOSE_KEYS = ['status', 'closedAt', 'closedBy', 'earnings', 'earningsLog', 'closeOpId', 'reopenedAt'];
+function kgSnapKeys(obj, keys){ var o = {}; keys.forEach(function(k){ o[k] = {has:Object.prototype.hasOwnProperty.call(obj, k), v:obj[k]}; }); return o; }
+function kgRestoreKeys(obj, snap){ Object.keys(snap).forEach(function(k){ if(snap[k].has) obj[k] = snap[k].v; else delete obj[k]; }); }
 function kgCloseJob(jobId, done, opts){
-  var job = kgFindJob(jobId), u = kgUser(), auditId = null, labourEntry = null, pre = null;
+  var job = kgFindJob(jobId), u = kgUser(), auditId = null, labourEntry = null, pre = null, jobSnap = null;
   if(job && opts && opts.opId && job.closeOpId === opts.opId) return done(null, job, true);   // a retry of a close that already went through
   kgTxn('job:' + jobId, function(){
     if(!job) return 'Job not found';
@@ -890,6 +893,7 @@ function kgCloseJob(jobId, done, opts){
     });
     var lab = job.labour, labourPaise = 0;
     if(lab && lab.perGramPaise > 0) labourPaise = Math.round(lab.perGramPaise * (lab.base === 'fine' ? fineRet : net) / 1000);
+    jobSnap = kgSnapKeys(job, KG_JOB_CLOSE_KEYS);
     job.status = 'closed'; job.closedAt = new Date().toISOString(); job.closedBy = u.name; if(opts && opts.opId) job.closeOpId = opts.opId;
     job.earnings = {at:job.closedAt, by:u.name, issuedFine:b.issuedFine, percentFine:b.percentFine, fixedFine:b.fixedFine,
                     earnedFine:b.earnedFine, netMg:net, fineMg:fineRet, labourBase:(lab ? lab.base : ''), labourPaise:labourPaise};
@@ -902,7 +906,7 @@ function kgCloseJob(jobId, done, opts){
     return '';
   }, function(){
     if(pre) pre.undo();
-    job.status = 'open'; delete job.closedAt; delete job.closedBy; delete job.earnings; delete job.closeOpId;
+    if(jobSnap) kgRestoreKeys(job, jobSnap); else job.status = 'open';   // exactly as it was before this close (a reopened job keeps its earnings log)
     if(labourEntry) S.kgSalary = S.kgSalary.filter(function(x){ return x.id !== labourEntry.id; });
     kgUndoAudit(auditId);
   }, function(err){ done(err, job, false); });
@@ -917,7 +921,7 @@ function kgReopenInfo(jobId){
   return {labourPaise:labour, owesShopPaise:(labour > 0 && after < 0 ? -after : 0), needsConfirm:(labour > 0 && after < 0)};
 }
 function kgReopenJob(jobId, done, opts){
-  var job = kgFindJob(jobId), u = kgUser(), auditId = null, oldEarnings = null, reversal = null;
+  var job = kgFindJob(jobId), u = kgUser(), auditId = null, oldEarnings = null, reversal = null, jobSnap = null;
   kgTxn('job:' + jobId, function(){
     if(!job) return 'Job not found';
     if(u.role !== 'owner') return 'Only the owner can reopen a job';
@@ -933,14 +937,14 @@ function kgReopenJob(jobId, done, opts){
       reversal = kgStamp({type:'REVERSAL', opId:'jr-' + kgNewId(), karigarId:job.karigarId, reversesId:jl.id, reason:'Job reopened'});
       S.kgSalary.push(reversal);
     }
+    jobSnap = kgSnapKeys(job, KG_JOB_CLOSE_KEYS);
     job.earningsLog = (job.earningsLog || []).concat(oldEarnings ? [oldEarnings] : []);
     job.earnings = null;
-    delete job.closeOpId; job.status = 'open'; job.reopenedAt = new Date().toISOString();
+    delete job.closeOpId; delete job.closedAt; delete job.closedBy; job.status = 'open'; job.reopenedAt = new Date().toISOString();
     auditId = kgAudit('kg_job_reopen', 'kgJob', jobId, job.jobNo);
     return '';
   }, function(){
-    job.status = 'closed'; delete job.reopenedAt; job.earnings = oldEarnings;
-    if(oldEarnings) job.earningsLog = job.earningsLog.slice(0, -1);
+    if(jobSnap) kgRestoreKeys(job, jobSnap);   // exactly as before: no stray empty earningsLog
     if(reversal) S.kgSalary = S.kgSalary.filter(function(x){ return x.id !== reversal.id; });
     kgUndoAudit(auditId);
   }, function(err){ done(err); });
@@ -1152,10 +1156,15 @@ function kgOpeningLeft(ledger, idx, kid, metal){
   return t;
 }
 // Freeze his terms on the job when he is put on it (until he has metal on it), so a later change of terms never touches work already handed out.
+// Has this karigar any LIVE entry on the job? A reversed entry and the reversal row itself do not count, so reversing his only issue frees his terms again.
+function kgLiveUsed(job, kid){
+  var led = S.kgLedger || [], idx = kgIndex(led);
+  return led.some(function(e){ return e.jobId === job.id && e.karigarId === kid && e.type !== 'REVERSAL' && !idx.reversed[e.id]; });
+}
 function kgSnapTerms(job, kid){
   if(job.model !== 'points' || !kid) return;
   job.terms = job.terms || {};
-  var used = (S.kgLedger || []).some(function(e){ return e.jobId === job.id && e.karigarId === kid; });
+  var used = kgLiveUsed(job, kid);
   if(job.terms[kid] && used) return;
   var ag = kgAgreementFor(kid, kgToday()) || findKarigar(kid) || {};
   var kind = ag.kind === 'salary' ? 'salary' : (ag.kind === 'wastage' ? 'wastage' : '');
@@ -1167,7 +1176,7 @@ function kgTermsFor(job, karigarId){
   if(fr){
     // frozen once he holds metal on the job, so a later change never touches work already handed out. Until then the job follows his terms.
     // A job whose wastage points were never set stays open to them: no receipt can exist without points, so nothing is rewritten.
-    var used = (S.kgLedger || []).some(function(e){ return e.jobId === job.id && e.karigarId === karigarId; });
+    var used = kgLiveUsed(job, karigarId);
     if(used && !(fr.kind === 'wastage' && fr.pointsPu == null)) return fr;
     if(used){ var lv = kgLiveTerms(job, karigarId); return lv.kind === 'wastage' ? lv : fr; }
   }
@@ -1543,14 +1552,20 @@ function kgStatementRange(karigarId, metal, from, to){
   function inSet(e){ return e.karigarId === karigarId && kgMetalOf(e) === metal && KG_STATEMENT_TYPES.indexOf(e.type) !== -1; }
   led.forEach(function(e){
     if(e.type === 'REVERSAL'){ var t = idx.byId[e.reversesId]; if(t && inSet(t)) list.push({e:e, t:t}); }
-    else if(inSet(e)) list.push({e:e});
+    else if(inSet(e)){
+      // a proposed loss is two rows: the proposal (no money, stays on its own day, so an old range prints the same forever) and, once the owner approves, the approval (the money, on the approval day)
+      if(e.type === 'LOSS' && e.proposed){
+        list.push({e:e, phase:'proposal'});
+        var ap0 = apr[e.id]; if(ap0 && ap0.decision === 'approve') list.push({e:e, phase:'approval', ap:ap0});
+      } else list.push({e:e});
+    }
   });
-  list.sort(function(a, b){ return String(a.e.ts).localeCompare(String(b.e.ts)); });
-  function dOf(x, cut){ return x.t ? -kgRawDelta(x.t, apr, cut) : kgRawDelta(x.e, apr, cut); }
+  list.sort(function(a, b){ return String(a.ap ? a.ap.ts : a.e.ts).localeCompare(String(b.ap ? b.ap.ts : b.e.ts)); });
+  function dOf(x, cut){ if(x.phase === 'proposal') return 0; if(x.phase === 'approval') return -x.e.fineMg; return x.t ? -kgRawDelta(x.t, apr, cut) : kgRawDelta(x.e, apr, cut); }
   function beforeCut(d){ return d < from; }
   function toCut(d){ return d <= to; }
   // the day a row belongs to: a proposed loss that the owner approved counts on the approval day (so no period loses it); everything else on its own day
-  function dayOf(x){ var ap = (!x.t && x.e.type === 'LOSS' && x.e.proposed) ? apr[x.e.id] : null; return (ap && ap.decision === 'approve') ? ap.date : x.e.date; }
+  function dayOf(x){ return x.phase === 'approval' ? x.ap.date : x.e.date; }
   list.forEach(function(x){ if(dayOf(x) < from) before += dOf(x, beforeCut); });
   run = before;
   list.forEach(function(x){
@@ -1562,8 +1577,8 @@ function kgStatementRange(karigarId, metal, from, to){
     if(x.t) tOther += d; else if(e.type === 'ISSUE') tGiven += d; else if(e.type === 'RECEIPT' || e.type === 'SCRAP') tBack -= d; else tOther += d;
     var state = 'ok';
     if(x.t) state = 'reversal';
-    else if(e.type === 'LOSS' && e.proposed){ var ap = apr[e.id]; state = (!ap || !toCut(ap.date)) ? 'pending' : (ap.decision === 'approve' ? 'ok' : 'rejected'); }
-    rows.push({entry:e, target:x.t || null, date:dayOf(x), type:e.type, jobNo:(job ? job.jobNo : ''), state:state, reason:(x.t ? (e.reason || '') : ''), deltaMg:d, balanceMg:run});
+    else if(x.phase === 'proposal'){ var ap = apr[e.id]; state = (!ap || !toCut(ap.date)) ? 'pending' : (ap.decision === 'approve' ? 'ok' : 'rejected'); }
+    rows.push({entry:e, phase:(x.phase || ''), target:x.t || null, date:dayOf(x), type:e.type, jobNo:(job ? job.jobNo : ''), state:state, reason:(x.t ? (e.reason || '') : ''), deltaMg:d, balanceMg:run});
   });
   return {karigarId:karigarId, metal:metal, from:from, to:to, openingMg:before, closingMg:run, issuedMg:tGiven, returnedMg:tBack, otherMg:tOther, rows:rows};
 }
@@ -1571,7 +1586,8 @@ function kgStatementRange(karigarId, metal, from, to){
 function kgOrderWork(karigarId){
   if(typeof karigarMetalHeld !== 'function') return {held:{gold:0, silver:0}, owed:{cash:0, gold:0, silver:0}, queue:[], any:false};
   var held = karigarMetalHeld(karigarId), owed = karigarOwed(karigarId), queue = karigarQueue(karigarId);
-  owed = {cash:Math.round(owed.cash * 100) / 100, gold:Math.round(owed.gold * 1000) / 1000, silver:Math.round(owed.silver * 1000) / 1000};   // whole paise / mg: 0.7 + 0.1 - 0.8 is zero, not -1e-16
+  function rnd(x, unit){ var v = Math.round(x * unit) / unit; return v === 0 ? 0 : v; }   // -0 === 0, so a negative zero comes back as plain 0
+  owed = {cash:rnd(owed.cash, 100), gold:rnd(owed.gold, 1000), silver:rnd(owed.silver, 1000)};   // whole paise / mg: 0.7 + 0.1 - 0.8 is zero, not -1e-16
   return {held:held, owed:owed, queue:queue, any:(queue.length > 0 || held.gold > 0 || held.silver > 0 || owed.cash !== 0 || owed.gold !== 0 || owed.silver !== 0)};
 }
 // Order numbers (old way) where this job's karigars also have a stage: the one place two systems could confuse a person.
@@ -2787,7 +2803,7 @@ function kg3StatementData(kid, metal, from, to){
   }
   var s = kgStatementRange(kid, metal, from, to);
   return {metal:metal, from:from, to:to, openingText:kgFmtG(s.openingMg), closingText:kgFmtG(s.closingMg), issuedText:kgFmtG(s.issuedMg), returnedText:kgFmtG(s.returnedMg), otherText:(s.otherMg !== 0 ? kgSigned(s.otherMg, kgFmtG) : ''),
-    rows:s.rows.map(function(x){ return {id:x.entry.id, type:x.type, date:x.date, label:kgEntryWords(x.entry, x.target) + (x.jobNo ? ' (' + x.jobNo + ')' : ''), state:x.state, deltaText:kgSigned(x.deltaMg, kgFmtG), balText:kgFmtG(x.balanceMg), note:(x.reason ? 'Reason: ' + x.reason : (x.entry.note || ''))}; })};
+    rows:s.rows.map(function(x){ return {id:x.entry.id, type:x.type, date:x.date, label:(x.phase === 'proposal' ? 'Loss proposed' : (x.phase === 'approval' ? 'Loss approved' : kgEntryWords(x.entry, x.target))) + (x.jobNo ? ' (' + x.jobNo + ')' : ''), state:x.state, deltaText:kgSigned(x.deltaMg, kgFmtG), balText:kgFmtG(x.balanceMg), note:(x.reason ? 'Reason: ' + x.reason : (x.entry.note || ''))}; })};
 }
 function kg3StatementHtml(kid){
   var k = findKarigar(kid); if(!k) return '<div class="kg2-empty">Karigar not found.</div>';
@@ -2977,6 +2993,8 @@ function kg3OrderOwedText(type, n){
   return (Math.round(n * 1000) / 1000) + ' g ' + type;
 }
 function kg3PayOrderCheck(kid, type, text, advance){
+  if(typeof type !== 'string') return {error:'Choose cash, gold or silver'};
+  if(typeof text !== 'string' && typeof text !== 'number') return {error:'Enter the amount as a plain number'};
   if(!Object.prototype.hasOwnProperty.call(KG_PAY_UNITS, type)) return {error:'Choose cash, gold or silver'};
   if(advance === true && type !== 'cash') return {error:'An advance is money only'};
   var t = String(text == null ? '' : text).trim(), cash = type === 'cash';
@@ -3000,7 +3018,21 @@ function kgPayId(prefix){
 // The one hardened core for paying a karigar for old-way order work. opts: {legacy:true} = the old Record payment button (the record keeps
 // its old fields, posts nothing to the Day Book); otherwise {mode:'cash'|'UPI'|'Bank', dbPost:true} = the new sheet (cash/UPI/Bank is kept and
 // the payment posts a Karigar payment line to the Day Book, derived at read time in js/10-daybook.js).
+// One operation id, one save: a repeat that arrives while the first save is still in flight waits for it and hears the same answer
+// (it used to see the record already in the list and say OK before the save had landed).
+var _kgPayBusy = {};
+function kgPayOnce(opId, done, run){
+  if(typeof opId !== 'string' || !opId) return done(new Error('Missing operation id. Nothing was saved.'));
+  if(_kgPayBusy[opId]){ _kgPayBusy[opId].push(done); return; }
+  _kgPayBusy[opId] = [done];
+  run(function(err){ var waiting = _kgPayBusy[opId] || []; delete _kgPayBusy[opId]; waiting.forEach(function(f){ f(err); }); });
+}
 function kg3PayOrderSave(kid, type, amount, note, opId, done, opts){
+  if(typeof type !== 'string') return done(new Error('Choose cash, gold or silver'));
+  if(typeof amount !== 'string' && typeof amount !== 'number') return done(new Error('Enter the amount as a plain number'));
+  return kgPayOnce(opId, done, function(finish){ kg3PayOrderSaveNow(kid, type, amount, note, opId, finish, opts); });
+}
+function kg3PayOrderSaveNow(kid, type, amount, note, opId, done, opts){
   opts = opts || {};   // opts.advance:true (owner only, cash only, opts.reason 5+ letters, opts.confirmed:true) = money lent to him: it makes what he is owed negative
   var u = kgUser(), added = null, auditId = null;
   S.karigarPayments = S.karigarPayments || [];
@@ -3053,6 +3085,9 @@ function kg3PayOrderPreviewText(kid, type, text, advance){
 // Reverse an order payment (owner, with a reason). The payment stays in the list; a 'reversal' record points at it, owed comes back
 // (karigarOwed skips reversed payments) and, if the payment posted to the Day Book, the same amount goes back IN on the reversal day.
 function kg3PayOrderReverse(paymentId, reason, opId, done){
+  return kgPayOnce(opId, done, function(finish){ kg3PayOrderReverseNow(paymentId, reason, opId, finish); });
+}
+function kg3PayOrderReverseNow(paymentId, reason, opId, done){
   var u = kgUser(), target = null, rec = null, auditId = null;
   S.karigarPayments = S.karigarPayments || [];
   for(var i = 0; i < S.karigarPayments.length; i++){

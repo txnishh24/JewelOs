@@ -1079,7 +1079,7 @@ function renderKarigarList(){
   if(typeof kg3On === 'function' && kg3On()){ wrap.innerHTML = ''; if(typeof renderKgV2 === 'function') renderKgV2(); return; }
   var monthKey = dbDayKey(new Date()).slice(0,7);
   var cards = (S.karigars||[]).map(function(k){
-    var owed = karigarOwed(k.id);
+    var owed = (typeof kgOrderWork === 'function') ? kgOrderWork(k.id).owed : karigarOwed(k.id);   // whole paise / mg, never -0
     var month = karigarStats(k.id, monthKey);
     var life = karigarStats(k.id);
     var queue = karigarQueue(k.id);
@@ -1145,10 +1145,12 @@ function promptKarigarPayment(karigarId){
   var type = prompt('Payment type: cash, gold, or silver?', 'cash');
   type = (type||'').trim().toLowerCase();
   if(!type || ['cash','gold','silver'].indexOf(type)===-1){ toast('Cancelled — type must be cash, gold, or silver'); return; }
-  var amount = parseFloat(prompt(type==='cash' ? 'Amount paid (₹)?' : 'Weight handed over (grams)?'));
-  if(!(amount > 0) || !isFinite(amount)){ toast('Cancelled — enter a positive amount'); return; }
+  var rawIn = prompt(type==='cash' ? 'Amount paid (₹)?' : 'Weight handed over (grams)?');
+  var rawAmt = String(rawIn == null ? '' : rawIn).trim();
+  var amount = parseFloat(rawAmt);
+  if(!(type==='cash' ? /^\d+(\.\d{1,2})?$/ : /^\d+(\.\d{1,3})?$/).test(rawAmt) || !(amount > 0) || !isFinite(amount)){ toast('Cancelled — enter a positive amount as a plain number (like 1500 or 1500.50)'); return; }
   var note = prompt('Note (optional):','') || '';
-  if(!confirm('Record '+(type==='cash' ? fmt(amount) : amount+'g '+type)+' to this karigar? This cannot be undone.')) { toast('Cancelled'); return; }
+  if(!confirm('Record '+(type==='cash' ? fmt(amount) : amount+'g '+type)+' to this karigar?')) { toast('Cancelled'); return; }
   recordKarigarPayment(karigarId, type, amount, note, function(err){
     if(err){ toast(err.message || 'Could not record the payment'); return; }
     renderKarigarList();
