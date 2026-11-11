@@ -1356,7 +1356,7 @@ console.log('\nKarigar redesign batch 6 - rupee opening and statement, payments,
 test('rupee opening balance: owner only, once, you-owe or he-owes, reversible', function(){
   var a = fresh('owner'); var k = pk(a, 'R1');
   function open(dir, amt){ return call(function(cb){ a.kgAddRupeeOpening({karigarId:k.id, dir:dir, amountText:amt, note:'from the old khata', opId:op()}, cb); }); }
-  ok(open('sideways', '1').err && /owe him or he owes you/.test(open('sideways', '1').err.message), 'direction must be owe or advance');
+  ok(open('sideways', '1').err && /owe him or he owes the shop/.test(open('sideways', '1').err.message), 'direction must be owe or advance');
   var o = open('owe', '12500'); ok(!o.err, o.err && o.err.message); eq(a.kgSalaryBalance(k.id).payable, 1250000);
   ok(open('owe', '1').err, 'a second opening is refused');
   ok(!call(function(cb){ a.kgAddSalary({type:'REVERSAL', opId:op(), karigarId:k.id, reversesId:o.v.id, reason:'wrong figure typed'}, cb); }).err); eq(a.kgSalaryBalance(k.id).payable, 0);
@@ -2411,6 +2411,25 @@ test('TC.D19 the Rupees tile and the order-work line say the same thing when he 
 test('TC.D20 print: the date line never wraps, a leftover toast is hidden', function(){
   var css = require('fs').readFileSync(__dirname + '/../index.html', 'utf8');
   ok(/\.kg3-printdates\s*\{[^}]*white-space:\s*nowrap/.test(css), 'dates nowrap'); ok(/body\.kg-printing\s+\.toast\s*\{[^}]*display:\s*none/.test(css), 'toast hidden in print');
+});
+
+console.log('\nTO-CLAUDE-CODE (11 Nov) - group E cancel under More, Owes tile, one phrase');
+
+test('TE.21 job screen: Cancel job sits under More, owner only, open job with nothing issued', function(){
+  var a = fresh('owner'); var k = pk(a, 'TE21'); trust(a, k); var j = pjob(a, k); a.kg3Switch(true); a.kg3Open(k.id); a._kg2.jobId = j.id; a._kg2.more = '';
+  var h = a.kg3JobHtml(j); ok(h.indexOf('kg2Cancel(') === -1, 'not up front');
+  a._kg2.more = j.id; h = a.kg3JobHtml(j); ok(h.indexOf('kg2Cancel(') !== -1, 'under More');
+  issueV(a, j, '10', '92'); h = a.kg3JobHtml(j); ok(h.indexOf('kg2Cancel(') === -1, 'hidden once metal is issued');
+  var b = fresh('owner'); var k2 = pk(b, 'TE21b'); var j2 = pjob(b, k2); b.SAAS.user.role = 'manager'; b.kg3Switch(true); b._kg2.more = j2.id; ok(b.kg3JobHtml(j2).indexOf('kg2Cancel(') === -1, 'manager does not see it');
+  var c = fresh('owner'); var k3 = pk(c, 'TE21c'); openG(c, k3, 'gold', '50', '92'); var j3 = pjob(c, k3); receiptV(c, j3, {gross:'5', purity:'92'});
+  var r = call(function(cb){ c.kgCancelJob(j3.id, 'made by mistake', cb); }); ok(r.err, 'a live receipt still refuses with a message');
+});
+test('TE.22/23 Rupees tile says Owes when he owes the shop; one phrase "he owes the shop"', function(){
+  var a = fresh('owner'); var t = a.kg3RupeeTile({payablePaise:0}, -300); ok(/Owes/.test(t) && t.indexOf('300') !== -1 && t.indexOf('he owes the shop') !== -1, t);
+  var t2 = a.kg3RupeeTile({payablePaise:-50000}, 0); ok(/Owes/.test(t2) && t2.indexOf('he owes the shop') !== -1, t2);
+  eq(a.kg3RupeeTile({payablePaise:0}, 0).indexOf('Owes'), -1);
+  var fs = require('fs'), src = fs.readFileSync(__dirname + '/../js/11-karigar.js', 'utf8') + fs.readFileSync(__dirname + '/../js/05-auth-login.js', 'utf8');
+  ok(!/owes you['" ]/i.test(src.replace(/\/\/.*$/mg, '')), 'no owes-you left in the screens');
 });
 
 console.log('\nTO-CLAUDE-CODE (11 Nov) - invariant gap tests (money paths)');

@@ -663,7 +663,7 @@ function kgValidateSalary(e, ctx){
   if(['ACCRUAL','ADVANCE','PAYMENT','DEDUCTION','OPENING'].indexOf(e.type) === -1) return 'Unknown entry type';
   if(!(e.amountPaise > 0) || Math.floor(e.amountPaise) !== e.amountPaise) return 'Amount is not valid';
   if(e.type === 'OPENING'){
-    if(e.dir !== 'owe' && e.dir !== 'advance') return 'Say whether you owe him or he owes you';
+    if(e.dir !== 'owe' && e.dir !== 'advance') return 'Say whether you owe him or he owes the shop';
     if(String(e.note || '').trim().length < 3) return 'A note is required';
     var gone = {};
     all.forEach(function(x){ if(x.type === 'REVERSAL') gone[x.reversesId] = true; });
@@ -1606,7 +1606,7 @@ function kgOrderOverlap(job){
 
 
 // ── Rupee opening balance, rupee statement, scrap refining lots (batch 6) ──
-// v: {karigarId, dir:'owe'|'advance', amountText, note, opId}. dir 'owe' = you owe him, 'advance' = he owes you. Owner only, once, reversible.
+// v: {karigarId, dir:'owe'|'advance', amountText, note, opId}. dir 'owe' = you owe him, 'advance' = he owes the shop. Owner only, once, reversible.
 function kgAddRupeeOpening(v, done){
   var p = kgParsePaise(v.amountText);
   if(p === null) return done(new Error('Enter the amount in rupees'));
@@ -2687,8 +2687,9 @@ function kg3Tile(label, value, sub, cls){
 function kg3RupeeTile(p, orderCash){
   var adv = (orderCash < 0) ? 'he owes the shop ' + escHtml(fmt(-orderCash)) + ' (advance on order work)' : '';   // the same words as the order-work line below
   if(p.payablePaise > 0) return kg3Tile('You owe him', escHtml(kgFmtRs(p.payablePaise)), adv, 'due');
-  if(p.payablePaise < 0) return kg3Tile('He owes you', escHtml(kgFmtRs(-p.payablePaise)), adv, 'warn');
-  return kg3Tile('Rupees', escHtml(kgFmtRs(0)), adv || 'nothing owed', adv ? 'warn' : '');
+  if(p.payablePaise < 0) return kg3Tile('Rupees', 'Owes ' + escHtml(kgFmtRs(-p.payablePaise)), 'he owes the shop ' + escHtml(kgFmtRs(-p.payablePaise)) + (adv ? '<br>' + adv : ''), 'warn');
+  if(adv) return kg3Tile('Rupees', 'Owes ' + escHtml(fmt(-orderCash)), adv, 'warn');   // never a red zero rupees while he owes the shop
+  return kg3Tile('Rupees', escHtml(kgFmtRs(0)), 'nothing owed', '');
 }
 function kg3HasMetal(kid, metal){
   if(kgMetalAccount(kid, metal).totalMg !== 0) return true;
@@ -2792,7 +2793,7 @@ function kgEntryWords(e, target){
   if(e.type === 'TRANSFER_OUT') return 'Handed to ' + (kgTransferPartner(e) || 'the next karigar');
   if(e.type === 'TRANSFER_IN') return 'Taken over from ' + (kgTransferPartner(e) || 'the previous karigar');
   if(e.type === 'SCRAP' && e.kind) return e.kind.charAt(0).toUpperCase() + e.kind.slice(1) + ' returned';
-  if(e.type === 'OPENING' && e.dir) return e.dir === 'owe' ? 'Opening: you owe him' : 'Opening: he owes you';
+  if(e.type === 'OPENING' && e.dir) return e.dir === 'owe' ? 'Opening: you owe him' : 'Opening: he owes the shop';
   if(e.type === 'LOSS' && e.settle === 'cash') return 'Loss (cash bill)';
   return KG_WORDS[e.type] || e.type;
 }
@@ -2895,7 +2896,7 @@ function kg3JobHtml(job){
       kg2Btn('Scrap / dust', 'kg3Scrap(' + kg2Q(job.id) + ')') + kg2Btn('Close job', 'kg3Close(' + kg2Q(job.id) + ')') + kg2Btn(_kg2.more === job.id ? 'Less' : 'More', 'kg3More()') + '</div>';
     if(_kg2.more === job.id){
       var carried = 0; kgCarryLots(job.karigarId, metal).forEach(function(l){ carried += l.remainingMg; });
-      html += '<div class="kg2-row" id="kg3-more">' + kg2Btn('Hand over to another karigar', 'kg3Transfer(' + kg2Q(job.id) + ')') + kg2Btn('+ Stage', 'kg3AddStage(' + kg2Q(job.id) + ')') +
+      html += '<div class="kg2-row" id="kg3-more">' + (u.role === 'owner' && jb.issuedFine === 0 ? kg2Btn('Cancel job', 'kg2Cancel(' + kg2Q(job.id) + ')') : '') + kg2Btn('Hand over to another karigar', 'kg3Transfer(' + kg2Q(job.id) + ')') + kg2Btn('+ Stage', 'kg3AddStage(' + kg2Q(job.id) + ')') +
         (carried > 0 ? kg2Btn('Use carried balance', 'kg3UseCarry(' + kg2Q(job.id) + ')') : '') + '</div>';
     }
   } else if(job.status === 'closed' && u.role === 'owner'){
@@ -3263,7 +3264,7 @@ function kg3Opening(kid){
 function kg3RupeeOpening(kid){
   var k = findKarigar(kid); if(!k) return;
   kgForm({title:'Rupee opening for ' + k.name, submitLabel:'Save', doneToast:'\u2713 Saved',
-    fields:[{id:'dir', label:'Who owes whom', type:'select', options:[['owe', 'You owe him'], ['advance', 'He owes you (advance)']], value:'owe'},
+    fields:[{id:'dir', label:'Who owes whom', type:'select', options:[['owe', 'You owe him'], ['advance', 'He owes the shop (advance)']], value:'owe'},
       {id:'amt', label:'Amount (\u20b9)', mode:'decimal'}, {id:'note', label:'Note (required, e.g. from his khata)'}],
     onSubmit:function(v, fin){ kgAddRupeeOpening({karigarId:kid, dir:v.dir, amountText:v.amt, note:v.note, opId:v.opId}, function(err){ fin(err); }); }});
 }

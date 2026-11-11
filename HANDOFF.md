@@ -76,6 +76,17 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-11 (two-hundred-and-third entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE.md group E (items 21-23) on branch `karigar-review-fixes` (NOT merged, NOT deployed, no migration, ledger flag untouched)
+
+- 21: job screen has "Cancel job" under More (owner only, open job, nothing issued); kgCancelJob still refuses with a message if any live entry exists.
+- 22: Rupees tile headline is "Owes X" (not a red 0) when he owes the shop.
+- 23: one phrase "he owes the shop" in tile, karigar list, opening row, advance option, error text.
+- Tests: karigar-v2 250 pass (2 new: TE.21, TE.22/23), regression 493, ledger-client 91, SQL suites and check scripts passed, 0 failed. bug-pattern-reviewer: no findings.
+- NOT verified: no browser click-through, no e2e, no phone.
+
+→ FOR COWORK: review group E on `karigar-review-fixes`; nothing else pending.
+→ FOR TANISH: look at Cancel job under More and the Owes tile on the phone.
+
 ### 2026-11-11 (two-hundred-and-second entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE.md group D (items 18-20) on branch `karigar-review-fixes` (NOT merged, NOT deployed, no migration, ledger flag untouched)
 
 - Groups A, B, C of the same file were already committed (cd63d05, a7374be, 5bd67ce). This entry is group D plus small extras.
