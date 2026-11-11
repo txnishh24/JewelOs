@@ -502,10 +502,11 @@ function kgCancelJob(jobId, reason, done){
     var b = kgJobBalance(job, S.kgLedger || []);
     if(b.issuedFine !== 0) return 'Gold has been issued on this job - return it and close the job instead';
     if(b.pendingLoss > 0) return 'A proposed loss is waiting - reject it first';
-    var cIdx = kgIndex(S.kgLedger || []);
+    // Any live entry that touches the account blocks a cancel (an owner ADJUST on an empty job used to slip through and move the gold account).
+    var cIdx = kgIndex(S.kgLedger || []), cWords = {ISSUE:'an issue', CARRY_APPLY:'a carried balance used', TRANSFER_IN:'a hand-over', RECEIPT:'a receipt', SCRAP:'scrap', ADJUST:'an owner adjustment', LOSS:'a loss'};
     for(var ci = 0; ci < (S.kgLedger || []).length; ci++){
       var ce = S.kgLedger[ci];
-      if(ce.jobId === job.id && (ce.type === 'RECEIPT' || ce.type === 'SCRAP') && ce.openingUseMg > 0 && !cIdx.reversed[ce.id]) return 'A receipt or scrap on this job drew from his opening balance - reverse it first';
+      if(ce.jobId === job.id && cWords[ce.type] && !cIdx.reversed[ce.id]) return 'This job has ' + cWords[ce.type] + ' on it - reverse it first (or close the job instead of cancelling it)';
     }
     job.status = 'cancelled'; job.cancelledAt = new Date().toISOString(); job.cancelledBy = u.name; job.cancelReason = String(reason).trim();
     auditId = kgAudit('kg_job_cancel', 'kgJob', jobId, job.jobNo + ': ' + job.cancelReason);
@@ -624,7 +625,7 @@ function kgValidateEntry(e, ctx){
     if(tgt.type === 'REVERSAL' || tgt.type === 'APPROVAL') return 'This entry cannot be reversed';
     if((tgt.type === 'CARRY_OUT' || tgt.type === 'TRANSFER_OUT' || tgt.type === 'TRANSFER_IN') && !e.pair) return 'This entry is reversed together with its pair';
     if(idx.reversed[tgt.id]) return 'Already reversed';
-    if(job.model === 'points' && (tgt.type === 'TRANSFER_IN' || tgt.type === 'ISSUE' || tgt.type === 'CARRY_APPLY') && kgKarigarJobFine(job, ledger, tgt.karigarId, idx) < tgt.fineMg) return 'He has already returned or passed on some of that metal - reverse that first';
+    if(job.model === 'points' && (tgt.type === 'TRANSFER_IN' || tgt.type === 'ISSUE' || tgt.type === 'CARRY_APPLY') && kgFreeOnJob(job, ledger, idx, tgt.karigarId) < tgt.fineMg) return 'He has already returned or passed on some of that metal - reverse that first';
     if(tgt.type === 'SCRAP'){ for(var rc = 0; rc < ledger.length; rc++) if(ledger[rc].type === 'REFINE_CREDIT' && ledger[rc].refId === tgt.id && !idx.reversed[ledger[rc].id]) return 'Reverse the assay result of this lot first'; }
     if(tgt.type === 'LOSS' && tgt.settle === 'cash' && kgLiveLossBill(ctx.salary, tgt.id)) return 'Reverse the loss bill first';
     if(String(e.reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
@@ -906,12 +907,23 @@ function kgCloseJob(jobId, done, opts){
     kgUndoAudit(auditId);
   }, function(err){ done(err, job, false); });
 }
-function kgReopenJob(jobId, done){
+// What reopening would do to his rupee account: the job's labour is reversed; if he was already paid it, he will owe the shop that much.
+function kgReopenInfo(jobId){
+  var job = kgFindJob(jobId), gone = {}, jl = null;
+  if(!job) return {labourPaise:0, owesShopPaise:0, needsConfirm:false};
+  (S.kgSalary || []).forEach(function(x){ if(x.type === 'REVERSAL') gone[x.reversesId] = true; });
+  (S.kgSalary || []).forEach(function(x){ if(x.type === 'JOB_LABOUR' && x.jobId === job.id && !gone[x.id]) jl = x; });
+  var labour = jl ? jl.amountPaise : 0, after = kgSalaryBalance(job.karigarId).payable - labour;
+  return {labourPaise:labour, owesShopPaise:(labour > 0 && after < 0 ? -after : 0), needsConfirm:(labour > 0 && after < 0)};
+}
+function kgReopenJob(jobId, done, opts){
   var job = kgFindJob(jobId), u = kgUser(), auditId = null, oldEarnings = null, reversal = null;
   kgTxn('job:' + jobId, function(){
     if(!job) return 'Job not found';
     if(u.role !== 'owner') return 'Only the owner can reopen a job';
     if(job.status !== 'closed') return 'Job is not closed';
+    var ri = kgReopenInfo(jobId);
+    if(ri.needsConfirm && !(opts && opts.confirmed === true)) return 'Labour of ' + kgFmtRs(ri.labourPaise) + ' was already paid. Reopening reverses it and he will owe the shop ' + kgFmtRs(ri.owesShopPaise) + '. Confirm to go on.';
     oldEarnings = job.earnings || null;
     var sal = S.kgSalary || [], gone = {};
     sal.forEach(function(x){ if(x.type === 'REVERSAL') gone[x.reversesId] = true; });
@@ -1224,7 +1236,7 @@ function kgValidateV3(e, ctx, idx){
     bad = kgMetalEntryOk(e); if(bad) return bad;
     if(!e.voucherId) return 'A transfer needs a voucher';
     if(t === 'TRANSFER_OUT'){
-      if(kgKarigarJobFine(job, ledger, e.karigarId) < e.fineMg) return 'He does not hold that much on this job';
+      if(kgFreeOnJob(job, ledger, idx, e.karigarId) < e.fineMg) return 'He does not hold that much on this job (metal kept for a loss that is waiting for approval does not count)';
       return '';
     }
     var out = null;
@@ -1240,7 +1252,7 @@ function kgValidateV3(e, ctx, idx){
   if(t === 'CARRY_OUT'){
     if(!(e.fineMg > 0) || Math.floor(e.fineMg) !== e.fineMg) return 'Carry weight is not valid';
     if(!e.carryId) return 'Carry id missing';
-    if(kgKarigarJobFine(job, ledger, e.karigarId) < e.fineMg) return 'He does not hold that much on this job';
+    if(kgFreeOnJob(job, ledger, idx, e.karigarId) < e.fineMg) return 'He does not hold that much on this job (metal kept for a loss that is waiting for approval does not count)';
     return '';
   }
   if(t === 'CARRY_APPLY'){
@@ -2290,6 +2302,17 @@ function kg2Close(jobId){
   go();
 }
 function kg2Reopen(jobId){
+  var ri = kgReopenInfo(jobId);
+  if(ri.needsConfirm){
+    kgForm({title:'Reopen this job?', submitLabel:'Reopen job', doneToast:'Job reopened',
+      fields:[{id:'ok', label:'I understand: the labour is reversed and he will owe the shop ' + kgFmtRs(ri.owesShopPaise), type:'check'}],
+      preview:function(){ return 'Labour of <b>' + escHtml(kgFmtRs(ri.labourPaise)) + '</b> was already paid to him. Reopening reverses it, and he will owe the shop <b>' + escHtml(kgFmtRs(ri.owesShopPaise)) + '</b>.'; },
+      onSubmit:function(v, fin){
+        if(!v.ok) return kg2Err('Tick the box to confirm', fin);
+        kgReopenJob(jobId, function(err){ fin(err); }, {confirmed:true});
+      }});
+    return;
+  }
   kgReopenJob(jobId, function(err){
     if(err){ toast(err.message); return; }
     renderKgV2(); toast('Job reopened');

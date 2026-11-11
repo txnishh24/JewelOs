@@ -1862,7 +1862,7 @@ test('R3.A3 openingUseMg is refused on every entry type except RECEIPT and SCRAP
 test('R3.A4 a job cannot be cancelled while a receipt or scrap on it drew from the opening balance', function(){
   var a = fresh('owner'); var k = pk(a, 'A4'); openG(a, k, 'gold', '10', '92'); var j = pjob(a, k);
   var r = receiptV(a, j, {gross:'2', purity:'92'}); ok(r.entry.openingUseMg > 0);
-  var c = call(function(cb){ a.kgCancelJob(j.id, 'made by mistake', cb); }); ok(c.err && /opening/i.test(c.err.message), c.err && c.err.message);
+  var c = call(function(cb){ a.kgCancelJob(j.id, 'made by mistake', cb); }); ok(c.err && /receipt/i.test(c.err.message), c.err && c.err.message);   // 11 Nov: any live receipt blocks a cancel, not only one that drew opening
   eq(j.status, 'open'); eq(a.kgAccount(k.id).gold.openingMg, 9200 - r.entry.openingUseMg);
   ok(!call(function(cb){ a.kgReverse(r.entry.id, 'weighed the wrong ring', op(), cb); }).err);
   ok(!call(function(cb){ a.kgCancelJob(j.id, 'made by mistake', cb); }).err, 'allowed once the draw is reversed'); eq(a.kgAccount(k.id).gold.openingMg, 9200);
@@ -2229,6 +2229,46 @@ test('ADV.7 advance adjusted after earlier payments; owed has no float dust; neg
   eq(d.kgOrderWork(k2.id).owed.cash, 0, 'rounded to paise'); eq(d.kgOrderWork(k2.id).any, false, 'no empty Order work block');
   var e = fresh('owner'); var k3 = pk(e, 'ADV7c'); e.S.orders = []; var sheet = ''; e.kgForm = function(o){ sheet = o; };
   e.kg3PayOrder(k3.id); eq(sheet.fields[1].value, 'cash', 'nothing owed: opens on cash, not silver'); e.kg3PayOrder(k3.id, 'advance'); eq(sheet.fields[0].value, 'advance');
+});
+
+console.log('\nTO-CLAUDE-CODE (11 Nov) - group A money, group B smaller maths');
+
+test('TC.A1 a job cannot be cancelled while any live issue, carry, transfer, receipt, scrap, adjust or loss entry exists', function(){
+  var a = fresh('owner'); var k = pk(a, 'TA1'); openG(a, k, 'gold', '10', '92'); var j = pjob(a, k);                      // points job, nothing issued
+  var ad = call(function(cb){ a.kgAddEntry({type:'ADJUST', opId:op(), jobId:j.id, karigarId:k.id, fineMg:-2000, reason:'count corrected'}, cb); }); ok(!ad.err, ad.err && ad.err.message);
+  var before = a.kgAccount(k.id).gold.totalMg;
+  var c = call(function(cb){ a.kgCancelJob(j.id, 'made by mistake', cb); }); ok(c.err && /entries|reverse/i.test(c.err.message), c.err && c.err.message);
+  eq(j.status, 'open'); eq(a.kgAccount(k.id).gold.totalMg, before, 'the gold account did not move');
+  ok(!call(function(cb){ a.kgReverse(ad.v.id, 'entered by mistake', op(), cb); }).err);
+  ok(!call(function(cb){ a.kgCancelJob(j.id, 'made by mistake', cb); }).err, 'allowed once the entry is reversed');
+  var b = fresh('owner'); var k2 = pk(b, 'TA1b'); var j2 = pjob(b, k2); issueV(b, j2, '10', '92');
+  ok(call(function(cb){ b.kgCancelJob(j2.id, 'made by mistake', cb); }).err, 'an issue blocks it too');
+  var c3 = fresh('owner'); var k3 = pk(c3, 'TA1c'); var j3 = pjob(c3, k3); issueV(c3, j3, '10', '92'); c3.SAAS.user.role = 'manager';
+  call(function(cb){ c3.kgAddEntry({type:'LOSS', opId:op(), jobId:j3.id, karigarId:k3.id, metal:'gold', fineMg:1000, category:'filing', reason:'filing loss here', proposed:true}, cb)});
+  c3.SAAS.user.role = 'owner'; ok(call(function(cb){ c3.kgCancelJob(j3.id, 'made by mistake', cb); }).err, 'a pending loss blocks it too');
+});
+test('TC.A2 a pending loss is never starved: reversing the issue, carrying out or handing over more than he holds free is refused', function(){
+  var a = fresh('owner'); var A = pk(a, 'TA2a'); var B = pk(a, 'TA2b'); var j = pjob(a, A); var it = issueV(a, j, '10', '99.9');           // 9.990 fine
+  a.SAAS.user.role = 'manager';
+  var pr = call(function(cb){ a.kgAddEntry({type:'LOSS', opId:op(), jobId:j.id, karigarId:A.id, metal:'gold', fineMg:4000, category:'filing', reason:'filing loss here', proposed:true}, cb); }); ok(!pr.err, pr.err && pr.err.message);
+  a.SAAS.user.role = 'owner';
+  var rv = call(function(cb){ a.kgReverse(it.id, 'issued the wrong bar', op(), cb); }); ok(rv.err && /returned or passed on|hold/i.test(rv.err.message), 'reversing the issue: ' + (rv.err && rv.err.message));
+  var co = call(function(cb){ a.kgAddEntry({type:'CARRY_OUT', opId:op(), jobId:j.id, karigarId:A.id, metal:'gold', fineMg:8000, carryId:'c-1'}, cb); }); ok(co.err, 'carrying out 8 g leaves the 4 g loss without metal');
+  ok(!call(function(cb){ a.kgAddStage(j.id, 'Setting', B.id, cb); }).err);
+  var tr = call(function(cb){ a.kgTransfer({jobId:j.id, fromStageId:'', toStageId:j.stages[0].id, wt:'8', purity:'99.9', chip:'', confirmed:true, opId:op(), note:''}, cb); }); ok(tr.err, 'handing over 8 g likewise');
+  var ok1 = call(function(cb){ a.kgTransfer({jobId:j.id, fromStageId:'', toStageId:j.stages[0].id, wt:'5', purity:'99.9', chip:'', confirmed:true, opId:op(), note:''}, cb); }); ok(!ok1.err, 'what is really free can go: ' + (ok1.err && ok1.err.message));
+  var ap = call(function(cb){ a.kgAddEntry({type:'APPROVAL', opId:op(), jobId:j.id, karigarId:A.id, refId:pr.v.id, decision:'approve'}, cb); }); ok(!ap.err, 'the loss can still be approved: ' + (ap.err && ap.err.message));
+});
+test('TC.A3 reopening a job whose labour was already paid needs a confirm that names the amount', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'TA3', {kind:'wastage', wastagePct:'4', labourRate:'9.6', labourBase:'net'});
+  var j = job(a, k); metal(a, j, 'ISSUE', 100000, '999'); receipt(a, j, 100000, 'other', {pct:'96'}); ok(!call(function(cb){ a.kgCloseJob(j.id, cb); }).err);
+  var lab = a.kgSalaryBalance(k.id).payable; ok(lab > 0, 'labour posted');
+  var i0 = a.kgReopenInfo(j.id); eq(i0.needsConfirm, false, 'not paid yet: no confirm');
+  call(function(cb){ a.kgAddSalary({type:'PAYMENT', opId:op(), karigarId:k.id, amountPaise:lab, mode:'cash'}, cb); });
+  var i1 = a.kgReopenInfo(j.id); eq(i1.needsConfirm, true); eq(i1.labourPaise, lab); eq(i1.owesShopPaise, lab);
+  var r = call(function(cb){ a.kgReopenJob(j.id, cb); }); ok(r.err && /already paid|confirm/i.test(r.err.message), r.err && r.err.message); eq(j.status, 'closed'); eq(a.kgSalaryBalance(k.id).payable, 0);
+  var shown = null; a.kgForm = function(o){ shown = o; }; a.kg2Reopen(j.id); ok(shown && /already paid/i.test(shown.preview({})) && shown.preview({}).indexOf(a.kgFmtRs(lab)) !== -1, 'the sheet names the amount');
+  var r2 = call(function(cb){ a.kgReopenJob(j.id, cb, {confirmed:true}); }); ok(!r2.err, r2.err && r2.err.message); eq(j.status, 'open'); eq(a.kgSalaryBalance(k.id).payable, -lab);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
