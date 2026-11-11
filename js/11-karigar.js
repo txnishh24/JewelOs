@@ -1560,7 +1560,8 @@ function kgStatementRange(karigarId, metal, from, to){
       } else list.push({e:e});
     }
   });
-  list.sort(function(a, b){ return String(a.ap ? a.ap.ts : a.e.ts).localeCompare(String(b.ap ? b.ap.ts : b.e.ts)); });
+  list.forEach(function(x, n){ x.n = n; });   // the position in the ledger breaks a tie, so an unstable sort on an old phone never swaps two rows
+  list.sort(function(a, b){ return String(a.ap ? a.ap.ts : a.e.ts).localeCompare(String(b.ap ? b.ap.ts : b.e.ts)) || (a.n - b.n); });
   function dOf(x, cut){ if(x.phase === 'proposal') return 0; if(x.phase === 'approval') return -x.e.fineMg; return x.t ? -kgRawDelta(x.t, apr, cut) : kgRawDelta(x.e, apr, cut); }
   function beforeCut(d){ return d < from; }
   function toCut(d){ return d <= to; }
@@ -2677,16 +2678,17 @@ function kg3Switch(on){
   _kg2.view = on ? 'people' : 'home';
   renderKgV2();
 }
-function kg3Open(kid){ _kg2.karigarId = kid; _kg2.view = 'profile'; renderKgV2(); }
+function kg3Open(kid){ if(_kg2.karigarId !== kid) _kg2.more = ''; _kg2.karigarId = kid; _kg2.view = 'profile'; renderKgV2(); }
 function kg3Name(kid){ var k = findKarigar(kid); return k ? k.name : '?'; }
 function kg3G(mg, metal){ return kgFmtG(mg) + (metal === 'silver' ? ' silver' : ''); }
 function kg3Tile(label, value, sub, cls){
   return '<div class="kg2-kpi ' + (cls || '') + '"><span>' + escHtml(label) + '</span><b>' + value + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</div>';
 }
-function kg3RupeeTile(p){
-  if(p.payablePaise > 0) return kg3Tile('You owe him', escHtml(kgFmtRs(p.payablePaise)), '', 'due');
-  if(p.payablePaise < 0) return kg3Tile('He owes you', escHtml(kgFmtRs(-p.payablePaise)), '', 'warn');
-  return kg3Tile('Rupees', escHtml(kgFmtRs(0)), 'nothing owed');
+function kg3RupeeTile(p, orderCash){
+  var adv = (orderCash < 0) ? 'he owes the shop ' + escHtml(fmt(-orderCash)) + ' (advance on order work)' : '';   // the same words as the order-work line below
+  if(p.payablePaise > 0) return kg3Tile('You owe him', escHtml(kgFmtRs(p.payablePaise)), adv, 'due');
+  if(p.payablePaise < 0) return kg3Tile('He owes you', escHtml(kgFmtRs(-p.payablePaise)), adv, 'warn');
+  return kg3Tile('Rupees', escHtml(kgFmtRs(0)), adv || 'nothing owed', adv ? 'warn' : '');
 }
 function kg3HasMetal(kid, metal){
   if(kgMetalAccount(kid, metal).totalMg !== 0) return true;
@@ -2741,7 +2743,7 @@ function kg3ProfileHtml(kid){
     'on jobs ' + escHtml(kgFmtG(g.inJobsMg)) + (g.carryMg ? ' &middot; carried ' + escHtml(kgFmtG(g.carryMg)) : '') + (g.openingMg ? ' &middot; opening ' + escHtml(kgFmtG(g.openingMg)) : ''), g.totalMg > 0 ? 'due' : '');
   if(kg3HasMetal(kid, 'silver')) html += kg3Tile('Silver with him (fine)', escHtml(kgFmtG(a.silver.totalMg)),
     'on jobs ' + escHtml(kgFmtG(a.silver.inJobsMg)) + (a.silver.carryMg ? ' &middot; carried ' + escHtml(kgFmtG(a.silver.carryMg)) : ''));
-  html += kg3RupeeTile(a.rupees) + kg3Tile('Jobs in progress', String(a.inProgress), a.overdue ? a.overdue + ' late' : '', a.overdue ? 'warn' : '') + '</div>';
+  html += kg3RupeeTile(a.rupees, kgOrderWork(kid).owed.cash) + kg3Tile('Jobs in progress', String(a.inProgress), a.overdue ? a.overdue + ' late' : '', a.overdue ? 'warn' : '') + '</div>';
   var notes = '';
   if(a.countDue) notes += '<div class="kg2-note warn">A physical count of the carried balance is due (every ' + KG_COUNT_DAYS + ' days).</div>';
   [['gold', g], ['silver', a.silver]].forEach(function(m){
@@ -2768,7 +2770,7 @@ function kg3ProfileHtml(kid){
   if(ow.any){
     html += '<div class="kg2-sec">Order work (old way, not added to the account above)</div><div class="kg2-line"><div><b>' + (ow.queue.length) + ' order stage' + (ow.queue.length === 1 ? '' : 's') + ' in progress</b>' +
       '<div class="kg2-sub">Metal with him on orders: gold ' + escHtml(Number(ow.held.gold).toFixed(3)) + ' g, silver ' + escHtml(Number(ow.held.silver).toFixed(3)) + ' g &middot; owed to him: ' +
-      escHtml(ow.owed.cash < 0 ? 'nothing (he owes the shop ' + fmt(-ow.owed.cash) + ')' : fmt(ow.owed.cash)) + (ow.owed.gold ? ' + ' + escHtml(Number(ow.owed.gold).toFixed(3)) + ' g gold' : '') + (ow.owed.silver ? ' + ' + escHtml(Number(ow.owed.silver).toFixed(3)) + ' g silver' : '') + (adv0.given > 0 ? '<br>Advance given ' + escHtml(fmt(adv0.given)) + ': ' + escHtml(fmt(adv0.adjusted)) + ' adjusted against his order work so far' + (adv0.outstanding > 0 ? ', ' + escHtml(fmt(adv0.outstanding)) + ' still to adjust' : '') : '') + '</div></div>' +
+      escHtml(ow.owed.cash < 0 ? 'nothing (he owes the shop ' + fmt(-ow.owed.cash) + ')' : fmt(ow.owed.cash)) + (ow.owed.gold ? (ow.owed.gold > 0 ? ' + ' + escHtml(Number(ow.owed.gold).toFixed(3)) + ' g gold' : ' (he owes the shop ' + escHtml(Number(-ow.owed.gold).toFixed(3)) + ' g gold)') : '') + (ow.owed.silver ? (ow.owed.silver > 0 ? ' + ' + escHtml(Number(ow.owed.silver).toFixed(3)) + ' g silver' : ' (he owes the shop ' + escHtml(Number(-ow.owed.silver).toFixed(3)) + ' g silver)') : '') + (adv0.given > 0 ? '<br>Advance given ' + escHtml(fmt(adv0.given)) + ': ' + escHtml(fmt(adv0.adjusted)) + ' adjusted against his order work so far' + (adv0.outstanding > 0 ? ', ' + escHtml(fmt(adv0.outstanding)) + ' still to adjust' : '') : '') + '</div></div>' +
       (u.role === 'owner' && (ow.owed.cash > 0 || ow.owed.gold > 0 || ow.owed.silver > 0) ? kg2Btn('Pay for order work', 'kg3PayOrder(' + kg2Q(kid) + ')') : '') + '</div>';   // nothing owed: nothing to pay (an advance has its own button)
   }
   html += kg3PayOrderRecentHtml(kid);
@@ -2997,7 +2999,7 @@ function kg3ReceivePreview(jobId, v){
     if(!b.error || String(v.gross || '').trim() === '') return '';
     // the touch and the piece name come after the weight: until they are typed, say what is missing in plain grey, never in red
     var touchBlank = !v.chip && String(v.purity || '').trim() === '', pieceBlank = String(v.piece || '').trim() === '';
-    if(touchBlank) return '<span class="kg2-hint">Type the measured touch to see the credit.</span>';
+    if(touchBlank && /urity|touch/.test(b.error)) return '<span class="kg2-hint">Type the measured touch to see the credit.</span>';
     if(pieceBlank && /Describe the piece/.test(b.error)) return '<span class="kg2-hint">Name the piece to save.</span>';
     return '<span class="warn">' + escHtml(b.error) + '</span>';
   }
@@ -3044,7 +3046,8 @@ function kgPayOnce(opId, done, run){
   if(typeof opId !== 'string' || !opId) return done(new Error('Missing operation id. Nothing was saved.'));
   if(_kgPayBusy[opId]){ _kgPayBusy[opId].push(done); return; }
   _kgPayBusy[opId] = [done];
-  run(function(err){ var waiting = _kgPayBusy[opId] || []; delete _kgPayBusy[opId]; waiting.forEach(function(f){ f(err); }); });
+  function finish(err){ var waiting = _kgPayBusy[opId] || []; delete _kgPayBusy[opId]; waiting.forEach(function(f){ f(err); }); }
+  try{ run(finish); }catch(x){ finish(new Error('Could not save: ' + ((x && x.message) || x))); }
 }
 function kg3PayOrderSave(kid, type, amount, note, opId, done, opts){
   if(typeof type !== 'string') return done(new Error('Choose cash, gold or silver'));
@@ -3146,19 +3149,23 @@ function kg3PayOrderRecentHtml(kid){
 }
 function kg3PayOrder(kid, startKind){
   var k = findKarigar(kid); if(!k) return;
-  var ow = kgOrderWork(kid).owed;
-  kgForm({title:'Pay ' + k.name + ' for order work', submitLabel:'Record payment', doneToast:'\u2713 Payment recorded',
-    fields:[{id:'kind', label:'What is this?', type:'select', options:[['pay', 'Payment for work done'], ['advance', 'Advance (money he owes the shop)']], value:(startKind === 'advance' ? 'advance' : 'pay'),
-        hint:'A payment is never more than is owed. An advance is money given before the work: it is cash only, needs a reason, and is adjusted against his next order work.'},
-      {id:'type', label:'Paid in', type:'select', options:[['cash', 'Cash (\u20b9)'], ['gold', 'Gold (g)'], ['silver', 'Silver (g)']], value:(ow.cash > 0 ? 'cash' : (ow.gold > 0 ? 'gold' : (ow.silver > 0 ? 'silver' : 'cash'))), show:function(v){ return v.kind !== 'advance'; }},
-      {id:'mode', label:'Paid by', type:'select', options:[['cash', 'Cash'], ['UPI', 'UPI'], ['Bank', 'Bank transfer']], value:'cash', show:function(v){ return v.kind === 'advance' || v.type === 'cash'; }},
-      {id:'amount', label:'Amount (\u20b9 or grams)', mode:'decimal'},
-      {id:'reason', label:'Reason for the advance (at least 5 letters)', show:function(v){ return v.kind === 'advance'; }},
-      {id:'confirm', label:'I confirm: this is money he owes back, not payment for work', type:'check', show:function(v){ return v.kind === 'advance'; }},
-      {id:'note', label:'Note (optional)'}],
-    preview:function(v){ var adv = v.kind === 'advance'; return kg3PayOrderPreviewText(kid, adv ? 'cash' : v.type, v.amount, adv); },
+  var ow = kgOrderWork(kid).owed, adv = (startKind === 'advance');
+  // two sheets, so the title and the button always say what will happen: a payment for work done, or an advance
+  var fields = adv ? [
+      {id:'mode', label:'Paid by', type:'select', options:[['cash', 'Cash'], ['UPI', 'UPI'], ['Bank', 'Bank transfer']], value:'cash'},
+      {id:'amount', label:'Amount (\u20b9)', mode:'decimal', hint:'Money given before the work. He owes it back: it is adjusted against his next order work.'},
+      {id:'reason', label:'Reason for the advance (at least 5 letters)'},
+      {id:'confirm', label:'I confirm: this is money he owes back, not payment for work', type:'check'},
+      {id:'note', label:'Note (optional)'}] : [
+      {id:'type', label:'Paid in', type:'select', options:[['cash', 'Cash (\u20b9)'], ['gold', 'Gold (g)'], ['silver', 'Silver (g)']], value:(ow.cash > 0 ? 'cash' : (ow.gold > 0 ? 'gold' : (ow.silver > 0 ? 'silver' : 'cash')))},
+      {id:'mode', label:'Paid by', type:'select', options:[['cash', 'Cash'], ['UPI', 'UPI'], ['Bank', 'Bank transfer']], value:'cash', show:function(v){ return v.type === 'cash'; }},
+      {id:'amount', label:'Amount (\u20b9 or grams)', mode:'decimal', hint:'Never more than is owed. For money given before the work, use Give advance.'},
+      {id:'note', label:'Note (optional)'}];
+  kgForm({title:(adv ? 'Give advance to ' + k.name : 'Pay ' + k.name + ' for order work'), submitLabel:(adv ? 'Give advance' : 'Record payment'), doneToast:(adv ? '\u2713 Advance recorded' : '\u2713 Payment recorded'),
+    fields:fields,
+    preview:function(v){ return kg3PayOrderPreviewText(kid, adv ? 'cash' : v.type, v.amount, adv); },
     onSubmit:function(v, fin){
-      var adv = v.kind === 'advance', type = adv ? 'cash' : v.type;
+      var type = adv ? 'cash' : v.type;
       var c = kg3PayOrderCheck(kid, type, v.amount, adv); if(c.error) return kg2Err(c.error, fin);
       if(adv && String(v.reason || '').trim().length < 5) return kg2Err('A reason (at least 5 letters) is required for an advance', fin);
       if(adv && !v.confirm) return kg2Err('Tick the box to confirm the advance', fin);

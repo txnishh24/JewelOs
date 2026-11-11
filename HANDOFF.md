@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody.** Batch70 is LIVE (as before) on the Cloudflare worker (8 Nov, Version ID `ca267308-19c6-4931-b3e4-817551c3ccc5`, commit `c3c5ab6`, tag `batch70-live`, rollback tag `batch69-live`). Ledger flag OFF for every shop. Karigar redesign: logic, screens and the 197th-entry additions are on `main` (local, not pushed, not deployed). Cowork's review fixes (198th), round 3 (199th), payment decisions (200th) and the advance (201st) are on branch `karigar-review-fixes` (NOT merged to main, not deployed, no migration); WAITING on Tanish's phone look.
+> **Nobody.** Batch70 LIVE on the Cloudflare worker (as before). Karigar work on `main` (local); review fixes, round 3, payments, advance and group D (198th-202nd) on branch `karigar-review-fixes` (NOT merged, not deployed, no migration); WAITING on Tanish's phone look.
 ---
 
 ## WAITING ON TANISH
@@ -75,6 +75,21 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-11 (two-hundred-and-second entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE.md group D (items 18-20) on branch `karigar-review-fixes` (NOT merged, NOT deployed, no migration, ledger flag untouched)
+
+- Groups A, B, C of the same file were already committed (cd63d05, a7374be, 5bd67ce). This entry is group D plus small extras.
+- 18: advance sheet is its own sheet: title "Give advance to <name>", button "Give advance"; payment sheet keeps "Pay <name> for order work" / "Record payment".
+- 19: Rupees tile now says "he owes the shop X (advance on order work)", same words as the order-work line; owner list shows "He owes you X (advance)".
+- 20: statement header date does not wrap (nowrap); leftover toast hidden in print.
+- Extras: statement sort breaks ties by ledger position; kgPayOnce frees its lock if the save code throws (test TX.7b); receive sheet grey hint only for a touch error.
+- Tests: karigar-v2 248 pass, regression 493 pass, karigar-ledger-client 91 pass, 0 failed. bug-pattern-reviewer: no family 1-3 breaks; invariant-tester: covered, added TX.7b.
+- NOT verified: no browser click-through, no npm run test:e2e, no phone. Receive-sheet error matching uses wording (/urity|touch/), breaks if those messages change.
+- Items 1-17: done in earlier commits; none skipped. Item 3 (reopen confirm) and 19 wording are UX choices Tanish may want to see on the phone.
+- Test shop: 3720af09 (per Cowork), not 77c4aefe.
+
+→ FOR COWORK: review branch `karigar-review-fixes` group D; nothing else pending.
+→ FOR TANISH: look at the advance sheet, profile and printed statement on the phone before merge.
 
 ### 2026-11-11 (two-hundred-and-first entry) - Claude Code (Sonnet) - Cowork's advance decision on branch `karigar-review-fixes` (NOT merged, NOT deployed, no migration, ledger flag untouched)
 

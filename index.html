@@ -1713,6 +1713,7 @@ tr:hover td{background:var(--bg2);}
 .kg2-f label.kg2-chk{display:flex;align-items:center;margin-bottom:0;}   /* .kg2-f label{display:block} used to win and push the tick box away from its words */
 #kg2-root{padding-bottom:96px;}   /* the toast sits above the nav bar: leave room so it never covers the last row */
 .kg3-printhead{display:none;}
+.kg3-printdates{white-space:nowrap;}
 @media print{
   body.kg-printing .main{display:block!important;margin:0!important;padding:0!important;}
   body.kg-printing .main *{visibility:hidden;}
@@ -1720,6 +1721,8 @@ tr:hover td{background:var(--bg2);}
   body.kg-printing #kg3-print{position:absolute;left:0;top:0;width:100%;}
   body.kg-printing .kg3-printhead{display:block;font-weight:700;font-size:16px;margin-bottom:8px;}
   body.kg-printing #kg3-print .btn{display:none!important;}
+  body.kg-printing .toast{display:none!important;}   /* a leftover toast never prints */
+  body.kg-printing .kg3-printdates{white-space:nowrap;}
 }
 .kg2-line>div:first-child{min-width:0;overflow-wrap:anywhere;}.kg2-num{white-space:nowrap;flex:none;}
 .kg2-row .btn,.kg2-nav .btn{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:left;}

@@ -2228,7 +2228,7 @@ test('ADV.7 advance adjusted after earlier payments; owed has no float dust; neg
   d.S.karigarPayments = [{id:'kp-x', karigarId:k2.id, date:'2026-10-30', type:'cash', amount:0.8, note:''}];
   eq(d.kgOrderWork(k2.id).owed.cash, 0, 'rounded to paise'); eq(d.kgOrderWork(k2.id).any, false, 'no empty Order work block');
   var e = fresh('owner'); var k3 = pk(e, 'ADV7c'); e.S.orders = []; var sheet = ''; e.kgForm = function(o){ sheet = o; };
-  e.kg3PayOrder(k3.id); eq(sheet.fields[1].value, 'cash', 'nothing owed: opens on cash, not silver'); e.kg3PayOrder(k3.id, 'advance'); eq(sheet.fields[0].value, 'advance');
+  e.kg3PayOrder(k3.id); eq(sheet.fields[0].value, 'cash', 'nothing owed: opens on cash, not silver'); e.kg3PayOrder(k3.id, 'advance'); eq(sheet.submitLabel, 'Give advance');
 });
 
 console.log('\nTO-CLAUDE-CODE (11 Nov) - group A money, group B smaller maths');
@@ -2387,6 +2387,179 @@ test('TC.C17 pay button hidden at zero owed; reversed carry row keeps the amount
   ok(a.kgJobRowSign({type:'REVERSAL'}, {type:'ISSUE', fineMg:9200}) === -9200); ok(a.kgJobRowSign({type:'ISSUE', fineMg:9200}, null) === 9200);
   ok(a.kg3StatementHtml(k.id).indexOf('Shah Jewellers') !== -1, 'shop name on the statement'); ok(a.kg3StatementText(k.id, 'gold', '2026-11-01', '2026-11-30').indexOf('Shah Jewellers') !== -1, 'and in the WhatsApp text');
   a.kg3Switch(true); var rep = a.kg2ReportsHtml(); ok(rep.indexOf('Wastage kept by karigars') === -1, 'old wastage row hidden'); a.kg3Switch(false); ok(a.kg2ReportsHtml().indexOf('Wastage kept by karigars') !== -1, 'still there with the switch off');
+});
+
+console.log('\nTO-CLAUDE-CODE (11 Nov) - group D advance sheet, wording, print');
+
+test('TC.D18 the advance sheet is titled and labelled as an advance; the payment sheet as a payment', function(){
+  var a = fresh('owner'); var k = pk(a, 'TD18'); a.S.orders = []; var sheet = null; a.kgForm = function(o){ sheet = o; };
+  a.kg3PayOrder(k.id, 'advance'); eq(sheet.title, 'Give advance to TD18'); eq(sheet.submitLabel, 'Give advance');
+  var ids = sheet.fields.map(function(f){ return f.id; }); ok(ids.indexOf('reason') !== -1 && ids.indexOf('confirm') !== -1 && ids.indexOf('type') === -1 && ids.indexOf('kind') === -1, 'advance fields: ' + ids.join());
+  a.kg3PayOrder(k.id); eq(sheet.title, 'Pay TD18 for order work'); eq(sheet.submitLabel, 'Record payment'); ids = sheet.fields.map(function(f){ return f.id; }); ok(ids.indexOf('type') !== -1 && ids.indexOf('reason') === -1 && ids.indexOf('kind') === -1, 'payment fields: ' + ids.join());
+  a.kg3PayOrder(k.id, 'advance'); var adv = sheet; var out = {}; adv.onSubmit({amount:'300', mode:'cash', reason:'festival advance', confirm:true, note:'', opId:op()}, function(err){ out.err = err; }); ok(!out.err, out.err && out.err.message);
+  eq(a.karigarOwed(k.id).cash, -300); ok(a.S.karigarPayments[0].advance === true);
+  var out2 = {}; adv.onSubmit({amount:'300', mode:'cash', reason:'no', confirm:true, note:'', opId:op()}, function(err){ out2.err = err; }); ok(out2.err && /reason/i.test(out2.err.message));
+  var out3 = {}; adv.onSubmit({amount:'300', mode:'cash', reason:'festival advance', confirm:false, note:'', opId:op()}, function(err){ out3.err = err; }); ok(out3.err && /confirm/i.test(out3.err.message));
+});
+test('TC.D19 the Rupees tile and the order-work line say the same thing when he owes the shop', function(){
+  var a = fresh('owner'); a.dbInit(); var k = pk(a, 'TD19'); a.S.orders = [];
+  ok(!call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', '300', '', op(), cb, {advance:true, reason:'festival advance', confirmed:true, mode:'cash', dbPost:true}); }).err);
+  var h = a.kg3ProfileHtml(k.id); var tile = h.slice(h.indexOf('Rupees'), h.indexOf('Rupees') + 260); ok(/he owes the shop/.test(tile) && tile.indexOf('300') !== -1, 'tile: ' + tile);
+  var line = h.slice(h.indexOf('owed to him:')); ok(/he owes the shop/.test(line) && line.indexOf('300') !== -1, 'order-work line');
+  ok(h.indexOf('nothing owed') === -1, 'no "nothing owed" next to "he owes the shop"');
+});
+test('TC.D20 print: the date line never wraps, a leftover toast is hidden', function(){
+  var css = require('fs').readFileSync(__dirname + '/../index.html', 'utf8');
+  ok(/\.kg3-printdates\s*\{[^}]*white-space:\s*nowrap/.test(css), 'dates nowrap'); ok(/body\.kg-printing\s+\.toast\s*\{[^}]*display:\s*none/.test(css), 'toast hidden in print');
+});
+
+console.log('\nTO-CLAUDE-CODE (11 Nov) - invariant gap tests (money paths)');
+
+function sjson(o){ return JSON.stringify(o, function(k, v){ if(v && typeof v === 'object' && !Array.isArray(v)){ var r = {}; Object.keys(v).sort().forEach(function(x){ r[x] = v[x]; }); return r; } return v; }); }
+function proposeLoss(a, j, k, fine){
+  var was = a.SAAS.user.role; a.SAAS.user.role = 'manager';
+  var pr = call(function(cb){ a.kgAddEntry({type:'LOSS', opId:op(), jobId:j.id, karigarId:k.id, metal:'gold', fineMg:fine, category:'filing', reason:'filing loss here', proposed:true}, cb); });
+  a.SAAS.user.role = was; ok(!pr.err, pr.err && pr.err.message); return pr.v;
+}
+function decide(a, j, k, lossId, d){ return call(function(cb){ a.kgAddEntry({type:'APPROVAL', opId:op(), jobId:j.id, karigarId:k.id, refId:lossId, decision:d}, cb); }); }
+
+test('TX.1 cancel is refused by each live receipt, scrap, carried-balance-used and hand-over entry, and allowed once it is reversed', function(){
+  var a = fresh('owner'); var k = pk(a, 'TX1a'); openG(a, k, 'gold', '50', '92'); var j = pjob(a, k);
+  var r = receiptV(a, j, {gross:'5', purity:'92'});                                                         // nothing issued: the receipt draws from the opening
+  var c = call(function(cb){ a.kgCancelJob(j.id, 'made by mistake', cb); }); ok(c.err && /receipt/.test(c.err.message), c.err && c.err.message); eq(j.status, 'open');
+  ok(!call(function(cb){ a.kgReverse(r.entry.id, 'weighed the wrong ring', op(), cb); }).err); ok(!call(function(cb){ a.kgCancelJob(j.id, 'made by mistake', cb); }).err, 'allowed after the reversal'); eq(j.status, 'cancelled');
+  var b = fresh('owner'); var k2 = pk(b, 'TX1b'); openG(b, k2, 'gold', '50', '92'); var j2 = pjob(b, k2);
+  var sb = b.kgBuildScrap(j2.id, '', {wt:'1', purity:'90', confirmed:true, kind:'dust', opId:op()}); var sc = call(function(cb){ b.kgAddEntry(sb.entry, cb); }); ok(!sc.err, sc.err && sc.err.message);
+  var c2 = call(function(cb){ b.kgCancelJob(j2.id, 'made by mistake', cb); }); ok(c2.err && /scrap/.test(c2.err.message), c2.err && c2.err.message); eq(j2.status, 'open');
+  ok(!call(function(cb){ b.kgReverse(sc.v.id, 'weighed twice', op(), cb); }).err); ok(!call(function(cb){ b.kgCancelJob(j2.id, 'made by mistake', cb); }).err); eq(j2.status, 'cancelled');
+  var d = fresh('owner'); var k3 = pk(d, 'TX1c'); trust(d, k3); var j1 = pjob(d, k3); issueV(d, j1, '10', '92'); ok(!closeV(d, j1, {settle:'carry', opId:'tx1'}).err);
+  var j3 = pjob(d, k3); var ap = call(function(cb){ d.kgApplyCarry(j3.id, '', 1000, 'tx1ap', cb); }); ok(!ap.err, ap.err && ap.err.message);
+  var c3 = call(function(cb){ d.kgCancelJob(j3.id, 'made by mistake', cb); }); ok(c3.err, 'a carried balance used blocks it'); eq(j3.status, 'open');
+  ok(!call(function(cb){ d.kgReverse(ap.v[0].id, 'applied by mistake', op(), cb); }).err); ok(!call(function(cb){ d.kgCancelJob(j3.id, 'made by mistake', cb); }).err); eq(j3.status, 'cancelled'); eq(d.kgCarryTotal(k3.id, 'gold'), 9200, 'the lot is whole again');
+  var e = fresh('owner'); var A = pk(e, 'TX1d'), B = pk(e, 'TX1e'); var jt = pjob(e, A); issueV(e, jt, '10', '92'); ok(!call(function(cb){ e.kgAddStage(jt.id, 'Setting', B.id, cb); }).err);
+  var tv = {jobId:jt.id, fromStageId:'', toStageId:jt.stages[0].id, wt:'3', purity:'92', chip:'', confirmed:true, opId:'tx1t', note:''}; ok(!call(function(cb){ e.kgTransfer(tv, cb); }).err);
+  ok(call(function(cb){ e.kgCancelJob(jt.id, 'made by mistake', cb); }).err, 'hand-over + issue block it'); eq(jt.status, 'open');
+  ok(!call(function(cb){ e.kgReverseTransfer('tx1t:v', 'handed to wrong man', op(), cb); }).err); ok(!call(function(cb){ e.kgReverse(e.S.kgLedger.filter(function(x){ return x.type === 'ISSUE'; })[0].id, 'issued the wrong bar', op(), cb); }).err);
+  ok(!call(function(cb){ e.kgCancelJob(jt.id, 'made by mistake', cb); }).err, 'allowed once the hand-over and the issue are reversed'); eq(e.kgAccount(A.id).gold.totalMg, 0);
+});
+test('TX.2 a pending loss keeps its metal: closing with carry is refused while it waits, kgFreeOnJob shows what is free, and carry works after approval', function(){
+  var a = fresh('owner'); var k = pk(a, 'TX2'); trust(a, k); var j = pjob(a, k); issueV(a, j, '10', '92');                  // 9.200 fine
+  var pr = proposeLoss(a, j, k, 2000), led = a.S.kgLedger;
+  eq(a.kgFreeOnJob(j, led, a.kgIndex(led), k.id), 7200, 'free = held less the waiting loss');
+  var n = a.S.kgLedger.length, r = closeV(a, j, {settle:'carry', opId:'tx2'}); ok(r.err && /proposed loss/i.test(r.err.message), r.err && r.err.message);
+  eq(j.status, 'open'); eq(a.S.kgLedger.length, n, 'no carry entry was left behind'); eq(a.kgCarryTotal(k.id, 'gold'), 0);
+  ok(!decide(a, j, k, pr.id, 'approve').err); eq(a.kgFreeOnJob(j, a.S.kgLedger, a.kgIndex(a.S.kgLedger), k.id), 7200, 'approved: held already net of the loss');
+  ok(!closeV(a, j, {settle:'carry', opId:'tx2b'}).err); eq(j.status, 'closed'); eq(a.kgCarryTotal(k.id, 'gold'), 7200, 'only what is really left is carried');
+  var b = fresh('owner'); var kb = pk(b, 'TX2b'); trust(b, kb); var jb = pjob(b, kb); issueV(b, jb, '10', '92'); var pb = proposeLoss(b, jb, kb, 2000);
+  ok(!decide(b, jb, kb, pb.id, 'reject').err); eq(b.kgFreeOnJob(jb, b.S.kgLedger, b.kgIndex(b.S.kgLedger), kb.id), 9200, 'a rejected loss frees the metal again');
+  ok(!closeV(b, jb, {settle:'carry', opId:'tx2c'}).err); eq(b.kgCarryTotal(kb.id, 'gold'), 9200);
+});
+test('TX.3 reopen confirm: labour paid by an ADVANCE counts, a part payment that leaves him owed more does not, and nothing is lost on the way', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'TX3', {kind:'wastage', wastagePct:'4', labourRate:'9.6', labourBase:'net'});
+  var j = job(a, k); metal(a, j, 'ISSUE', 100000, '999'); receipt(a, j, 100000, 'other', {pct:'96'}); ok(!call(function(cb){ a.kgCloseJob(j.id, cb); }).err);
+  var lab = a.kgSalaryBalance(k.id).payable; ok(lab > 0);
+  ok(!call(function(cb){ a.kgAddSalary({type:'ADVANCE', opId:op(), karigarId:k.id, amountPaise:lab, mode:'cash', note:'paid ahead of the job'}, cb); }).err);
+  var i = a.kgReopenInfo(j.id); eq(i.needsConfirm, true, 'advance-paid labour needs the confirm'); eq(i.owesShopPaise, lab);
+  var r = call(function(cb){ a.kgReopenJob(j.id, cb); }); ok(r.err && /already paid/i.test(r.err.message)); eq(j.status, 'closed'); eq(a.kgSalaryBalance(k.id).payable, 0);
+  ok(!call(function(cb){ a.kgReopenJob(j.id, cb, {confirmed:true}); }).err); eq(a.kgSalaryBalance(k.id).payable, -lab, 'he owes the shop what was advanced');
+  var b = fresh('owner'); var kb = wastageKarigar(b, 'TX3b', {kind:'wastage', wastagePct:'4', labourRate:'9.6', labourBase:'net'});
+  var j1 = job(b, kb); metal(b, j1, 'ISSUE', 100000, '999'); receipt(b, j1, 100000, 'other', {pct:'96'}); ok(!call(function(cb){ b.kgCloseJob(j1.id, cb); }).err);
+  var j2 = job(b, kb); metal(b, j2, 'ISSUE', 100000, '999'); receipt(b, j2, 100000, 'other', {pct:'96'}); ok(!call(function(cb){ b.kgCloseJob(j2.id, cb); }).err);
+  var half = Math.floor(lab / 2); ok(!call(function(cb){ b.kgAddSalary({type:'PAYMENT', opId:op(), karigarId:kb.id, amountPaise:half, mode:'cash'}, cb); }).err);
+  var ib = b.kgReopenInfo(j1.id); eq(ib.labourPaise, lab); eq(ib.needsConfirm, false, 'payable stays positive: no confirm'); eq(ib.owesShopPaise, 0);
+  ok(!call(function(cb){ b.kgReopenJob(j1.id, cb); }).err, 'reopens without a confirm'); eq(b.kgSalaryBalance(kb.id).payable, lab - half, 'one job labour less what was paid');
+  eq(b.kgReopenInfo(j2.id).needsConfirm, true, 'the second reopen would push him below zero'); ok(call(function(cb){ b.kgReopenJob(j2.id, cb); }).err); eq(j2.status, 'closed');
+});
+test('TX.4 terms freeze only on a karigar\'s own live entries: a second karigar on a stage is not frozen by the first', function(){
+  var a = fresh('owner'); var A = pk(a, 'TX4a'), B = pk(a, 'TX4b'); var j = pjob(a, A);
+  ok(!call(function(cb){ a.kgAddStage(j.id, 'Setting', B.id, cb); }).err); var st = j.stages[0].id;
+  var ia = issueV(a, j, '10', '92'); eq(a.kgLiveUsed(j, A.id), true); eq(a.kgLiveUsed(j, B.id), false, 'B has nothing on the job yet');
+  var tr = call(function(cb){ a.kgTransfer({jobId:j.id, fromStageId:'', toStageId:st, wt:'4', purity:'92', chip:'', confirmed:true, opId:'tx4t', note:''}, cb); }); ok(!tr.err, tr.err && tr.err.message);
+  eq(a.kgLiveUsed(j, B.id), true, 'the hand-over in freezes B');
+  [A, B].forEach(function(x){ ok(!call(function(cb){ a.kgSetTerms(x.id, {kind:'salary', salaryMode:'monthly', rate:'30000'}, cb); }).err); });
+  eq(a.kgTermsFor(j, A.id).kind, 'wastage'); eq(a.kgTermsFor(j, B.id).kind, 'wastage');
+  ok(!call(function(cb){ a.kgReverseTransfer('tx4t:v', 'handed to wrong man', op(), cb); }).err);
+  eq(a.kgLiveUsed(j, B.id), false, 'a reversed hand-in and its reversal row do not count'); eq(a.kgTermsFor(j, B.id).kind, 'salary', 'B is free to follow his new terms'); eq(a.kgTermsFor(j, A.id).kind, 'wastage', 'A still holds the issue: still frozen');
+  ok(!call(function(cb){ a.kgReverse(ia.id, 'issued the wrong bar', op(), cb); }).err); eq(a.kgLiveUsed(j, A.id), false); eq(a.kgTermsFor(j, A.id).kind, 'salary');
+});
+test('TX.5 a job reopened and re-closed twice: a failed reopen and a failed close each leave every close field exactly as it was', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'TX5', {kind:'wastage', wastagePct:'4', labourRate:'50', labourBase:'net'});
+  var j = job(a, k); metal(a, j, 'ISSUE', 100000, '999'); receipt(a, j, 100000, 'other', {pct:'96'});
+  function close(id){ return call(function(cb){ a.kgCloseJob(j.id, cb, {opId:id}); }); }
+  ok(!close('cl-1').err); ok(!call(function(cb){ a.kgReopenJob(j.id, cb); }).err); ok(!close('cl-2').err); ok(!call(function(cb){ a.kgReopenJob(j.id, cb); }).err); ok(!close('cl-3').err);
+  eq(j.earningsLog.length, 2, 'two earlier closes are logged'); eq(j.closeOpId, 'cl-3'); ok(j.reopenedAt, 'reopenedAt kept from the last reopen');
+  var snap = sjson(j), sal = sjson(a.S.kgSalary), good = a.saveToCloud;
+  a.saveToCloud = function(cb){ cb(new Error('offline')); };
+  ok(call(function(cb){ a.kgReopenJob(j.id, cb); }).err); eq(sjson(j), snap, 'failed reopen: job as it was'); eq(sjson(a.S.kgSalary), sal, 'failed reopen: labour untouched'); eq(j.earningsLog.length, 2);
+  a.saveToCloud = good; ok(!call(function(cb){ a.kgReopenJob(j.id, cb); }).err); ok(!j.closedAt && !j.closedBy && !j.closeOpId, 'real reopen clears the close fields'); eq(j.earningsLog.length, 3);
+  var snap2 = sjson(j), sal2 = sjson(a.S.kgSalary); a.saveToCloud = function(cb){ cb(new Error('offline')); };
+  ok(close('cl-4').err); eq(sjson(j), snap2, 'failed close: closedAt, closedBy, earnings, earningsLog, closeOpId, reopenedAt as they were'); eq(sjson(a.S.kgSalary), sal2, 'failed close: no stray labour line'); eq(j.status, 'open');
+  a.saveToCloud = good; ok(!close('cl-4').err, 'the same close works once the network is back'); eq(j.status, 'closed'); eq(j.closeOpId, 'cl-4');
+});
+test('TX.6 Day Book sweep: a 40 paise karigar payment is restated, a sub-rupee non-karigar difference is still ignored', function(){
+  var a = fresh('owner'); a.dbInit(); var k = pk(a, 'TX6'); owedShop(a, k, 1000);
+  a.S.dayBook.closes = [{date:'2026-11-01', opening:0, autoIn:0, autoOut:0, manualIn:0, manualOut:0, closing:0, counted:0, diff:0, restatements:[], countCorrections:[]}];
+  call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', '0.40', '', op(), cb, {mode:'cash', dbPost:true}); }); a.S.karigarPayments[0].date = '2026-11-01';
+  var n = null; a.dbSweepRestatements(function(e, c){ n = c; }); eq(n, 1); var adj = a.S.dayBook.entries.filter(function(x){ return x.kind === 'adjust'; }); eq(adj.length, 1); eq(adj[0].amount, 0.4); eq(a.dbCloseFor('2026-11-01').autoOut, 0.4);
+  var b = fresh('owner'); b.dbInit(); b.S.dayBook.closes = [{date:'2026-11-02', opening:0, autoIn:0, autoOut:0.4, manualIn:0, manualOut:0, closing:0, counted:0, diff:0, restatements:[], countCorrections:[]}];
+  b.S.dayBook.entries = []; var m = null; b.dbSweepRestatements(function(e, c){ m = c; }); eq(m, 0, 'a 40 paise difference with no karigar line is rounding noise'); eq(b.S.dayBook.entries.length, 0); eq(b.dbCloseFor('2026-11-02').autoOut, 0.4, 'baseline untouched');
+  b.S.dayBook.closes[0].autoOut = 0.6; b.dbSweepRestatements(function(e, c){ m = c; }); eq(m, 1, 'a real difference above the allowance is still restated');
+});
+test('TX.7 kgPayOnce: a repeat waits for the first save, a different opId runs on its own, a failed first save fails both, and the lock map is cleaned', function(){
+  var a = fresh('owner'); var k = pk(a, 'TX7'); owedShop(a, k, 1000); var held = [], log = [];
+  a.saveToCloud = function(cb){ held.push(cb); };
+  a.kg3PayOrderSave(k.id, 'cash', 100, '', 'p1', function(e){ log.push('p1a:' + (e ? 'err' : 'ok')); }, {mode:'cash'});
+  a.kg3PayOrderSave(k.id, 'cash', 100, '', 'p1', function(e){ log.push('p1b:' + (e ? 'err' : 'ok')); }, {mode:'cash'});
+  ok(a._kgPayBusy['p1'] && a._kgPayBusy['p1'].length === 2, 'both callbacks are queued under p1'); eq(log.length, 0);
+  a.kg3PayOrderSave(k.id, 'cash', 50, '', 'p2', function(e){ log.push('p2:' + (e ? 'err' : 'ok')); }, {mode:'cash'});          // a different opId is never answered from p1's save: the karigar lock says busy
+  eq(log.join(), 'p2:err', 'p2 hears busy at once, not the answer of p1'); ok(!a._kgPayBusy['p2'], 'and leaves no lock behind');
+  held[0](null); eq(log.join(), 'p2:err,p1a:ok,p1b:ok'); ok(!a._kgPayBusy['p1'], 'p1 lock cleaned'); eq(a.S.karigarPayments.length, 1, 'one payment for p1, none for p2');
+  a.saveToCloud = function(cb){ cb(null); }; ok(!call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 50, '', 'p2', cb, {mode:'cash'}); }).err, 'p2 runs on its own once p1 is done'); eq(a.S.karigarPayments.length, 2);
+  eq(Object.keys(a._kgPayBusy).length, 0, 'map is empty');
+  var b = fresh('owner'); var kb = pk(b, 'TX7b'); owedShop(b, kb, 1000); var h2 = [], res = [];
+  b.saveToCloud = function(cb){ h2.push(cb); };
+  b.kg3PayOrderSave(kb.id, 'cash', 100, '', 'f1', function(e){ res.push(e ? 'err' : 'ok'); }, {mode:'cash'}); b.kg3PayOrderSave(kb.id, 'cash', 100, '', 'f1', function(e){ res.push(e ? 'err' : 'ok'); }, {mode:'cash'});
+  h2[0](new Error('offline')); eq(res.join(), 'err,err'); eq(Object.keys(b._kgPayBusy).length, 0, 'lock cleaned after a failure'); eq(b.S.karigarPayments.length, 0);
+  b.saveToCloud = function(cb){ cb(null); }; var again = call(function(cb){ b.kg3PayOrderSave(kb.id, 'cash', 100, '', 'f1', cb, {mode:'cash'}); }); ok(!again.err, 'the same opId can be tried again after a failure'); eq(b.S.karigarPayments.length, 1);
+  ok(call(function(cb){ b.kg3PayOrderSave(kb.id, 'cash', 100, '', 7, cb, {mode:'cash'}); }).err, 'a number is not an opId');
+});
+test('TX.7b kgPayOnce: a run that throws still answers every waiting caller with an error and frees the lock', function(){
+  var a = fresh('owner'); var res = [];
+  a.kgPayOnce('t1', function(e){ res.push(e ? 'err' : 'ok'); }, function(){ throw new Error('boom'); });
+  eq(res.join(), 'err'); ok(!a._kgPayBusy['t1'], 'lock freed');
+  a.kgPayOnce('t1', function(e){ res.push(e ? 'err' : 'ok'); }, function(fin){ fin(null); }); eq(res.join(), 'err,ok');
+});
+test('TX.8 statement approval rows: rejected loss, loss approved then reversed, and ranges before, inside and after the approval chain up', function(){
+  var a = fresh('owner'); var k = pk(a, 'TX8'); var j = pjob(a, k); issueV(a, j, '10', '92'); var pr = proposeLoss(a, j, k, 2000);
+  a.S.kgLedger.forEach(function(e){ e.date = '2026-01-01'; });
+  var ap = decide(a, j, k, pr.id, 'reject'); ok(!ap.err); ap.v.date = '2026-01-10';
+  var s = a.kgStatementRange(k.id, 'gold', '2026-01-01', '2026-01-31'); var lr = s.rows.filter(function(r){ return r.type === 'LOSS'; });
+  eq(lr.length, 1, 'a rejected loss is one proposal row'); eq(lr[0].state, 'rejected'); eq(lr[0].deltaMg, 0); eq(s.closingMg, 9200); eq(s.openingMg + s.issuedMg - s.returnedMg + s.otherMg, s.closingMg);
+  eq(a.kgStatementRange(k.id, 'gold', '2026-01-01', '2026-01-05').rows.filter(function(r){ return r.type === 'LOSS'; })[0].state, 'pending', 'before the decision date it still prints as pending');
+  var b = fresh('owner'); var kb = pk(b, 'TX8b'); var jb = pjob(b, kb); issueV(b, jb, '10', '92'); var pb = proposeLoss(b, jb, kb, 2000);
+  b.S.kgLedger.forEach(function(e){ e.date = '2026-01-01'; });
+  var ab = decide(b, jb, kb, pb.id, 'approve'); ok(!ab.err); ab.v.date = '2026-01-10';
+  var rv = call(function(cb){ b.kgReverse(pb.id, 'proposed against the wrong job', op(), cb); }); ok(!rv.err, 'reversing an approved loss: ' + (rv.err && rv.err.message)); rv.v.date = '2026-01-20';
+  var R1 = b.kgStatementRange(kb.id, 'gold', '2026-01-01', '2026-01-05'), R2 = b.kgStatementRange(kb.id, 'gold', '2026-01-06', '2026-01-15'), R3 = b.kgStatementRange(kb.id, 'gold', '2026-01-16', '2026-01-31');
+  eq(R1.closingMg, 9200, 'before the approval: only the issue, loss still pending'); eq(R2.openingMg, R1.closingMg); eq(R2.closingMg, 7200, 'inside: the approval takes 2.000 g'); eq(R3.openingMg, R2.closingMg); eq(R3.closingMg, 9200, 'after: the reversal gives it back');
+  [R1, R2, R3].forEach(function(r){ eq(r.openingMg + r.issuedMg - r.returnedMg + r.otherMg, r.closingMg, 'tiles add up ' + r.from); });
+  eq(b.kgStatementRange(kb.id, 'gold', '2026-01-01', '2026-01-31').closingMg, 9200); eq(b.kgAccount(kb.id).gold.totalMg, 9200, 'statement agrees with the account');
+});
+test('TX.9 statement tiles add up to closing when a receipt, scrap, hand-over or carry is reversed', function(){
+  function tiles(a, k){ var s = a.kgStatementRange(k.id, 'gold', '2000-01-01', '2999-12-31'); eq(s.openingMg + s.issuedMg - s.returnedMg + s.otherMg, s.closingMg, 'tiles add up'); return s; }
+  var a = fresh('owner'); var k = pk(a, 'TX9a'); var j = pjob(a, k); issueV(a, j, '10', '92'); var r1 = receiptV(a, j, {gross:'5', purity:'92'}); receiptV(a, j, {gross:'2', purity:'92'});
+  var s0 = tiles(a, k); ok(s0.returnedMg > 0); ok(!call(function(cb){ a.kgReverse(r1.entry.id, 'weighed the wrong ring', op(), cb); }).err);
+  var s1 = tiles(a, k); eq(s1.issuedMg, 9200); ok(s1.returnedMg > 0 && s1.returnedMg < s0.returnedMg, 'only the reversed receipt left Returned: ' + s1.returnedMg); eq(s1.otherMg, 0);
+  var b = fresh('owner'); var kb = pk(b, 'TX9b'); var jb = pjob(b, kb); issueV(b, jb, '10', '92');
+  var sb = b.kgBuildScrap(jb.id, '', {wt:'1', purity:'90', confirmed:true, kind:'dust', opId:op()}); var sc = call(function(cb){ b.kgAddEntry(sb.entry, cb); }).v;
+  var t0 = tiles(b, kb); ok(t0.returnedMg > 0); ok(!call(function(cb){ b.kgReverse(sc.id, 'weighed twice', op(), cb); }).err); var t1 = tiles(b, kb); eq(t1.returnedMg, 0); eq(t1.otherMg, 0); eq(t1.closingMg, 9200);
+  var c = fresh('owner'); var A = pk(c, 'TX9c'), B = pk(c, 'TX9d'); var jc = pjob(c, A); issueV(c, jc, '10', '92'); ok(!call(function(cb){ c.kgAddStage(jc.id, 'Setting', B.id, cb); }).err);
+  ok(!call(function(cb){ c.kgTransfer({jobId:jc.id, fromStageId:'', toStageId:jc.stages[0].id, wt:'3', purity:'92', chip:'', confirmed:true, opId:'tx9t', note:''}, cb); }).err);
+  var u0 = tiles(c, A); eq(u0.otherMg, -2760, 'hand-over out sits in Other'); ok(!call(function(cb){ c.kgReverseTransfer('tx9t:v', 'handed to wrong man', op(), cb); }).err);
+  var u1 = tiles(c, A); eq(u1.otherMg, 0); eq(u1.closingMg, 9200); var ub = tiles(c, B); eq(ub.otherMg, 0); eq(ub.closingMg, 0);
+  var d = fresh('owner'); var kd = pk(d, 'TX9e'); trust(d, kd); var jd = pjob(d, kd); issueV(d, jd, '10', '92'); receiptV(d, jd, {gross:'5', purity:'92'}); ok(!closeV(d, jd, {settle:'carry', opId:'tx9c'}).err);
+  var w0 = tiles(d, kd); eq(w0.closingMg, 4400); ok(!call(function(cb){ d.kgReopenJob(jd.id, cb); }).err); ok(!call(function(cb){ d.kgReverseCarry('tx9c:c0', 'undo the carry now', op(), cb); }).err);
+  var w1 = tiles(d, kd); eq(w1.closingMg, 4400, 'the metal is back on the job'); eq(w1.otherMg, 0, 'carry out, carry in and both reversals net to nothing'); eq(w1.issuedMg, 9200);
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

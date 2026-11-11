@@ -1085,7 +1085,7 @@ function renderKarigarList(){
     var queue = karigarQueue(k.id);
     var held = karigarMetalHeld(k.id);
     var oweMetal = [owed.gold>0?fmtW(owed.gold)+' gold':'', owed.silver>0?fmtW(owed.silver)+' silver':''].filter(Boolean).join(' + ');
-    var oweParts = [owed.cash>0?'You owe '+fmt(owed.cash):'', oweMetal?'You owe '+oweMetal:''].filter(Boolean);
+    var oweParts = [owed.cash>0?'You owe '+fmt(owed.cash):'', owed.cash<0?'He owes you '+fmt(-owed.cash)+' (advance)':'', oweMetal?'You owe '+oweMetal:''].filter(Boolean);
     function stat(l, v){ return '<div class="kg-stat"><span>'+l+'</span><span>'+v+'</span></div>'; }
     return '<div class="kg-card">'+
       '<div class="kg-head"><div class="kg-who"><div class="kg-avatar">'+escHtml(karigarInitials(k.name))+'</div><div>'+
