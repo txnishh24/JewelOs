@@ -1141,6 +1141,7 @@ function saveKarigarProfileForm(id){
 // polish pass, not required for the core workflow (assign -> submit -> see
 // balance -> settle) this task exists to close.
 function promptKarigarPayment(karigarId){
+  if(typeof kgUser === 'function' && kgUser().role !== 'owner'){ toast('Only the owner can record a payment'); return; }   // refuse before the four prompts, not after
   var type = prompt('Payment type: cash, gold, or silver?', 'cash');
   type = (type||'').trim().toLowerCase();
   if(!type || ['cash','gold','silver'].indexOf(type)===-1){ toast('Cancelled — type must be cash, gold, or silver'); return; }
@@ -1148,9 +1149,11 @@ function promptKarigarPayment(karigarId){
   if(!(amount > 0) || !isFinite(amount)){ toast('Cancelled — enter a positive amount'); return; }
   var note = prompt('Note (optional):','') || '';
   if(!confirm('Record '+(type==='cash' ? fmt(amount) : amount+'g '+type)+' to this karigar? This cannot be undone.')) { toast('Cancelled'); return; }
-  recordKarigarPayment(karigarId, type, amount, note);
-  renderKarigarList();
-  toast('✓ Payment recorded');
+  recordKarigarPayment(karigarId, type, amount, note, function(err){
+    if(err){ toast(err.message || 'Could not record the payment'); return; }
+    renderKarigarList();
+    toast('✓ Payment recorded');
+  });
 }
 
 function saveShopProfile(){

@@ -2727,6 +2727,7 @@ function kg3ProfileHtml(kid){
       escHtml(fmt(ow.owed.cash)) + (ow.owed.gold ? ' + ' + escHtml(Number(ow.owed.gold).toFixed(3)) + ' g gold' : '') + (ow.owed.silver ? ' + ' + escHtml(Number(ow.owed.silver).toFixed(3)) + ' g silver' : '') + '</div></div>' +
       (u.role === 'owner' ? kg2Btn('Pay for order work', 'kg3PayOrder(' + kg2Q(kid) + ')') : '') + '</div>';
   }
+  html += kg3PayOrderRecentHtml(kid);
   return html;
 }
 
@@ -2951,14 +2952,27 @@ function kg3OrderOwedText(type, n){ return type === 'cash' ? '\u20b9' + (Math.ro
 function kg3PayOrderCheck(kid, type, text){
   if(!Object.prototype.hasOwnProperty.call(KG_PAY_UNITS, type)) return {error:'Choose cash, gold or silver'};
   var t = String(text == null ? '' : text).trim(), cash = type === 'cash';
-  if(!(cash ? /^\d{1,9}(\.\d{1,2})?$/ : /^\d{1,6}(\.\d{1,3})?$/).test(t) || !(parseFloat(t) > 0)) return {error:'Enter an amount above zero (' + (cash ? 'rupees, at most 2 decimals' : 'grams, at most 3 decimals') + ')'};
+  if(!(cash ? /^\d{1,9}(\.\d{1,2})?$/ : /^\d{1,6}(\.\d{1,3})?$/).test(t)) return {error:'Enter the amount as a plain number (' + (cash ? 'rupees, at most 2 decimals' : 'grams, at most 3 decimals') + ')'};
+  if(!(parseFloat(t) > 0)) return {error:'Enter an amount above zero'};
   var unit = cash ? 100 : 1000;
   var amountU = Math.round(parseFloat(t) * unit), owedU = Math.round((kgOrderWork(kid).owed[type] || 0) * unit);   // whole paise / whole mg: no float dust
   if(!(owedU > 0)) return {error:'Nothing is owed to him in ' + (cash ? 'cash' : type)};
   if(amountU > owedU) return {error:'More than is owed: ' + kg3OrderOwedText(type, owedU / unit) + ' is owed to him'};
   return {amount:amountU / unit, owed:owedU / unit};
 }
-function kg3PayOrderSave(kid, type, amount, note, opId, done){
+var KG_PAY_MODES = ['cash', 'UPI', 'Bank'];
+// 'kp' + time + 3 digits as before, but never the id of a payment that already exists (a clash would let one reversal undo two payments).
+function kgPayId(prefix){
+  var id, used = {};
+  (S.karigarPayments || []).forEach(function(x){ used[x.id] = true; });
+  do { id = prefix + Date.now() + Math.floor(Math.random() * 1000); } while(used[id]);
+  return id;
+}
+// The one hardened core for paying a karigar for old-way order work. opts: {legacy:true} = the old Record payment button (the record keeps
+// its old fields, posts nothing to the Day Book); otherwise {mode:'cash'|'UPI'|'Bank', dbPost:true} = the new sheet (cash/UPI/Bank is kept and
+// the payment posts a Karigar payment line to the Day Book, derived at read time in js/10-daybook.js).
+function kg3PayOrderSave(kid, type, amount, note, opId, done, opts){
+  opts = opts || {};
   var u = kgUser(), added = null, auditId = null;
   S.karigarPayments = S.karigarPayments || [];
   for(var i = 0; i < S.karigarPayments.length; i++) if(S.karigarPayments[i].opId === opId) return done(null);
@@ -2966,18 +2980,62 @@ function kg3PayOrderSave(kid, type, amount, note, opId, done){
     if(u.role !== 'owner') return 'Only the owner can record a payment';
     if(!findKarigar(kid)) return 'Karigar not found';
     var c = kg3PayOrderCheck(kid, type, String(amount)); if(c.error) return c.error;
-    added = {id:'kp' + Date.now() + Math.floor(Math.random() * 1000), opId:opId, karigarId:kid, date:kgToday(), type:type, amount:c.amount, note:String(note || '').trim()};
+    var mode = '';
+    if(!opts.legacy && type === 'cash'){ mode = String(opts.mode || 'cash'); if(KG_PAY_MODES.indexOf(mode) === -1) return 'Choose cash, UPI or bank'; }
+    added = {id:kgPayId('kp'), opId:opId, karigarId:kid, date:kgToday(), type:type, amount:c.amount, note:String(note || '').trim()};
+    if(!opts.legacy){ if(mode) added.mode = mode; if(opts.dbPost === true && type === 'cash') added.dbPost = true; }
     S.karigarPayments.push(added);
     auditId = kgAudit('kg_order_payment', 'karigar', kid, type + ' ' + kg3OrderOwedText(type, c.amount));
     return '';
   }, function(){ S.karigarPayments = S.karigarPayments.filter(function(x){ return x !== added; }); kgUndoAudit(auditId); },
   function(err){ done(err); });
 }
+// Reverse an order payment (owner, with a reason). The payment stays in the list; a 'reversal' record points at it, owed comes back
+// (karigarOwed skips reversed payments) and, if the payment posted to the Day Book, the same amount goes back IN on the reversal day.
+function kg3PayOrderReverse(paymentId, reason, opId, done){
+  var u = kgUser(), target = null, rec = null, auditId = null;
+  S.karigarPayments = S.karigarPayments || [];
+  for(var i = 0; i < S.karigarPayments.length; i++){
+    if(S.karigarPayments[i].opId === opId) return done(null);
+    if(S.karigarPayments[i].id === paymentId) target = S.karigarPayments[i];
+  }
+  kgTxn('karigar:' + (target ? target.karigarId : paymentId), function(){
+    if(u.role !== 'owner') return 'Only the owner can reverse a payment';
+    if(!target || ['cash', 'gold', 'silver'].indexOf(target.type) === -1) return 'Payment not found';
+    if(S.karigarPayments.some(function(x){ return x.type === 'reversal' && x.reversesId === target.id; })) return 'Already reversed';
+    if(String(reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
+    rec = {id:kgPayId('kr'), opId:opId, karigarId:target.karigarId, date:kgToday(), ts:new Date().toISOString(), type:'reversal', reversesId:target.id, reason:String(reason).trim(), by:u.name};
+    S.karigarPayments.push(rec);
+    auditId = kgAudit('kg_order_payment_reverse', 'karigar', target.karigarId, kg3OrderOwedText(target.type, target.amount) + ': ' + rec.reason);
+    return '';
+  }, function(){ S.karigarPayments = S.karigarPayments.filter(function(x){ return x !== rec; }); kgUndoAudit(auditId); },
+  function(err){ done(err); });
+}
+function kg3PayOrderReverseSheet(paymentId){
+  kgForm({title:'Reverse this payment', submitLabel:'Reverse', doneToast:'\u2713 Payment reversed',
+    fields:[{id:'reason', label:'Reason (at least 5 letters)'}],
+    onSubmit:function(v, fin){ kg3PayOrderReverse(paymentId, v.reason, v.opId, function(err){ fin(err); }); }});
+}
+// The last few order payments of one karigar that can still be reversed (owner only).
+function kg3PayOrderRecentHtml(kid){
+  if(kgUser().role !== 'owner') return '';
+  var all = S.karigarPayments || [], undone = {};
+  all.forEach(function(x){ if(x.type === 'reversal') undone[x.reversesId] = true; });
+  var mine = all.filter(function(x){ return x.karigarId === kid && x.type !== 'reversal' && !undone[x.id]; }).slice(-5).reverse();
+  if(!mine.length) return '';
+  var html = '<div class="kg2-sec">Order work payments</div>';
+  mine.forEach(function(x){
+    html += '<div class="kg2-line"><div><b>' + escHtml(kg3OrderOwedText(x.type, parseFloat(x.amount) || 0)) + ' paid</b><div class="kg2-sub">' + escHtml(x.date || '') + (x.mode ? ' &middot; ' + escHtml(x.mode) : '') + (x.note ? ' &middot; ' + escHtml(x.note) : '') + '</div></div>' +
+      '<div class="kg2-right">' + kg2Btn('Reverse', 'kg3PayOrderReverseSheet(' + kg2Q(x.id) + ')') + '</div></div>';
+  });
+  return html;
+}
 function kg3PayOrder(kid){
   var k = findKarigar(kid); if(!k) return;
   var ow = kgOrderWork(kid).owed;
   kgForm({title:'Pay ' + k.name + ' for order work', submitLabel:'Record payment', doneToast:'\u2713 Payment recorded',
     fields:[{id:'type', label:'Paid in', type:'select', options:[['cash', 'Cash (\u20b9)'], ['gold', 'Gold (g)'], ['silver', 'Silver (g)']], value:(ow.cash > 0 ? 'cash' : (ow.gold > 0 ? 'gold' : 'silver'))},
+      {id:'mode', label:'Paid by', type:'select', options:[['cash', 'Cash'], ['UPI', 'UPI'], ['Bank', 'Bank transfer']], value:'cash', show:function(v){ return v.type === 'cash'; }},
       {id:'amount', label:'Amount (\u20b9 or grams)', mode:'decimal'}, {id:'note', label:'Note (optional)'}],
     preview:function(v){
       var c = String(v.amount || '').trim() === '' ? null : kg3PayOrderCheck(kid, v.type, v.amount);
@@ -2985,7 +3043,7 @@ function kg3PayOrder(kid){
     },
     onSubmit:function(v, fin){
       var c = kg3PayOrderCheck(kid, v.type, v.amount); if(c.error) return kg2Err(c.error, fin);
-      kg3PayOrderSave(kid, v.type, c.amount, v.note, v.opId, function(err){ fin(err); });
+      kg3PayOrderSave(kid, v.type, c.amount, v.note, v.opId, function(err){ fin(err); }, {mode:(v.type === 'cash' ? v.mode : ''), dbPost:true});
     }});
 }
 function kg3Receive(jobId){

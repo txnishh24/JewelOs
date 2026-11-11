@@ -1964,8 +1964,10 @@ function karigarOwed(karigarId){
       if(metal === 'silver') totals.silver += grams; else totals.gold += grams;
     }
   });
+  var _kpUndone = {};   // payments that were reversed (js/11-karigar.js kg3PayOrderReverse); old records have none, so their totals are unchanged
+  (S.karigarPayments||[]).forEach(function(p){ if(p.type === 'reversal') _kpUndone[p.reversesId] = true; });
   (S.karigarPayments||[]).forEach(function(p){
-    if(p.karigarId !== karigarId) return;
+    if(p.karigarId !== karigarId || _kpUndone[p.id]) return;
     if(p.type === 'cash')   totals.cash   -= (parseFloat(p.amount)||0);
     if(p.type === 'gold')   totals.gold   -= (parseFloat(p.amount)||0);
     if(p.type === 'silver') totals.silver -= (parseFloat(p.amount)||0);
@@ -2009,10 +2011,14 @@ function karigarQueue(karigarId){
     .map(function(e){ return { orderId:e.orderId, ordNo:e.ordNo, itemName:e.itemName, task:e.stage.task||'', assignedDate:e.stage.assignedDate||'' }; });
 }
 
-function recordKarigarPayment(karigarId, type, amount, note){
-  S.karigarPayments = S.karigarPayments || [];
-  S.karigarPayments.push({ id:'kp'+Date.now()+Math.floor(Math.random()*1000), karigarId:karigarId, date:dbDayKey(new Date()), type:type, amount:parseFloat(amount)||0, note:note||'' });
-  saveToCloud(function(){});
+// Same inputs as always. Since 11 Nov the work is done by the hardened core in js/11-karigar.js (kg3PayOrderSave): owner only,
+// never more than is owed (whole paise / mg), a repeated opId is a duplicate, a failed save rolls back with its audit row.
+// The record keeps its old fields (plus opId) and, unlike the new sheet, posts nothing to the Day Book.
+// done(err) is optional; opId is optional (a fresh one is made).
+function recordKarigarPayment(karigarId, type, amount, note, done, opId){
+  var cb = (typeof done === 'function') ? done : function(){};
+  if(typeof kg3PayOrderSave !== 'function') return cb(new Error('Payments are not available right now'));
+  kg3PayOrderSave(karigarId, type, String(amount), note || '', opId || ('kp' + Date.now() + Math.floor(Math.random() * 100000)), cb, {legacy:true});
 }
 
 function calcItemProfit(item){

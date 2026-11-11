@@ -2009,5 +2009,128 @@ test('R3.B16 the statement has a Print / PDF button and print rules that show on
   var css = require('fs').readFileSync(__dirname + '/../index.html', 'utf8'); ok(/kg-printing/.test(css), 'print css'); ok(/\.kg2-chk[^{]*\{[^}]*display:flex/.test(css) && /label\.kg2-chk/.test(css), 'tick box row stays a flex row');
 });
 
+console.log('\nKarigar payments - legacy path on the hardened core, Day Book posting');
+
+function owedShop(a, k, cost){
+  a.S.orders = [{id:'o1', ordNo:'OR-1', status:'open', items:[{desc:'Ring', metal:'gold', karigarStages:[{task:'Make', karigarId:k.id, status:'submitted', karigarPayMode:'cash', karigarCost:cost || 500}]}]}];
+}
+var LEGACY_SHAPE = ['amount', 'date', 'id', 'karigarId', 'note', 'type'];
+test('PAY.1 recordKarigarPayment goes through the hardened core: owner only, capped at what is owed, opId dedupe, rollback with audit', function(){
+  var a = fresh('owner'); var k = pk(a, 'PAY1'); owedShop(a, k, 500);
+  var r = call(function(cb){ a.recordKarigarPayment(k.id, 'cash', 300, 'part', cb); }); ok(!r.err, r.err && r.err.message);
+  eq(a.S.karigarPayments.length, 1); var p = a.S.karigarPayments[0];
+  eq(Object.keys(p).filter(function(x){ return x !== 'opId'; }).sort().join(), LEGACY_SHAPE.join(), 'same fields as before (plus the dedupe id)');
+  eq(p.type, 'cash'); eq(p.amount, 300); eq(p.note, 'part'); ok(!p.dbPost, 'the old path does not post to the Day Book'); eq(a.karigarOwed(k.id).cash, 200);
+  ok(call(function(cb){ a.recordKarigarPayment(k.id, 'cash', 250, '', cb); }).err, 'over what is owed'); eq(a.S.karigarPayments.length, 1);
+  ok(call(function(cb){ a.recordKarigarPayment(k.id, 'cash', 200.005, '', cb); }).err, 'not whole paise');
+  a.SAAS.user.role = 'manager'; ok(call(function(cb){ a.recordKarigarPayment(k.id, 'cash', 10, '', cb); }).err, 'owner only'); a.SAAS.user.role = 'staff'; ok(call(function(cb){ a.recordKarigarPayment(k.id, 'cash', 10, '', cb); }).err); a.SAAS.user.role = 'owner';
+  function viaOp(){ return call(function(cb){ a.recordKarigarPayment(k.id, 'cash', 50, '', cb, 'fixed-op'); }); } ok(!viaOp().err); ok(!viaOp().err, 'a repeat of the same operation is a duplicate'); eq(a.S.karigarPayments.length, 2, 'recorded once'); eq(a.karigarOwed(k.id).cash, 150);
+  var audits = (a.S.auditLog || []).length, good = a.saveToCloud; a.saveToCloud = function(cb){ cb(new Error('offline')); };
+  ok(call(function(cb){ a.recordKarigarPayment(k.id, 'cash', 100, '', cb); }).err); a.saveToCloud = good;
+  eq(a.S.karigarPayments.length, 2, 'a failed save leaves nothing'); eq(a.karigarOwed(k.id).cash, 150); eq((a.S.auditLog || []).length, audits, 'and no audit row');
+  ok(call(function(cb){ a.recordKarigarPayment(k.id, 'gold', 1, '', cb); }).err, 'no gold owed');
+});
+test('PAY.2 existing payment records are never touched: two shops, one payment each, same totals and byte-identical after new payments', function(){
+  var real = [{id:'kp1699000000001', karigarId:'K-A', date:'2026-10-30', type:'cash', amount:1500, note:''}];   // the shape recordKarigarPayment has always written
+  var real2 = [{id:'kp1699000000002', karigarId:'K-B', date:'2026-10-31', type:'gold', amount:2.5, note:'advance'}];
+  [[real, 'K-A'], [real2, 'K-B']].forEach(function(c){
+    var a = fresh('owner'); var k = pk(a, 'PAY2'); c[0][0].karigarId = k.id;
+    var before = JSON.stringify(c[0]); a.S.karigarPayments = JSON.parse(before);
+    a.S.orders = [{id:'o1', ordNo:'OR-1', status:'open', items:[{desc:'Ring', metal:'gold', karigarStages:[{task:'Make', karigarId:k.id, status:'submitted', karigarPayMode:'cash', karigarCost:3000}]}]}];
+    var owedBefore = JSON.stringify(a.karigarOwed(k.id));
+    eq(JSON.stringify(a.S.karigarPayments), before, 'loaded as is');
+    ok(!call(function(cb){ a.recordKarigarPayment(k.id, 'cash', 100, '', cb); }).err);
+    eq(JSON.stringify(a.S.karigarPayments.slice(0, 1)), before, 'the old record is byte-identical');
+    eq(JSON.stringify(a.dbAutoLines(a.kgToday()).filter(function(l){ return l.cat === 'karigar-payment'; })), '[]', 'old records and old-path payments post nothing');
+    eq(a.karigarOwed(k.id).cash, JSON.parse(owedBefore).cash - 100, 'owed moved by exactly the new payment');
+  });
+});
+test('PAY.3 promptKarigarPayment shows the refusal and records nothing when the cap or the role says no', function(){
+  var a = fresh('owner'); var k = pk(a, 'PAY3'); owedShop(a, k, 500); var toasts = []; a.toast = function(m){ toasts.push(m); };
+  var n = 0; a.prompt = function(){ n++; return n === 1 ? 'cash' : (n === 2 ? '900' : ''); }; a.confirm = function(){ return true; };
+  a.promptKarigarPayment(k.id); eq(a.S.karigarPayments.length, 0); ok(/more than is owed/i.test(toasts[toasts.length - 1]), toasts[toasts.length - 1]);
+  n = 0; a.prompt = function(){ n++; return n === 1 ? 'cash' : (n === 2 ? '400' : ''); }; a.promptKarigarPayment(k.id); eq(a.S.karigarPayments.length, 1); ok(/recorded/i.test(toasts[toasts.length - 1]));
+  a.SAAS.user.role = 'manager'; var asked = 0; a.prompt = function(){ asked++; return ''; }; a.promptKarigarPayment(k.id);
+  eq(asked, 0, 'a manager is refused before any question is asked'); ok(/only the owner/i.test(toasts[toasts.length - 1])); eq(a.S.karigarPayments.length, 1);
+  a.SAAS.user.role = 'owner'; ok(/plain number/.test(a.kg3PayOrderCheck(k.id, 'cash', '100.555').error), 'a clear message for too many decimals'); ok(/above zero/.test(a.kg3PayOrderCheck(k.id, 'cash', '0').error));
+  var ids = {}; for(var q = 0; q < 40; q++){ var idq = a.kgPayId('kp'); ok(!ids[idq]); ids[idq] = 1; a.S.karigarPayments.push({id:idq}); } a.S.karigarPayments.length = 1;
+});
+test('PAY.4 Day Book: a payment from the new sheet is one outflow line (cash in the totals, UPI as a non-cash line); repeated reads never double post', function(){
+  var a = fresh('owner'); var k = pk(a, 'PAY4'); owedShop(a, k, 1000); var d = a.kgToday();
+  var c = call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 300, 'n', op(), cb, {mode:'cash', dbPost:true}); }); ok(!c.err, c.err && c.err.message);
+  var u = call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 200, 'n', op(), cb, {mode:'UPI', dbPost:true}); }); ok(!u.err);
+  var lines = a.dbAutoLines(d).filter(function(l){ return l.cat === 'karigar-payment'; }); eq(lines.length, 2); a.dbAutoLines(d); a.dbAutoTotals(d); eq(a.dbAutoLines(d).filter(function(l){ return l.cat === 'karigar-payment'; }).length, 2, 'derived, not stored');
+  var cash = lines.filter(function(l){ return !l.nonCash; })[0], upi = lines.filter(function(l){ return l.nonCash; })[0];
+  eq(cash.dir, 'out'); eq(cash.amount, 300); ok(/Karigar payment/.test(cash.label)); eq(upi.mode, 'UPI'); eq(upi.amount, 200); eq(a.dbAutoTotals(d).out, 300, 'only cash in the cash totals');
+  var g = call(function(cb){ a.kg3PayOrderSave(k.id, 'gold', 1, '', op(), cb, {dbPost:true}); }); ok(g.err, 'no gold owed, so none posted');
+  eq(a.S.karigarPayments.length, 2);
+});
+test('PAY.5 reversing a payment posts the opposite line on the day of the reversal; payment and reversal net to zero; owed comes back; once only, owner only, with a reason', function(){
+  var a = fresh('owner'); a.dbInit(); var k = pk(a, 'PAY5'); owedShop(a, k, 1000); var d = a.kgToday();
+  var c = call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 300, 'n', op(), cb, {mode:'cash', dbPost:true}); }); var pay = a.S.karigarPayments[0];
+  eq(a.karigarOwed(k.id).cash, 700);
+  ok(call(function(cb){ a.kg3PayOrderReverse(pay.id, 'no', op(), cb); }).err, 'a reason of at least 5 letters');
+  a.SAAS.user.role = 'manager'; ok(call(function(cb){ a.kg3PayOrderReverse(pay.id, 'paid twice by mistake', op(), cb); }).err, 'owner only'); a.SAAS.user.role = 'owner';
+  var r = call(function(cb){ a.kg3PayOrderReverse(pay.id, 'paid twice by mistake', op(), cb); }); ok(!r.err, r.err && r.err.message);
+  eq(a.karigarOwed(k.id).cash, 1000, 'owed is back');
+  var ls = a.dbAutoLines(d).filter(function(l){ return /^karigar-payment/.test(l.cat); }); eq(ls.length, 2); eq(ls.filter(function(l){ return l.dir === 'out'; }).length, 1); eq(ls.filter(function(l){ return l.dir === 'in' && l.cat === 'karigar-payment-reversal'; }).length, 1);
+  eq(a.dbNetMovement(d), 0, 'nets to zero in the Day Book');
+  ok(call(function(cb){ a.kg3PayOrderReverse(pay.id, 'paid twice by mistake', op(), cb); }).err, 'already reversed');
+  var rev = a.S.karigarPayments[1]; ok(call(function(cb){ a.kg3PayOrderReverse(rev.id, 'reversing the reversal', op(), cb); }).err, 'a reversal is not reversed');
+  // a reversal on a LATER day: the original day keeps its outflow, the later day gets the inflow, the two together net to zero
+  var a2 = fresh('owner'); a2.dbInit(); var k2 = pk(a2, 'PAY5b'); owedShop(a2, k2, 1000);
+  call(function(cb){ a2.kg3PayOrderSave(k2.id, 'cash', 400, '', op(), cb, {mode:'cash', dbPost:true}); }); var p2 = a2.S.karigarPayments[0]; p2.date = '2026-11-01';
+  call(function(cb){ a2.kg3PayOrderReverse(p2.id, 'wrong karigar paid', op(), cb); });
+  eq(a2.dbNetMovement('2026-11-01'), -400); eq(a2.dbNetMovement(a2.kgToday()), 400); eq(a2.dbNetMovement('2026-11-01') + a2.dbNetMovement(a2.kgToday()), 0);
+  // old-path payment: reversible (owed back), but posts nothing either way
+  var a3 = fresh('owner'); var k3 = pk(a3, 'PAY5c'); owedShop(a3, k3, 1000); call(function(cb){ a3.recordKarigarPayment(k3.id, 'cash', 100, '', cb); });
+  var r3 = call(function(cb){ a3.kg3PayOrderReverse(a3.S.karigarPayments[0].id, 'entered by mistake', op(), cb); }); ok(!r3.err); eq(a3.karigarOwed(k3.id).cash, 1000);
+  eq(a3.dbAutoLines(a3.kgToday()).filter(function(l){ return /^karigar-payment/.test(l.cat); }).length, 0);
+});
+test('PAY.6 the sheet and the profile: pay sheet has a paid-by choice for cash, recent payments with Reverse (owner only)', function(){
+  var a = fresh('owner'); var k = pk(a, 'PAY6'); owedShop(a, k, 1000);
+  call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 300, '', op(), cb, {mode:'UPI', dbPost:true}); });
+  var h = a.kg3ProfileHtml(k.id); ok(/kg3PayOrderReverseSheet\(/.test(h) && /UPI/.test(h), 'recent payment with Reverse');
+  a.SAAS.user.role = 'manager'; ok(a.kg3ProfileHtml(k.id).indexOf('kg3PayOrderReverseSheet(') === -1, 'not for a manager');
+});
+test('PAY.7 closed Day Book day: a payment or reversal landing on a closed day is restated once by the sweep; a reversal made today leaves the closed day frozen', function(){
+  function setup(){
+    var a = fresh('owner'); a.dbInit(); var k = pk(a, 'PAY7'); owedShop(a, k, 5000);
+    call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 400, '', op(), cb, {mode:'cash', dbPost:true}); });
+    a.S.karigarPayments[0].date = '2026-11-01';
+    ok(!call(function(cb){ a.dbCloseDay('2026-11-01', 0, cb); }).err, 'close the payment day');
+    return {a:a, k:k};
+  }
+  var s = setup(), a = s.a, c = a.dbCloseFor('2026-11-01'); eq(c.autoOut, 400); eq(c.autoIn, 0);
+  // 1. reversal made TODAY: the closed day stays frozen, the sweep has nothing to do, today carries the inflow
+  var pay = a.S.karigarPayments[0]; ok(!call(function(cb){ a.kg3PayOrderReverse(pay.id, 'paid twice by mistake', op(), cb); }).err);
+  eq(a.dbCloseFor('2026-11-01').autoOut, 400, 'closed totals not rewritten'); eq(a.dbDayView('2026-11-01').totalOut, 400);
+  var sw = call(function(cb){ a.dbSweepRestatements(cb); }); eq(sw.err, null); eq(sw.v, 0, 'nothing restated'); eq((a.S.dayBook.entries || []).filter(function(e){ return e.kind === 'adjust'; }).length, 0);
+  eq(a.dbNetMovement(a.kgToday()), 400);
+  // 2. a new payment BACKDATED into the closed day: the sweep posts one visible adjustment on the first open day, and only once
+  var s2 = setup(), b = s2.a;
+  call(function(cb){ b.kg3PayOrderSave(s2.k.id, 'cash', 100, '', op(), cb, {mode:'cash', dbPost:true}); }); b.S.karigarPayments[1].date = '2026-11-01';
+  var r1 = call(function(cb){ b.dbSweepRestatements(cb); }); eq(r1.v, 1);
+  var adj = b.S.dayBook.entries.filter(function(e){ return e.kind === 'adjust'; }); eq(adj.length, 1); eq(adj[0].dir, 'out'); eq(adj[0].amount, 100); eq(adj[0].srcDate, '2026-11-01');
+  eq(b.dbCloseFor('2026-11-01').autoOut, 500, 're-baselined');
+  eq(call(function(cb){ b.dbSweepRestatements(cb); }).v, 0, 'second sweep posts nothing'); eq(b.S.dayBook.entries.filter(function(e){ return e.kind === 'adjust'; }).length, 1);
+  // 3. a reversal dated INTO the closed day: restated as an inflow, so payment + reversal net to zero across the close and its adjustment
+  var s3 = setup(), d = s3.a;
+  call(function(cb){ d.kg3PayOrderReverse(d.S.karigarPayments[0].id, 'paid twice by mistake', op(), cb); }); d.S.karigarPayments[1].date = '2026-11-01';
+  eq(call(function(cb){ d.dbSweepRestatements(cb); }).v, 1); var ad = d.S.dayBook.entries.filter(function(e){ return e.kind === 'adjust'; });
+  eq(ad.length, 1); eq(ad[0].dir, 'in'); eq(ad[0].amount, 400); eq(d.dbCloseFor('2026-11-01').autoIn, 400);
+});
+test('PAY.8 month range: trend and totals count a payment once and a reversal once (no double count across days or views)', function(){
+  var a = fresh('owner'); a.dbInit(); var k = pk(a, 'PAY8'); owedShop(a, k, 5000); var today = a.kgToday();
+  call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 400, '', op(), cb, {mode:'cash', dbPost:true}); }); call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', 250, '', op(), cb, {mode:'UPI', dbPost:true}); });
+  a.S.karigarPayments[0].date = '2026-11-01';
+  call(function(cb){ a.kg3PayOrderReverse(a.S.karigarPayments[0].id, 'wrong karigar paid', op(), cb); });
+  var tr = a.dbBuildTrend('2026-11-01', today), sumIn = 0, sumOut = 0;
+  tr.forEach(function(t){ sumIn += t.totalIn; sumOut += t.totalOut; });
+  eq(sumOut, 400, 'cash payment counted once; the UPI one is non-cash and not in cash totals'); eq(sumIn, 400, 'reversal counted once');
+  eq(a.dbAutoTotals('2026-11-01').out, 400); eq(a.dbAutoTotals(today).in, 400); eq(a.dbAutoTotals(today).out, 0); eq(a.dbAutoTotals(today).nonCashAmount, 250);
+  eq(tr.reduce(function(n, t){ return n + a.dbNetMovement(t.date); }, 0), 0, 'net over the month is zero');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }

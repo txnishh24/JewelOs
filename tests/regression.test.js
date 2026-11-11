@@ -6794,6 +6794,9 @@ test('recordKarigarPayment: appends to S.karigarPayments and persists', function
   var a = loadApp(), saved = 0;
   a.saveToCloud = function(cb){ saved++; cb && cb(null); };
   var k = a.addOrGetKarigar('Ramesh');
+  // 11 Nov: the payment goes through the hardened core (owner only, never more than is owed), so the test needs an owner and 500 owed.
+  a.SAAS.user = { name:'T', email:'t@example.com', role:'owner' };
+  a.S.orders = [{ id:'o1', ordNo:'ORD-1', items:[{ desc:'Ring', karigarStages:[{ karigarId:k.id, karigarPayMode:'cash', karigarCost:500, status:'submitted' }] }] }];
   a.recordKarigarPayment(k.id, 'cash', 500, 'advance');
   assert(a.S.karigarPayments.length === 1, 'should append one payment');
   assert(a.S.karigarPayments[0].karigarId === k.id && a.S.karigarPayments[0].amount === 500 && a.S.karigarPayments[0].type === 'cash', 'payment fields wrong: ' + JSON.stringify(a.S.karigarPayments[0]));
@@ -6803,6 +6806,7 @@ test('recordKarigarPayment: appends to S.karigarPayments and persists', function
 test('promptKarigarPayment: a non-finite or non-positive amount is rejected and never recorded', function(){
   var a = loadApp();
   var k = a.addOrGetKarigar('Ramesh');
+  a.SAAS.user = { name:'T', email:'t@example.com', role:'owner' };   // 11 Nov: the owner check comes first
   var toasts = []; a.toast = function(m){ toasts.push(m); };
   var calls = 0;
   a.prompt = function(){ calls++; return calls === 1 ? 'cash' : (calls === 2 ? 'Infinity' : ''); };
@@ -6816,6 +6820,8 @@ test('promptKarigarPayment: trims/lowercases the type and requires confirm befor
   var a = loadApp(), saved = 0;
   a.saveToCloud = function(cb){ saved++; cb && cb(null); };
   var k = a.addOrGetKarigar('Suresh');
+  a.SAAS.user = { name:'T', email:'t@example.com', role:'owner' };   // 11 Nov: owner only, and 500 must be owed
+  a.S.orders = [{ id:'o1', ordNo:'ORD-1', items:[{ desc:'Ring', karigarStages:[{ karigarId:k.id, karigarPayMode:'cash', karigarCost:500, status:'submitted' }] }] }];
   var calls = 0;
   a.prompt = function(){ calls++; return calls === 1 ? ' Cash ' : (calls === 2 ? '500' : ''); };
   var confirmed = false;

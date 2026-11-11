@@ -300,6 +300,24 @@ function dbAutoLines(dateKey){
     else lines.push({dir:kdir, amount:dbRound(base.amountPaise/100), cat:kcat, label:klabel, src:'karigar', srcId:base.karigarId, ref:e.id});
   });
 
+  // ── F. Karigar order payments made from the new Karigars screen (js/11-karigar.js kg3PayOrder) ──
+  // Only records flagged dbPost (written by the new sheet) post a line; every older record, and the old Record payment button, posts
+  // nothing (unchanged). Cash paid is money out on its day; reversing it puts the same amount back IN on the day of the reversal.
+  // Lines are derived here at read time, so nothing is stored twice and a re-read never posts again. Metal payments never appear.
+  var _kpAll = S.karigarPayments || [], _kpById = {};
+  _kpAll.forEach(function(e){ _kpById[e.id] = e; });
+  _kpAll.forEach(function(e){
+    var base = (e.type === 'reversal') ? _kpById[e.reversesId] : e;
+    if(!base || base.type !== 'cash' || base.dbPost !== true || !(parseFloat(base.amount) > 0)) return;
+    if(dbDayKey(e.date || e.ts) !== dateKey) return;
+    var krev = (e.type === 'reversal'), kn = (findKarigar(base.karigarId) || {}).name || '';
+    var kmode2 = base.mode || 'cash', kamt = dbRound(parseFloat(base.amount));
+    var kl = 'Karigar payment' + (kn ? ' - ' + kn : '') + (krev ? ' (reversed)' : '') + (!dbIsCash(kmode2) ? ' (' + kmode2 + ')' : '');
+    var kline = {dir:(krev ? 'in' : 'out'), amount:kamt, cat:(krev ? 'karigar-payment-reversal' : 'karigar-payment'), label:kl, src:'karigar', srcId:base.karigarId, ref:e.id};
+    if(!dbIsCash(kmode2)){ kline.nonCash = true; kline.mode = kmode2; }
+    lines.push(kline);
+  });
+
   return lines;
 }
 
