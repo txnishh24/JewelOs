@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody.** Batch70 LIVE on the Cloudflare worker (as before). Karigar work incl. review fixes through the 207th entry MERGED to `main` locally on 12 Nov (fast-forward to `7924a99`, 208th entry); NOT pushed, NOT deployed, no migration, ledger flag OFF, new screens behind per-device `kgProfileUi`. WAITING on Tanish: e2e before any deploy, phone look, deploy decision.
+> **Nobody.** Batch71 is LIVE on the Cloudflare worker (12 Nov 18:05 IST, Version ID `85eeafc2-8db0-45b3-8520-f82e66b6385c`, commit `f763218`, tag `batch71-live`, rollback tag `batch70-live`). Includes the Karigar redesign screens (OFF behind per-device `kgProfileUi`) and phone round 1-2. Backend unchanged: migrations to 014, `store-proxy` v18, no migration in this deploy. Ledger flag OFF for every shop. Local `main` NOT pushed to GitHub.
 ---
 
 ## WAITING ON TANISH
@@ -31,7 +31,7 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
 
 **Open:**
 
-- **[12 Nov, 208th entry] Karigar work is merged to `main` locally (not pushed, not deployed). Three items, all Tanish's.** (a) Run `npm run test:e2e` BEFORE ANY DEPLOY (steps in the 207th entry). (b) Real-phone look on shop `3720af09` with `kgProfileUi` on, when convenient. (c) Deploy decision. Rollback: `git reset --hard c2a79b3` on `main` (nothing pushed) or revert. Checklist: `docs/KARIGAR-MERGE-CHECKLIST.md`.
+- **[12 Nov, 211th entry] Batch71 is live. Three items, all Tanish's.** (a) Put the e2e test env file (same name as the `.example` file, without `.example`) in a worktree root and have Claude Code run `npm install` + `npm run test:e2e` against `77c4aefe` (never run on this code). (b) Real-phone look on shop `3720af09`, including the iOS keyboard vs Save on Give advance and the Back button on sheets. (c) Turn `kgProfileUi` on for your own phone only (Karigars > Reports > Switch on). Rollback: `git checkout batch70-live`, `node build-cf-deploy-stage.js batch70`, `npx wrangler deploy` (or `npx wrangler rollback`); no data migration involved.
 - **Backup of `public.store` (`tools/backup-store.js`, docs/BACKUP-SETUP.md) — deliberately postponed to the last day of launch (Tanish, 22 Oct).** Not an oversight, don't chase it early. Known cost, accepted: until then the Free-plan database has no backups, so Tanish's own shop (`3720af09`, 12 girvi loans, 0 sales, last save 23 Oct) is a single unbacked row. [Corrected 30 Oct, 108th/111th entry: this line used to name `77c4aefe` with 411 sales / 124 girvi loans, but that is the E2E test shop, not a customer.] Do flag it again if a real shop starts billing heavily before launch day.
 - **`RESEND_API_KEY` / domain — deliberately postponed to deployment day.** Tanish wants to buy a
   domain (picked `jewelos.co`, still unregistered), verify it in Resend, and set the two Supabase
@@ -76,6 +76,17 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-12 (two-hundred-and-eleventh entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R13 + R14: `phone-round-1` merged to `main`, batch71 DEPLOYED (Tanish: "yes, merge then deploy")
+
+- Merge: `git merge --ff-only phone-round-1` clean (R13 had not been run; Tanish said yes in chat). Then commit `f763218` (APP_BUILD 71, `sw.js` cache `jewelos-v26`, `docs/CHANGES-batch71.md`). Local only; NOT pushed to GitHub.
+- Checks on main before deploy: regression 493/0; karigar-v2 261/0; ledger client 91/0; sql suites all passed; backup-check OK; roundtrip PASS (32 keys); syntax ok. e2e SKIPPED: no env file in the deploy worktree.
+- Deploy: `node build-cf-deploy-stage.js batch71`, `wrangler deploy --dry-run` clean, `npx wrangler deploy` at 18:05 IST 12 Nov. Live at `https://jewelos.jewelos-e2e.workers.dev`, Version ID `85eeafc2-8db0-45b3-8520-f82e66b6385c`. Tag `batch71-live` on `f763218`. No migration, ledger flag untouched.
+- `jewelos-deploy-verifier` on the live origin: all 16 served files match the staged build byte for byte; `sw.js` is `jewelos-v26`; `APP_BUILD = 71`; `viewport-fit=cover` present; `kgProfileUi` off unless set to '1'; nothing sets `kgLedgerOn` true; `wrangler.jsonc`, `.wrangler`, `package.json`, `HANDOFF.md` return 404; security headers present. `/CHANGELOG.md` is publicly served (by design of the stage script).
+- NOT verified: e2e, a real phone, whether open phones pick up the new service worker (cache bump is the mechanism), Cloudflare Version ID cross-check (content match only).
+- Rollback: see WAITING ON TANISH.
+-> FOR COWORK: batch71 live; read-only smoke is fine, no login to real shops; `77c4aefe` and `65a3ce29` untouched.
+-> FOR TANISH: e2e env file, phone look on `3720af09`, then switch `kgProfileUi` on for your own phone.
 
 ### 2026-11-12 (two-hundred-and-tenth entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R12 Part 1 on branch `phone-round-1` (commit `2eacc3b`); Part 2 (e2e) NOT run; NOT merged, pushed, deployed or migrated
 
