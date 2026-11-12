@@ -865,12 +865,17 @@ function kgCreateJobNow(fields, opId, done){
     var cat = String(fields.category || '').trim();
     if(cat.length > 40) return 'Category is too long';
     if(fields.orderId && !(S.orders || []).some(function(o){ return o.id === fields.orderId && o.status !== 'cancelled' && o.status !== 'delivered'; })) return 'That customer order was not found or is already closed';
-    var pts = null, jmetal = 'gold', jtag = '', jpieces = 0;
+    var pts = null, jmetal = 'gold', jtag = '', jpieces = 0, jlab = null;
     if(fields.model === 'points'){
       jmetal = fields.metal || 'gold'; if(KG_METALS.indexOf(jmetal) === -1) return 'Choose gold or silver';
       if(String(fields.pointsText || '').trim() !== ''){ pts = kgPointsFromText(fields.pointsText); if(pts === null) return 'Wastage points must be 0 to 20'; }
       jtag = String(fields.tag || '').trim(); if(jtag.length > 30) return 'Tag is too long';
       if(String(fields.pieceCount || '').trim() !== ''){ if(!/^\d{1,4}$/.test(String(fields.pieceCount).trim())) return 'Piece count must be a whole number'; jpieces = parseInt(fields.pieceCount, 10); }
+      if(String(fields.labourText || '').trim() !== ''){   // labour per gram of net weight, paid in rupees on top of the points: the owner's call
+        if(u.role !== 'owner') return 'Only the owner can set labour on a job';
+        if(src.kind !== 'wastage') return 'A salary karigar has no per-gram labour';
+        jlab = kgParsePaise(fields.labourText); if(jlab === null) return 'Labour per gram is not valid (rupees, at most 2 decimals)';
+      }
     }
     var route = cat ? kgRouteFor(cat) : null;
     var no = String(prevNo); while(no.length < 4) no = '0' + no;
@@ -882,7 +887,7 @@ function kgCreateJobNow(fields, opId, done){
            stages:(route ? route.stages.map(function(n){ return {id:kgNewId(), name:n, status:'pending', who:'', log:[]}; }) : []),
            status:'open', orderRef:(fields.orderId ? {orderId:fields.orderId} : null),
            createdAt:new Date().toISOString(), createdBy:u.name};
-    if(fields.model === 'points'){ job.model = 'points'; job.metal = jmetal; job.pointsPu = pts; job.tag = jtag; job.pieceCount = jpieces; job.wastageBp = 0; job.fixedMg = 0; job.labour = null; kgSnapTerms(job, k.id); }
+    if(fields.model === 'points'){ job.model = 'points'; job.metal = jmetal; job.pointsPu = pts; job.tag = jtag; job.pieceCount = jpieces; job.wastageBp = 0; job.fixedMg = 0; job.labour = null; if(jlab !== null) job.labourPg = jlab; kgSnapTerms(job, k.id); }
     S.kgJobs.push(job);
     S.nextKgJobNo = prevNo + 1;
     auditId = kgAudit('kg_job_new', 'kgJob', job.id, job.jobNo + ' ' + title);
@@ -898,7 +903,7 @@ var KG_JOB_CLOSE_KEYS = ['status', 'closedAt', 'closedBy', 'earnings', 'earnings
 function kgSnapKeys(obj, keys){ var o = {}; keys.forEach(function(k){ o[k] = {has:Object.prototype.hasOwnProperty.call(obj, k), v:obj[k]}; }); return o; }
 function kgRestoreKeys(obj, snap){ Object.keys(snap).forEach(function(k){ if(snap[k].has) obj[k] = snap[k].v; else delete obj[k]; }); }
 function kgCloseJob(jobId, done, opts){
-  var job = kgFindJob(jobId), u = kgUser(), auditId = null, labourEntry = null, pre = null, jobSnap = null;
+  var job = kgFindJob(jobId), u = kgUser(), auditId = null, labourEntries = [], pre = null, jobSnap = null;
   if(job && opts && opts.opId && job.closeOpId === opts.opId) return done(null, job, true);   // a retry of a close that already went through
   kgTxn('job:' + jobId, function(){
     if(!job) return 'Job not found';
@@ -922,37 +927,58 @@ function kgCloseJob(jobId, done, opts){
     (S.kgLedger || []).forEach(function(e){
       if(e.jobId === job.id && e.type === 'RECEIPT' && !idx.reversed[e.id]){ net += e.mg; fineRet += (e.actualFineMg != null ? e.actualFineMg : e.fineMg); }
     });
-    var lab = job.labour, labourPaise = 0;
-    if(lab && lab.perGramPaise > 0) labourPaise = Math.round(lab.perGramPaise * (lab.base === 'fine' ? fineRet : net) / 1000);
+    var lab = job.labour, labourPaise = 0, labBase = (lab ? lab.base : ''), labRows = [];
+    if(job.model === 'points'){
+      // labour = rate x NET weight of each live receipt, rounded half up to whole paise ONCE PER RECEIPT LINE, summed per karigar (his own frozen terms)
+      var per = {}, order = [];
+      (S.kgLedger || []).forEach(function(e){
+        if(e.jobId !== job.id || e.type !== 'RECEIPT' || idx.reversed[e.id]) return;
+        var tm = kgTermsFor(job, e.karigarId), pg = (tm.kind === 'wastage' && tm.labourPg > 0) ? tm.labourPg : 0;
+        if(pg > 0){ if(per[e.karigarId] === undefined){ per[e.karigarId] = 0; order.push(e.karigarId); } per[e.karigarId] += Math.round(pg * e.mg / 1000); }
+      });
+      order.forEach(function(kid){ if(per[kid] > 0){ labRows.push({kid:kid, paise:per[kid]}); labourPaise += per[kid]; } });
+      if(labRows.length) labBase = 'net';
+    } else if(lab && lab.perGramPaise > 0){
+      labourPaise = Math.round(lab.perGramPaise * (lab.base === 'fine' ? fineRet : net) / 1000);
+      if(labourPaise > 0) labRows.push({kid:job.karigarId, paise:labourPaise});
+    }
     jobSnap = kgSnapKeys(job, KG_JOB_CLOSE_KEYS);
     job.status = 'closed'; job.closedAt = new Date().toISOString(); job.closedBy = u.name; if(opts && opts.opId) job.closeOpId = opts.opId;
     job.earnings = {at:job.closedAt, by:u.name, issuedFine:b.issuedFine, percentFine:b.percentFine, fixedFine:b.fixedFine,
-                    earnedFine:b.earnedFine, netMg:net, fineMg:fineRet, labourBase:(lab ? lab.base : ''), labourPaise:labourPaise};
-    if(labourPaise > 0){
+                    earnedFine:b.earnedFine, netMg:net, fineMg:fineRet, labourBase:labBase, labourPaise:labourPaise};
+    if(labRows.length){
       S.kgSalary = S.kgSalary || [];
-      labourEntry = kgStamp({type:'JOB_LABOUR', opId:'jl-' + kgNewId(), karigarId:job.karigarId, jobId:job.id, amountPaise:labourPaise, base:lab.base});
-      S.kgSalary.push(labourEntry);
+      labRows.forEach(function(r){
+        var le = kgStamp({type:'JOB_LABOUR', opId:'jl-' + kgNewId(), karigarId:r.kid, jobId:job.id, amountPaise:r.paise, base:labBase});
+        S.kgSalary.push(le); labourEntries.push(le);
+      });
     }
     auditId = kgAudit('kg_job_close', 'kgJob', jobId, job.jobNo + (labourPaise > 0 ? ' labour ' + kgFmtRs(labourPaise) : ''));
     return '';
   }, function(){
     if(pre) pre.undo();
     if(jobSnap) kgRestoreKeys(job, jobSnap); else job.status = 'open';   // exactly as it was before this close (a reopened job keeps its earnings log)
-    if(labourEntry) S.kgSalary = S.kgSalary.filter(function(x){ return x.id !== labourEntry.id; });
+    if(labourEntries.length) S.kgSalary = S.kgSalary.filter(function(x){ return !labourEntries.some(function(le){ return le.id === x.id; }); });
     kgUndoAudit(auditId);
   }, function(err){ done(err, job, false); });
 }
 // What reopening would do to his rupee account: the job's labour is reversed; if he was already paid it, he will owe the shop that much.
-function kgReopenInfo(jobId){
-  var job = kgFindJob(jobId), gone = {}, jl = null;
-  if(!job) return {labourPaise:0, owesShopPaise:0, needsConfirm:false};
+function kgLiveLabourRows(job){
+  var gone = {}, rows = [];
   (S.kgSalary || []).forEach(function(x){ if(x.type === 'REVERSAL') gone[x.reversesId] = true; });
-  (S.kgSalary || []).forEach(function(x){ if(x.type === 'JOB_LABOUR' && x.jobId === job.id && !gone[x.id]) jl = x; });
-  var labour = jl ? jl.amountPaise : 0, after = kgSalaryBalance(job.karigarId).payable - labour;
-  return {labourPaise:labour, owesShopPaise:(labour > 0 && after < 0 ? -after : 0), needsConfirm:(labour > 0 && after < 0)};
+  (S.kgSalary || []).forEach(function(x){ if(x.type === 'JOB_LABOUR' && x.jobId === job.id && !gone[x.id]) rows.push(x); });
+  return rows;
+}
+function kgReopenInfo(jobId){
+  var job = kgFindJob(jobId);
+  if(!job) return {labourPaise:0, owesShopPaise:0, needsConfirm:false};
+  var rows = kgLiveLabourRows(job), labour = 0, owes = 0, mine = {};
+  rows.forEach(function(x){ labour += x.amountPaise; mine[x.karigarId] = (mine[x.karigarId] || 0) + x.amountPaise; });
+  Object.keys(mine).forEach(function(kid){ var after = kgSalaryBalance(kid).payable - mine[kid]; if(after < 0) owes += -after; });
+  return {labourPaise:labour, owesShopPaise:owes, needsConfirm:(labour > 0 && owes > 0)};
 }
 function kgReopenJob(jobId, done, opts){
-  var job = kgFindJob(jobId), u = kgUser(), auditId = null, oldEarnings = null, reversal = null, jobSnap = null;
+  var job = kgFindJob(jobId), u = kgUser(), auditId = null, oldEarnings = null, reversals = [], jobSnap = null;
   kgTxn('job:' + jobId, function(){
     if(!job) return 'Job not found';
     if(u.role !== 'owner') return 'Only the owner can reopen a job';
@@ -960,14 +986,10 @@ function kgReopenJob(jobId, done, opts){
     var ri = kgReopenInfo(jobId);
     if(ri.needsConfirm && !(opts && opts.confirmed === true)) return 'Labour of ' + kgFmtRs(ri.labourPaise) + ' was already paid. Reopening reverses it and he will owe the shop ' + kgFmtRs(ri.owesShopPaise) + '. Confirm to go on.';
     oldEarnings = job.earnings || null;
-    var sal = S.kgSalary || [], gone = {};
-    sal.forEach(function(x){ if(x.type === 'REVERSAL') gone[x.reversesId] = true; });
-    var jl = null;
-    sal.forEach(function(x){ if(x.type === 'JOB_LABOUR' && x.jobId === job.id && !gone[x.id]) jl = x; });
-    if(jl){
-      reversal = kgStamp({type:'REVERSAL', opId:'jr-' + kgNewId(), karigarId:job.karigarId, reversesId:jl.id, reason:'Job reopened'});
-      S.kgSalary.push(reversal);
-    }
+    kgLiveLabourRows(job).forEach(function(jl){
+      var rv = kgStamp({type:'REVERSAL', opId:'jr-' + kgNewId(), karigarId:jl.karigarId, reversesId:jl.id, reason:'Job reopened'});
+      S.kgSalary.push(rv); reversals.push(rv);
+    });
     jobSnap = kgSnapKeys(job, KG_JOB_CLOSE_KEYS);
     job.earningsLog = (job.earningsLog || []).concat(oldEarnings ? [oldEarnings] : []);
     job.earnings = null;
@@ -976,7 +998,7 @@ function kgReopenJob(jobId, done, opts){
     return '';
   }, function(){
     if(jobSnap) kgRestoreKeys(job, jobSnap);   // exactly as before: no stray empty earningsLog
-    if(reversal) S.kgSalary = S.kgSalary.filter(function(x){ return x.id !== reversal.id; });
+    if(reversals.length) S.kgSalary = S.kgSalary.filter(function(x){ return !reversals.some(function(rv){ return rv.id === x.id; }); });
     kgUndoAudit(auditId);
   }, function(err){ done(err); });
 }
@@ -1192,6 +1214,13 @@ function kgLiveUsed(job, kid){
   var led = S.kgLedger || [], idx = kgIndex(led);
   return led.some(function(e){ return e.jobId === job.id && e.karigarId === kid && e.type !== 'REVERSAL' && !idx.reversed[e.id]; });
 }
+// Labour paise per gram of NET weight for a points job: the job's own rate if the owner set one, else the karigar's terms (only a net-weight rate), wastage karigars only.
+function kgLabourPgOf(job, ag, kind){
+  if(kind !== 'wastage') return 0;
+  if(job.labourPg != null) return job.labourPg;
+  var l = ag && ag.labour;
+  return (l && l.base === 'net' && l.perGramPaise > 0) ? l.perGramPaise : 0;
+}
 function kgSnapTerms(job, kid){
   if(job.model !== 'points' || !kid) return;
   job.terms = job.terms || {};
@@ -1200,6 +1229,7 @@ function kgSnapTerms(job, kid){
   var ag = kgAgreementFor(kid, kgToday()) || findKarigar(kid) || {};
   var kind = ag.kind === 'salary' ? 'salary' : (ag.kind === 'wastage' ? 'wastage' : '');
   job.terms[kid] = {kind:kind, pointsPu:(kind === 'salary' ? 0 : (job.pointsPu != null ? job.pointsPu : (ag.wastagePoints != null ? ag.wastagePoints : null)))};
+  var lp = kgLabourPgOf(job, ag, kind); if(lp > 0) job.terms[kid].labourPg = lp;   // only when there is labour: jobs and terms without it keep exactly their old shape
 }
 // Kind and wastage points that apply to this karigar on this job today. A job override beats his terms.
 function kgTermsFor(job, karigarId){
@@ -1217,7 +1247,9 @@ function kgLiveTerms(job, karigarId){
   var k = findKarigar(karigarId), ag = kgAgreementFor(karigarId, kgToday()) || k || {};
   var kind = ag.kind === 'salary' ? 'salary' : (ag.kind === 'wastage' ? 'wastage' : '');
   var pts = (job.pointsPu != null) ? job.pointsPu : (ag.wastagePoints != null ? ag.wastagePoints : null);
-  return {kind:kind, pointsPu:(kind === 'salary' ? 0 : pts)};
+  var live = {kind:kind, pointsPu:(kind === 'salary' ? 0 : pts)}, lpl = kgLabourPgOf(job, ag, kind);
+  if(lpl > 0) live.labourPg = lpl;
+  return live;
 }
 
 // ── validation of the new entry kinds (pure) ──
@@ -2505,15 +2537,17 @@ function kg2Terms(karigarId){
       {id:'kind', label:'Type', type:'select', options:[['wastage', 'Wastage (keeps a share of the gold)'], ['salary', 'Fixed salary (no gold earning)']], value:cur.kind || 'wastage'},
       {id:'points', label:'Wastage points on his touch (e.g. 4)', value:(cur.wastagePoints != null ? String(cur.wastagePoints / 100) : ''), mode:'decimal',
         hint:'Measured touch + points = what he is credited. Each new job starts with this; you can change it per job. Existing jobs keep their own.', show:function(v){ return v.kind === 'wastage'; }},
+      {id:'lab', label:'Labour Rs per gram (net weight)', value:(cur.labour && cur.labour.base === 'net' ? String(cur.labour.perGramPaise / 100) : ''), mode:'decimal',
+        hint:'Paid in rupees on top of the wastage points: rate x net weight of the pieces he returns, counted when you close the job. Applies to jobs made from the date above.', show:function(v){ return v.kind === 'wastage'; }},
       {id:'mode', label:'Salary is', type:'select', options:[['monthly', 'Monthly'], ['daily', 'Daily']], value:(cur.salary && cur.salary.mode) || 'monthly', show:function(v){ return v.kind === 'salary'; }},
       {id:'rate', label:'Salary rate (\u20b9 per month / per day)', value:(cur.salary ? String(cur.salary.ratePaise / 100) : ''), mode:'decimal', show:function(v){ return v.kind === 'salary'; }}],
     onSubmit:function(v, fin){
       var w = v.kind === 'wastage';
       var keep = (w && cur.kind === 'wastage');
-      // The old percent / fixed gold / labour fields are not on this sheet: carry the current ones forward, never reset them.
+      // The old percent / fixed gold fields are not on this sheet: carry the current ones forward, never reset them. Labour is on the sheet again (net weight).
       kgAddAgreement(karigarId, {kind:v.kind, wastagePct:(keep && cur.wastageBp != null ? String(cur.wastageBp / 100) : ''), points:(w ? v.points : ''),
-        fixedGrams:(keep && cur.fixedMg ? String(cur.fixedMg / 1000) : ''), labourRate:(keep && cur.labour ? String(cur.labour.perGramPaise / 100) : ''),
-        labourBase:(keep && cur.labour ? cur.labour.base : 'net'), salaryMode:v.mode, rate:v.rate},String(v.from || '').trim(), v.opId, function(err){ fin(err); });
+        fixedGrams:(keep && cur.fixedMg ? String(cur.fixedMg / 1000) : ''), labourRate:(w ? v.lab : ''),
+        labourBase:'net', salaryMode:v.mode, rate:v.rate},String(v.from || '').trim(), v.opId, function(err){ fin(err); });
     }});
 }
 function kg2Accrue(karigarId){
@@ -3174,6 +3208,8 @@ function kg3FineOf(v){
 function kg3NewJob(kid){
   var k = findKarigar(kid); if(!k) return;
   var pts = kgAgreementFor(kid, kgToday()) ? kgAgreementFor(kid, kgToday()).wastagePoints : k.wastagePoints;
+  var agr = kgAgreementFor(kid, kgToday()) || k, showLab = (kgUser().role === 'owner' && agr.kind === 'wastage');
+  var labPre = (showLab && agr.labour && agr.labour.base === 'net' && agr.labour.perGramPaise > 0) ? String(agr.labour.perGramPaise / 100) : '';
   function metalOf(v){ return v.metal === 'silver' ? 'silver' : 'gold'; }
   function gname(v){ return metalOf(v); }
   kgForm({title:'New job', submitLabel:'Create job', doneToast:'\u2713 Job created',
@@ -3190,7 +3226,8 @@ function kg3NewJob(kid){
         hint:'Only to find the order again. The order\'s own karigar stage stays separate and is never added to this account.'},
       {id:'points', label:'Wastage points on his touch (e.g. 4)', mode:'decimal', value:(pts != null ? String(pts / 100) : ''), hint:'Measured touch + points = what he is credited. Leave empty for a salary karigar.', more:true},
       {id:'tag', label:'Tag / design number (optional)', more:true},
-      {id:'pieces', label:'Pieces expected (optional)', mode:'numeric', more:true}],
+      showLab ? {id:'labour', label:'Labour Rs per gram (net weight)', mode:'decimal', value:labPre, more:true, hint:'Copied from his terms. Change it here for this job only; it is frozen once metal is given.'} : null,
+      {id:'pieces', label:'Pieces expected (optional)', mode:'numeric', more:true}].filter(function(f){ return !!f; }),
     submitText:function(v){
       var has = String(v.wt || '').trim() !== '' && (!!v.chip || String(v.purity || '').trim() !== '');
       return has ? 'Create job and issue ' + (v.metal === 'other' ? 'metal' : gname(v)) : 'Create job';
@@ -3213,7 +3250,7 @@ function kg3NewJob(kid){
         var mg = kgParseMg(v.wt); if(mg === null) return fin(new Error(kgWeightProblem(v.wt, 'weight')));
         var rp = kgResolvePu(v.purity, v.chip ? '999' : '', v.confirmed); if(rp.error || rp.confirm) return fin(new Error(rp.error || rp.confirm));
       }
-      kgCreateJob({karigarId:kid, title:v.title, model:'points', metal:metalOf(v), pointsText:v.points, tag:v.tag, pieceCount:v.pieces, dueDate:v.due, orderId:v.ord}, v.opId, function(err, job, dup){
+      kgCreateJob({karigarId:kid, title:v.title, model:'points', metal:metalOf(v), pointsText:v.points, tag:v.tag, pieceCount:v.pieces, dueDate:v.due, orderId:v.ord, labourText:(showLab && String(v.labour || '').trim() !== labPre ? v.labour : '')}, v.opId, function(err, job, dup){
         if(err || !job) return fin(err);
         _kg2.jobId = job.id;
         if(!hasWt || dup) return fin(null);
@@ -3526,7 +3563,7 @@ function kgAddKarigarNow(v, done){
   if(kind && u.role !== 'owner') return done(new Error('Only the owner can set how a karigar is paid'));
   var terms = null;
   if(kind){   // check the terms first: a wrong rate or points must not leave a karigar behind
-    terms = {kind:kind, points:(kind === 'wastage' ? v.points : ''), salaryMode:v.salaryMode, rate:v.rate};
+    terms = {kind:kind, points:(kind === 'wastage' ? v.points : ''), salaryMode:v.salaryMode, rate:v.rate, labourRate:v.labour, labourBase:'net'};   // a salary karigar with a labour rate is refused by the terms check
     var pt = kgParseAgreementTerms(terms); if(pt.error) return done(new Error(pt.error));
   }
   var k = {id:'kar' + Date.now() + Math.floor(Math.random() * 1000), name:name, phone:ph, addOpId:opId || ''};
@@ -3555,11 +3592,12 @@ function kg3AddKarigar(){
   if(owner) fields = fields.concat([
     {id:'kind', label:'How is he paid?', type:'select', options:[['wastage', 'Wastage (keeps a share of the gold)'], ['salary', 'Fixed salary (no gold earning)']], value:'wastage'},
     {id:'points', label:'Wastage points on his touch (e.g. 4)', mode:'decimal', hint:'Measured touch + points = what he is credited. You can change it per job.', show:function(v){ return v.kind === 'wastage'; }},
+    {id:'labour', label:'Labour Rs per gram (net weight)', mode:'decimal', hint:'Optional. Paid in rupees on top of the points, on the net weight of the pieces he returns.', show:function(v){ return v.kind === 'wastage'; }},
     {id:'salaryMode', label:'Salary is', type:'select', options:[['monthly', 'Monthly'], ['daily', 'Daily']], value:'monthly', show:function(v){ return v.kind === 'salary'; }},
     {id:'rate', label:'Salary rate (\u20b9 per month / per day)', mode:'decimal', show:function(v){ return v.kind === 'salary'; }}]);
   kgForm({title:'Add karigar', submitLabel:'Add karigar', doneToast:'\u2713 Karigar added', fields:fields,
     onSubmit:function(v, fin){
-      kgAddKarigar({name:v.name, phone:v.phone, skills:v.skills, kind:(owner ? v.kind : ''), points:v.points, salaryMode:v.salaryMode, rate:v.rate, opId:v.opId}, function(err, k){
+      kgAddKarigar({name:v.name, phone:v.phone, skills:v.skills, kind:(owner ? v.kind : ''), points:v.points, labour:v.labour, salaryMode:v.salaryMode, rate:v.rate, opId:v.opId}, function(err, k){
         if(!err && k){ _kg2.karigarId = k.id; kgSetView('profile'); _kg2.more = ''; }
         fin(err);
       });

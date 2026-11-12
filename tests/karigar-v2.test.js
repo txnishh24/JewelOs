@@ -2978,5 +2978,145 @@ test('R17 B15: Back on a profile returns to the list; Back on the list leaves as
   pend.push(1); fire(); eq(a._kg2.view, 'people');
   a.kg3Open(k.id); openSheet(e, 'S2'); e.reg['kg2-cancel'].onclick({}); while(pend.length) fire(); eq(a._kg2.view, 'profile'); eq(depthStack, 1);
 });
+
+console.log('\nKarigar round 18 - labour per gram of net weight for wastage karigars');
+
+function lk(a, name, rate, kind){
+  var k = a.addOrGetKarigar(name);
+  var terms = (kind === 'salary') ? {kind:'salary', salaryMode:'monthly', rate:'30000'} : {kind:'wastage', points:'4', labourRate:rate || '', labourBase:'net'};
+  var r = call(function(cb){ a.kgSetTerms(k.id, terms, cb); }); if(r.err) throw new Error('terms: ' + r.err.message);
+  return k;
+}
+function labRows(a, job){ var gone = {}; a.S.kgSalary.forEach(function(x){ if(x.type === 'REVERSAL') gone[x.reversesId] = true; }); return a.S.kgSalary.filter(function(x){ return x.type === 'JOB_LABOUR' && (!job || x.jobId === job.id) && !gone[x.id]; }); }
+function labJob(a, k, rate, issueG){
+  var j = pjob(a, k, rate ? {labourText:rate} : {}); issueV(a, j, issueG || '30', '', '', '999'); return j;
+}
+function closeCarry(a, j){ return closeV(a, j, {settle:'carry', opId:op()}); }
+
+test('R18 worked example 1: 5.000 g net at Rs 150/g = Rs 750.00 posted once at Close, shown as owed, on the statement and in the WhatsApp text', function(){
+  var a = fresh('owner'); var k = lk(a, 'Lab1', '150'); trust(a, k); var j = labJob(a, k);
+  receiptV(a, j, {gross:'5', purity:'92', agreed:'92'});
+  eq(labRows(a).length, 0, 'nothing is posted before the job closes'); eq(a.kgSalaryBalance(k.id).payable, 0);
+  var c = closeCarry(a, j); ok(!c.err, c.err && c.err.message);
+  var rows = labRows(a, j); eq(rows.length, 1); eq(rows[0].amountPaise, 75000); eq(a.kgFmtRs(75000), '₹750'); eq(a.kgSalaryBalance(k.id).payable, 75000); eq(j.earnings.labourPaise, 75000);
+  ok(a.kg3ProfileHtml(k.id).indexOf('You owe him') !== -1 && a.kg3ProfileHtml(k.id).indexOf('₹750') !== -1, 'Rupees tile shows the labour owed');
+  var t = a.kg3StatementText(k.id, 'gold', '2000-01-01', '2999-12-31'); ok(/Job labour/.test(t) && /₹750/.test(t), t);
+  a._kg2.stFrom = '2000-01-01'; a._kg2.stTo = '2999-12-31'; a._kg2.stMetal = 'gold'; ok(/Job labour/.test(a.kg3StatementHtml(k.id)));
+});
+test('R18 worked example 2: a ring with 2 ct stones, 11.600 g net at Rs 120/g = Rs 1,392.00', function(){
+  var a = fresh('owner'); var k = lk(a, 'Lab2', '120'); trust(a, k); var j = labJob(a, k);
+  var r = receiptV(a, j, {gross:'12', stoneCt:'2', stoneMode:'A', purity:'92'}); eq(r.entry.mg, 11600);
+  ok(!closeCarry(a, j).err); var rows = labRows(a, j); eq(rows[0].amountPaise, 139200); eq(a.kgFmtRs(139200), '₹1,392');
+});
+test('R18 rounding: 21 small receipts are rounded per receipt line (half up, whole paise); the drift from the exact sum is at most half a paisa per line', function(){
+  var a = fresh('owner'); var k = lk(a, 'Lab21', '33.33'); trust(a, k); var j = labJob(a, k);
+  for(var i = 0; i < 21; i++) receiptV(a, j, {gross:'0.007', purity:'92', agreed:'92'});
+  ok(!closeCarry(a, j).err); var paise = labRows(a, j)[0].amountPaise;
+  eq(paise, 21 * Math.round(3333 * 7 / 1000), 'sum of the per-line roundings'); eq(paise, 483);
+  var exact = 3333 * 147 / 1000; ok(Math.abs(paise - exact) <= 21 * 0.5, 'drift ' + (exact - paise).toFixed(3) + ' paise stays within 10.5');
+  var h = fresh('owner'); var k2 = lk(h, 'Half', '0.50'); trust(h, k2); var j2 = labJob(h, k2); receiptV(h, j2, {gross:'0.001', purity:'92', agreed:'92'}); ok(!closeCarry(h, j2).err);
+  eq(h.S.kgSalary.filter(function(x){ return x.type === 'JOB_LABOUR'; }).length, 0, '0.05 paise rounds to 0: no row of zero');
+  var q = fresh('owner'); var k3 = lk(q, 'HalfUp', '2.50'); trust(q, k3); var j3 = labJob(q, k3); receiptV(q, j3, {gross:'0.002', purity:'92', agreed:'92'}); receiptV(q, j3, {gross:'0.006', purity:'92', agreed:'92'}); ok(!closeCarry(q, j3).err);
+  eq(labRows(q, j3)[0].amountPaise, 3, 'half-up per line (0.5 -> 1, 1.5 -> 2), not 2 from rounding the sum');
+});
+test('R18 partial return then close: only what came back earns labour; the rest carries', function(){
+  var a = fresh('owner'); var k = lk(a, 'Part', '150'); trust(a, k); var j = labJob(a, k, '', '10');
+  receiptV(a, j, {gross:'4', purity:'92', agreed:'92'}); ok(!closeCarry(a, j).err);
+  eq(labRows(a, j)[0].amountPaise, 4 * 15000); ok(a.kgCarryTotal(k.id, 'gold') > 0, 'the rest is carried');
+});
+test('R18 a receipt cannot be reversed on a closed job; reopen reverses the labour; reverse the receipt; close again posts one fresh row (no stale payable)', function(){
+  var a = fresh('owner'); var k = lk(a, 'Rev', '150'); trust(a, k); var j = labJob(a, k);
+  var r1 = receiptV(a, j, {gross:'5', purity:'92', agreed:'92'}); var r2 = receiptV(a, j, {gross:'3', purity:'92', agreed:'92'}); ok(!closeCarry(a, j).err);
+  eq(a.kgSalaryBalance(k.id).payable, 8 * 15000);
+  ok(call(function(cb){ a.kgReverse(r2.entry.id, 'weighed twice', op(), cb); }).err, 'closed job: reopen first');
+  var ro = call(function(cb){ a.kgReopenJob(j.id, cb, {}); }); ok(!ro.err, ro.err && ro.err.message); eq(labRows(a, j).length, 0); eq(a.kgSalaryBalance(k.id).payable, 0, 'labour reversed on reopen');
+  ok(!call(function(cb){ a.kgReverse(r2.entry.id, 'weighed twice', op(), cb); }).err);
+  ok(!closeCarry(a, j).err); var rows = labRows(a, j); eq(rows.length, 1); eq(rows[0].amountPaise, 5 * 15000); eq(a.kgSalaryBalance(k.id).payable, 5 * 15000);
+  eq(a.S.kgSalary.filter(function(x){ return x.type === 'JOB_LABOUR'; }).length, 2, 'the first row stays in the book, reversed');
+});
+test('R18 paid labour: reopen warns first (he would owe the shop); confirmed reopen reverses it', function(){
+  var a = fresh('owner'); var k = lk(a, 'Paid', '100'); trust(a, k); var j = labJob(a, k); receiptV(a, j, {gross:'5', purity:'92', agreed:'92'}); ok(!closeCarry(a, j).err);
+  ok(!call(function(cb){ a.kgAddSalary({type:'PAYMENT', opId:op(), karigarId:k.id, amountPaise:50000, mode:'cash', note:''}, cb); }).err); eq(a.kgSalaryBalance(k.id).payable, 0);
+  var info = a.kgReopenInfo(j.id); eq(info.labourPaise, 50000); eq(info.owesShopPaise, 50000); eq(info.needsConfirm, true);
+  var no = call(function(cb){ a.kgReopenJob(j.id, cb, {}); }); ok(no.err && /already paid/.test(no.err.message), no.err && no.err.message); eq(a.kgFindJob(j.id).status, 'closed');
+  ok(!call(function(cb){ a.kgReopenJob(j.id, cb, {confirmed:true}); }).err); eq(a.kgSalaryBalance(k.id).payable, -50000, 'he owes the shop what was paid; gold and rupees stay apart');
+});
+test('R18 rules: only the owner sets a rate; terms freeze after the first entry; a job override beats the karigar terms; salary / zero-labour / old jobs post nothing', function(){
+  var a = fresh('owner'); var k = lk(a, 'Frz', '150'); trust(a, k);
+  a.SAAS.user = {name:'Mgr', role:'manager'}; ok(call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'4', labourRate:'999', labourBase:'net'}, cb); }).err, 'a manager cannot change the rate');
+  ok(call(function(cb){ a.kgCreateJob({karigarId:k.id, title:'m', model:'points', labourText:'500'}, op(), cb); }).err, 'nor set one on a job');
+  var mj = call(function(cb){ a.kgCreateJob({karigarId:k.id, title:'plain', model:'points'}, op(), cb); }); ok(!mj.err, 'a manager can still make a job that follows the terms');
+  a.SAAS.user = {name:'Tester', role:'owner'};
+  var j = labJob(a, k); call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'4', labourRate:'200', labourBase:'net'}, cb); });
+  receiptV(a, j, {gross:'5', purity:'92', agreed:'92'}); ok(!closeCarry(a, j).err); eq(labRows(a, j)[0].amountPaise, 75000, 'frozen at 150 when metal was first issued');
+  var j2 = labJob(a, k); eq(a.kgTermsFor(j2, k.id).labourPg, 20000, 'a new job takes the new terms');
+  var j3 = labJob(a, k, '180'); receiptV(a, j3, {gross:'5', purity:'92', agreed:'92'}); ok(!closeCarry(a, j3).err); eq(labRows(a, j3)[0].amountPaise, 5 * 18000, 'the job rate beats the terms');
+  var s = fresh('owner'); var ks = lk(s, 'Sal', '', 'salary'); var js = pjob(s, ks); issueV(s, js, '10', '92'); receiptV(s, js, {gross:'4', purity:'92'}); closeV(s, js, {settle:'loss', reason:'making loss accepted', opId:op()});
+  eq(s.S.kgSalary.filter(function(x){ return x.type === 'JOB_LABOUR'; }).length, 0, 'salary karigar: no labour row');
+  ok(call(function(cb){ s.kgCreateJob({karigarId:ks.id, title:'x', model:'points', labourText:'100'}, op(), cb); }).err, 'no labour on a salary karigar');
+  var z = fresh('owner'); var kz = lk(z, 'Zero', ''); trust(z, kz); var jz = labJob(z, kz); receiptV(z, jz, {gross:'5', purity:'92', agreed:'92'}); ok(!closeCarry(z, jz).err); eq((z.S.kgSalary || []).length, 0, 'labour 0: behaviour as today');
+});
+test('R18 accepted loss and a cash loss bill leave labour alone; the bill is its own DEDUCTION row', function(){
+  var a = fresh('owner'); var k = lk(a, 'Loss', '100'); var j = labJob(a, k, '', '10'); receiptV(a, j, {gross:'5', purity:'92', agreed:'92'});
+  var c = closeV(a, j, {settle:'loss-cash', reason:'making loss billed', billText:'120', opId:op()}); ok(!c.err, c.err && c.err.message);
+  var lab = labRows(a, j); eq(lab.length, 1); eq(lab[0].amountPaise, 50000);
+  var ded = a.S.kgSalary.filter(function(x){ return x.type === 'DEDUCTION'; }); eq(ded.length, 1); eq(ded[0].amountPaise, 12000); eq(a.kgSalaryBalance(k.id).payable, 50000 - 12000);
+});
+test('R18 sheets: Add karigar, Terms and New job show "Labour Rs per gram (net weight)" for wastage karigars only; a manager does not see it on New job', function(){
+  var a = fresh('owner'); var sheet = null; a.kgForm = function(o){ sheet = o; };
+  a.kg3AddKarigar(); var f = {}; sheet.fields.forEach(function(x){ f[x.id] = x; }); ok(f.labour && /Labour/.test(f.labour.label) && /net weight/.test(f.labour.label), 'add karigar'); ok(f.labour.show({kind:'wastage'}) && !f.labour.show({kind:'salary'}));
+  var g = null; sheet.onSubmit({name:'With Labour', phone:'', kind:'wastage', points:'4', labour:'150.50', opId:op()}, function(err){ g = err || 'ok'; }); eq(g, 'ok');
+  var k = a.S.karigars[0]; eq(a.kgAgreementFor(k.id, a.kgToday()).labour.perGramPaise, 15050); eq(a.kgAgreementFor(k.id, a.kgToday()).labour.base, 'net');
+  ok(call(function(cb){ a.kgAddKarigar({name:'Three Dec', kind:'wastage', points:'4', labour:'1.005', opId:op()}, cb); }).err, '3 decimals refused');
+  ok(call(function(cb){ a.kgAddKarigar({name:'Sal Lab', kind:'salary', salaryMode:'monthly', rate:'1000', labour:'5', opId:op()}, cb); }).err, 'salary + labour refused');
+  a.kg2Terms(k.id); var t = {}; sheet.fields.forEach(function(x){ t[x.id] = x; }); ok(t.lab && /net weight/.test(t.lab.label) && t.lab.value === '150.5', 'terms sheet shows the current rate: ' + (t.lab && t.lab.value));
+  var gg = null; sheet.onSubmit({from:a.kgToday(), kind:'wastage', points:'4', lab:'175', mode:'monthly', rate:'', opId:op()}, function(err){ gg = err || 'ok'; }); eq(gg, 'ok'); eq(a.kgAgreementFor(k.id, a.kgToday()).labour.perGramPaise, 17500);
+  a.kg3NewJob(k.id); var n = {}; sheet.fields.forEach(function(x){ n[x.id] = x; }); ok(n.labour && n.labour.more && n.labour.value === '175', 'New job: prefilled from the terms, under More details');
+  var gj = null; sheet.onSubmit({title:'Own rate', metal:'gold22', wt:'', purity:'', chip:false, confirmed:false, points:'4', labour:'180', tag:'', pieces:'', due:'', ord:'', opId:op()}, function(err){ gj = err || 'ok'; }); eq(gj, 'ok'); eq(a.S.kgJobs[0].labourPg, 18000);
+  a.SAAS.user = {name:'Mgr', role:'manager'}; a.kg3NewJob(k.id); var m = {}; sheet.fields.forEach(function(x){ m[x.id] = x; }); ok(!m.labour, 'no labour field for a manager');
+});
+test('R18 fuzz: the rupee balance is exactly labour - payments - advances - deductions, in whole paise, through random jobs, receipts, closes, reopens and payments', function(){
+  var a = fresh('owner'); var k = lk(a, 'Fuzz', '37.77'); trust(a, k); var seed = 987654321;
+  function rnd(n){ seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) % n; }   // xorshift32: deterministic, good low bits
+  var jobs = [], expectLabour = 0, pg = 3777;
+  function exactBalance(){
+    var t = 0, rev = {}; a.S.kgSalary.forEach(function(x){ if(x.type === 'REVERSAL') rev[x.reversesId] = true; });
+    a.S.kgSalary.forEach(function(x){ if(x.karigarId !== k.id || x.type === 'REVERSAL' || rev[x.id]) return; if(x.type === 'JOB_LABOUR') t += x.amountPaise; else if(x.type === 'PAYMENT' || x.type === 'ADVANCE' || x.type === 'DEDUCTION') t -= x.amountPaise; });
+    return t;
+  }
+  function independent(){ var t = 0, idx = a.kgIndex(a.S.kgLedger); a.S.kgJobs.forEach(function(j){ if(j.status !== 'closed') return; a.S.kgLedger.forEach(function(e){ if(e.jobId === j.id && e.type === 'RECEIPT' && !idx.reversed[e.id]) t += Math.round(pg * e.mg / 1000); }); }); return t; }
+  var payTotal = 0;
+  for(var i = 0; i < 200; i++){
+    var op1 = rnd(6), open = a.S.kgJobs.filter(function(j){ return j.status === 'open'; }), closed = a.S.kgJobs.filter(function(j){ return j.status === 'closed'; });
+    if(op1 === 0 || !open.length){ var j = labJob(a, k, '', '30'); }
+    else if(op1 === 1){ var oj = open[rnd(open.length)]; var w = (1 + rnd(900)) / 1000 * (1 + rnd(5)); var wt = (Math.round(w * 1000) / 1000).toFixed(3); var rr = call(function(cb){ var b = a.kgBuildReceipt(oj.id, '', {gross:wt, purity:'92', agreed:'92', piece:'p', qty:'1', confirmed:true, opId:op()}); if(!b.entry) return cb(new Error(b.error || b.confirm)); a.kgAddEntry(b.entry, cb); }); }
+    else if(op1 === 2){ var cj = open[rnd(open.length)]; closeCarry(a, cj); }
+    else if(op1 === 3 && closed.length){ var rj = closed[rnd(closed.length)]; call(function(cb){ a.kgReopenJob(rj.id, cb, {confirmed:true}); }); }
+    else if(op1 === 4){ var bal = a.kgSalaryBalance(k.id).payable; if(bal > 0){ var amt = 1 + rnd(bal); call(function(cb){ a.kgAddSalary({type:'PAYMENT', opId:op(), karigarId:k.id, amountPaise:amt, mode:'cash', note:''}, cb); }); } }
+    else if(op1 === 5){ var adv = 1 + rnd(20000); call(function(cb){ a.kgAddSalary({type:'ADVANCE', opId:op(), karigarId:k.id, amountPaise:adv, mode:'cash', note:'fuzz advance'}, cb); }); }
+    eq(a.kgSalaryBalance(k.id).payable, exactBalance(), 'balance = rows, step ' + i);
+    var lab = 0; labRows(a).forEach(function(x){ lab += x.amountPaise; }); eq(lab, independent(), 'posted labour = independent recomputation of the live receipts of closed jobs, step ' + i);
+  }
+  ok(a.S.kgJobs.length > 3 && labRows(a).length > 0, 'the run did real work: jobs ' + a.S.kgJobs.length + ', receipts ' + a.S.kgLedger.filter(function(e){ return e.type === 'RECEIPT'; }).length + ', labour rows ' + labRows(a).length + ', closed ' + a.S.kgJobs.filter(function(j){ return j.status === 'closed'; }).length);
+});
+test('R18 two karigars on one job: one labour row each at his own frozen rate; reopen reverses both; a failed close rolls both back; a repeated close op posts nothing twice; gold is untouched by labour', function(){
+  var a = fresh('owner'); var A = lk(a, 'LabA', '100'); var B = lk(a, 'LabB', '200'); trust(a, A); trust(a, B); var j = pjob(a, A);
+  var s1 = call(function(cb){ a.kgAddStage(j.id, 'Making', A.id, cb); }).v, s2 = call(function(cb){ a.kgAddStage(j.id, 'Setting', B.id, cb); }).v;
+  issueV(a, j, '10', '', s1.id, '999'); issueV(a, j, '10', '', s2.id, '999');
+  receiptV(a, j, {gross:'5', purity:'92', agreed:'92'}, s1.id); receiptV(a, j, {gross:'3', purity:'92', agreed:'92'}, s2.id);
+  var goldA = a.kgAccount(A.id).gold.totalMg, goldB = a.kgAccount(B.id).gold.totalMg;
+  a.saveToCloud = function(cb){ cb(new Error('network')); };
+  ok(closeCarry(a, j).err, 'failed save reaches the caller'); eq(j.status, 'open'); eq((a.S.kgSalary || []).length, 0, 'both labour rows rolled back');
+  a.saveToCloud = function(cb){ cb(null); };
+  var id = op(); ok(!closeV(a, j, {settle:'carry', opId:id}).err); closeV(a, j, {settle:'carry', opId:id});
+  var rows = labRows(a, j); eq(rows.length, 2, 'one row per receiving karigar, none doubled');
+  var byK = {}; rows.forEach(function(x){ byK[x.karigarId] = x.amountPaise; }); eq(byK[A.id], 5 * 10000); eq(byK[B.id], 3 * 20000);
+  eq(a.kgSalaryBalance(A.id).payable, 50000); eq(a.kgSalaryBalance(B.id).payable, 60000);
+  eq(a.kgAccount(A.id).gold.totalMg, goldA, 'labour never changes his gold'); eq(a.kgAccount(B.id).gold.totalMg, goldB);
+  ok(!call(function(cb){ a.kgAddSalary({type:'PAYMENT', opId:op(), karigarId:B.id, amountPaise:60000, mode:'cash', note:''}, cb); }).err);
+  var info = a.kgReopenInfo(j.id); eq(info.labourPaise, 110000); eq(info.owesShopPaise, 60000, 'only B would owe the shop'); eq(info.needsConfirm, true);
+  ok(call(function(cb){ a.kgReopenJob(j.id, cb, {}); }).err, 'warns before reversing paid labour');
+  ok(!call(function(cb){ a.kgReopenJob(j.id, cb, {confirmed:true}); }).err); eq(labRows(a, j).length, 0); eq(a.kgSalaryBalance(A.id).payable, 0); eq(a.kgSalaryBalance(B.id).payable, -60000);
+});
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }
