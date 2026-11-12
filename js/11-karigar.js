@@ -176,7 +176,13 @@ function kgFmtG(mg){
   var r = String(a % 1000); while(r.length < 3) r = '0' + r;
   return (neg ? '-' : '') + Math.floor(a / 1000) + '.' + r + ' g';
 }
-function kgFmtRs(paise){ return fmt((parseInt(paise, 10) || 0) / 100); }
+// Rupees for display with the paise kept: 100.40 -> Rs100.40, 0.50 -> Rs0.50, whole amounts drop the .00. Indian grouping. Stored values are exact; this only prints them.
+function kgRs2(n){
+  var p = Math.round((parseFloat(n) || 0) * 100), neg = p < 0; p = Math.abs(p);
+  var whole = Math.floor(p / 100), frac = p % 100;
+  return (neg ? '\u2212' : '') + '\u20b9' + whole.toLocaleString('en-IN') + (frac ? '.' + (frac < 10 ? '0' : '') + frac : '');
+}
+function kgFmtRs(paise){ return kgRs2((parseInt(paise, 10) || 0) / 100); }
 function kgToday(){ return dbDayKey(new Date()); }
 function kgNewId(){
   if(typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -496,7 +502,7 @@ function kgCancelJob(jobId, reason, done){
   var job = kgFindJob(jobId), u = kgUser(), auditId = null;
   kgTxn('job:' + jobId, function(){
     if(!job) return 'Job not found';
-    if(u.role !== 'owner') return 'Only the owner can cancel a job';
+    if(u.role !== 'owner' && !(u.role === 'manager' && job.createdBy === u.name)) return 'Only the owner (or the manager who made an empty job) can cancel a job';
     if(job.status !== 'open') return 'Job is ' + job.status;
     if(String(reason || '').trim().length < 5) return 'A reason (at least 5 letters) is required';
     var b = kgJobBalance(job, S.kgLedger || []);
@@ -722,16 +728,22 @@ function kgStamp(entry){
   entry.by = u.name; entry.role = u.role;
   return entry;
 }
-var _kgAuditDropped = {id:'', line:null};   // the oldest line auditLog() pushed out for the latest audit line (one slot, so it never grows)
+var _kgAuditDropped = [];   // one {id, line} per audit line written: line = the oldest line auditLog() pushed out for it (or null). A stack, so two audit lines in one save both come back when the save fails.
 function kgAudit(action, entity, id, note){
   var full = Array.isArray(S.auditLog) && S.auditLog.length >= AUDIT_MAX, oldest = full ? S.auditLog[S.auditLog.length - 1] : null;
   var a = auditLog(action, entity, id, note);
-  if(a) _kgAuditDropped = {id:a.id, line:oldest};
+  if(a){ _kgAuditDropped.push({id:a.id, line:oldest}); if(_kgAuditDropped.length > 40) _kgAuditDropped.shift(); }
   return a ? a.id : null;
 }
 function kgUndoAudit(auditId){
-  if(auditId && Array.isArray(S.auditLog)) S.auditLog = S.auditLog.filter(function(x){ return x.id !== auditId; });
-  if(auditId && _kgAuditDropped.id === auditId && _kgAuditDropped.line){ if(Array.isArray(S.auditLog)) S.auditLog.push(_kgAuditDropped.line); _kgAuditDropped = {id:'', line:null}; }
+  if(!auditId) return;
+  if(Array.isArray(S.auditLog)) S.auditLog = S.auditLog.filter(function(x){ return x.id !== auditId; });
+  for(var i = _kgAuditDropped.length - 1; i >= 0; i--){
+    if(_kgAuditDropped[i].id !== auditId) continue;
+    var d = _kgAuditDropped.splice(i, 1)[0];
+    if(d.line && Array.isArray(S.auditLog)) S.auditLog.push(d.line);
+    break;
+  }
 }
 
 // With the shop's ledger flag on (S.kgLedgerOn === true), gold entries go to the server ledger first and the blob entry
@@ -821,7 +833,17 @@ function kgCommitEntry(entry, job, u, onDone){
 }
 
 // fields: {karigarId, title, orderId?}
-function kgCreateJob(fields, opId, done){
+// One operation id, one save: a repeat that arrives while the first save is still in flight waits for it and hears the same answer.
+var _kgOnceBusy = Object.create(null);
+function kgOnce(key, done, run){
+  if(typeof key !== 'string' || !key) return run(done);
+  if(_kgOnceBusy[key]){ _kgOnceBusy[key].push(done); return; }
+  _kgOnceBusy[key] = [done];
+  function finish(){ var args = arguments, waiting = _kgOnceBusy[key] || []; delete _kgOnceBusy[key]; waiting.forEach(function(f){ f.apply(null, args); }); }
+  try{ run(finish); }catch(x){ finish(new Error('Could not save: ' + ((x && x.message) || x))); }   // a throw must never leave the key busy
+}
+function kgCreateJob(fields, opId, done){ kgOnce(opId ? 'job:' + opId : '', done, function(d){ kgCreateJobNow(fields, opId, d); }); }
+function kgCreateJobNow(fields, opId, done){
   S.kgJobs = S.kgJobs || [];
   for(var i = 0; i < S.kgJobs.length; i++){
     if(S.kgJobs[i].opId === opId){ done(null, S.kgJobs[i], true); return; }
@@ -1880,13 +1902,13 @@ function kgNormalise(){
 var _kg2 = {view:'people', jobId:'', karigarId:''};
 
 function kg2Go(view, id){
-  _kg2.view = view;
+  kgSetView(view);
   if(view === 'job') _kg2.jobId = id || _kg2.jobId;
   if(view === 'khata' || view === 'salary') _kg2.karigarId = id || _kg2.karigarId;
   renderKgV2();
 }
 function kg2OpenJob(id){ _kg2.more = ''; kg2Go('job', id); }
-function kg2Pick(view, sel){ _kg2.karigarId = sel.value; _kg2.view = view; renderKgV2(); }
+function kg2Pick(view, sel){ _kg2.karigarId = sel.value; kgSetView(view); renderKgV2(); }
 
 function kg2Badge(txt, cls){ return '<span class="kg2-badge ' + (cls || '') + '">' + escHtml(txt) + '</span>'; }
 function kg2Btn(label, fn, cls){ return '<button class="btn btn-sm ' + (cls || '') + '" onclick="' + fn + '">' + escHtml(label) + '</button>'; }
@@ -1919,7 +1941,7 @@ function kg2Chip(label, kind, mark){
 }
 function kg2TodayHtml(){
   var u = kgUser(), d = kgDashboard();
-  var html = '<div class="kg2-head"><div class="kg2-title">Karigar <span class="kg2-new">2.0</span></div>' +
+  var html = '<div class="kg2-head"><div class="kg2-title">Karigars</div>' +
     '<div class="kg2-sub">Fine gold, jobs and what needs you today.</div></div>' + kg2NavHtml();
   function kpi(label, value, cls){ return '<div class="kg2-kpi ' + (cls || '') + '"><span>' + label + '</span><b>' + value + '</b></div>'; }
   html += '<div class="kg2-kpis">' + kpi('Fine gold with karigars', kgFmtG(d.withKarigarFine), d.withKarigarFine > 0 ? 'due' : '') +
@@ -2004,7 +2026,7 @@ function kg2JobHtml(job){
     (job.kind === 'wastage' ? (job.model === 'points' ? ' ' + (kgTermsFor(job, job.karigarId).kind === 'salary' ? 'salary' : kgPointsLabel(kgTermsFor(job, job.karigarId).pointsPu)) : ' ' + (job.wastageBp / 100) + '%') : '') + ' &middot; ' + escHtml(job.status) +
     (job.orderRef ? ' &middot; linked to order' : '') + (job.category ? ' &middot; ' + escHtml(job.category) : '') +
     (job.mode === 'external' ? ' &middot; external' + (job.workshop ? ' (' + escHtml(job.workshop) + ')' : '') : ' &middot; in-house') +
-    (job.dueDate ? ' &middot; due ' + escHtml(job.dueDate) : '') + '</div>' +
+    (job.dueDate ? ' &middot; due ' + escHtml(kgDay(job.dueDate)) : '') + '</div>' +
     (kgJobOverdueDays(job, kgToday()) > 0 ? '<div>' + kg2Chip(kgJobOverdueDays(job, kgToday()) + ' days late', 'warn', '!') + '</div>' : '') +
     (job.status === 'cancelled' ? '<div class="kg2-note warn">Cancelled: ' + escHtml(job.cancelReason || '') + '</div>' : '') + '</div>';
   function cell(l, v, cls){ return '<div class="kg2-cell ' + (cls || '') + '"><span>' + l + '</span><b>' + v + '</b></div>'; }
@@ -2138,13 +2160,41 @@ var _kgEscOff = null;
 // function (null when none): only the top-most sheet reacts to a real Back. A sheet opened while an echo is pending
 // waits (_kgWantPush) and pushes its entry when the echo has fired, so back() can never pop the new sheet's entry.
 var _kgHistPushed = false, _kgEcho = 0, _kgWantPush = false, _kgCloseTop = null;
+// Pages above the list (profile, job, statement) each own one history entry, so the phone's Back goes up one level instead of leaving the app.
+// _kgStack = the pages we pushed an entry for; _kgWantStack = what the screen wants. An entry is only pushed or popped while no sheet is open and no
+// echo of our own history.back()/go() is pending (the sheet code below owns those).
+var _kgStack = [], _kgWantStack = [];
+function kgPanelActive(){ var p = document.getElementById('panel-karigars'); return !(p && p.classList && p.classList.contains) || p.classList.contains('active'); }
+function kgSyncHistory(){
+  if(_kgHistPushed || _kgEcho > 0 || _kgWantPush) return;
+  var d = _kgWantStack.length - _kgStack.length;
+  if(d > 0){ _kgStack = _kgWantStack.slice(); for(var i = 0; i < d; i++){ try{ history.pushState({kgView:1}, ''); }catch(e){} } }
+  else if(d < 0){ _kgStack = _kgWantStack.slice(); _kgEcho++; try{ history.go(d); }catch(e){ _kgEcho--; } }
+  else _kgStack = _kgWantStack.slice();
+}
+function kgSetView(view){
+  _kg2.view = view;
+  var w = _kgWantStack.slice();
+  if(view === 'profile'){ var i = w.lastIndexOf('profile'); w = (i === -1 ? ['profile'] : w.slice(0, i + 1)); }
+  else if(view === 'job' || view === 'statement'){ if(w[w.length - 1] !== view) w = w.concat(view); }
+  else w = [];
+  _kgWantStack = w;
+  kgSyncHistory();
+}
 function kgPopHandler(){
   if(_kgEcho > 0){
     _kgEcho--;
     if(_kgEcho === 0 && _kgWantPush){ _kgWantPush = false; try{ history.pushState({kgSheet:1}, ''); _kgHistPushed = true; }catch(e){} }
+    if(_kgEcho === 0) kgSyncHistory();
     return;
   }
-  if(_kgCloseTop) _kgCloseTop(true);
+  if(_kgCloseTop){ _kgCloseTop(true); kgSyncHistory(); return; }
+  if(_kgStack.length){   // a real Back on a page: one level up
+    _kgStack.pop(); _kgWantStack = _kgStack.slice();
+    if(!kgPanelActive()){ _kgStack = []; _kgWantStack = []; _kg2.view = 'people'; return; }   // left over from an earlier visit: only forget it
+    _kg2.view = _kgStack.length ? _kgStack[_kgStack.length - 1] : 'people';
+    if(kgPanelActive()) renderKgV2();
+  }
 }
 try{ window.addEventListener('popstate', kgPopHandler); }catch(e){}
 function kgForm(opts){
@@ -2154,7 +2204,15 @@ function kgForm(opts){
   var opId = kgNewId();
   var h = '<div class="kg2-box" role="dialog" aria-modal="true" aria-label="' + escHtml(opts.title) + '"><div class="kg2-top"><div class="kgx-grab"></div><div class="kgx-sheethead"><button type="button" class="kgx-cancel" id="kg2-cancel">Cancel</button><div class="kg2-title">' + escHtml(opts.title) + '</div><span class="kgx-sp"></span></div>' +
     '<div class="kg2-prev" id="kg2-prev"></div><div class="kg2-err" id="kg2-err" role="alert"></div></div>';
+  var curGrp = '';
   opts.fields.forEach(function(f){
+    var grp = f.row ? 'r:' + f.row : (f.more ? 'm' : '');
+    if(grp !== curGrp){
+      if(curGrp) h += (curGrp === 'm' ? '</details>' : '</div>');
+      if(grp) h += (grp === 'm' ? '<details class="kgx-more"><summary>More details</summary>' : '<div class="kgx-fr">');
+      curGrp = grp;
+    }
+    if(f.type === 'note'){ h += '<div class="kg2-f" id="kg2w-' + f.id + '">' + f.html + '</div>'; return; }
     h += '<div class="kg2-f' + (f.type === 'check' ? ' kg2-fchk' : '') + '" id="kg2w-' + f.id + '">' + (f.type === 'check' ? '' : '<label for="kg2f-' + f.id + '">' + escHtml(f.label) + '</label>');
     if(f.type === 'select'){
       h += '<select id="kg2f-' + f.id + '">' + f.options.map(function(o){
@@ -2162,6 +2220,10 @@ function kgForm(opts){
       }).join('') + '</select>';
     } else if(f.type === 'date'){
       h += '<input type="date" id="kg2f-' + f.id + '" value="' + escHtml(f.value || '') + '">';
+    } else if(f.type === 'chips'){
+      h += '<div class="kgx-chips" id="kg2f-' + f.id + '">' + f.options.map(function(o){
+        return '<label class="kgx-chip2"><input type="radio" name="kg2c-' + f.id + '" value="' + escHtml(o[0]) + '"' + (String(o[0]) === String(f.value) ? ' checked' : '') + '><span>' + escHtml(o[1]) + '</span></label>';
+      }).join('') + '</div>';
     } else if(f.type === 'choice'){
       h += '<div class="kgx-choice" id="kg2f-' + f.id + '">' + f.options.map(function(o){
         return '<label class="kgx-opt"><input type="radio" name="kg2c-' + f.id + '" value="' + escHtml(o[0]) + '"' + (String(o[0]) === String(f.value) ? ' checked' : '') + '><span><b>' + escHtml(o[1]) + '</b>' + (o[2] ? '<small>' + escHtml(o[2]) + '</small>' : '') + '</span></label>';
@@ -2174,14 +2236,15 @@ function kgForm(opts){
     if(f.hint) h += '<div class="kg2-hint">' + escHtml(f.hint) + '</div>';
     h += '</div>';
   });
+  if(curGrp) h += (curGrp === 'm' ? '</details>' : '</div>');
   h += '<div class="kg2-row kg2-foot"><button class="btn btn-gold kgx-primary" id="kg2-save">' + escHtml(opts.submitLabel || 'Save') + '</button></div></div>';
   ov.innerHTML = h; document.body.appendChild(ov);
   function vals(){
     var v = {opId:opId};
     opts.fields.forEach(function(f){
       var el = document.getElementById('kg2f-' + f.id);
-      var picked = (f.type === 'choice' && ov.querySelector) ? ov.querySelector('input[name="kg2c-' + f.id + '"]:checked') : null;
-      v[f.id] = el ? (f.type === 'check' ? !!el.checked : (f.type === 'choice' ? (picked ? picked.value : (f.value || '')) : el.value)) : '';
+      var picked = ((f.type === 'choice' || f.type === 'chips') && ov.querySelector) ? ov.querySelector('input[name="kg2c-' + f.id + '"]:checked') : null;
+      v[f.id] = el ? (f.type === 'check' ? !!el.checked : ((f.type === 'choice' || f.type === 'chips') ? (picked ? picked.value : (f.value || '')) : el.value)) : '';
     });
     return v;
   }
@@ -2193,9 +2256,18 @@ function kgForm(opts){
     });
     var pv = document.getElementById('kg2-prev');
     if(pv) pv.innerHTML = opts.preview ? opts.preview(v) : '';
+    if(opts.submitText){ var sb = document.getElementById('kg2-save'); if(sb) sb.textContent = opts.submitText(v); }
     var er = document.getElementById('kg2-err');
     if(er) er.textContent = '';   // a typed correction clears the old message
   }
+  // a metal chip fills the fields it names (for example the purity of 22K gold); the owner can still change them
+  ov.addEventListener('change', function(ev){
+    var t = ev && ev.target; if(!t || !t.name || String(t.name).indexOf('kg2c-') !== 0) return;
+    opts.fields.forEach(function(f){
+      if(f.type !== 'chips' || t.name !== 'kg2c-' + f.id) return;
+      f.options.forEach(function(o){ if(String(o[0]) === String(t.value) && o[2]) Object.keys(o[2]).forEach(function(id){ var el = document.getElementById('kg2f-' + id); if(el) el.value = o[2][id]; }); });
+    });
+  });
   ov.addEventListener('input', refresh); ov.addEventListener('change', refresh);
   var vv = window.visualViewport || null;
   function closeSheet(fromPop){
@@ -2204,7 +2276,7 @@ function kgForm(opts){
     if(fromPop === true){ _kgHistPushed = false; }
     else if(live){
       if(_kgHistPushed){ _kgHistPushed = false; _kgEcho++; try{ history.back(); }catch(e){ _kgEcho--; } }
-      else _kgWantPush = false;   // closed before its entry was ever pushed: nothing to pop
+      else { _kgWantPush = false; kgSyncHistory(); }   // closed before its entry was ever pushed: nothing to pop
     }
   }
   function onKey(ev){ if(ev && (ev.key === 'Escape' || ev.keyCode === 27)) closeSheet(); }
@@ -2418,7 +2490,7 @@ function kg2NewJob(){
     },
     onSubmit:function(v, fin){
       kgCreateJob({karigarId:v.k, title:v.title, orderId:v.ord, category:v.cat, mode:v.mode, workshop:v.ws, dueDate:v.due}, v.opId, function(err, job){
-        if(!err && job){ _kg2.view = 'job'; _kg2.jobId = job.id; }
+        if(!err && job){ _kg2.jobId = job.id; kgSetView('job'); }
         fin(err);
       });
     }});
@@ -2510,7 +2582,7 @@ function kg2ReverseParked(parkedId){
   kgFindServerJournal(p.opId, function(err, orig){
     if(err){ toast(err.message); return; }
     if(!orig){ toast('The ledger has no entry with this id. Check the karigar ledger before doing anything.'); return; }
-    kgForm({title:'Reverse this on the ledger', submitLabel:'Reverse', doneToast:'✓ Reversed on the ledger',
+    kgForm({title:'Reverse this on the ledger', submitLabel:'Reverse', doneToast:'\u2713 Reversed on the ledger',
       fields:[{id:'reason', label:'Reason (required)', hint:kgJournalSummary(orig)}],
       onSubmit:function(v, fin){ kgReverseParked(parkedId, v.reason, function(err2){ fin(err2); }); }});
   });
@@ -2592,7 +2664,7 @@ function kg2ToggleLedger(){
   safeConfirm(turnOn ? 'Turn the ledger on?' : 'Turn the ledger off?',
     turnOn ? 'From now on every gold issue, receipt, scrap and adjustment goes to the server ledger first and needs internet. Check that "Blob vs ledger" below shows no difference before you do this.'
            : 'Gold entries will be saved in the shop data only again. What is already on the ledger stays there, and the two will drift apart. Only do this if you were told to.',
-    function(){ kgSetLedger(turnOn, function(err){ if(err){ toast(err.message); return; } renderKgV2(); toast(turnOn ? '✓ Ledger is on' : 'Ledger is off'); }); }, !turnOn);
+    function(){ kgSetLedger(turnOn, function(err){ if(err){ toast(err.message); return; } renderKgV2(); toast(turnOn ? '\u2713 Ledger is on' : 'Ledger is off'); }); }, !turnOn);
 }
 function kg2ReconHtml(){
   var st = _kgRecon.state, html = '<div class="kg2-sec">Blob vs ledger</div>';
@@ -2600,7 +2672,7 @@ function kg2ReconHtml(){
   if(st === 'error') return html + '<div class="kg2-note warn">' + escHtml(_kgRecon.msg) + '</div><div class="kg2-row">' + kg2Btn('Try again', 'kg2Reconcile()') + '</div>';
   if(st !== 'done') return html + '<div class="kg2-note">Compares the gold each karigar holds in the shop data with the ledger. It should show no difference before the ledger is switched on.</div><div class="kg2-row">' + kg2Btn('Check now', 'kg2Reconcile()') + '</div>';
   var rec = _kgRecon.rec;
-  if(!rec.mismatches.length && !rec.unknown.length) html += '<div class="kg2-empty">✓ All karigars match. ' + rec.rows.length + ' checked.</div>';
+  if(!rec.mismatches.length && !rec.unknown.length) html += '<div class="kg2-empty">\u2713 All karigars match. ' + rec.rows.length + ' checked.</div>';
   if(rec.mismatches.length) html += '<div class="kg2-note warn">' + rec.mismatches.length + ' karigar' + (rec.mismatches.length === 1 ? '' : 's') + ' differ between the shop data and the ledger.</div>';
   rec.mismatches.forEach(function(m){
     html += '<div class="kg2-line"><div><b>' + escHtml(m.name) + '</b><div class="kg2-sub">shop data ' + kgFmtG(m.blob) + ' &middot; ledger ' + kgFmtG(m.ledger) + ' fine</div></div>' +
@@ -2718,17 +2790,17 @@ function kg2Cancel(jobId){
 // \u2550\u2550 Karigar profile screens (redesign batches 7-9) \u2550\u2550
 // The Karigars screens (list, profile, statement, points jobs). Everything above (the maths and the ledger) is unchanged; these
 // functions only read it and call the same builders. Old-rules jobs keep the old job page.
-function kg3Open(kid){ if(_kg2.karigarId !== kid) _kg2.more = ''; _kg2.karigarId = kid; _kg2.view = 'profile'; renderKgV2(); }
+function kg3Open(kid){ if(_kg2.karigarId !== kid) _kg2.more = ''; _kg2.karigarId = kid; kgSetView('profile'); renderKgV2(); }
 function kg3Name(kid){ var k = findKarigar(kid); return k ? k.name : '?'; }
 function kg3G(mg, metal){ return kgFmtG(mg) + (metal === 'silver' ? ' silver' : ''); }
 function kg3Tile(label, value, sub, cls){
   return '<div class="kg2-kpi ' + (cls || '') + '"><span>' + escHtml(label) + '</span><b>' + value + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</div>';
 }
 function kg3RupeeTile(p, orderCash){
-  var adv = (orderCash < 0) ? 'he owes the shop ' + escHtml(fmt(-orderCash)) + ' (advance on order work)' : '';   // the same words as the order-work line below
+  var adv = (orderCash < 0) ? 'he owes the shop ' + escHtml(kgRs2(-orderCash)) + ' (advance on order work)' : '';   // the same words as the order-work line below
   if(p.payablePaise > 0) return kg3Tile('You owe him', escHtml(kgFmtRs(p.payablePaise)), adv, 'due');
   if(p.payablePaise < 0) return kg3Tile('Rupees', 'Owes ' + escHtml(kgFmtRs(-p.payablePaise)), 'he owes the shop ' + escHtml(kgFmtRs(-p.payablePaise)) + (adv ? '<br>' + adv : ''), 'warn');
-  if(adv) return kg3Tile('Rupees', 'Owes ' + escHtml(fmt(-orderCash)), adv, 'warn');   // never a red zero rupees while he owes the shop
+  if(adv) return kg3Tile('Rupees', 'Owes ' + escHtml(kgRs2(-orderCash)), adv, 'warn');   // never a red zero rupees while he owes the shop
   return kg3Tile('Rupees', escHtml(kgFmtRs(0)), 'nothing owed', '');
 }
 function kg3HasMetal(kid, metal){
@@ -2755,13 +2827,15 @@ function kg3RowsHtml(){
     if(q && String(k.name || '').toLowerCase().indexOf(q) === -1) return;
     n++;
     var a = kgAccount(k.id), p = a.rupees.payablePaise, ch = kg3RowChip(a);
-    var parts = [a.inProgress ? a.inProgress + ' job' + (a.inProgress === 1 ? '' : 's') : 'No active jobs'];
-    var hasSilver = kg3HasMetal(k.id, 'silver');
-    if(a.gold.totalMg !== 0 || !hasSilver) parts.push(kgFmtG(a.gold.totalMg) + ' gold');
-    if(hasSilver) parts.push(kgFmtG(a.silver.totalMg) + ' silver');
-    if(p !== 0) parts.push(p > 0 ? 'you owe ' + kgFmtRs(p) : 'he owes ' + kgFmtRs(-p));
+    var hasSilver = kg3HasMetal(k.id, 'silver'), settled = !a.inProgress && a.gold.totalMg === 0 && !hasSilver && p === 0, parts = [];
+    if(!settled){
+      parts.push(a.inProgress ? a.inProgress + ' job' + (a.inProgress === 1 ? '' : 's') : 'No active jobs');
+      if(a.gold.totalMg !== 0 || !hasSilver) parts.push(kgFmtG(a.gold.totalMg) + ' gold');
+      if(hasSilver) parts.push(kgFmtG(a.silver.totalMg) + ' silver');
+      if(p !== 0) parts.push(p > 0 ? 'you owe ' + kgFmtRs(p) : 'he owes ' + kgFmtRs(-p));
+    }
     html += '<div class="kgx-row' + (_kg2.view === 'profile' && _kg2.karigarId === k.id ? ' kgx-on' : '') + '" role="button" tabindex="0" onclick="kg3Open(' + kg2Q(k.id) + ')"><div class="kgx-avatar">' + escHtml(kg3Initials(k.name)) + '</div>' +
-      '<div class="kgx-grow"><div class="kgx-name">' + escHtml(k.name) + '</div><div class="kgx-sub">' + parts.map(escHtml).join(' &middot; ') + '</div></div>' +
+      '<div class="kgx-grow"><div class="kgx-name">' + escHtml(k.name) + '</div>' + (parts.length ? '<div class="kgx-sub">' + parts.map(escHtml).join(' &middot; ') + '</div>' : '') + '</div>' +
       '<span class="kgx-chip ' + ch[0] + '">' + escHtml(ch[1]) + '</span>' + KG_CHEV_SVG + '</div>';
   });
   if(!n) html = '<div class="kgx-none">No karigar matches &ldquo;' + escHtml(_kg2.q || '') + '&rdquo;.</div>';
@@ -2819,7 +2893,7 @@ function kg3JobChip(j, today){
   if(j.status !== 'open') return ['kgx-green', j.status === 'closed' ? 'Closed' : j.status];
   var late = kgJobOverdueDays(j, today);
   if(late > 0) return ['kgx-red', 'Overdue ' + late + ' d'];
-  if(j.dueDate) return ['kgx-gold', 'Due ' + j.dueDate];
+  if(j.dueDate) return ['kgx-gold', 'Due ' + kgDay(j.dueDate)];
   return ['kgx-green', 'Open'];
 }
 function kg3JobRowHtml(j, kid, today, u){
@@ -2845,11 +2919,10 @@ function kg3ProfileHtml(kid){
   var html = '<div class="kgx-navrow"><button type="button" class="kgx-back" onclick="kg2Go(\'people\')">' + KG_BACK_SVG + ' Karigars</button></div>' +
     '<div class="kgx-who"><div class="kgx-avatar kgx-lg">' + escHtml(kg3Initials(k.name)) + '</div><div class="kgx-grow"><h1 class="kgx-h2">' + escHtml(k.name) + '</h1><div class="kgx-sub2">' + who + '</div></div></div>';
   // the primary actions stay in view while the page scrolls; the owner's less-used buttons sit under More
-  var moreBtns = (owner ? kg2Btn('Opening balance', 'kg3Opening(' + kg2Q(kid) + ')') + kg2Btn('Rupee opening', 'kg3RupeeOpening(' + kg2Q(kid) + ')') + kg2Btn('Carry settings', 'kg3Carry(' + kg2Q(kid) + ')') + kg2Btn('Terms', 'kg2Terms(' + kg2Q(kid) + ')') : '') +
+  var moreBtns = (owner ? kg2Btn('Give advance', 'kg3PayOrder(' + kg2Q(kid) + ', \'advance\')') + kg2Btn('Opening balance', 'kg3Opening(' + kg2Q(kid) + ')') + kg2Btn('Rupee opening', 'kg3RupeeOpening(' + kg2Q(kid) + ')') + kg2Btn('Carry settings', 'kg3Carry(' + kg2Q(kid) + ')') + kg2Btn('Terms', 'kg2Terms(' + kg2Q(kid) + ')') : '') +
     (k.carryTrusted ? kg2Btn('Record count', 'kg3Count(' + kg2Q(kid) + ')') : ''), moreOpen = (_kg2.more === 'p:' + kid);
   html += '<div class="kgx-sticky"><div class="kg2-row" id="kg3-pactions">' + '<button type="button" class="btn btn-gold kgx-main" onclick="kg3NewJob(' + kg2Q(kid) + ')">+ Add job</button>' +
     (owner ? '<button type="button" class="btn kgx-side" onclick="kg2Money(' + kg2Q(kid) + ', \'PAYMENT\')">Record payment</button>' : '') +
-    (owner ? '<button type="button" class="btn kgx-side" onclick="kg3PayOrder(' + kg2Q(kid) + ', \'advance\')">Give advance</button>' : '') +
     (moreBtns ? '<button type="button" class="btn kgx-side" onclick="kg3MoreProfile(' + kg2Q(kid) + ')">' + (moreOpen ? 'Less' : 'More') + '</button>' : '') + '</div></div>' +
     (moreBtns && moreOpen ? '<div class="kg2-row" id="kg3-pmore">' + moreBtns + '</div>' : '');
   html += '<div class="kg2-kpis">' + kg3Tile('Fine gold with him', escHtml(kgFmtG(g.totalMg)),
@@ -2877,7 +2950,7 @@ function kg3ProfileHtml(kid){
   html += '<div class="kgx-card kgx-pad"><div class="kgx-sec">Account</div>';
   if(!last.length) html += '<div class="kg2-empty">Nothing in his account yet.</div>';
   last.forEach(function(r){
-    html += '<div class="kgx-acc"><div><div class="kgx-t">' + escHtml(r.label) + '</div><div class="kgx-sub">' + escHtml(r.date) + '</div></div><div class="kgx-r"><div class="kgx-amt">' + escHtml(r.deltaText) + ' fine</div><div class="kgx-sub">Balance ' + escHtml(r.balText) + ' fine</div></div></div>';
+    html += '<div class="kgx-acc"><div><div class="kgx-t">' + escHtml(r.label) + '</div><div class="kgx-sub">' + escHtml(kgDay(r.date)) + '</div></div><div class="kgx-r"><div class="kgx-amt">' + escHtml(r.deltaText) + ' fine</div><div class="kgx-sub">Balance ' + escHtml(r.balText) + ' fine</div></div></div>';
   });
   html += '<button type="button" class="kgx-rowbtn" onclick="kg3Statement(' + kg2Q(kid) + ')">Full statement</button></div></div>';
   var closed = jobs.filter(function(j){ return j.status === 'closed'; }).length;
@@ -2886,7 +2959,7 @@ function kg3ProfileHtml(kid){
   if(ow.any){
     html += '<div class="kgx-card kgx-pad"><div class="kgx-sec">Order work</div><div class="kgx-acc"><div><div class="kgx-t">' + (ow.queue.length) + ' order stage' + (ow.queue.length === 1 ? '' : 's') + ' in progress</div>' +
       '<div class="kgx-sub">Metal with him on orders: gold ' + escHtml(Number(ow.held.gold).toFixed(3)) + ' g, silver ' + escHtml(Number(ow.held.silver).toFixed(3)) + ' g &middot; owed to him: ' +
-      escHtml(ow.owed.cash < 0 ? 'nothing (he owes the shop ' + fmt(-ow.owed.cash) + ')' : fmt(ow.owed.cash)) + (ow.owed.gold ? (ow.owed.gold > 0 ? ' + ' + escHtml(Number(ow.owed.gold).toFixed(3)) + ' g gold' : ' (he owes the shop ' + escHtml(Number(-ow.owed.gold).toFixed(3)) + ' g gold)') : '') + (ow.owed.silver ? (ow.owed.silver > 0 ? ' + ' + escHtml(Number(ow.owed.silver).toFixed(3)) + ' g silver' : ' (he owes the shop ' + escHtml(Number(-ow.owed.silver).toFixed(3)) + ' g silver)') : '') + (adv0.given > 0 ? '<br>Advance given ' + escHtml(fmt(adv0.given)) + ': ' + escHtml(fmt(adv0.adjusted)) + ' adjusted against his order work so far' + (adv0.outstanding > 0 ? ', ' + escHtml(fmt(adv0.outstanding)) + ' still to adjust' : '') : '') + '</div></div></div>' +
+      escHtml(ow.owed.cash < 0 ? 'nothing (he owes the shop ' + kgRs2(-ow.owed.cash) + ')' : kgRs2(ow.owed.cash)) + (ow.owed.gold ? (ow.owed.gold > 0 ? ' + ' + escHtml(Number(ow.owed.gold).toFixed(3)) + ' g gold' : ' (he owes the shop ' + escHtml(Number(-ow.owed.gold).toFixed(3)) + ' g gold)') : '') + (ow.owed.silver ? (ow.owed.silver > 0 ? ' + ' + escHtml(Number(ow.owed.silver).toFixed(3)) + ' g silver' : ' (he owes the shop ' + escHtml(Number(-ow.owed.silver).toFixed(3)) + ' g silver)') : '') + (adv0.given > 0 ? '<br>Advance given ' + escHtml(kgRs2(adv0.given)) + ': ' + escHtml(kgRs2(adv0.adjusted)) + ' adjusted against his order work so far' + (adv0.outstanding > 0 ? ', ' + escHtml(kgRs2(adv0.outstanding)) + ' still to adjust' : '') : '') + '</div></div></div>' +
       (owner && (ow.owed.cash > 0 || ow.owed.gold > 0 || ow.owed.silver > 0) ? '<button type="button" class="kgx-rowbtn" onclick="kg3PayOrder(' + kg2Q(kid) + ')">Pay for order work</button>' : '') + '</div>';   // nothing owed: nothing to pay (an advance has its own button)
   }
   html += kg3PayOrderRecentHtml(kid);
@@ -2915,7 +2988,7 @@ function kgEntryWords(e, target){
 }
 // '+9.200 g' / '-4.800 g' / '0.000 g' from a signed amount and a formatter that handles positive numbers.
 function kgSigned(n, fmt){ return n > 0 ? '+' + fmt(n) : (n < 0 ? '-' + fmt(-n) : fmt(0)); }
-function kg3Statement(kid){ _kg2.karigarId = kid; _kg2.view = 'statement'; renderKgV2(); }
+function kg3Statement(kid){ _kg2.karigarId = kid; kgSetView('statement'); renderKgV2(); }
 function kg3StSet(field, el){ _kg2['st' + field] = String(el.value || '').trim(); renderKgV2(); }
 function kgOpeningReversed(id){ return (S.kgLedger || []).concat(S.kgSalary || []).some(function(x){ return x.type === 'REVERSAL' && x.reversesId === id; }); }
 function kg3StatementData(kid, metal, from, to){
@@ -2928,21 +3001,26 @@ function kg3StatementData(kid, metal, from, to){
   return {metal:metal, from:from, to:to, openingText:kgFmtG(s.openingMg), closingText:kgFmtG(s.closingMg), issuedText:kgFmtG(s.issuedMg), returnedText:kgFmtG(s.returnedMg), otherText:(s.otherMg !== 0 ? kgSigned(s.otherMg, kgFmtG) : ''),
     rows:s.rows.map(function(x){ return {id:x.entry.id, type:x.type, date:x.date, label:(x.phase === 'proposal' ? 'Loss proposed' : (x.phase === 'approval' ? 'Loss approved' : kgEntryWords(x.entry, x.target))) + (x.jobNo ? ' (' + x.jobNo + ')' : ''), state:x.state, deltaText:kgSigned(x.deltaMg, kgFmtG), balText:kgFmtG(x.balanceMg), note:(x.reason ? 'Reason: ' + x.reason : (x.entry.note || ''))}; })};
 }
+// A row of tiles for a statement. The last is the wide Closing tile; an odd number of half tiles never leaves one alone on its row.
+function kg3KpiHtml(list){
+  var last = list.length - 1, odd = (last % 2) === 1;
+  return '<div class="kg2-kpis">' + list.map(function(t, i){ return kg3Tile(t[0], escHtml(t[1]), t[2] ? escHtml(t[2]) : '', (i === last || (odd && i === last - 1)) ? 'wide' : ''); }).join('') + '</div>';
+}
 function kg3StatementHtml(kid){
   var k = findKarigar(kid); if(!k) return '<div class="kg2-empty">Karigar not found.</div>';
   var metal = _kg2.stMetal || 'gold', from = _kg2.stFrom || (kgToday().slice(0, 7) + '-01'), to = _kg2.stTo || kgToday();
-  var html = '<div class="kg2-row">' + kg2Btn('\u2190 ' + k.name, 'kg3Open(' + kg2Q(kid) + ')') + '</div><div class="kg2-head"><div class="kg2-title">Statement &middot; ' + escHtml(k.name) + '</div></div>';
+  var html = '<div class="kgx-navrow"><button type="button" class="kgx-back" onclick="kg3Open(' + kg2Q(kid) + ')">' + KG_BACK_SVG + ' ' + escHtml(k.name) + '</button></div><div class="kg2-head"><h1 class="kgx-h2">Statement</h1><div class="kgx-sub2">' + escHtml(k.name) + '</div></div>';
   html += '<div class="kg2-row"><select class="kg2-sel" aria-label="Metal" onchange="kg3StSet(\'Metal\', this)">' +
-    [['gold', 'Gold (fine)'], ['silver', 'Silver (fine)'], ['rupees', 'Rupees']].map(function(o){ return '<option value="' + o[0] + '"' + (o[0] === metal ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
+    [['gold', 'Gold (fine)'], ['silver', 'Silver (fine)'], ['rupees', 'Rupees']].map(function(o){ return '<option value="' + o[0] + '"' + (o[0] === metal ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div><div class="kgx-dates">' +
     '<input type="date" class="kg2-sel" aria-label="From date" value="' + escHtml(from) + '" onchange="kg3StSet(\'From\', this)">' +
     '<input type="date" class="kg2-sel" aria-label="To date" value="' + escHtml(to) + '" onchange="kg3StSet(\'To\', this)"></div>';
   if(!kgValidDateKey(from) || !kgValidDateKey(to) || from > to) return html + '<div class="kg2-note warn">Dates must be real days (YYYY-MM-DD) and From must not be after To.</div>';
   var d = kg3StatementData(kid, metal, from, to);
   var shopName = (typeof SAAS !== 'undefined' && SAAS.shop && SAAS.shop.name) ? SAAS.shop.name : '';
-  html += '<div id="kg3-print"><div class="kg3-printhead">' + (shopName ? '<div>' + escHtml(shopName) + '</div>' : '') + '<div>' + escHtml(k.name) + ' &middot; ' + escHtml(metal) + ' statement</div><div class="kg3-printdates">' + escHtml(from) + ' to ' + escHtml(to) + '</div></div><div class="kg2-kpis">' + kg3Tile('Opening', escHtml(d.openingText)) + (d.issuedText ? kg3Tile('Given', escHtml(d.issuedText)) + kg3Tile('Returned', escHtml(d.returnedText)) + (d.otherText ? kg3Tile('Other changes', escHtml(d.otherText), 'opening, reversals, hand-overs, carry, loss') : '') : '') + kg3Tile('Closing', escHtml(d.closingText), '', 'wide') + '</div>';
+  html += '<div id="kg3-print"><div class="kg3-printhead">' + (shopName ? '<div>' + escHtml(shopName) + '</div>' : '') + '<div>' + escHtml(k.name) + ' &middot; ' + escHtml(metal) + ' statement</div><div class="kg3-printdates">' + escHtml(from) + ' to ' + escHtml(to) + '</div></div>' + kg3KpiHtml([['Opening', d.openingText]].concat(d.issuedText ? [['Given', d.issuedText], ['Returned', d.returnedText]].concat(d.otherText ? [['Other changes', d.otherText, 'opening, reversals, hand-overs, carry, loss']] : []) : []).concat([['Closing', d.closingText]]));
   if(!d.rows.length) html += '<div class="kg2-empty">Nothing in this period.</div>';
   d.rows.forEach(function(r){
-    html += '<div class="kg2-line"><div><b>' + escHtml(r.label) + '</b><div class="kg2-sub">' + escHtml(r.date) + (r.state !== 'ok' && r.state !== 'reversal' ? ' &middot; ' + escHtml(r.state) : '') +
+    html += '<div class="kg2-line"><div><b>' + escHtml(r.label) + '</b><div class="kg2-sub">' + escHtml(kgDay(r.date)) + (r.state !== 'ok' && r.state !== 'reversal' ? ' &middot; ' + escHtml(r.state) : '') +
       (r.note ? ' &middot; ' + escHtml(r.note) : '') + '</div></div><div class="kg2-right" style="display:block;"><div class="kg2-num">' + escHtml(r.deltaText) + '</div><div class="kg2-sub">bal ' + escHtml(r.balText) + '</div>' +
       (r.type === 'OPENING' && r.state === 'ok' && !kgOpeningReversed(r.id) && kgUser().role === 'owner' ? kg2Btn('Reverse', r.salary ? 'kg2ReverseSalary(' + kg2Q(kid) + ', ' + kg2Q(r.id) + ')' : 'kg3Reverse(' + kg2Q(r.id) + ')') : '') + '</div></div>';
   });
@@ -2993,9 +3071,9 @@ function kgJobRowSign(e, tgt){
 }
 function kg3JobHtml(job){
   var u = kgUser(), led = S.kgLedger || [], idx = kgIndex(led), open = job.status === 'open', metal = kgMetalOf(job);
-  var html = '<div class="kg2-row">' + kg2Btn('\u2190 ' + kg3Name(job.karigarId), 'kg3Open(' + kg2Q(job.karigarId) + ')') + '</div><div class="kg2-head"><div class="kg2-title">' + escHtml(job.jobNo) + ' &middot; ' + escHtml(job.title) + '</div>' +
+  var html = '<div class="kgx-navrow"><button type="button" class="kgx-back" onclick="kg3Open(' + kg2Q(job.karigarId) + ')">' + KG_BACK_SVG + ' ' + escHtml(kg3Name(job.karigarId)) + '</button></div><div class="kg2-head"><h1 class="kgx-h2">' + escHtml(job.jobNo) + ' &middot; ' + escHtml(job.title) + '</h1>' +
     '<div class="kg2-sub">' + escHtml(metal) + ' &middot; ' + escHtml(job.status) + (job.tag ? ' &middot; tag ' + escHtml(job.tag) : '') + (job.pieceCount ? ' &middot; ' + escHtml(String(job.pieceCount)) + ' pieces' : '') +
-    (job.dueDate ? ' &middot; due ' + escHtml(job.dueDate) : '') + (job.orderRef ? ' &middot; order ' + escHtml(kgOrderLabel(job)) : '') + '</div></div>';
+    (job.dueDate ? ' &middot; due ' + escHtml(kgDay(job.dueDate)) : '') + (job.orderRef ? ' &middot; order ' + escHtml(kgOrderLabel(job)) : '') + '</div></div>';
   var overlap = kgOrderOverlap(job);
   if(overlap.length) html += '<div class="kg2-note warn">He also has a stage on order ' + escHtml(overlap.join(', ')) + ' in the old order screen. That metal is shown on his profile under Order work and is not counted in this job.</div>';
   html += '<div class="kg2-sec">Who holds the metal</div>';
@@ -3013,7 +3091,7 @@ function kg3JobHtml(job){
       kg2Btn('Scrap / dust', 'kg3Scrap(' + kg2Q(job.id) + ')') + kg2Btn('Close job', 'kg3Close(' + kg2Q(job.id) + ')') + kg2Btn(_kg2.more === job.id ? 'Less' : 'More', 'kg3More()') + '</div>';
     if(_kg2.more === job.id){
       var carried = 0; kgCarryLots(job.karigarId, metal).forEach(function(l){ carried += l.remainingMg; });
-      html += '<div class="kg2-row" id="kg3-more">' + (u.role === 'owner' && jb.issuedFine === 0 ? kg2Btn('Cancel job', 'kg2Cancel(' + kg2Q(job.id) + ')') : '') + kg2Btn('Hand over to another karigar', 'kg3Transfer(' + kg2Q(job.id) + ')') + kg2Btn('+ Stage', 'kg3AddStage(' + kg2Q(job.id) + ')') +
+      html += '<div class="kg2-row" id="kg3-more">' + ((u.role === 'owner' || (u.role === 'manager' && job.createdBy === u.name)) && jb.issuedFine === 0 ? kg2Btn('Cancel job', 'kg2Cancel(' + kg2Q(job.id) + ')') : '') + kg2Btn('Hand over to another karigar', 'kg3Transfer(' + kg2Q(job.id) + ')') + kg2Btn('+ Stage', 'kg3AddStage(' + kg2Q(job.id) + ')') +
         (carried > 0 ? kg2Btn('Use carried balance', 'kg3UseCarry(' + kg2Q(job.id) + ')') : '') + '</div>';
     }
   } else if(job.status === 'closed' && u.role === 'owner'){
@@ -3030,7 +3108,7 @@ function kg3JobHtml(job){
   rows.forEach(function(e){
     var rev = !!idx.reversed[e.id], can = open && !rev && e.type !== 'REVERSAL' && e.type !== 'TRANSFER_IN' && (u.role === 'owner' || ['LOSS', 'ADJUST', 'OPENING'].indexOf(e.type) === -1);   // a transfer pair is reversed from its first row only
     var tgt = e.type === 'REVERSAL' ? idx.byId[e.reversesId] : null;
-    var sub = escHtml(e.date || '') + ' &middot; ' + escHtml(kg3Name(e.karigarId)) + (e.mg ? ' &middot; ' + escHtml(kgFmtG(e.mg)) + ' at ' + (e.pu ? e.pu / 100 + '%' : '') : '') +
+    var sub = escHtml(kgDay(e.date || '')) + ' &middot; ' + escHtml(kg3Name(e.karigarId)) + (e.mg ? ' &middot; ' + escHtml(kgFmtG(e.mg)) + ' at ' + (e.pu ? e.pu / 100 + '%' : '') : '') +
       (e.pieceDesc ? ' &middot; ' + escHtml(e.pieceDesc) + (e.qty > 1 ? ' x' + e.qty : '') : '') + (e.reason ? ' &middot; reason: ' + escHtml(e.reason) : '') + (rev ? ' &middot; reversed' : '');
     var sgn = kgJobRowSign(e, tgt);
     html += '<div class="kg2-line' + (rev ? ' kg2-struck' : '') + '"><div><b>' + escHtml(kgEntryWords(e, tgt)) + '</b><div class="kg2-sub">' + sub + '</div></div><div class="kg2-right"><div class="kg2-num">' + escHtml(kgSigned(sgn, kgFmtG)) + '</div>' +
@@ -3096,22 +3174,29 @@ function kg3FineOf(v){
 function kg3NewJob(kid){
   var k = findKarigar(kid); if(!k) return;
   var pts = kgAgreementFor(kid, kgToday()) ? kgAgreementFor(kid, kgToday()).wastagePoints : k.wastagePoints;
+  function metalOf(v){ return v.metal === 'silver' ? 'silver' : 'gold'; }
+  function gname(v){ return metalOf(v); }
   kgForm({title:'New job', submitLabel:'Create job', doneToast:'\u2713 Job created',
     fields:[
-      {id:'title', label:'What is the work (e.g. Necklace set)'},
-      {id:'metal', label:'Metal', type:'select', options:[['gold', 'Gold'], ['silver', 'Silver']], value:'gold'},
-      {id:'wt', label:'Weight given (g), leave blank to give metal later', mode:'decimal'},
+      {id:'for', type:'note', html:'<div class="kgx-for"><div class="kgx-avatar kgx-sm">' + escHtml(kg3Initials(k.name)) + '</div><div class="kgx-grow"><div class="kgx-sub">For</div><div class="kgx-name">' + escHtml(k.name) + '</div></div><span class="kgx-sub">Already filled</span></div>'},
+      {id:'title', label:'What is the work'},
+      {id:'metal', label:'Metal', type:'chips', value:'gold22', options:[['gold22', 'Gold 22K', {purity:'91.6'}], ['gold18', 'Gold 18K', {purity:'75'}], ['silver', 'Silver', {purity:''}], ['other', 'Other', {purity:''}]]},
+      {id:'wt', label:'Weight given (g)', mode:'decimal', row:'a'},
+      {id:'purity', label:'Purity', mode:'decimal', row:'a', show:function(v){ return !v.chip; }},
+      {id:'due', label:'Due', type:'date', row:'a'},
       {id:'chip', label:'Pure gold 999 (counts as 100%)', type:'check'},
-      {id:'purity', label:'Purity', mode:'decimal', hint:'Any purity from 50 to 99.99, like 91.82.', show:function(v){ return !v.chip; }},
       {id:'confirmed', label:'I checked this purity is right', type:'check', show:function(v){ return kg3NeedsConfirm(v); }},
-      {id:'due', label:'Due', type:'date'},
       {id:'ord', label:'Link to a customer order (optional)', type:'select', options:[['', 'No order']].concat((S.orders || []).filter(function(o){ return o.status !== 'cancelled' && o.status !== 'delivered'; }).map(function(o){ return [o.id, o.ordNo + ' - ' + (o.customer || '')]; })), value:'',
         hint:'Only to find the order again. The order\'s own karigar stage stays separate and is never added to this account.'},
-      {id:'points', label:'Wastage points on his touch (e.g. 4)', mode:'decimal', value:(pts != null ? String(pts / 100) : ''), hint:'Measured touch + points = what he is credited. Leave empty for a salary karigar.'},
-      {id:'tag', label:'Tag / design number (optional)'},
-      {id:'pieces', label:'Pieces expected (optional)', mode:'numeric'}],
+      {id:'points', label:'Wastage points on his touch (e.g. 4)', mode:'decimal', value:(pts != null ? String(pts / 100) : ''), hint:'Measured touch + points = what he is credited. Leave empty for a salary karigar.', more:true},
+      {id:'tag', label:'Tag / design number (optional)', more:true},
+      {id:'pieces', label:'Pieces expected (optional)', mode:'numeric', more:true}],
+    submitText:function(v){
+      var has = String(v.wt || '').trim() !== '' && (!!v.chip || String(v.purity || '').trim() !== '');
+      return has ? 'Create job and issue ' + (v.metal === 'other' ? 'metal' : gname(v)) : 'Create job';
+    },
     preview:function(v){
-      var f = kg3FineOf(v), carried = kgCarryTotal(kid, v.metal === 'silver' ? 'silver' : 'gold'), html = '';
+      var f = kg3FineOf(v), carried = kgCarryTotal(kid, metalOf(v)), html = '';
       if(f && f.error) return '<span class="warn">' + escHtml(f.error) + '</span>';
       if(f){
         html = '<div class="kgx-posted"><span>Posted to his account</span><b>' + escHtml(kgFmtG(f.fineMg)) + ' fine</b></div><div class="kgx-small">' + escHtml(kgFmtG(f.mg)) + ' &times; ' + escHtml(String(f.pu / 100)) + ' = ' + escHtml(kgFmtG(f.fineMg)) + ' in 999. Any purity works. The rest is settled when you close the job.</div>';
@@ -3121,12 +3206,14 @@ function kg3NewJob(kid){
     },
     onSubmit:function(v, fin){
       var hasWt = String(v.wt || '').trim() !== '', hasPu = !!v.chip || String(v.purity || '').trim() !== '';
-      if(hasWt !== hasPu) return fin(new Error(hasWt ? 'Type the purity too, or clear the weight' : 'Type the weight too, or clear the purity'));
-      if(hasWt){   // check the metal BEFORE anything is created, so a wrong purity never leaves a half-made job
+      if(hasWt !== hasPu) return fin(new Error(hasWt ? 'Type the purity too, or clear the weight' : (v.chip ? 'Type the weight too, or untick Pure gold 999' : 'Type the weight too, or clear the purity')));
+      if(hasWt){   // check the metal BEFORE anything is created, so a wrong purity (or a refused issue) never leaves a half-made job
+        if(S.kgLedgerOn === true) return fin(new Error('New karigar entries are not available while the ledger is on yet. Nothing was saved.'));
+        if(_kgFlagUnknown){ try{ kgLoadLedgerFlag(); }catch(e){} return fin(new Error('Checking whether the ledger is on. Try again in a moment. Nothing was saved.')); }
         var mg = kgParseMg(v.wt); if(mg === null) return fin(new Error(kgWeightProblem(v.wt, 'weight')));
         var rp = kgResolvePu(v.purity, v.chip ? '999' : '', v.confirmed); if(rp.error || rp.confirm) return fin(new Error(rp.error || rp.confirm));
       }
-      kgCreateJob({karigarId:kid, title:v.title, model:'points', metal:v.metal, pointsText:v.points, tag:v.tag, pieceCount:v.pieces, dueDate:v.due, orderId:v.ord}, v.opId, function(err, job, dup){
+      kgCreateJob({karigarId:kid, title:v.title, model:'points', metal:metalOf(v), pointsText:v.points, tag:v.tag, pieceCount:v.pieces, dueDate:v.due, orderId:v.ord}, v.opId, function(err, job, dup){
         if(err || !job) return fin(err);
         _kg2.jobId = job.id;
         if(!hasWt || dup) return fin(null);
@@ -3167,7 +3254,7 @@ function kg3ReceivePreview(jobId, v){
 // Pay a karigar for old-way order work: cash, gold or silver, never more than is owed. Owner only.
 var KG_PAY_UNITS = {cash:'\u20b9', gold:'g gold', silver:'g silver'};
 function kg3OrderOwedText(type, n){
-  if(type === 'cash') return n < 0 ? 'he owes the shop ' + fmt(Math.round(-n * 100) / 100) : fmt(Math.round(n * 100) / 100);
+  if(type === 'cash') return n < 0 ? 'he owes the shop ' + kgRs2(-n) : kgRs2(n);
   return (Math.round(n * 1000) / 1000) + ' g ' + type;
 }
 function kg3PayOrderCheck(kid, type, text, advance){
@@ -3255,7 +3342,7 @@ function kg3PayOrderPreviewText(kid, type, text, advance){
   var ow = kgOrderWork(kid).owed, owed = ow[type] || 0, c = String(text || '').trim() === '' ? null : kg3PayOrderCheck(kid, type, text, advance === true);
   var html = (advance ? 'Now: <b>' + escHtml(kg3OrderOwedText(type, owed)) + '</b>' : (owed < 0 ? '<b>' + escHtml(kg3OrderOwedText(type, owed).replace(/^he/, 'He')) + '</b>' : 'Owed to him: <b>' + escHtml(kg3OrderOwedText(type, owed)) + '</b>'));
   var ai = type === 'cash' ? kg3OrderAdvanceInfo(kid) : null;
-  if(ai && ai.given > 0) html += '<br>Advance given ' + escHtml(fmt(ai.given)) + ': ' + escHtml(fmt(ai.adjusted)) + ' already adjusted against his order work' + (ai.outstanding > 0 ? ', ' + escHtml(fmt(ai.outstanding)) + ' still to adjust' : '');
+  if(ai && ai.given > 0) html += '<br>Advance given ' + escHtml(kgRs2(ai.given)) + ': ' + escHtml(kgRs2(ai.adjusted)) + ' already adjusted against his order work' + (ai.outstanding > 0 ? ', ' + escHtml(kgRs2(ai.outstanding)) + ' still to adjust' : '');
   if(c && c.error) return html + '<br><span class="warn">' + escHtml(c.error) + '</span>';
   if(c && advance) return html + '<br>After this: <b>' + escHtml(kg3OrderOwedText('cash', Math.round((owed - c.amount) * 100) / 100)) + '</b> (an advance, adjusted against his next order work)';
   if(c) return html + '<br>Recording ' + escHtml(kg3OrderOwedText(type, c.amount)) + ' paid';
@@ -3387,40 +3474,53 @@ function kg3Close(jobId){
   var metal = kgMetalOf(job), owner = (kgUser().role === 'owner');
   var open = kgJobKarigarFines(job).filter(function(f){ return f.fine > 0; }), total = 0;
   open.forEach(function(f){ total += f.fine; });
+  var given = kgJobBalance(job, S.kgLedger || []).issuedFine, counted = given - total;
   var carryOk = open.every(function(f){ var kk = findKarigar(f.kid); return !!kk && kk.carryTrusted === true; });   // kgCloseSettle refuses a carry for a karigar who is not set to carry
+  var opts = [];
+  if(carryOk) opts.push(['carry', 'Keep with him for the next job', 'The job closes. ' + kgFmtG(total) + ' fine stays in his account. Count it toward a new job with Use carried balance.']);
+  opts.push(['return', 'He returns it now', 'Record what he hands back (Receive piece for pieces, Scrap / dust for sweepings), then close. Nothing is posted by this choice.']);
+  if(owner){ opts.push(['loss', 'Accept as loss', 'The job closes and the shop takes this as a loss.']); opts.push(['loss-cash', 'Loss, bill him in rupees', 'The job closes and he is billed for it in rupees.']); }
+  var o = null;
   var fields = open.length ? [
-    {id:'settle', label:'What happens to it?', type:'choice', value:(carryOk ? 'carry' : 'loss'), options:(carryOk ? [
-      ['carry', 'Keep with him for the next job', 'The job closes. ' + kgFmtG(total) + ' fine stays in his account. Count it toward a new job with Use carried balance.']] : []).concat(owner ? [
-      ['loss', 'Accept as loss', 'The job closes and the shop takes this as a loss. A reason is needed.'],
-      ['loss-cash', 'Loss, bill him in rupees', 'The job closes and he is billed for it in rupees.']] : [])},
-    {id:'reason', label:'Reason for the loss (at least 5 letters)', show:function(v){ return v.settle !== 'carry'; }},
+    {id:'settle', label:'What happens to it?', type:'choice', value:(carryOk ? 'carry' : 'return'), options:opts},
+    {id:'reason', label:'Reason for the loss (at least 5 letters)', value:'Making loss, accepted', show:function(v){ return v.settle === 'loss' || v.settle === 'loss-cash'; }},
     {id:'bill', label:'Bill amount (\u20b9)', mode:'decimal', show:function(v){ return v.settle === 'loss-cash'; }},
     {id:'ack', label:'Go ahead even if he is over his carry limit', type:'check', show:function(v){ return v.settle === 'carry'; }}] : [];
   var who = open.map(function(f){ return kg3Name(f.kid) + ' ' + kgFmtG(f.fine); }).join(', ');
-  kgForm({title:'Close ' + job.jobNo, submitLabel:'Close job and post to account', doneToast:'\u2713 Job closed', fields:fields,
+  o = {title:'Close ' + job.jobNo, submitLabel:'Close job and post to account', doneToast:'\u2713 Job closed', fields:fields,
+    submitText:function(v){ return v.settle === 'return' ? 'Record what he returns' : 'Close job and post to account'; },
     preview:function(){
       if(!open.length) return '<div class="kgx-small">All metal is accounted for.</div>';
-      return '<div class="kgx-posted"><span>He returns to you</span><b>' + escHtml(kgFmtG(total)) + ' fine</b></div>' + (open.length > 1 ? '<div class="kgx-small">' + escHtml(who) + '</div>' : '') +
-        '<div class="kgx-small">' + escHtml(job.title) + ' &middot; ' + escHtml(metal) + '</div>' + (carryOk ? '' : '<div class="kgx-small warn">He is not set to keep a balance, so it cannot stay with him.' + (owner ? ' Turn on Carry settings on his profile, or accept it as a loss.' : ' Ask the owner to close this job.') + '</div>');
+      return '<div class="kgx-lines"><div><span>Given</span><span>' + escHtml(kgFmtG(given)) + ' fine</span></div>' + (counted > 0 ? '<div><span>Ornament counted</span><span>&minus; ' + escHtml(kgFmtG(counted)) + ' fine</span></div>' : '') + '</div>' +
+        '<div class="kgx-posted"><span>He returns to you</span><b>' + escHtml(kgFmtG(total)) + ' fine</b></div>' + (open.length > 1 ? '<div class="kgx-small">' + escHtml(who) + '</div>' : '') +
+        '<div class="kgx-small">' + escHtml(job.title) + ' &middot; ' + escHtml(metal) + '. Record what he returned first (Receive piece, Scrap / dust), then close.</div>' +
+        (carryOk ? '' : '<div class="kgx-small warn">He is not set to keep a balance, so it cannot stay with him.' + (owner ? ' Turn on Carry settings on his profile, or accept it as a loss.' : ' Ask the owner to close this job.') + '</div>');
     },
     onSubmit:function(v, fin){
-      var opts = open.length ? {settle:v.settle, reason:v.reason, billText:v.bill, ackCeiling:!!v.ack, opId:v.opId} : undefined;
-      kgCloseJob(jobId, function(err){ fin(err); }, opts);
-    }});
+      if(open.length && v.settle === 'return'){ o.doneToast = ''; fin(null); kg3Scrap(jobId); return; }   // a shortcut to the existing Scrap / dust sheet, nothing is closed or posted
+      var opts2 = open.length ? {settle:v.settle, reason:v.reason, billText:v.bill, ackCeiling:!!v.ack, opId:v.opId} : undefined;
+      kgCloseJob(jobId, function(err){ fin(err); }, opts2);
+    }};
+  kgForm(o);
 }
 
 // \u2500\u2500 Add a karigar \u2500\u2500
 // v: {name, phone, skills, kind:'wastage'|'salary'|'' , points, salaryMode, rate, opId}. Owner may set terms; a manager adds name and phone only.
 // The same opId twice gives the same karigar back. A failed save leaves nothing behind.
 function kgAddKarigar(v, done){
+  var opId = v.opId;
+  kgOnce(opId ? 'karigar:' + opId : '', done, function(d){ kgAddKarigarNow(v, d); });
+}
+function kgAddKarigarNow(v, done){
   var u = kgUser(), name = String(v.name || '').trim(), opId = v.opId;
   if(!kgCan(u.role, 'manager')) return done(new Error('Only owner or manager can add a karigar'));
   S.karigars = S.karigars || [];
   for(var i = 0; i < S.karigars.length; i++) if(opId && S.karigars[i].addOpId === opId) return done(null, S.karigars[i], true);
   if(!name) return done(new Error('Name is required'));
+  if(name.length > 60) return done(new Error('Name is too long (60 letters at most)'));
   var clash = S.karigars.some(function(x){ return String(x.name || '').trim().toLowerCase() === name.toLowerCase(); });
   if(clash) return done(new Error('Another karigar is already called ' + name));
-  var ph = normPhone10(v.phone);
+  var ph = phoneShapeOk(v.phone) ? normPhone10(v.phone) : null;
   if(ph === null) return done(new Error('Phone should be a 10-digit mobile number starting 6-9, like 98765 43210.'));
   var kind = String(v.kind || '');
   if(kind && u.role !== 'owner') return done(new Error('Only the owner can set how a karigar is paid'));
@@ -3431,15 +3531,21 @@ function kgAddKarigar(v, done){
   }
   var k = {id:'kar' + Date.now() + Math.floor(Math.random() * 1000), name:name, phone:ph, addOpId:opId || ''};
   var skills = String(v.skills || '').trim(); if(skills) k.skills = skills;
+  var hadAgreements = Object.prototype.hasOwnProperty.call(S, 'kgAgreements');
+  var hadAuditLog = Object.prototype.hasOwnProperty.call(S, 'auditLog');
   S.karigars.push(k);
   var auditId = kgAudit('kg_karigar_add', 'karigar', k.id, name);
-  function undo(){ S.karigars = S.karigars.filter(function(x){ return x !== k; }); kgUndoAudit(auditId); }
+  function undo(){
+    S.karigars = S.karigars.filter(function(x){ return x !== k; }); kgUndoAudit(auditId);
+    if(!hadAgreements && Array.isArray(S.kgAgreements) && !S.kgAgreements.length) delete S.kgAgreements;
+    if(!hadAuditLog && Array.isArray(S.auditLog) && !S.auditLog.length) delete S.auditLog;
+  }
   if(!terms){
     saveToCloud(function(e){ if(e){ undo(); saveCache(); return done(new Error('Could not save - check the internet and try again. Nothing was saved.')); } done(null, k, false); });
     return;
   }
   kgAddAgreement(k.id, terms, kgToday(), (opId || kgNewId()) + '-terms', function(err){
-    if(err){ undo(); saveCache(); return done(err); }   // kgAddAgreement already rolled its own record back
+    if(err){ undo(); saveCache(); return done(err); }   // kgAddAgreement already rolled its own record and audit line back
     done(null, k, false);
   });
 }
@@ -3454,25 +3560,35 @@ function kg3AddKarigar(){
   kgForm({title:'Add karigar', submitLabel:'Add karigar', doneToast:'\u2713 Karigar added', fields:fields,
     onSubmit:function(v, fin){
       kgAddKarigar({name:v.name, phone:v.phone, skills:v.skills, kind:(owner ? v.kind : ''), points:v.points, salaryMode:v.salaryMode, rate:v.rate, opId:v.opId}, function(err, k){
-        if(!err && k){ _kg2.karigarId = k.id; _kg2.view = 'profile'; _kg2.more = ''; }
+        if(!err && k){ _kg2.karigarId = k.id; kgSetView('profile'); _kg2.more = ''; }
         fin(err);
       });
     }});
 }
 
 // \u2500\u2500 Rupees on a statement \u2500\u2500
-// Cash given to him for order work (advance, payment), from the order-side payment list. Reversed ones stay visible, marked.
+// Cash given to him for order work, as rows like the gold statement: a payment or advance is a row on its own day (+), a reversal is its own row on ITS day (-);
+// the original row is never relabelled, so a printed range never changes when something is reversed later. A record with no date counts in the opening (as it does in what is owed).
 function kgOrderPayRows(kid, from, to){
-  var all = S.karigarPayments || [], undone = {}, out = [];
-  all.forEach(function(x){ if(x.type === 'reversal') undone[x.reversesId] = true; });
-  all.forEach(function(x){
-    if(x.karigarId !== kid || x.type !== 'cash' || String(x.date) < from || String(x.date) > to) return;
-    out.push({date:x.date, label:(x.advance ? 'Advance given' : 'Paid for order work') + (x.mode ? ' (' + x.mode + ')' : '') + (undone[x.id] ? ' - reversed' : ''), amountText:fmt(parseFloat(x.amount) || 0), note:String(x.reason || x.note || '')});
+  var all = S.karigarPayments || [], byId = {}, list = [];
+  all.forEach(function(x){ byId[x.id] = x; });
+  function paise(x){ return Math.round((parseFloat(x.amount) || 0) * 100); }
+  function words(x){ return (x.advance ? 'Advance given' : 'Paid for order work') + (x.mode ? ' (' + x.mode + ')' : ''); }
+  all.forEach(function(x, i){
+    if(x.karigarId !== kid) return;
+    if(x.type === 'cash') list.push({date:String(x.date || ''), i:i, delta:paise(x), label:words(x), note:String(x.reason || x.note || '')});
+    else if(x.type === 'reversal'){ var t = byId[x.reversesId]; if(t && t.type === 'cash') list.push({date:String(x.date || ''), i:i, delta:-paise(t), label:'Reversed: ' + words(t), note:String(x.reason || '')}); }
   });
-  return out;
+  list.sort(function(m, n){ return m.date < n.date ? -1 : (m.date > n.date ? 1 : m.i - n.i); });
+  var opening = 0, total = 0, rows = [];
+  list.forEach(function(x){
+    if(x.date < from) opening += x.delta;
+    else if(x.date <= to){ total += x.delta; rows.push({date:x.date, label:x.label, amountText:kgSigned(x.delta, kgFmtRs), note:x.note}); }
+  });
+  return {rows:rows, opening:opening, total:total, closing:opening + total, openingText:kgFmtRs(opening), totalText:kgFmtRs(total), closingText:kgFmtRs(opening + total)};
 }
 // The Rupees part of a statement. For a gold or silver statement this is the rupee register (opening, salary, payments) when it has anything;
-// for every view it is the order-work cash. {led:null|{openingText, closingText, rows}, orders:[...]}
+// for every view it is the order-work cash. {led:null|{openingText, closingText, rows}, ord:null|kgOrderPayRows result}
 function kg3RupeeExtra(kid, metal, from, to){
   var led = null;
   if(metal !== 'rupees'){
@@ -3482,21 +3598,31 @@ function kg3RupeeExtra(kid, metal, from, to){
         return {date:x.date, label:kgEntryWords(x.entry, x.target), amountText:kgSigned(x.deltaPaise, kgFmtRs), note:(x.reason ? 'Reason: ' + x.reason : (x.entry.note || ''))}; })};
     }
   }
-  return {led:led, orders:kgOrderPayRows(kid, from, to)};
+  var o = kgOrderPayRows(kid, from, to);
+  return {led:led, ord:(o.rows.length || o.opening !== 0 ? o : null)};
 }
 function kg3RupeeExtraHtml(kid, metal, from, to){
   var x = kg3RupeeExtra(kid, metal, from, to), html = '';
-  function line(r){ return '<div class="kg2-line"><div><b>' + escHtml(r.label) + '</b><div class="kg2-sub">' + escHtml(r.date) + (r.note ? ' &middot; ' + escHtml(r.note) : '') + '</div></div><div class="kg2-right" style="display:block;"><div class="kg2-num">' + escHtml(r.amountText) + '</div></div></div>'; }
-  if(x.led) html += '<div class="kg2-sec">Rupees</div><div class="kg2-line"><div>Opening</div><div class="kg2-num">' + escHtml(x.led.openingText) + '</div></div>' + x.led.rows.map(line).join('') + '<div class="kg2-line"><div>Closing</div><div class="kg2-num">' + escHtml(x.led.closingText) + '</div></div>';
-  if(x.orders.length) html += '<div class="kg2-sec">Order work cash</div>' + x.orders.map(line).join('');
+  function line(r){ return '<div class="kg2-line"><div><b>' + escHtml(r.label) + '</b><div class="kg2-sub">' + escHtml(kgDay(r.date)) + (r.note ? ' &middot; ' + escHtml(r.note) : '') + '</div></div><div class="kg2-right" style="display:block;"><div class="kg2-num">' + escHtml(r.amountText) + '</div></div></div>'; }
+  function sum(l, t){ return '<div class="kg2-line"><div>' + l + '</div><div class="kg2-num">' + escHtml(t) + '</div></div>'; }
+  if(x.led) html += '<div class="kg2-sec">Rupees</div>' + sum('Opening', x.led.openingText) + x.led.rows.map(line).join('') + sum('Closing', x.led.closingText);
+  if(x.ord) html += '<div class="kg2-sec">Order work cash (given to him)</div>' + sum('Opening', x.ord.openingText) + x.ord.rows.map(line).join('') + sum('Total', x.ord.totalText) + sum('Closing', x.ord.closingText);
   return html;
 }
 function kg3RupeeExtraText(kid, metal, from, to){
   var x = kg3RupeeExtra(kid, metal, from, to), lines = [];
   function line(r){ return r.date + '  ' + r.label + (r.note ? ' - ' + r.note : '') + '  ' + r.amountText; }
   if(x.led){ lines.push('', 'Rupees', 'Opening: ' + x.led.openingText); x.led.rows.forEach(function(r){ lines.push(line(r)); }); lines.push('Closing: ' + x.led.closingText); }
-  if(x.orders.length){ lines.push('', 'Order work cash'); x.orders.forEach(function(r){ lines.push(line(r)); }); }
+  if(x.ord){ lines.push('', 'Order work cash (given to him)', 'Opening: ' + x.ord.openingText); x.ord.rows.forEach(function(r){ lines.push(line(r)); }); lines.push('Total: ' + x.ord.totalText, 'Closing: ' + x.ord.closingText); }
   return lines;
+}
+// A day as people say it: 13 Nov (the year only when it is not this year).
+function kgDay(iso){
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if(!m) return String(iso || '');
+  var mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(m[2], 10) - 1];
+  if(!mon) return String(iso);
+  return parseInt(m[3], 10) + ' ' + mon + (m[1] !== kgToday().slice(0, 4) ? ' ' + m[1] : '');
 }
 function kg3Reverse(entryId){
   var e = null; (S.kgLedger || []).forEach(function(x){ if(x.id === entryId) e = x; });

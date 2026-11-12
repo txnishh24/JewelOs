@@ -1012,6 +1012,21 @@ function normPhone10(v){
   else if(d.length===11 && d.charAt(0)==='0') d = d.slice(1);
   return (/^[6-9]\d{9}$/.test(d) && !/^(\d)\1{9}$/.test(d)) ? d : null;
 }
+// A phone as typed: digits only, with an optional leading + and spaces; 10 to 13 digits. '' is fine (optional). Letters or other marks are refused.
+function phoneShapeOk(v){
+  var t = String(v == null ? '' : v).trim();
+  if(t === '') return true;
+  if(!/^\+?[0-9 ]+$/.test(t)) return false;
+  var n = t.replace(/\D/g, '').length;
+  return n >= 10 && n <= 13;
+}
+// A rupee cost typed for a karigar stage: a plain number above zero with at most 2 decimals, or null.
+function karigarCost2(v){
+  var t = String(v == null ? '' : v).trim();
+  if(!/^\d{1,8}(\.\d{1,2})?$/.test(t)) return null;
+  var n = parseFloat(t);
+  return (n > 0 && n <= 10000000) ? n : null;
+}
 function billDateISO(dayKey){
   var now = new Date();
   var p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dayKey||''));
@@ -1081,9 +1096,10 @@ function updateKarigarProfile(id, f){
   if(!k) return 'Karigar not found';
   var name = String(f.name||'').trim();
   if(!name) return 'Name is required';
+  if(name.length > 60) return 'Name is too long (60 letters at most)';
   var clash = (S.karigars||[]).some(function(x){ return x.id !== id && String(x.name||'').trim().toLowerCase() === name.toLowerCase(); });
   if(clash) return 'Another karigar is already called ' + name;
-  var ph = normPhone10(f.phone);
+  var ph = phoneShapeOk(f.phone) ? normPhone10(f.phone) : null;
   if(ph === null) return 'Phone should be a 10-digit mobile number starting 6-9, like 98765 43210.';
   k.name = name; k.phone = ph; k.skills = String(f.skills||'').trim(); k.note = String(f.note||'').trim();
   saveToCloud(function(){});

@@ -753,7 +753,7 @@ test('cancel: owner only, reason required, only when no gold has been issued; th
   function cancel(job, why){ return call(function(cb){ a.kgCancelJob(job.id, why, cb); }); }
   ok(cancel(g, 'customer changed mind').err, 'gold issued: cannot cancel');
   ok(cancel(j, 'no').err, 'reason too short');
-  a.SAAS.user.role = 'manager'; ok(cancel(j, 'customer changed mind').err, 'manager cannot cancel'); a.SAAS.user.role = 'owner';
+  a.SAAS.user = {name:'Another Manager', role:'manager'}; ok(cancel(j, 'customer changed mind').err, 'a manager who did not make the job cannot cancel'); a.SAAS.user = {name:'Tester', email:'t@example.com', role:'owner'};
   ok(!cancel(j, 'customer changed mind').err); eq(j.status, 'cancelled'); eq(j.cancelReason, 'customer changed mind');
   ok(cancel(j, 'twice please').err);
   ok(metal(a, j, 'ISSUE', 1000, '999').err, 'no entries on a cancelled job');
@@ -2171,7 +2171,7 @@ test('ADV.4 the next order work is adjusted against the advance first; the next 
   ok(a.kg3PayOrderCheck(k.id, 'cash', '800').error, 'capped at the 700 that is really owed'); ok(!a.kg3PayOrderCheck(k.id, 'cash', '700').error);
   ok(a.kg3PayOrderPreviewText(k.id, 'cash', '700').indexOf('300') !== -1, 'the sheet preview mentions the advance');
   var recent = a.kg3PayOrderRecentHtml(k.id); ok(/advance/i.test(recent) && /festival advance/.test(recent), 'recent list shows the advance and its reason');
-  var b = fresh('owner'); var k2 = pk(b, 'ADV4b'); b.S.orders = []; ok(b.kg3ProfileHtml(k2.id).indexOf("'advance')") !== -1, 'owner can reach Give advance even when nothing is owed'); b.SAAS.user.role = 'manager'; ok(b.kg3ProfileHtml(k2.id).indexOf("'advance')") === -1, 'not a manager');
+  var b = fresh('owner'); var k2 = pk(b, 'ADV4b'); b.S.orders = []; b._kg2.more = 'p:' + k2.id; ok(b.kg3ProfileHtml(k2.id).indexOf("'advance')") !== -1, 'owner can reach Give advance (under More) even when nothing is owed'); b.SAAS.user.role = 'manager'; ok(b.kg3ProfileHtml(k2.id).indexOf("'advance')") === -1, 'not a manager');
 });
 test('ADV.5 closed Day Book day: an advance or its reversal landing on a closed day is restated once by the sweep; a reversal made today leaves the closed day frozen', function(){
   function setup(){
@@ -2352,8 +2352,8 @@ test('TC.C14 owner profile: five buttons up front, the rest under More', functio
   var a = fresh('owner'); var k = pk(a, 'TC14'); call(function(cb){ a.kgSetCarry(k.id, {trusted:true, ceilingGold:'100', ceilingSilver:''}, cb); });
   function row(h){ var m = h.match(/<div class="kg2-row" id="kg3-pactions">([\s\S]*?)<\/div>/); ok(m, 'actions row'); return m[1]; }
   var h = a.kg3ProfileHtml(k.id); var n = (row(h).match(/<button/g) || []).length; ok(n <= 5, 'buttons up front: ' + n); ok(/kg3MoreProfile\(/.test(h));
-  ['kg3NewJob', 'kg2Money', 'kg3PayOrder'].forEach(function(f){ ok(row(h).indexOf(f) !== -1, f + ' is up front'); }); ok(h.indexOf('kg3Statement(') !== -1 && row(h).indexOf('kg3Statement') === -1, 'Statement is the Full statement row in the Account card');
-  a._kg2.more = 'p:' + k.id; var h2 = a.kg3ProfileHtml(k.id); ['kg3Opening', 'kg3RupeeOpening', 'kg2Money', 'kg3Carry', 'kg3Count'].forEach(function(f){ ok(h2.indexOf(f + '(') !== -1, f + ' under More'); });
+  ['kg3NewJob', 'kg2Money'].forEach(function(f){ ok(row(h).indexOf(f) !== -1, f + ' is up front'); }); ok(h.indexOf('kg3Statement(') !== -1 && row(h).indexOf('kg3Statement') === -1, 'Statement is the Full statement row in the Account card');
+  a._kg2.more = 'p:' + k.id; var h2 = a.kg3ProfileHtml(k.id); ['kg3PayOrder', 'kg3Opening', 'kg3RupeeOpening', 'kg2Money', 'kg3Carry', 'kg3Count'].forEach(function(f){ ok(h2.indexOf(f + '(') !== -1, f + ' under More'); });
   a.SAAS.user.role = 'manager'; var hm = a.kg3ProfileHtml(k.id); ok((row(hm).match(/<button/g) || []).length <= 5); ok(hm.indexOf('kg3Opening(') === -1, 'manager never sees owner buttons');
 });
 test('TC.C15/16 closing tile is full width; money reads like ₹1,500 everywhere on the pay screens', function(){
@@ -2408,7 +2408,7 @@ test('TE.21 job screen: Cancel job sits under More, owner only, open job with no
   var h = a.kg3JobHtml(j); ok(h.indexOf('kg2Cancel(') === -1, 'not up front');
   a._kg2.more = j.id; h = a.kg3JobHtml(j); ok(h.indexOf('kg2Cancel(') !== -1, 'under More');
   issueV(a, j, '10', '92'); h = a.kg3JobHtml(j); ok(h.indexOf('kg2Cancel(') === -1, 'hidden once metal is issued');
-  var b = fresh('owner'); var k2 = pk(b, 'TE21b'); var j2 = pjob(b, k2); b.SAAS.user.role = 'manager'; b._kg2.more = j2.id; ok(b.kg3JobHtml(j2).indexOf('kg2Cancel(') === -1, 'manager does not see it');
+  var b = fresh('owner'); var k2 = pk(b, 'TE21b'); var j2 = pjob(b, k2); b.SAAS.user = {name:'Another Manager', role:'manager'}; b._kg2.more = j2.id; ok(b.kg3JobHtml(j2).indexOf('kg2Cancel(') === -1, 'a manager who did not make the job does not see it');
   var c = fresh('owner'); var k3 = pk(c, 'TE21c'); openG(c, k3, 'gold', '50', '92'); var j3 = pjob(c, k3); receiptV(c, j3, {gross:'5', purity:'92'});
   var r = call(function(cb){ c.kgCancelJob(j3.id, 'made by mistake', cb); }); ok(r.err, 'a live receipt still refuses with a message');
 });
@@ -2793,7 +2793,7 @@ test('R16 B: Close job sheet - shows what he returns and offers Keep with him; s
 test('R16 review: Close sheet offers Keep-with-him only when he may carry; a new karigar leaves an audit line, removed on a failed save', function(){
   var a = fresh('owner'); var k = pk(a, 'NoCarry'); var j = pjob(a, k); issueV(a, j, '10', '92');
   var sheet = null; a.kgForm = function(o){ sheet = o; }; a.kg3Close(j.id);
-  eq(sheet.fields[0].options.some(function(o){ return o[0] === 'carry'; }), false, 'no carry option'); eq(sheet.fields[0].value, 'loss'); ok(/not set to keep a balance/.test(sheet.preview({})));
+  eq(sheet.fields[0].options.some(function(o){ return o[0] === 'carry'; }), false, 'no carry option'); eq(sheet.fields[0].value, 'return', 'the safe choice is the default when he cannot carry'); ok(/not set to keep a balance/.test(sheet.preview({})));
   trust(a, k); a.kg3Close(j.id); eq(sheet.fields[0].value, 'carry'); ok(sheet.fields[0].options[0][0] === 'carry');
   var n = (a.S.auditLog || []).length; ok(!call(function(cb){ a.kgAddKarigar({name:'Audited', kind:'', opId:op()}, cb); }).err);
   ok((a.S.auditLog || []).some(function(x){ return x.action === 'kg_karigar_add'; }), 'audit line');
@@ -2823,5 +2823,160 @@ test('R16: no read of the kgProfileUi key remains in the code', function(){
   fs.readdirSync(dir).forEach(function(f){ if(/\.js$/.test(f)) ok(fs.readFileSync(dir + f, 'utf8').indexOf('kgProfileUi') === -1, f + ' still mentions kgProfileUi'); });
 });
 
+
+console.log('\nKarigar round 17 A - paise display, order cash rows, audit stack, in-flight duplicates, new job pre-check, input limits');
+
+function orderStage(a, k, cost){
+  a.S.orders = [{id:'o1', ordNo:'OR-1', status:'open', items:[{desc:'Ring', metal:'gold', purity:'22K', qty:1, weight:10,
+    karigarStages:[{task:'Make', karigarId:k.id, status:'submitted', karigarPayMode:'cash', karigarCost:cost}]}]}];
+}
+test('R17 A1: paise are shown, never rounded to whole rupees', function(){
+  var a = fresh('owner'); var k = pk(a, 'Paise');
+  eq(a.kgFmtRs(10040), '₹100.40'); eq(a.kgFmtRs(50), '₹0.50'); eq(a.kgFmtRs(-50), '−₹0.50'); eq(a.kgFmtRs(150000), '₹1,500'); eq(a.kgFmtRs(123456789), '₹12,34,567.89');
+  eq(a.kg3OrderOwedText('cash', 100.4), '₹100.40'); eq(a.kg3OrderOwedText('cash', -0.5), 'he owes the shop ₹0.50');
+  orderStage(a, k, 699.2);
+  var c = a.kg3PayOrderCheck(k.id, 'cash', '699.70', false); ok(c.error && c.error.indexOf('699.20') !== -1, c.error);
+  for(var i = 0; i < 3; i++) ok(!call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', '100.40', '', op(), cb); }).err);
+  var t = a.kg3StatementText(k.id, 'gold', '2000-01-01', '2999-12-31'); eq((t.match(/100\.40/g) || []).length >= 3, true, t);
+  ok(a.kg3ProfileHtml(k.id).indexOf('398.00') === -1 && a.kg3ProfileHtml(k.id).indexOf('₹398') !== -1, 'owed 699.20 - 301.20 = 398 shown exactly');
+  var p = a.kg3PayOrderPreviewText(k.id, 'cash', '0.5', true); ok(p.indexOf('397.50') !== -1, p);
+});
+test('R17 A2: order cash rows - a reversal is its own row on its own date; a past range never changes; opening / closing / total', function(){
+  var a = fresh('owner'); var k = pk(a, 'Rev'); orderStage(a, k, 1000);
+  ok(!call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', '300', 'first', op(), cb); }).err);
+  var pay = a.S.karigarPayments[0]; pay.date = '2026-11-01';
+  var before = a.kg3StatementText(k.id, 'gold', '2026-11-01', '2026-11-02'), beforeH = (a._kg2.stFrom = '2026-11-01', a._kg2.stTo = '2026-11-02', a._kg2.stMetal = 'gold', a.kg3StatementHtml(k.id));
+  ok(!call(function(cb){ a.kg3PayOrderReverse(pay.id, 'paid twice by mistake', op(), cb); }).err);
+  a.S.karigarPayments[1].date = '2026-11-05';
+  eq(a.kg3StatementText(k.id, 'gold', '2026-11-01', '2026-11-02'), before, 'the printed range is unchanged by a later reversal'); eq(a.kg3StatementHtml(k.id), beforeH);
+  ok(!/reversed/i.test(before), 'the original row is not re-labelled');
+  var later = a.kg3StatementText(k.id, 'gold', '2026-11-03', '2026-11-30'); ok(/Reversed/.test(later) && /-₹300/.test(later), later); ok(/Opening: ₹300/.test(later) && /Closing: ₹0/.test(later), later);
+  var r = a.kgOrderPayRows(k.id, '2026-11-01', '2026-11-30'); eq(r.rows.length, 2); eq(r.openingText, '₹0'); eq(r.totalText, '₹0'); eq(r.closingText, '₹0'); ok(/^\+/.test(r.rows[0].amountText) && /^-/.test(r.rows[1].amountText), JSON.stringify(r.rows));
+  ok(/Total/.test(a.kg3StatementText(k.id, 'gold', '2026-11-01', '2026-11-30')), 'a Total line');
+});
+test('R17 A3: a failed kgAddKarigar leaves the shop data byte-identical, even with the audit log at its 300-line cap', function(){
+  var a = fresh('owner'); a.S.kgAgreements = []; a.S.auditLog = []; for(var i = 0; i < 300; i++) a.S.auditLog.push({id:'au' + i, action:'x', ts:'t' + i});
+  var snap = JSON.stringify(a.S); var good = a.saveToCloud; a.saveToCloud = function(cb){ cb(new Error('net')); };
+  ok(call(function(cb){ a.kgAddKarigar({name:'Cap Test', kind:'wastage', points:'4', opId:op()}, cb); }).err); a.saveToCloud = good;
+  eq(JSON.stringify(a.S), snap, 'S is byte-identical'); eq(a.S.auditLog.length, 300);
+});
+test('R17 A3b: with no kgAgreements key at all a failed add leaves S untouched', function(){
+  var a = fresh('owner'); delete a.S.kgAgreements; var snap = JSON.stringify(a.S); a.saveToCloud = function(cb){ cb(new Error('net')); };
+  ok(call(function(cb){ a.kgAddKarigar({name:'No Key', kind:'wastage', points:'4', opId:op()}, cb); }).err); eq(JSON.stringify(a.S), snap);
+});
+test('R17 A4: a duplicate opId while the first save is in flight waits for it (job and karigar)', function(){
+  var a = fresh('owner'); var k = pk(a, 'Wait'); var pending = []; a.saveToCloud = function(cb){ pending.push(cb); };
+  var r1 = {}, r2 = {}, id = op();
+  a.kgCreateJob({karigarId:k.id, title:'Dup', model:'points'}, id, function(e, v){ r1.e = e; r1.done = true; });
+  a.kgCreateJob({karigarId:k.id, title:'Dup', model:'points'}, id, function(e, v){ r2.e = e; r2.done = true; });
+  eq(!!r2.done, false, 'second caller must wait'); eq(pending.length, 1, 'one save only');
+  pending[0](new Error('net')); ok(r1.done && r2.done && r1.e && r2.e, 'both are told it failed'); eq(a.S.kgJobs.length, 0);
+  pending = []; var s1 = {}, s2 = {}, kid = op();
+  a.kgAddKarigar({name:'Same Op', kind:'', opId:kid}, function(e){ s1.e = e; s1.done = true; });
+  a.kgAddKarigar({name:'Same Op', kind:'', opId:kid}, function(e){ s2.e = e; s2.done = true; });
+  eq(!!s2.done, false); pending[0](null); ok(s1.done && s2.done && !s1.e && !s2.e); eq(a.S.karigars.filter(function(x){ return x.name === 'Same Op'; }).length, 1);
+});
+test('R17 A5: New job checks the ledger flag BEFORE creating the job; the creating manager may cancel an empty job', function(){
+  var a = fresh('owner'); var k = pk(a, 'Pre'); var sheet = null; a.kgForm = function(o){ sheet = o; }; a.kg3NewJob(k.id);
+  var v = {title:'Blocked', metal:'gold', wt:'10', purity:'92', chip:false, confirmed:true, points:'', tag:'', pieces:'', due:'', ord:'', opId:op()};
+  a.S.kgLedgerOn = true; var did = null; sheet.onSubmit(v, function(err){ did = err || 'ok'; }); ok(did && did !== 'ok' && /ledger/i.test(did.message), 'refused'); eq(a.S.kgJobs.length, 0, 'no empty job left behind');
+  a.S.kgLedgerOn = false; a._kgFlagUnknown = true; did = null; v.opId = op(); sheet.onSubmit(v, function(err){ did = err || 'ok'; }); ok(did && did !== 'ok', 'flag unknown refused'); eq(a.S.kgJobs.length, 0);
+  a._kgFlagUnknown = false;
+  a.SAAS.user = {name:'Mia', role:'manager'}; var j = pjob(a, k);
+  ok(!call(function(cb){ a.kgCancelJob(j.id, 'made by mistake', cb); }).err, 'the manager who made an empty job may cancel it');
+  var j2 = pjob(a, k); a.SAAS.user = {name:'Other', role:'manager'}; ok(call(function(cb){ a.kgCancelJob(j2.id, 'not my job', cb); }).err, 'another manager may not');
+  a.SAAS.user = {name:'Mia', role:'manager'}; var j3 = pjob(a, k); issueV(a, j3, '1', '92'); ok(call(function(cb){ a.kgCancelJob(j3.id, 'has metal now', cb); }).err, 'not once metal is on it');
+  a.SAAS.user = {name:'Mia', role:'manager'}; a._kg2.more = j.id; ok(a.kg3JobHtml(j).indexOf('kg2Cancel(') === -1 || j.status === 'cancelled');
+  var j4 = pjob(a, k); a._kg2.more = j4.id; ok(a.kg3JobHtml(j4).indexOf('kg2Cancel(') !== -1, 'the creator sees Cancel job on an empty job');
+});
+test('R17 A6: input limits - name length, phone shape, cost with at most 2 decimals', function(){
+  var a = fresh('owner');
+  ok(call(function(cb){ a.kgAddKarigar({name:new Array(62).join('x'), kind:'', opId:op()}, cb); }).err, 'name over 60 refused');
+  ok(!call(function(cb){ a.kgAddKarigar({name:new Array(61).join('x'), kind:'', opId:op()}, cb); }).err, '60 is fine');
+  ok(call(function(cb){ a.kgAddKarigar({name:'Letters', phone:'abc9876543212xyz', kind:'', opId:op()}, cb); }).err, 'letters in a phone refused');
+  var p = call(function(cb){ a.kgAddKarigar({name:'Plus', phone:'+91 98765 43210', kind:'', opId:op()}, cb); }); ok(!p.err, p.err && p.err.message); eq(p.v.phone, '9876543210');
+  ok(call(function(cb){ a.kgAddKarigar({name:'Short', phone:'98765', kind:'', opId:op()}, cb); }).err);
+  var k = a.S.karigars[0]; ok(a.updateKarigarProfile(k.id, {name:k.name, phone:'abc9876543212xyz', skills:'', note:''}) !== '', 'edit details too'); ok(a.updateKarigarProfile(k.id, {name:new Array(70).join('y'), phone:'', skills:'', note:''}) !== '', 'long name on edit');
+  eq(a.karigarCost2('699.2'), 699.2); eq(a.karigarCost2('699.234'), null); eq(a.karigarCost2('-1'), null); eq(a.karigarCost2('abc'), null); eq(a.karigarCost2('0'), null); eq(a.karigarCost2('100'), 100);
+  var pay = a.S.karigarPayments = []; var kk = pk(a, 'Undated'); orderStage(a, kk, 500); a.S.karigarPayments = [{id:'old1', opId:'o1', karigarId:kk.id, type:'cash', amount:100, note:''}];
+  ok(a.kgOrderPayRows(kk.id, '2000-01-01', '2999-12-31').openingText === '₹100', 'an undated old payment counts in the opening, as it does in owed');
+});
+
+console.log('\nKarigar round 17 B - design: close sheet, job page, statement, actions, list, new job, dates, back, css');
+
+function readIndex(){ return require('fs').readFileSync(__dirname + '/../index.html', 'utf8'); }
+test('R17 B7: Close sheet shows Given / counted / He returns, the Keep / He returns it now choice, the record-returns-first line, and a default loss reason', function(){
+  var a = fresh('owner'); var k = pk(a, 'CS'); trust(a, k); var j = pjob(a, k); issueV(a, j, '10', '92'); receiptV(a, j, {gross:'4', purity:'92', agreed:'92'});
+  var sheet = null; a.kgForm = function(o){ sheet = o; }; a.kg3Close(j.id);
+  var pv = sheet.preview({settle:'carry'}); ok(/Given/.test(pv) && /9\.200 g fine/.test(pv), pv); ok(/counted/i.test(pv), 'counted line'); ok(/He returns to you/.test(pv)); ok(/Receive piece/.test(pv) && /Scrap/.test(pv), 'record returns first: ' + pv);
+  var opts = sheet.fields[0].options.map(function(o){ return o[0]; }); ok(opts.indexOf('carry') !== -1 && opts.indexOf('return') !== -1 && opts.indexOf('loss') !== -1, opts.join());
+  var reason = sheet.fields.filter(function(f){ return f.id === 'reason'; })[0]; ok(String(reason.value || '').length >= 5, 'loss reason is pre-filled so a small close is three taps');
+  ok(/Close job/.test(sheet.submitText({settle:'carry'})) && /Scrap|Receive|record/i.test(sheet.submitText({settle:'return'})), sheet.submitText({settle:'return'}));
+  var opened = null; a.kg3Scrap = function(id){ opened = id; }; var did = null; sheet.onSubmit({settle:'return', reason:'', bill:'', ack:false, opId:op()}, function(err){ did = err || 'ok'; });
+  eq(did, 'ok'); eq(opened, j.id, 'He returns it now opens the Scrap sheet'); eq(a.kgFindJob(j.id).status, 'open', 'nothing is closed or posted by that choice');
+  var nt = fresh('owner'); var k2 = pk(nt, 'NC'); var j2 = pjob(nt, k2); issueV(nt, j2, '10', '92'); nt.kgForm = function(o){ sheet = o; }; nt.kg3Close(j2.id);
+  eq(sheet.fields[0].options.some(function(o){ return o[0] === 'carry'; }), false, 'cannot carry: no carry choice'); ok(/not set to keep a balance/.test(sheet.preview({})));
+});
+test('R17 B8: job page and statement use the profile look (text Back, date pickers side by side, no orphan tile)', function(){
+  var a = fresh('owner'); var k = pk(a, 'Look'); var j = pjob(a, k); issueV(a, j, '10', '92');
+  var h = a.kg3JobHtml(j); ok(h.indexOf('class="kgx-back"') !== -1 && h.indexOf('kgx-h2') !== -1, 'job page head'); ok(h.indexOf('kg2-row">' + a.kg2Btn('←')) === -1);
+  a._kg2.stFrom = '2000-01-01'; a._kg2.stTo = '2999-12-31'; a._kg2.stMetal = 'gold'; var st = a.kg3StatementHtml(k.id);
+  ok(st.indexOf('class="kgx-back"') !== -1 && st.indexOf('kgx-dates') !== -1, 'statement head and the two dates in one row');
+  var kp = st.match(/<div class="kg2-kpis">([\s\S]*?)<\/div><\/div>/); var tiles = (st.match(/class="kg2-kpi( wide)?"/g) || []);
+  var wide = tiles.filter(function(t){ return /wide/.test(t); }).length, normal = tiles.length - wide; eq(normal % 2, 0, 'an even number of half tiles, no orphan: ' + tiles.join());
+  a._kg2.stMetal = 'rupees'; st = a.kg3StatementHtml(k.id); tiles = (st.match(/class="kg2-kpi( wide)?"/g) || []); eq((tiles.length - tiles.filter(function(t){ return /wide/.test(t); }).length) % 2, 0, 'rupee view too');
+});
+test('R17 B10: three visible actions at most (Add job, Record payment, More); Give advance is under More', function(){
+  var a = fresh('owner'); var k = pk(a, 'Act'); var h = a.kg3ProfileHtml(k.id); var row = h.match(/<div class="kg2-row" id="kg3-pactions">([\s\S]*?)<\/div>/)[1];
+  eq((row.match(/<button/g) || []).length, 3, row); ok(row.indexOf('kg3NewJob') !== -1 && row.indexOf('kg2Money') !== -1 && row.indexOf('kg3MoreProfile') !== -1); ok(row.indexOf('kg3PayOrder') === -1);
+  a._kg2.more = 'p:' + k.id; h = a.kg3ProfileHtml(k.id); ok(/id="kg3-pmore">[\s\S]*kg3PayOrder\(/.test(h), 'Give advance under More');
+  a.SAAS.user.role = 'manager'; h = a.kg3ProfileHtml(k.id); row = h.match(/<div class="kg2-row" id="kg3-pactions">([\s\S]*?)<\/div>/)[1]; ok((row.match(/<button/g) || []).length <= 3 && row.indexOf('kg2Money') === -1);
+});
+test('R17 B11: settled karigar shows "Settled" and no empty-gold line; the section pills are 44 px and scroll in one row', function(){
+  var a = fresh('owner'); var k = pk(a, 'Quiet'); var h = a.kg3RowsHtml(); ok(h.indexOf('Settled') !== -1 && h.indexOf('No active jobs') === -1 && h.indexOf('0.000 g gold') === -1, h);
+  var j = pjob(a, k); issueV(a, j, '10', '92'); h = a.kg3RowsHtml(); ok(h.indexOf('9.200 g gold') !== -1 && h.indexOf('1 job') !== -1);
+  var css = readIndex(); ok(/\.kg2-nav\{[^}]*flex-wrap:nowrap[^}]*overflow-x:auto/.test(css), 'nav scrolls'); ok(/#kg2-root \.kg2-nav \.btn\{[^}]*min-height:44px/.test(css), '44 px pills');
+});
+test('R17 B12: New job sheet - four metal chips, a For row, due beside weight and purity, More details, a button that says what happens', function(){
+  var a = fresh('owner'); var k = pk(a, 'Chips'); var sheet = null; a.kgForm = function(o){ sheet = o; }; a.kg3NewJob(k.id);
+  var m = sheet.fields.filter(function(f){ return f.id === 'metal'; })[0]; eq(m.type, 'chips'); eq(m.options.map(function(o){ return o[1]; }).join('|'), 'Gold 22K|Gold 18K|Silver|Other');
+  ok(sheet.fields[0].type === 'note' && /Chips/.test(sheet.fields[0].html), 'For row'); ok(m.options[0][2].purity === '91.6' && m.options[1][2].purity === '75', 'chips pre-fill the purity');
+  var by = {}; sheet.fields.forEach(function(f){ by[f.id] = f; }); ok(by.points.more && by.tag.more && by.pieces.more, 'optional fields under More details'); ok(by.wt.row && by.wt.row === by.purity.row && by.wt.row === by.due.row, 'weight, purity, due share a row');
+  eq(sheet.submitText({title:'x', wt:'', purity:''}), 'Create job'); eq(sheet.submitText({metal:'gold22', wt:'10', purity:'92'}), 'Create job and issue gold'); eq(sheet.submitText({metal:'silver', wt:'10', purity:'92.5'}), 'Create job and issue silver');
+  var did = null; sheet.onSubmit({title:'Silver ring', metal:'silver', wt:'10', purity:'92.5', chip:false, confirmed:true, points:'', tag:'', pieces:'', due:'', ord:'', opId:op()}, function(err){ did = err || 'ok'; }); eq(did, 'ok'); eq(a.S.kgJobs[0].metal, 'silver');
+  sheet.onSubmit({title:'Gold 18', metal:'gold18', wt:'', purity:'', chip:false, confirmed:false, points:'', tag:'', pieces:'', due:'', ord:'', opId:op()}, function(err){ did = err || 'ok'; }); eq(a.S.kgJobs[1].metal, 'gold');
+});
+test('R17 B13: days read like 13 Nov, in the job chips and account rows', function(){
+  var a = fresh('owner'); var yr = a.kgToday().slice(0, 4);
+  eq(a.kgDay(yr + '-11-13'), '13 Nov'); eq(a.kgDay(yr + '-01-05'), '5 Jan'); eq(a.kgDay('2019-03-09'), '9 Mar 2019'); eq(a.kgDay(''), ''); eq(a.kgDay('bad'), 'bad');
+  var k = pk(a, 'Dates'); var j = pjob(a, k, {dueDate:yr + '-12-30'}); issueV(a, j, '10', '92'); var h = a.kg3ProfileHtml(k.id); ok(/Due 30 Dec/.test(h), 'due chip'); ok(!/\d{4}-\d{2}-\d{2}/.test(h.replace(/value="[^"]*"/g, '')), 'no ISO date left on the profile');
+});
+test('R17 B14/B9/B16: css - gutter, sheet title, gold focus ring, ellipsis, grey page, no dead "Karigar 2.0" text', function(){
+  var css = readIndex(); ok(/#kg2-root\{[^}]*padding:16px 0 96px/.test(css), 'no second gutter'); ok(/\.kgx-sheethead \.kg2-title\{[^}]*color:#1D1D1F[^}]*text-overflow:ellipsis/.test(css), 'sheet title');
+  ok(/\.kg2-ov input:focus[^{]*\{[^}]*#B8892B/.test(css), 'gold focus ring'); ok(/body:has\(#panel-karigars\.active\)\{background:#F5F5F7/.test(css), 'no cream around the card'); ok(css.indexOf('.kg2-new') === -1, '.kg2-new removed');
+  var a = fresh('owner'); ok(a.kg2TodayHtml().indexOf('2.0') === -1, 'Karigar 2.0 text removed');
+});
+test('R17 review: a throw inside a once-guarded save never leaves the op id busy; the same page twice needs one Back; a stale stack is forgotten when the panel is not showing', function(){
+  var a = fresh('owner'); var k = pk(a, 'Thr'); var id = op(); var first = a.saveToCloud; a.saveToCloud = function(){ throw new Error('boom'); };
+  var r = call(function(cb){ a.kgCreateJob({karigarId:k.id, title:'Throws', model:'points'}, id, cb); }); ok(r.err, 'told it failed'); a.saveToCloud = first;
+  var r2 = call(function(cb){ a.kgCreateJob({karigarId:k.id, title:'Throws', model:'points'}, id, cb); }); ok(!r2.err, 'the same op id can be retried: ' + (r2.err && r2.err.message));
+  var e = sheetEnv(), b = e.a, pend = [], st = 0; b.history = {pushState:function(){ st++; }, back:function(){ pend.push(1); }, go:function(n){ pend.push(-n); }}; b.renderKgV2 = function(){};
+  var kk = pk(b, 'Same'); b.kg3Open(kk.id); b._kg2.jobId = 'j1'; b.kgSetView('job'); b.kgSetView('job'); eq(st, 2, 'the same page twice is one entry');
+  var panelOn = false; b.document.getElementById = (function(orig){ return function(id){ if(id === 'panel-karigars') return {classList:{contains:function(){ return panelOn; }}}; return orig(id); }; })(b.document.getElementById);
+  pend.push(1); st -= 1; b.kgPopHandler(); eq(b._kg2.view, 'people', 'a Back while the panel is hidden only forgets the stack');
+});
+test('R17 B15: Back on a profile returns to the list; Back on the list leaves as before; in-app Back unwinds the pushed entries; sheets keep working on top', function(){
+  var e = sheetEnv(), a = e.a, log = [], depthStack = 0, pend = [];
+  a.history = {pushState:function(){ depthStack++; log.push('push'); }, back:function(){ pend.push(1); log.push('back'); }, go:function(n){ pend.push(-n); log.push('go' + n); }};
+  function fire(){ var n = pend.shift(); depthStack -= n; a.kgPopHandler(); }
+  var k = pk(a, 'Nav'); a.renderKgV2 = function(){};
+  a.kg3Open(k.id); eq(a._kg2.view, 'profile'); eq(depthStack, 1, 'profile pushed one entry');
+  pend.push(1); fire(); eq(a._kg2.view, 'people', 'Back from a profile goes to the list'); eq(depthStack, 0);
+  a.kg3Open(k.id); a.kg2Go('people'); eq(a._kg2.view, 'people'); eq(pend.length, 1, 'the in-app Back pops its entry'); fire(); eq(depthStack, 0); eq(a._kg2.view, 'people', 'the echo is not a second Back');
+  a.kg3Open(k.id); a.kg3Statement(k.id); eq(depthStack, 2); pend.push(1); fire(); eq(a._kg2.view, 'profile', 'Back from the statement goes to the profile'); pend.push(1); fire(); eq(a._kg2.view, 'people');
+  a.kg3Open(k.id); openSheet(e, 'Sheet'); eq(depthStack, 2, 'a sheet adds its own entry'); pend.push(1); fire(); eq(e.body.kids.length, 0, 'Back closes the sheet'); eq(a._kg2.view, 'profile', 'and stays on the profile');
+  pend.push(1); fire(); eq(a._kg2.view, 'people');
+  a.kg3Open(k.id); openSheet(e, 'S2'); e.reg['kg2-cancel'].onclick({}); while(pend.length) fire(); eq(a._kg2.view, 'profile'); eq(depthStack, 1);
+});
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }

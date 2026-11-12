@@ -1485,7 +1485,7 @@ function buildOrdItemRow(i){
         if(typeof keepLine!=='undefined' && keepLine) keepLine.style.display=this.value==='wastage'?'flex':'none';
         calcOrdEst();
       };})(si);
-      (function(idx){cashI.oninput=function(){ordItems[i].karigarStages[idx].karigarCost=parseFloat(this.value)||0;calcOrdEst();};})(si);
+      (function(idx){cashI.oninput=function(){ordItems[i].karigarStages[idx].karigarCost=Math.round((parseFloat(this.value)||0)*100)/100;calcOrdEst();};})(si);
       (function(idx){wastI.oninput=function(){
         ordItems[i].karigarStages[idx].karigarWastagePct=parseFloat(this.value)||0;
         var v=parseFloat(this.value)||0;
