@@ -2612,5 +2612,42 @@ test('TX.9 statement tiles add up to closing when a receipt, scrap, hand-over or
   var w1 = tiles(d, kd); eq(w1.closingMg, 4400, 'the metal is back on the job'); eq(w1.otherMg, 0, 'carry out, carry in and both reversals net to nothing'); eq(w1.issuedMg, 9200);
 });
 
+// ---- phone round 1 (12 Nov): sheet Back button, keyboard and 16px inputs ----
+function sheetEnv(){
+  var a = fresh('owner'), hist = {depth:0, pushes:0, backs:0}, pop = [], keyl = [];
+  var reg = {}, body = {kids:[], appendChild:function(e){ e.parentNode = body; body.kids.push(e); }, removeChild:function(e){ e.parentNode = null; body.kids = body.kids.filter(function(x){ return x !== e; }); }};
+  function mk(){ return {style:{setProperty:function(){}}, innerHTML:'', textContent:'', value:'', parentNode:null, addEventListener:function(){}, removeEventListener:function(){}, contains:function(){ return false; }, querySelector:function(){ return null; }, firstChild:{style:{setProperty:function(){}}}}; }
+  a.document = {
+    getElementById: function(id){ if(id === 'kg2-modal') return body.kids[0] || null; if(!reg[id]) reg[id] = mk(); return reg[id]; },
+    createElement: mk, body: body, activeElement: null,
+    addEventListener: function(t, f){ keyl.push(f); }, removeEventListener: function(t, f){ keyl = keyl.filter(function(x){ return x !== f; }); }
+  };
+  a.addEventListener = function(t, f){ if(t === 'popstate') pop.push(f); }; a.removeEventListener = function(t, f){ pop = pop.filter(function(x){ return x !== f; }); };
+  a.history = {pushState:function(){ hist.pushes++; hist.depth++; }, back:function(){ hist.backs++; hist.depth--; }};
+  return {a:a, hist:hist, reg:reg, body:body, popFire:function(){ pop.slice().forEach(function(f){ f({}); }); }, popCount:function(){ return pop.length; }, keyCount:function(){ return keyl.length; }, esc:function(){ keyl.slice().forEach(function(f){ f({key:'Escape'}); }); }};
+}
+function openSheet(e, title){ e.a.kgForm({title:title || 'Test', fields:[{id:'amt', label:'Amount', type:'text', value:''}], onSubmit:function(v, fin){ fin(null); }}); }
+test('PH.1 Back (popstate) closes the sheet; its history entry is not popped twice', function(){
+  var e = sheetEnv(); openSheet(e); eq(e.body.kids.length, 1); eq(e.hist.pushes, 1, 'one entry pushed on open'); eq(e.popCount(), 1);
+  e.popFire(); eq(e.body.kids.length, 0, 'sheet closed by Back'); eq(e.hist.backs, 0, 'no second history.back'); eq(e.popCount(), 0, 'listener removed'); eq(e.keyCount(), 0);
+});
+test('PH.2 Cancel and Esc close the sheet AND pop their own history entry; a late popstate does not close a new sheet', function(){
+  var e = sheetEnv(); openSheet(e); e.reg['kg2-cancel'].onclick({}); eq(e.body.kids.length, 0); eq(e.hist.backs, 1, 'Cancel pops its entry'); eq(e.popCount(), 0);
+  openSheet(e, 'Second'); eq(e.body.kids.length, 1); e.popFire(); eq(e.body.kids.length, 1, 'the stale popstate from the Cancel is ignored'); e.popFire(); eq(e.body.kids.length, 0, 'a real Back then closes it');
+  var f = sheetEnv(); openSheet(f); f.esc(); eq(f.body.kids.length, 0); eq(f.hist.backs, 1, 'Esc pops its entry'); eq(f.keyCount(), 0);
+});
+test('PH.3 opening a sheet over a sheet reuses the one history entry; Save closes and pops it once', function(){
+  var e = sheetEnv(); openSheet(e, 'One'); openSheet(e, 'Two'); eq(e.hist.pushes, 1, 'no second entry'); eq(e.body.kids.length, 1); eq(e.popCount(), 1, 'only the live sheet listens');
+  e.reg['kg2-save'].onclick(); eq(e.body.kids.length, 0, 'Save closed it'); eq(e.hist.backs, 1);
+});
+test('PH.4 css: dvh, scroll-padding, safe-area footer, 16px sheet inputs, viewport-fit=cover', function(){
+  var css = require('fs').readFileSync(__dirname + '/../index.html', 'utf8');
+  ok(/<meta name="viewport"[^>]*viewport-fit=cover/.test(css), 'viewport-fit=cover');
+  var box = css.match(/\.kg2-box\{[^}]*\}/)[0]; ok(/90dvh/.test(box) && /scroll-padding-bottom:/.test(box) && /scroll-padding-top:/.test(box), 'box: dvh and scroll-padding');
+  ok(/\.modal\{[^}]*max-height:90dvh/.test(css), '.modal has a dvh max-height');
+  ok(/\.kg2-foot\{[^}]*padding:10px 16px max\(16px,env\(safe-area-inset-bottom\)\)/.test(css), 'footer safe-area padding');
+  ok(/\.kg2-f input\[type=text\],\.kg2-f select\{[^}]*font-size:16px/.test(css), 'sheet inputs and selects are 16px');
+});
+
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }

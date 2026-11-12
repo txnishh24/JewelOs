@@ -26,7 +26,7 @@
   src="https://js.sentry-cdn.com/8eb35178a8a4cf454e8c7895ee7c5194.min.js"
   crossorigin="anonymous"
 ></script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta name="theme-color" content="#1a1814"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-title" content="Sri Sai"/>
@@ -783,7 +783,7 @@ html.dev .dev-only{display:block!important;}
    real phone, confirmed via tests/e2e, 6 Oct 2026 -- Edit Bill is only ever
    opened from inside this modal, so this was the one path that mattered). */
 #cust-modal.modal-bg{z-index:490;}
-.modal{background:var(--surface);border-radius:var(--radius-xl);width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);transform:scale(.96);opacity:0;transition:transform 150ms var(--ease-out),opacity 150ms var(--ease-out);}
+.modal{background:var(--surface);border-radius:var(--radius-xl);width:100%;max-width:560px;max-height:90vh;max-height:90dvh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg);transform:scale(.96);opacity:0;transition:transform 150ms var(--ease-out),opacity 150ms var(--ease-out);}
 /* P5 v2: OPEN gets its own (longer) transition declaration so CLOSE — which
    uses the base .modal rule above once .open is removed — keeps its own
    shorter duration. Same curve both ways (var(--ease-out)), asymmetric
@@ -1700,13 +1700,13 @@ tr:hover td{background:var(--bg2);}
 .kg2-note{font-size:12px;color:var(--text3);margin:6px 0;}.kg2-note.warn{color:var(--danger);}
 .kg2-sel{width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border);margin:6px 0;}
 .kg2-ov{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;}
-.kg2-box{background:var(--surface);border-radius:var(--radius-lg);padding:16px;width:100%;max-width:420px;max-height:90vh;overflow:auto;}
+.kg2-box{background:var(--surface);border-radius:var(--radius-lg);padding:16px;width:100%;max-width:420px;max-height:90vh;max-height:90dvh;max-height:min(90dvh,100%);overflow:auto;scroll-padding-top:var(--kg2-top-h,72px);scroll-padding-bottom:var(--kg2-foot-h,84px);}   /* phone round: dvh follows the phone toolbar; scroll-padding keeps a focused input clear of the sticky top and Save bars (JS sets the measured heights) */
 .kg2-f{margin-top:10px;}.kg2-f label{display:block;font-size:12px;color:var(--text3);margin-bottom:3px;}
-.kg2-f input[type=text],.kg2-f select{width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border);box-sizing:border-box;}
+.kg2-f input[type=text],.kg2-f select{width:100%;font-size:16px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);box-sizing:border-box;}
 .kg2-prev{margin-top:6px;font-size:13px;min-height:18px;}.kg2-err{color:var(--danger);font-size:12px;min-height:16px;margin-top:4px;}
 /* review fixes (11 Nov): preview + errors stay on top and Save stays at the bottom while the sheet scrolls; check boxes get a 44px tap row; long names never push a number onto two lines */
 .kg2-top{position:sticky;top:-16px;z-index:2;background:var(--surface);margin:-16px -16px 0;padding:16px 16px 6px;border-bottom:1px solid var(--border);}
-.kg2-foot{position:sticky;bottom:-16px;z-index:2;background:var(--surface);margin:12px -16px -16px;padding:10px 16px 16px;border-top:1px solid var(--border);}
+.kg2-foot{position:sticky;bottom:-16px;z-index:2;background:var(--surface);margin:12px -16px -16px;padding:10px 16px max(16px,env(safe-area-inset-bottom));border-top:1px solid var(--border);}
 .kg2-chk{display:flex;align-items:center;gap:12px;min-height:44px;font-size:14px;color:var(--text);cursor:pointer;}.kg2-chk input{width:24px;height:24px;flex:none;}
 .kg2-fchk{margin-top:4px;}
 .kg2-kpi.wide{grid-column:1/-1;}   /* the Closing tile takes the whole row */

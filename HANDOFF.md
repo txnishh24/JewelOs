@@ -77,6 +77,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-12 (two-hundred-and-ninth entry) - Claude Code (Sonnet) - Phone round 1 on branch `phone-round-1` (off main `e4a88a7`): sheet Back button, keyboard, 16px inputs; NOT merged, NOT pushed, NOT deployed, no migration
+
+- `kgForm` (`js/11-karigar.js`): a sheet pushes one history entry on open; Back (popstate) closes it; Cancel, Esc and Save close it and pop their own entry. A popstate within 600 ms of our own `history.back()` is ignored, so it never closes a sheet opened right after. Sheet over sheet reuses the one entry. Back does not restore typed values after the sheet is gone (I read "keeps typed values" as "does not leave the screen"; say if you meant restore on reopen).
+- Keyboard: `visualViewport` resize/scroll resize the overlay; focus scrolls the field into view; measured top and footer heights feed `scroll-padding` on `.kg2-box`.
+- CSS (`index.html`): `viewport-fit=cover`; `dvh` on `.kg2-box` and `.modal`; footer `padding-bottom:max(16px,env(safe-area-inset-bottom))`; sheet inputs and selects 16px. `viewport-fit=cover` applies to the whole app (notch in landscape), not just sheets.
+- Tests: karigar-v2 258/0 (4 new, PH.1-PH.4, fake DOM so history is synchronous there); regression 493/0; ledger client 91/0; backup-check OK; roundtrip PASS; syntax ok. `jewelos-bug-pattern-reviewer`: no ES5 or non-ASCII issue; its stuck-counter finding fixed (time window instead of a counter); its sheet-after-sheet race judged harmless (one entry always remains above the page).
+- NOT verified: a real phone or keyboard, real browser Back, e2e, dark mode, other modals (`.modal`) Back handling (only `kgForm` sheets).
+-> FOR COWORK: re-run the touch-emulated pass on `phone-round-1` (Back closes sheet; Give advance Amount at 380 px height; landscape 641+ inputs 16px).
+-> FOR TANISH: nothing yet; merge call after Cowork's re-check.
+
 ### 2026-11-12 (two-hundred-and-eighth entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R10: `main` fast-forwarded to `karigar-review-fixes` (`7924a99`); merged locally, NOT pushed, NOT deployed, no migration, ledger flag untouched
 
 - Done: `git merge --ff-only karigar-review-fixes` in `E:\jewelos`, clean fast-forward from `c2a79b3` (20 commits). New screens stay behind `kgProfileUi`.
