@@ -1073,55 +1073,10 @@ function karigarInitials(name){
 }
 
 function renderKarigarList(){
+  // The Karigars tab is the profile-first screens in js/11-karigar.js. The old cards are gone; order work shows on each profile.
   var wrap = document.getElementById('karigar-list');
-  if(!wrap) return;
-  // The new Karigar screens replace these cards entirely (their profile shows the order work and has Edit details and Pay for order work).
-  if(typeof kg3On === 'function' && kg3On()){ wrap.innerHTML = ''; if(typeof renderKgV2 === 'function') renderKgV2(); return; }
-  var monthKey = dbDayKey(new Date()).slice(0,7);
-  var cards = (S.karigars||[]).map(function(k){
-    var owed = (typeof kgOrderWork === 'function') ? kgOrderWork(k.id).owed : karigarOwed(k.id);   // whole paise / mg, never -0
-    var month = karigarStats(k.id, monthKey);
-    var life = karigarStats(k.id);
-    var queue = karigarQueue(k.id);
-    var held = karigarMetalHeld(k.id);
-    var oweMetal = [owed.gold>0?fmtW(owed.gold)+' gold':'', owed.silver>0?fmtW(owed.silver)+' silver':''].filter(Boolean).join(' + ');
-    var oweParts = [owed.cash>0?'You owe '+fmt(owed.cash):'', owed.cash<0?'He owes the shop '+fmt(-owed.cash)+' (advance)':'', oweMetal?'You owe '+oweMetal:''].filter(Boolean);
-    function stat(l, v){ return '<div class="kg-stat"><span>'+l+'</span><span>'+v+'</span></div>'; }
-    return '<div class="kg-card">'+
-      '<div class="kg-head"><div class="kg-who"><div class="kg-avatar">'+escHtml(karigarInitials(k.name))+'</div><div>'+
-        '<div class="kg-name">'+escHtml(k.name)+'</div>'+
-        ((k.phone||k.skills) ? '<div class="kg-meta">'+[k.phone?escHtml(k.phone):'', k.skills?escHtml(k.skills):''].filter(Boolean).join(' · ')+'</div>' : '')+
-      '</div></div><span class="kg-badge">'+queue.length+' in progress</span></div>'+
-      '<div class="kg-hold">'+
-        '<div><div class="kg-hold-lbl">Gold in hand</div><div class="kg-hold-val'+(held.gold>0?'':' zero')+'">'+fmtW(held.gold)+'</div></div>'+
-        '<div><div class="kg-hold-lbl">Silver in hand</div><div class="kg-hold-val'+(held.silver>0?'':' zero')+'">'+fmtW(held.silver)+'</div></div>'+
-      '</div>'+
-      (oweParts.length
-        ? oweParts.map(function(t){ return '<div class="kg-owe due">'+t+'</div>'; }).join('')
-        : '<div class="kg-owe ok">✓ Settled — you owe nothing</div>')+
-      '<div class="kg-actions">'+
-        '<button class="btn btn-gold" onclick="promptKarigarPayment(\''+jsAttrEsc(k.id)+'\')">Record payment</button>'+
-      '</div>'+
-      '<details class="kg-more"><summary>Details</summary>'+
-        stat('This month', month.piecesSubmitted+' pieces · '+fmt(month.cash)+' · '+month.gold.toFixed(2)+'g gold · '+month.silver.toFixed(2)+'g silver')+
-        stat('All time', life.piecesSubmitted+' pieces · '+fmt(life.cash)+' · '+life.gold.toFixed(2)+'g gold · '+life.silver.toFixed(2)+'g silver')+
-        (life.daysCount ? stat('Average turnaround', (life.daysTotal/life.daysCount).toFixed(1)+' days ('+life.daysCount+' jobs)') : '')+
-        (life.shortJobs ? stat('Returned less than allowed', [life.shortGold>0?fmtW(life.shortGold)+' gold':'', life.shortSilver>0?fmtW(life.shortSilver)+' silver':''].filter(Boolean).join(' + ')+' ('+life.shortJobs+' jobs)') : '')+
-        (k.note ? stat('Notes', escHtml(k.note)) : '')+
-        '<div class="kg-actions"><button class="btn btn-sm" onclick="toggleKarigarProfile(\''+jsAttrEsc(k.id)+'\')">Edit details</button></div>'+
-        '<div id="kp-form-'+escHtml(k.id)+'" style="display:none;margin-top:8px;gap:8px;">'+
-          ['name','phone','skills','note'].map(function(f){
-            var ph = {name:'Name', phone:'Phone (10-digit mobile)', skills:'Skills, e.g. Kundan setting', note:'Notes: experience, address...'}[f];
-            return '<input id="kp-'+f+'-'+escHtml(k.id)+'" type="text" placeholder="'+ph+'" value="'+escHtml(k[f]||'')+'" style="display:block;width:100%;margin-bottom:6px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text1);font-family:inherit;">';
-          }).join('')+
-          '<div style="display:flex;gap:8px;"><button class="btn" style="flex:1;" onclick="toggleKarigarProfile(\''+jsAttrEsc(k.id)+'\')">Cancel</button>'+
-          '<button class="btn btn-gold" style="flex:2;" onclick="saveKarigarProfileForm(\''+jsAttrEsc(k.id)+'\')">Save</button></div>'+
-        '</div>'+
-      '</details>'+
-    '</div>';
-  }).join('') || '<div style="color:var(--text3);padding:12px;">No karigars yet — assign one from an order (Orders → open an order → Assign to Karigar).</div>';
-  wrap.innerHTML = cards;
-  if(typeof renderKgV2 === "function") renderKgV2();   // Karigar V2 section (js/11-karigar.js)
+  if(wrap) wrap.innerHTML = '';
+  if(typeof renderKgV2 === 'function') renderKgV2();
 }
 
 function toggleKarigarProfile(id){

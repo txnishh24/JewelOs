@@ -6837,20 +6837,22 @@ test('promptKarigarPayment: trims/lowercases the type and requires confirm befor
   assert(a.S.karigarPayments[0].type === 'cash', 'type should be trimmed and lowercased to cash, got: ' + JSON.stringify(a.S.karigarPayments[0]));
 });
 
-test('renderKarigarList: escapes the karigar name and keeps cash/gold/silver owed buckets separate', function(){
+test('Karigars tab (round 16): escapes the karigar name and keeps cash/gold/silver owed buckets separate; the old cards are gone', function(){
   var a = loadApp();
+  a.SAAS.user = {name:'Tester', email:'t@example.com', role:'owner'};
   var k = a.addOrGetKarigar('<img src=x onerror=alert(1)>');
   a.S.orders = [{ id:'o1', items:[{ metal:'gold', weight:10, qty:1, karigarStages:[
     { karigarId:k.id, karigarPayMode:'cash', karigarCost:300, status:'submitted' }
   ] }] }];
   a.renderKarigarList();
-  var html = a.document.getElementById('karigar-list').innerHTML;
-  assert(html.indexOf('<img src=x') === -1, 'raw unescaped name must not appear in innerHTML: ' + html);
-  assert(/&lt;img/.test(html), 'name should be HTML-escaped: ' + html);
-  // batch65 (30 Oct): cash owed now reads "You owe ₹300" on its own line; a metal
-  // line appears only when metal is owed, so cash-only must not show a gold/silver "You owe".
-  assert(/You owe[^<]*300/.test(html), 'cash owed must render as its own "You owe" line: ' + html);
-  assert(!/You owe[^<]*(gold|silver)/.test(html), 'cash-only debt must not render a metal owed line: ' + html);
+  assert(a.document.getElementById('karigar-list').innerHTML === '', 'the old cards are not drawn any more');
+  var list = a.document.getElementById('kg2-root').innerHTML;
+  assert(list.indexOf('<img src=x') === -1 && /&lt;img/.test(list), 'list: the name must be HTML-escaped: ' + list);
+  var html = a.kg3ProfileHtml(k.id);
+  assert(html.indexOf('<img src=x') === -1 && /&lt;img/.test(html), 'profile: raw unescaped name must not appear: ' + html);
+  // cash owed for order work reads as rupees; no gold / silver owed text when only cash is owed
+  assert(html.indexOf('Order work') !== -1 && /owed to him: [^<]*300/.test(html), 'cash owed must show in the Order work block: ' + html);
+  assert(!/\+ [\d.]+ g (gold|silver)/.test(html), 'cash-only debt must not render a metal owed line: ' + html);
 });
 
 // ── 29 Oct Karigar Provenance & Profile (restored 30 Oct after the folder loss;
