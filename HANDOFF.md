@@ -77,6 +77,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-12 (two-hundred-and-tenth entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R12 Part 1 on branch `phone-round-1` (commit `2eacc3b`); Part 2 (e2e) NOT run; NOT merged, pushed, deployed or migrated
+
+- D1 fixed (`js/11-karigar.js`): time-based swallowing removed. ONE permanent `popstate` listener (`kgPopHandler`) plus an echo counter `_kgEcho` (incremented before our own `history.back()`, decremented by the listener). Only the open sheet (`_kgCloseTop`) reacts to a real Back. A sheet opened while an echo is pending defers its `pushState` until the echo has fired (`_kgWantPush`). Known limit: if the browser never delivers an echo, the next real Back is swallowed once (cannot happen when we only call `back()` after our own push).
+- D2 fixed (`index.html`): inside `@media(min-width:640px)` the top bar, rail (width and left padding) and `.main` (left margin, right padding) add `env(safe-area-inset-left/right)`. Portrait untouched.
+- Tests: karigar-v2 261/0 (new PH.5, PH.6 use a fake history where `back()` is queued, both orderings; PH.7 for D2); regression 493/0; ledger client 91/0; sql-kg-ledger passed; backup-check OK; roundtrip PASS (32 keys); syntax ok; pre-commit hook passed.
+- Part 2 STOPPED on purpose: the git-ignored test env file is missing from the worktree root. Nothing installed, no e2e run, no shop touched.
+- NOT verified: real phone/notch, real browser Back, e2e, bug-pattern reviewer not re-run on this second diff.
+-> FOR COWORK: re-run the touch-emulated pass for the D1 repro (close then open within 600 ms, then Back) and landscape notch on `phone-round-1`.
+-> FOR TANISH: put the E2E test env file (same name as the `.example` file in the repo root, without `.example`) in the worktree root `E:/jewelos/.claude/worktrees/yoo-5cefe4`, then tell me; I will run `npm install` and `npm run test:e2e` against shop `77c4aefe`. Do not paste its values in chat.
+
 ### 2026-11-12 (two-hundred-and-ninth entry) - Claude Code (Sonnet) - Phone round 1 on branch `phone-round-1` (off main `e4a88a7`): sheet Back button, keyboard, 16px inputs; NOT merged, NOT pushed, NOT deployed, no migration
 
 - `kgForm` (`js/11-karigar.js`): a sheet pushes one history entry on open; Back (popstate) closes it; Cancel, Esc and Save close it and pop their own entry. A popstate within 600 ms of our own `history.back()` is ignored, so it never closes a sheet opened right after. Sheet over sheet reuses the one entry. Back does not restore typed values after the sheet is gone (I read "keeps typed values" as "does not leave the screen"; say if you meant restore on reopen).
