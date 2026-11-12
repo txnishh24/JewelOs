@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody.** Batch70 LIVE on the Cloudflare worker (as before). Karigar work on `main` (local); review fixes, round 3, payments, advance and group D (198th-202nd) on branch `karigar-review-fixes` (NOT merged, not deployed, no migration); WAITING on Tanish's phone look.
+> **Nobody.** Batch70 LIVE on the Cloudflare worker (as before). Karigar work on `main` (local); review fixes through the 206th entry on branch `karigar-review-fixes` (NOT merged, not deployed, no migration); merge dry-run clean (fast-forward), merge checklist in `docs/KARIGAR-MERGE-CHECKLIST.md`; WAITING on Tanish: phone check, e2e, merge call.
 ---
 
 ## WAITING ON TANISH
@@ -31,6 +31,7 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
 
 **Open:**
 
+- **[12 Nov, 206th entry] Karigar merge: three items, all Tanish's.** (1) Phone check on shop `3720af09` with `kgProfileUi` on: Give advance sheet, owner profile, printed statement (320 and 390 px). (2) `npm run test:e2e` on his PC. (3) The merge call, in his own words; until then nothing is merged, deployed or migrated. Details and rollback: `docs/KARIGAR-MERGE-CHECKLIST.md`.
 - **Backup of `public.store` (`tools/backup-store.js`, docs/BACKUP-SETUP.md) — deliberately postponed to the last day of launch (Tanish, 22 Oct).** Not an oversight, don't chase it early. Known cost, accepted: until then the Free-plan database has no backups, so Tanish's own shop (`3720af09`, 12 girvi loans, 0 sales, last save 23 Oct) is a single unbacked row. [Corrected 30 Oct, 108th/111th entry: this line used to name `77c4aefe` with 411 sales / 124 girvi loans, but that is the E2E test shop, not a customer.] Do flag it again if a real shop starts billing heavily before launch day.
 - **`RESEND_API_KEY` / domain — deliberately postponed to deployment day.** Tanish wants to buy a
   domain (picked `jewelos.co`, still unregistered), verify it in Resend, and set the two Supabase
@@ -75,6 +76,17 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-12 (two-hundred-and-sixth entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R8: merge PREP only for `karigar-review-fixes` (NOT merged, NOT deployed, no migration, ledger flag untouched)
+
+- Dry run: `main` (`c2a79b3`) is an ancestor of the branch, so the merge is a fast-forward of 18 commits with no conflicts (`git merge-tree`, nothing written to `main`).
+- Run on the branch, tree clean before and after: `check.bat` exit 0; regression 493/0; karigar-v2 254/0; karigar-ledger-client 91/0; `sql-kg-ledger` and `sql-store-history` all passed; `backup-check` exit 0 with no warning; `roundtrip` exit 0 (32 shop-data keys survive). Unquoted-args list is 19 sites (kg2Q-quoted ones in 11-karigar.js), jsAttrEsc list is none.
+- `jewelos-invariant-tester`: no defect found. Covered: payment caps and owner-only, `kgPayOnce` lock, rollback with audit row, reversal/owed, Day Book restating, existing records untouched. It only skimmed the 800-line `js/11-karigar.js` diff. Two gaps it named: no test round-trips the new `karigarPayments` fields (`opId`, `dbPost`, `mode`, `advance`, reversal rows) through backup/restore (the `roundtrip` check passes but uses a simple payment row), and no test runs a failing `saveToCloud` through the legacy `promptKarigarPayment` toast. Neither is a known bug.
+- Wrote `docs/KARIGAR-MERGE-CHECKLIST.md` (what ships, `kgProfileUi` per-device switch, what stays off, old Karigar 2.0 cards, rollback, manual checks). Note: HANDOFF says live DB already has migrations 010-014 applied; the R8 file said 010/011 "stay off"; I read that as "this merge adds no migration". Cowork should confirm against `list_migrations`.
+- NOT verified: no phone, no `npm run test:e2e`, nothing against live. `cowork-live-check.js` not run. `TO-CLAUDE-CODE-R7.md` and `-R8.md` were not committed.
+
+→ FOR COWORK: confirm the live migration list (010-014) matches the checklist; otherwise nothing - merge waits for Tanish.
+→ FOR TANISH: phone check on `3720af09`, run `npm run test:e2e`, then tell me "merge" when you want it.
 
 ### 2026-11-11 (two-hundred-and-fifth entry) - Claude Code (Sonnet) - backup-check no longer warns about kgLedgerOn (branch `karigar-review-fixes`, NOT merged, NOT deployed)
 
