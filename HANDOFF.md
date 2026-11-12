@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody.** Batch70 LIVE on the Cloudflare worker (as before). Karigar work on `main` (local); review fixes through the 206th entry on branch `karigar-review-fixes` (NOT merged, not deployed, no migration); merge dry-run clean (fast-forward), merge checklist in `docs/KARIGAR-MERGE-CHECKLIST.md`; WAITING on Tanish: phone check, e2e, merge call.
+> **Nobody.** Batch70 LIVE on the Cloudflare worker (as before). Karigar work incl. review fixes through the 207th entry MERGED to `main` locally on 12 Nov (fast-forward to `7924a99`, 208th entry); NOT pushed, NOT deployed, no migration, ledger flag OFF, new screens behind per-device `kgProfileUi`. WAITING on Tanish: e2e before any deploy, phone look, deploy decision.
 ---
 
 ## WAITING ON TANISH
@@ -31,7 +31,7 @@ Neither Claude can decide these. Don't re-litigate them each session; just surfa
 
 **Open:**
 
-- **[12 Nov, 206th entry] Karigar merge: three items, all Tanish's.** (1) Phone check on shop `3720af09` with `kgProfileUi` on: Give advance sheet, owner profile, printed statement (320 and 390 px). (2) `npm run test:e2e` on his PC. (3) The merge call, in his own words; until then nothing is merged, deployed or migrated. Details and rollback: `docs/KARIGAR-MERGE-CHECKLIST.md`.
+- **[12 Nov, 208th entry] Karigar work is merged to `main` locally (not pushed, not deployed). Three items, all Tanish's.** (a) Run `npm run test:e2e` BEFORE ANY DEPLOY (steps in the 207th entry). (b) Real-phone look on shop `3720af09` with `kgProfileUi` on, when convenient. (c) Deploy decision. Rollback: `git reset --hard c2a79b3` on `main` (nothing pushed) or revert. Checklist: `docs/KARIGAR-MERGE-CHECKLIST.md`.
 - **Backup of `public.store` (`tools/backup-store.js`, docs/BACKUP-SETUP.md) — deliberately postponed to the last day of launch (Tanish, 22 Oct).** Not an oversight, don't chase it early. Known cost, accepted: until then the Free-plan database has no backups, so Tanish's own shop (`3720af09`, 12 girvi loans, 0 sales, last save 23 Oct) is a single unbacked row. [Corrected 30 Oct, 108th/111th entry: this line used to name `77c4aefe` with 411 sales / 124 girvi loans, but that is the E2E test shop, not a customer.] Do flag it again if a real shop starts billing heavily before launch day.
 - **`RESEND_API_KEY` / domain — deliberately postponed to deployment day.** Tanish wants to buy a
   domain (picked `jewelos.co`, still unregistered), verify it in Resend, and set the two Supabase
@@ -76,6 +76,16 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-12 (two-hundred-and-eighth entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R10: `main` fast-forwarded to `karigar-review-fixes` (`7924a99`); merged locally, NOT pushed, NOT deployed, no migration, ledger flag untouched
+
+- Done: `git merge --ff-only karigar-review-fixes` in `E:\jewelos`, clean fast-forward from `c2a79b3` (20 commits). New screens stay behind `kgProfileUi`.
+- On `main` after merge: `check.bat` ends "Tests and syntax passed"; regression 493/0; karigar-v2 254/0; karigar-ledger-client 91/0; sql-kg-ledger passed; backup-check OK (all 33 keys exported and restored); roundtrip PASS (32 keys). Inline-handler lists are the known false positives.
+- Not committed: `TO-CLAUDE-CODE*.md`; `.claude/settings.json` was already dirty and untouched.
+- NOT verified: `npm run test:e2e` (needs Tanish's login), real phone, `tests/cowork-live-check.js` (not run), Opus review of ledger maths.
+- Rollback: `git reset --hard c2a79b3` on `main` (nothing pushed) or revert.
+-> FOR COWORK: nothing - FYI only.
+-> FOR TANISH: run `npm run test:e2e` before any deploy; phone look on `3720af09` when convenient; deploy decision is yours.
 
 ### 2026-11-12 (two-hundred-and-seventh entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R9: `npm run test:e2e` NOT run, stopped on purpose (branch `karigar-review-fixes`, nothing merged, deployed or migrated)
 
