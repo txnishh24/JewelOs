@@ -77,6 +77,22 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-12 (two-hundred-and-seventh entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R9: `npm run test:e2e` NOT run, stopped on purpose (branch `karigar-review-fixes`, nothing merged, deployed or migrated)
+
+- Why stopped: the suite logs in to ONE live shop, "E2E Test Shop (do not delete)" (shop `77c4aefe`), with credentials from a git-ignored test env file at the repo root (`playwright.config.js` line 3; `tests/e2e/README.md`, section Setup). It writes tagged test sales, Girvi loans and purchases into the LIVE Supabase for that shop. R9 says not to use `77c4aefe` and to use `3720af09`, but the suite cannot be pointed at another shop without changing its credentials. I may not invent or read credentials (the environment also blocks reading env files). I saw no test env file in the worktree or in `E:\jewelos`; `E:\jewelos\node_modules` has Playwright, the worktree has no `node_modules`.
+- Cowork: R9's "not 77c4aefe" does not fit this suite. CLAUDE.md names `77c4aefe` as the E2E test shop (fine for tests, never a customer shop). Needs Tanish's word on which shop.
+- Steps for Tanish, on his PC (about 5 minutes):
+  1. Terminal: `cd E:\jewelos\.claude\worktrees\yoo-0d8ca6` (branch `karigar-review-fixes`; `git log --oneline -1` shows the 207th-entry commit, `29857bb` is just below it).
+  2. `npm install` (the worktree has no `node_modules`).
+  3. Put the test env file in that same folder: copy the one from his usual JewelOS folder (`Desktop\jewelos`, per the README), or copy the `.example` file next to it and fill in the E2E shop's email and password. Do not paste the values into chat or HANDOFF.
+  4. `npm run test:e2e` (about a minute). `npm run test:e2e:report` if anything fails.
+  5. Tell Claude the pass/fail line. The last live run (7 Nov, 178th entry) was 23 passed. A `daybook.spec.js` failure matters most: Day Book changed in this branch.
+- Side effect: the run adds tagged `E2E-<timestamp>` records to that shop's live data, as every earlier run did.
+- NOT verified: still no e2e, no phone.
+
+→ FOR COWORK: decide with Tanish whether `77c4aefe` (E2E shop) is fine for this run; R9 excluded it. Then nothing until he reports the result.
+→ FOR TANISH: run the five steps above and tell me the result line; the merge waits for your word.
+
 ### 2026-11-12 (two-hundred-and-sixth entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R8: merge PREP only for `karigar-review-fixes` (NOT merged, NOT deployed, no migration, ledger flag untouched)
 
 - Dry run: `main` (`c2a79b3`) is an ancestor of the branch, so the merge is a fast-forward of 18 commits with no conflicts (`git merge-tree`, nothing written to `main`).
