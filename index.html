@@ -342,6 +342,14 @@ body{
 }
 @media(min-width:800px){.main{padding:1.4rem 1.6rem 2rem;}}
 @media(min-width:640px){.main{margin-left:var(--rail-w);margin-right:0;}}
+/* Notched phone in LANDSCAPE (viewport-fit=cover): keep the top bar, the left rail and the content out from under the notch.
+   Only >=640px wide, so portrait is untouched; env() is 0 on phones without a notch, so nothing moves there. */
+@media(min-width:640px){
+  .topbar{padding-left:max(var(--space-3),env(safe-area-inset-left));padding-right:max(var(--space-3),env(safe-area-inset-right));}
+  .dtabs{width:calc(var(--rail-w) + env(safe-area-inset-left));padding-left:max(var(--space-2),env(safe-area-inset-left));}
+  .main{margin-left:calc(var(--rail-w) + env(safe-area-inset-left));padding-right:max(1rem,env(safe-area-inset-right));}
+}
+@media(min-width:800px){.main{padding-right:max(1.6rem,env(safe-area-inset-right));}}
 @media print{.main{margin-left:0;}}
 .panel{display:none;}.panel.active{display:block;}
 

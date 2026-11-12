@@ -2139,8 +2139,20 @@ function kg2SalaryHtml(){
 // re-sends the same id and cannot create a second entry.
 var _kgEscOff = null;
 // Phone Back button: a sheet owns ONE history entry while open, so Back closes the sheet instead of leaving the screen.
-// _kgBackAt = when we last called history.back() ourselves: a popstate within 600 ms is that call's echo and must not close a sheet opened right after (a missing echo expires, so Back is never swallowed later).
-var _kgHistPushed = false, _kgBackAt = 0;
+// ONE permanent popstate listener (below). _kgEcho counts our own history.back() calls still to come back as a popstate:
+// each one is swallowed in order, so a real Back is never mistaken for an echo. _kgCloseTop is the open sheet's close
+// function (null when none): only the top-most sheet reacts to a real Back. A sheet opened while an echo is pending
+// waits (_kgWantPush) and pushes its entry when the echo has fired, so back() can never pop the new sheet's entry.
+var _kgHistPushed = false, _kgEcho = 0, _kgWantPush = false, _kgCloseTop = null;
+function kgPopHandler(){
+  if(_kgEcho > 0){
+    _kgEcho--;
+    if(_kgEcho === 0 && _kgWantPush){ _kgWantPush = false; try{ history.pushState({kgSheet:1}, ''); _kgHistPushed = true; }catch(e){} }
+    return;
+  }
+  if(_kgCloseTop) _kgCloseTop(true);
+}
+try{ window.addEventListener('popstate', kgPopHandler); }catch(e){}
 function kgForm(opts){
   if(_kgEscOff){ _kgEscOff(); _kgEscOff = null; }
   var old = document.getElementById('kg2-modal'); if(old) old.parentNode.removeChild(old);
@@ -2187,12 +2199,14 @@ function kgForm(opts){
   var vv = window.visualViewport || null;
   function closeSheet(fromPop){
     var live = !!ov.parentNode;   // a replaced sheet is already gone: it must not touch the new sheet's hooks
-    if(live){ if(_kgEscOff){ _kgEscOff(); _kgEscOff = null; } ov.parentNode.removeChild(ov); }
+    if(live){ if(_kgEscOff){ _kgEscOff(); _kgEscOff = null; } _kgCloseTop = null; ov.parentNode.removeChild(ov); }
     if(fromPop === true){ _kgHistPushed = false; }
-    else if(live && _kgHistPushed){ _kgHistPushed = false; try{ _kgBackAt = Date.now(); history.back(); }catch(e){ _kgBackAt = 0; } }
+    else if(live){
+      if(_kgHistPushed){ _kgHistPushed = false; _kgEcho++; try{ history.back(); }catch(e){ _kgEcho--; } }
+      else _kgWantPush = false;   // closed before its entry was ever pushed: nothing to pop
+    }
   }
   function onKey(ev){ if(ev && (ev.key === 'Escape' || ev.keyCode === 27)) closeSheet(); }
-  function onPop(){ if(_kgBackAt && Date.now() - _kgBackAt < 600){ _kgBackAt = 0; return; } _kgBackAt = 0; closeSheet(true); }
   // Keep the focused field and the Save bar on screen when the phone keyboard opens or the toolbar moves.
   function keepVisible(){
     var el = document.activeElement;
@@ -2209,15 +2223,18 @@ function kgForm(opts){
   }
   function onFocusIn(){ setTimeout(fit, 60); }
   document.addEventListener('keydown', onKey);
-  window.addEventListener('popstate', onPop);
   ov.addEventListener('focusin', onFocusIn);
   if(vv){ vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); }
   _kgEscOff = function(){
-    document.removeEventListener('keydown', onKey); window.removeEventListener('popstate', onPop);
+    document.removeEventListener('keydown', onKey);
     ov.removeEventListener('focusin', onFocusIn);
     if(vv){ vv.removeEventListener('resize', fit); vv.removeEventListener('scroll', fit); }
   };
-  if(!_kgHistPushed){ try{ history.pushState({kgSheet:1}, ''); _kgHistPushed = true; }catch(e){} }
+  _kgCloseTop = closeSheet;
+  if(!_kgHistPushed){
+    if(_kgEcho > 0) _kgWantPush = true;
+    else { try{ history.pushState({kgSheet:1}, ''); _kgHistPushed = true; }catch(e){} }
+  }
   fit();
   document.getElementById('kg2-cancel').onclick = closeSheet;
   var save = document.getElementById('kg2-save');

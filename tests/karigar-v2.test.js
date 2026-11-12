@@ -2614,7 +2614,8 @@ test('TX.9 statement tiles add up to closing when a receipt, scrap, hand-over or
 
 // ---- phone round 1 (12 Nov): sheet Back button, keyboard and 16px inputs ----
 function sheetEnv(){
-  var a = fresh('owner'), hist = {depth:0, pushes:0, backs:0}, pop = [], keyl = [];
+  var a = fresh('owner'), keyl = [], q = [];
+  var h = {stack:[0], idx:0};   // real-browser model: pushState is immediate, back() is QUEUED and fires popstate later, in order
   var reg = {}, body = {kids:[], appendChild:function(e){ e.parentNode = body; body.kids.push(e); }, removeChild:function(e){ e.parentNode = null; body.kids = body.kids.filter(function(x){ return x !== e; }); }};
   function mk(){ return {style:{setProperty:function(){}}, innerHTML:'', textContent:'', value:'', parentNode:null, addEventListener:function(){}, removeEventListener:function(){}, contains:function(){ return false; }, querySelector:function(){ return null; }, firstChild:{style:{setProperty:function(){}}}}; }
   a.document = {
@@ -2622,23 +2623,52 @@ function sheetEnv(){
     createElement: mk, body: body, activeElement: null,
     addEventListener: function(t, f){ keyl.push(f); }, removeEventListener: function(t, f){ keyl = keyl.filter(function(x){ return x !== f; }); }
   };
-  a.addEventListener = function(t, f){ if(t === 'popstate') pop.push(f); }; a.removeEventListener = function(t, f){ pop = pop.filter(function(x){ return x !== f; }); };
-  a.history = {pushState:function(){ hist.pushes++; hist.depth++; }, back:function(){ hist.backs++; hist.depth--; }};
-  return {a:a, hist:hist, reg:reg, body:body, popFire:function(){ pop.slice().forEach(function(f){ f({}); }); }, popCount:function(){ return pop.length; }, keyCount:function(){ return keyl.length; }, esc:function(){ keyl.slice().forEach(function(f){ f({key:'Escape'}); }); }};
+  a.history = {pushState:function(){ h.stack = h.stack.slice(0, h.idx + 1); h.stack.push(1); h.idx++; }, back:function(){ q.push(1); }};
+  function step(){ q.shift(); if(h.idx > 0) h.idx--; a.kgPopHandler(); }
+  return {a:a, h:h, reg:reg, body:body, userBack:function(){ q.push(1); }, step:step, flush:function(){ while(q.length) step(); }, pending:function(){ return q.length; }, keyCount:function(){ return keyl.length; }, esc:function(){ keyl.slice().forEach(function(f){ f({key:'Escape'}); }); }};
 }
 function openSheet(e, title){ e.a.kgForm({title:title || 'Test', fields:[{id:'amt', label:'Amount', type:'text', value:''}], onSubmit:function(v, fin){ fin(null); }}); }
 test('PH.1 Back (popstate) closes the sheet; its history entry is not popped twice', function(){
-  var e = sheetEnv(); openSheet(e); eq(e.body.kids.length, 1); eq(e.hist.pushes, 1, 'one entry pushed on open'); eq(e.popCount(), 1);
-  e.popFire(); eq(e.body.kids.length, 0, 'sheet closed by Back'); eq(e.hist.backs, 0, 'no second history.back'); eq(e.popCount(), 0, 'listener removed'); eq(e.keyCount(), 0);
+  var e = sheetEnv(); openSheet(e); eq(e.body.kids.length, 1); eq(e.h.idx, 1, 'one entry pushed on open');
+  e.userBack(); e.flush(); eq(e.body.kids.length, 0, 'sheet closed by Back'); eq(e.h.idx, 0, 'back at baseline'); eq(e.pending(), 0); eq(e.keyCount(), 0);
 });
-test('PH.2 Cancel and Esc close the sheet AND pop their own history entry; a late popstate does not close a new sheet', function(){
-  var e = sheetEnv(); openSheet(e); e.reg['kg2-cancel'].onclick({}); eq(e.body.kids.length, 0); eq(e.hist.backs, 1, 'Cancel pops its entry'); eq(e.popCount(), 0);
-  openSheet(e, 'Second'); eq(e.body.kids.length, 1); e.popFire(); eq(e.body.kids.length, 1, 'the stale popstate from the Cancel is ignored'); e.popFire(); eq(e.body.kids.length, 0, 'a real Back then closes it');
-  var f = sheetEnv(); openSheet(f); f.esc(); eq(f.body.kids.length, 0); eq(f.hist.backs, 1, 'Esc pops its entry'); eq(f.keyCount(), 0);
+test('PH.2 Cancel, Esc and Save each close their sheet and return history to baseline', function(){
+  var e = sheetEnv(); openSheet(e); e.reg['kg2-cancel'].onclick({}); e.flush(); eq(e.body.kids.length, 0); eq(e.h.idx, 0, 'Cancel');
+  var f = sheetEnv(); openSheet(f); f.esc(); f.flush(); eq(f.body.kids.length, 0); eq(f.h.idx, 0, 'Esc'); eq(f.keyCount(), 0);
+  var g = sheetEnv(); openSheet(g); g.reg['kg2-save'].onclick(); g.flush(); eq(g.body.kids.length, 0); eq(g.h.idx, 0, 'Save');
 });
-test('PH.3 opening a sheet over a sheet reuses the one history entry; Save closes and pops it once', function(){
-  var e = sheetEnv(); openSheet(e, 'One'); openSheet(e, 'Two'); eq(e.hist.pushes, 1, 'no second entry'); eq(e.body.kids.length, 1); eq(e.popCount(), 1, 'only the live sheet listens');
-  e.reg['kg2-save'].onclick(); eq(e.body.kids.length, 0, 'Save closed it'); eq(e.hist.backs, 1);
+test('PH.3 opening a sheet over a sheet reuses the one history entry', function(){
+  var e = sheetEnv(); openSheet(e, 'One'); openSheet(e, 'Two'); eq(e.h.idx, 1, 'no second entry'); eq(e.body.kids.length, 1);
+  e.userBack(); e.flush(); eq(e.body.kids.length, 0); eq(e.h.idx, 0);
+});
+test('PH.5 D1: close then open B BEFORE the echo fires (back, push, pop): Back still closes B and the app stays', function(){
+  ['save', 'cancel', 'esc'].forEach(function(how){
+    var e = sheetEnv(); openSheet(e, 'A');
+    if(how === 'save') e.reg['kg2-save'].onclick(); else if(how === 'cancel') e.reg['kg2-cancel'].onclick({}); else e.esc();
+    eq(e.pending(), 1, how + ': A\'s back() is still queued');
+    openSheet(e, 'B'); eq(e.body.kids.length, 1);
+    e.flush();                                   // the echo fires: it must not close B, and B must still own an entry
+    eq(e.body.kids.length, 1, how + ': B survives the echo'); eq(e.h.idx, 1, how + ': B has its entry');
+    e.userBack(); e.flush(); eq(e.body.kids.length, 0, how + ': the real Back closes B'); eq(e.h.idx, 0, how + ': app stays, history at baseline');
+  });
+});
+test('PH.6 D1: close, echo fires, then open B, then Back (back, pop, push): Back closes B; both orderings end at baseline', function(){
+  var e = sheetEnv(); openSheet(e, 'A'); e.reg['kg2-cancel'].onclick({}); e.flush(); openSheet(e, 'B'); eq(e.h.idx, 1);
+  e.userBack(); e.flush(); eq(e.body.kids.length, 0); eq(e.h.idx, 0);
+  // user Back queued right behind our own back(): the echo goes first, then the user's Back closes B
+  var f = sheetEnv(); openSheet(f, 'A'); f.reg['kg2-save'].onclick(); openSheet(f, 'B'); f.userBack(); f.flush();
+  eq(f.body.kids.length, 0, 'B closed by the real Back'); eq(f.h.idx, 0, 'history back at baseline');
+  // closing B afterwards by Cancel is also neutral
+  var g = sheetEnv(); openSheet(g, 'A'); g.reg['kg2-cancel'].onclick({}); openSheet(g, 'B'); g.flush(); g.reg['kg2-cancel'].onclick({}); g.flush(); eq(g.body.kids.length, 0); eq(g.h.idx, 0, 'both sheets closed: baseline');
+});
+test('PH.7 D2: landscape safe-area insets on top bar, rail and main, only inside a >=640px query', function(){
+  var css = require('fs').readFileSync(__dirname + '/../index.html', 'utf8');
+  var blk = css.match(/@media\(min-width:640px\)\{\s*\.topbar\{[^@]*?\r?\n\}/);
+  ok(blk, 'a >=640px block holding the three rules');
+  ok(/\.topbar\{[^}]*safe-area-inset-left[^}]*safe-area-inset-right/.test(blk[0]), 'topbar');
+  ok(/\.dtabs\{[^}]*calc\(var\(--rail-w\) \+ env\(safe-area-inset-left\)\)/.test(blk[0]), 'rail width grows by the inset');
+  ok(/\.main\{[^}]*margin-left:calc\(var\(--rail-w\) \+ env\(safe-area-inset-left\)\)[^}]*safe-area-inset-right/.test(blk[0]), 'main margin and right padding');
+  ok(!/^\.topbar\{[^}]*safe-area-inset-left/m.test(css), 'no unconditional (portrait) topbar inset');
 });
 test('PH.4 css: dvh, scroll-padding, safe-area footer, 16px sheet inputs, viewport-fit=cover', function(){
   var css = require('fs').readFileSync(__dirname + '/../index.html', 'utf8');
