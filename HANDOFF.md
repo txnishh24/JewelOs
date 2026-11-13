@@ -77,6 +77,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-13 (two-hundred-and-twenty-second entry) - Claude Code - batch73 DEPLOYED and verified live
+
+- Tanish said "run it"; `npx wrangler deploy` ran. Version ID `5c8eddff-bdb5-47b7-bbc6-8c7065e21f6b`, `main` at `37659bb` (plus HANDOFF commits). Supersedes the 221st entry's "not deployed".
+- `jewelos-deploy-verifier` on the live origin: 18 of 20 staged files byte-match by SHA-256 (all js, sw.js, manifest, icons, CHANGELOG); `index.html` served at `/` matches (the `/index.html` path gives a 307, normal); `_headers` is 404 by design and its headers are applied. `sw.js` CACHE `jewelos-v28`, `APP_BUILD = 73`, `viewport-fit=cover` present. No code sets `kgLedgerOn` on (code check only; the per-shop value on the server was not queried).
+- Not verified: browser/phone run, service-worker update on installed copies, other Cloudflare locations, e2e.
+- Rollback: batch72 commit `e489ea9` (tag `batch72-live`), same method as before. No migration, no key rotation, no real-shop login.
+→ FOR COWORK: run the phone checks on shop `3720af09` (build 73; profile > job > Home > Karigars > Back lands on profile; New job with weight only; Close sheet labour preview) and confirm `kgLedgerOn` is still OFF in the database.
+
 ### 2026-11-13 (two-hundred-and-twenty-first entry) - Claude Code - TO-CLAUDE-CODE-R25: batch73 merged and staged; DEPLOY NOT DONE (blocked)
 
 - Gate on the branch before merging: karigar-v2 339/0, regression 494/0, ledger client 91/0. `sw.js` CACHE `jewelos-v28`, `APP_BUILD` 73.
