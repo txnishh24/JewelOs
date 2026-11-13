@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody.** batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
+> **Nobody.** (e2e run of 14 Nov finished, see 224th entry.) batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
 ---
 
 ## WAITING ON TANISH
@@ -76,6 +76,15 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-14 (two-hundred-and-twenty-fourth entry) - Claude Code - e2e suite run on `main` (batch73) against E2E shop `77c4aefe`: 23 passed, 0 failed
+
+- Ran `npm install` (no package change) then `npm run test:e2e` from `E:\jewelos` on `main` at `5db5cc5`. The env file was present and read by Playwright; I never opened or printed it, and no variable was missing. Login worked.
+- Result: 23 passed, 0 failed, 0 skipped, 4.4 min, 1 worker, chromium. By spec: auth 5/5, `daybook.spec.js` 1/1 (Closing = Opening + Cash In - Cash Out), edit-bill/reports/new-sale 4/4, failed-saves 2/2, girvi 1/1, invoice-date 1/1, invoice-numbers 1/1, offline 1/1, purchase 1/1, sale 2/2, session-restore 4/4.
+- This is the first time e2e ran on this code; it covers login, sale, Girvi, Day Book, purchase, offline billing, invoice numbers, session restore and failed saves.
+- Test data was written to the E2E shop only, tagged `E2E-<timestamp>`. No customer shop touched. Nothing merged, pushed, deployed or migrated. Not verified: Karigar screens (no e2e spec covers them), a real phone.
+- Left dirty, not mine: `.claude/settings.json`, `checks/globals.json`.
+-> FOR COWORK: nothing - FYI only. The e2e item in WAITING ON TANISH (a) can be closed.
 
 ### 2026-11-13 (two-hundred-and-twenty-third entry) - Claude Code - phone checks NOT run by Claude Code; `kgLedgerOn` confirmed OFF; R26 file missing
 
