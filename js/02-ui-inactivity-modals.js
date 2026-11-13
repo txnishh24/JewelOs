@@ -165,6 +165,7 @@ function switchTab(tab){
   // just switched into. The stale-reload below re-renders the SAME tab a
   // moment later with fresh data — that's a refresh, not an entrance, so it
   // omits the flag (falsy default) and the list rows don't re-animate.
+  if(typeof kgTabChanged === 'function') kgTabChanged(tab);   // Karigars keeps its Back-button entries in step with the tab (after the staff redirect above, so `tab` is final)
   renderTab(tab, true);
   // Restore scroll position after render
   setTimeout(function(){

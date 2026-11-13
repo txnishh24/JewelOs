@@ -1091,7 +1091,7 @@ function findKarigar(id){
 // (and saves), else an error string without mutating. Renaming is safe --
 // stages reference karigarId -- but a clash is refused, or addOrGetKarigar
 // would match either of the two by name from then on.
-function updateKarigarProfile(id, f){
+function updateKarigarProfile(id, f, done){
   var k = findKarigar(id);
   if(!k) return 'Karigar not found';
   var name = String(f.name||'').trim();
@@ -1101,8 +1101,19 @@ function updateKarigarProfile(id, f){
   if(clash) return 'Another karigar is already called ' + name;
   var ph = phoneShapeOk(f.phone) ? normPhone10(f.phone) : null;
   if(ph === null) return 'Phone should be a 10-digit mobile number starting 6-9, like 98765 43210.';
+  var keys = ['name', 'phone', 'skills', 'note'], before = {};
+  keys.forEach(function(x){ before[x] = {has:Object.prototype.hasOwnProperty.call(k, x), v:k[x]}; });
   k.name = name; k.phone = ph; k.skills = String(f.skills||'').trim(); k.note = String(f.note||'').trim();
-  saveToCloud(function(){});
+  saveToCloud(function(e){
+    if(e){   // not saved: the screen must not keep showing the typed values as if they were
+      keys.forEach(function(x){ if(before[x].has) k[x] = before[x].v; else delete k[x]; });
+      if(typeof saveCache === 'function') saveCache();
+      var msg = 'Not saved - could not reach the server, so nothing was changed. Try again.';
+      if(typeof done === 'function') done(msg); else toast(msg);
+      return;
+    }
+    if(typeof done === 'function') done('');
+  });
   return '';
 }
 

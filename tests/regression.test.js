@@ -6871,6 +6871,18 @@ test('29 Oct B1: saveOrder keeps karigarStages typed in the order form, drops ro
   assert(st[0].karigarId === 'kar1' && st[0].karigarCost === 500 && st[0].status === 'assigned', 'stage fields lost: ' + JSON.stringify(st[0]));
 });
 
+test('R19: saveOrder refuses a cash karigar stage with a blank or zero cost, and saves nothing', function(){
+  [0, undefined, -3].forEach(function(cost){
+    var t = _orderFormApp({ 'oi-desc-0':'Ring', 'of-cust':'Asha', 'of-delivery':'2099-01-01' });
+    t.a.ordItems[0].karigarStages = [{ task:'Gold work', karigarId:'kar1', karigarPayMode:'cash', karigarCost:cost, karigarWastagePct:0, status:'assigned', assignedDate:'2026-10-29' }];
+    t.a.saveOrder();
+    assert(t.saves() === 0, 'a cash stage with cost ' + cost + ' must not save');
+  });
+  var ok = _orderFormApp({ 'oi-desc-0':'Ring', 'of-cust':'Asha', 'of-delivery':'2099-01-01' });
+  ok.a.ordItems[0].karigarStages = [{ task:'Gold work', karigarId:'kar1', karigarPayMode:'cash', karigarCost:250.5, karigarWastagePct:0, status:'assigned', assignedDate:'2026-10-29' }];
+  ok.a.saveOrder(); assert(ok.saves() === 1, 'a real cost saves');
+});
+
 test('29 Oct B2: a billed order\'s stages count once in karigarOwed/karigarStats/karigarQueue, not once per copy', function(){
   var a = loadApp();
   var k = a.addOrGetKarigar('Ramesh');

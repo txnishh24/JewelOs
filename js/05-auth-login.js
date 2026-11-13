@@ -1086,10 +1086,11 @@ function toggleKarigarProfile(id){
 
 function saveKarigarProfileForm(id){
   function v(f){ var el = document.getElementById('kp-'+f+'-'+id); return el ? el.value : ''; }
-  var err = updateKarigarProfile(id, { name:v('name'), phone:v('phone'), skills:v('skills'), note:v('note') });
+  var err = updateKarigarProfile(id, { name:v('name'), phone:v('phone'), skills:v('skills'), note:v('note') }, function(msg){
+    renderKarigarList();
+    toast(msg ? msg : '✓ Karigar details saved');
+  });
   if(err){ toast(err); return; }
-  renderKarigarList();
-  toast('✓ Karigar details saved');
 }
 
 // A minimal prompt-based entry point for v1 -- a full modal form is a later

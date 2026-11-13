@@ -1576,6 +1576,12 @@ function ordCustAuto(){
 }
 
 // ── SAVE ORDER ────────────────────────────────────────────────────────────
+// A cash stage with a karigar needs a cost per piece above zero (and at most Rs 1 crore). A blank or 0 gives owed 0 and overstates profit. '' = fine.
+function orderStageCostProblem(st){
+  if(!st || !st.karigarId || st.karigarPayMode !== 'cash') return '';
+  var c = st.karigarCost;
+  return (typeof c === 'number' && isFinite(c) && c > 0 && c <= 10000000) ? '' : 'enter the cash per piece, more than 0';
+}
 function saveOrder(_pastDateOk){
   ordItems.forEach(function(item,i){
     var dEl=document.getElementById('oi-desc-'+i); if(dEl)item.desc=dEl.value.trim();
@@ -1612,8 +1618,8 @@ function saveOrder(_pastDateOk){
   var _badStage=null, _badStageMsg='';
   validItems.forEach(function(it){ (it.karigarStages||[]).forEach(function(st){
     if(_badStage || !st.karigarId) return;   // rows with no karigar are dropped on save, so never block on them
-    var c=st.karigarCost, w=st.karigarWastagePct;
-    if(st.karigarPayMode==='cash' && c!==undefined && (!isFinite(c) || c<0 || c>10000000)){ _badStage=it; _badStageMsg='cash amount'; }
+    var w=st.karigarWastagePct;
+    if(orderStageCostProblem(st)){ _badStage=it; _badStageMsg='cash amount (' + orderStageCostProblem(st) + ')'; }
     else if(st.karigarPayMode==='wastage' && w!==undefined && (!isFinite(w) || w<0 || w>=100)){ _badStage=it; _badStageMsg='wastage % (must be under 100)'; }
     else if((st.issued||[]).length && karigarFineOf(it.metal||'gold', it.purity||'22K', 1)===null){ _badStage=it; _badStageMsg='metal issued — plated items cannot have metal issued, so clear the issued weight'; }
   }); });

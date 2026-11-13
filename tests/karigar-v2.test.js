@@ -2358,7 +2358,7 @@ test('TC.C14 owner profile: five buttons up front, the rest under More', functio
 });
 test('TC.C15/16 closing tile is full width; money reads like ₹1,500 everywhere on the pay screens', function(){
   var a = fresh('owner'); var k = pk(a, 'TC1516'); a.S.orders = [];
-  ok(/kg2-kpi wide"><span>Closing/.test(a.kg3StatementHtml(k.id)), 'closing tile is wide');
+  ok(/kg2-kpi ?(wide)?"><span>Closing/.test(a.kg3StatementHtml(k.id)), 'closing tile is there (wide, or paired so no tile is alone)');
   var css = require('fs').readFileSync(__dirname + '/../index.html', 'utf8'); ok(/\.kg2-kpi\.wide\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/.test(css), 'wide rule');
   call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', '1500', '', op(), cb, {advance:true, reason:'festival advance', confirmed:true, mode:'cash', dbPost:true}); });
   var money = a.fmt(1500); ok(/1,500/.test(money), money);
@@ -2832,7 +2832,7 @@ function orderStage(a, k, cost){
 }
 test('R17 A1: paise are shown, never rounded to whole rupees', function(){
   var a = fresh('owner'); var k = pk(a, 'Paise');
-  eq(a.kgFmtRs(10040), '₹100.40'); eq(a.kgFmtRs(50), '₹0.50'); eq(a.kgFmtRs(-50), '−₹0.50'); eq(a.kgFmtRs(150000), '₹1,500'); eq(a.kgFmtRs(123456789), '₹12,34,567.89');
+  eq(a.kgFmtRs(10040), '₹100.40'); eq(a.kgFmtRs(50), '₹0.50'); eq(a.kgFmtRs(-50), '-₹0.50'); eq(a.kgFmtRs(150000), '₹1,500'); eq(a.kgFmtRs(123456789), '₹12,34,567.89');
   eq(a.kg3OrderOwedText('cash', 100.4), '₹100.40'); eq(a.kg3OrderOwedText('cash', -0.5), 'he owes the shop ₹0.50');
   orderStage(a, k, 699.2);
   var c = a.kg3PayOrderCheck(k.id, 'cash', '699.70', false); ok(c.error && c.error.indexOf('699.20') !== -1, c.error);
@@ -2908,7 +2908,7 @@ function readIndex(){ return require('fs').readFileSync(__dirname + '/../index.h
 test('R17 B7: Close sheet shows Given / counted / He returns, the Keep / He returns it now choice, the record-returns-first line, and a default loss reason', function(){
   var a = fresh('owner'); var k = pk(a, 'CS'); trust(a, k); var j = pjob(a, k); issueV(a, j, '10', '92'); receiptV(a, j, {gross:'4', purity:'92', agreed:'92'});
   var sheet = null; a.kgForm = function(o){ sheet = o; }; a.kg3Close(j.id);
-  var pv = sheet.preview({settle:'carry'}); ok(/Given/.test(pv) && /9\.200 g fine/.test(pv), pv); ok(/counted/i.test(pv), 'counted line'); ok(/He returns to you/.test(pv)); ok(/Receive piece/.test(pv) && /Scrap/.test(pv), 'record returns first: ' + pv);
+  var pv = sheet.preview({settle:'carry'}); ok(/Given 9\.200 g/.test(pv), pv); ok(/counted/i.test(pv), 'counted line'); ok(/He returns to you/.test(pv)); ok(/Receive piece/.test(pv) && /Scrap/.test(pv), 'record returns first: ' + pv);
   var opts = sheet.fields[0].options.map(function(o){ return o[0]; }); ok(opts.indexOf('carry') !== -1 && opts.indexOf('return') !== -1 && opts.indexOf('loss') !== -1, opts.join());
   var reason = sheet.fields.filter(function(f){ return f.id === 'reason'; })[0]; ok(String(reason.value || '').length >= 5, 'loss reason is pre-filled so a small close is three taps');
   ok(/Close job/.test(sheet.submitText({settle:'carry'})) && /Scrap|Receive|record/i.test(sheet.submitText({settle:'return'})), sheet.submitText({settle:'return'}));
@@ -2922,9 +2922,9 @@ test('R17 B8: job page and statement use the profile look (text Back, date picke
   var h = a.kg3JobHtml(j); ok(h.indexOf('class="kgx-back"') !== -1 && h.indexOf('kgx-h2') !== -1, 'job page head'); ok(h.indexOf('kg2-row">' + a.kg2Btn('←')) === -1);
   a._kg2.stFrom = '2000-01-01'; a._kg2.stTo = '2999-12-31'; a._kg2.stMetal = 'gold'; var st = a.kg3StatementHtml(k.id);
   ok(st.indexOf('class="kgx-back"') !== -1 && st.indexOf('kgx-dates') !== -1, 'statement head and the two dates in one row');
-  var kp = st.match(/<div class="kg2-kpis">([\s\S]*?)<\/div><\/div>/); var tiles = (st.match(/class="kg2-kpi( wide)?"/g) || []);
-  var wide = tiles.filter(function(t){ return /wide/.test(t); }).length, normal = tiles.length - wide; eq(normal % 2, 0, 'an even number of half tiles, no orphan: ' + tiles.join());
-  a._kg2.stMetal = 'rupees'; st = a.kg3StatementHtml(k.id); tiles = (st.match(/class="kg2-kpi( wide)?"/g) || []); eq((tiles.length - tiles.filter(function(t){ return /wide/.test(t); }).length) % 2, 0, 'rupee view too');
+  var kp = st.match(/<div class="kg2-kpis">([\s\S]*?)<\/div><\/div>/); var tiles = (st.match(/class="kg2-kpi ?(wide)?"/g) || []);
+  var wide = tiles.filter(function(t){ return /wide/.test(t); }).length, normal = tiles.length - wide; ok(tiles.length >= 3, 'tiles counted'); eq(normal % 2, 0, 'an even number of half tiles, no orphan: ' + tiles.join());
+  a._kg2.stMetal = 'rupees'; st = a.kg3StatementHtml(k.id); tiles = (st.match(/class="kg2-kpi ?(wide)?"/g) || []); eq((tiles.length - tiles.filter(function(t){ return /wide/.test(t); }).length) % 2, 0, 'rupee view too');
 });
 test('R17 B10: three visible actions at most (Add job, Record payment, More); Give advance is under More', function(){
   var a = fresh('owner'); var k = pk(a, 'Act'); var h = a.kg3ProfileHtml(k.id); var row = h.match(/<div class="kg2-row" id="kg3-pactions">([\s\S]*?)<\/div>/)[1];
@@ -2941,7 +2941,7 @@ test('R17 B12: New job sheet - four metal chips, a For row, due beside weight an
   var a = fresh('owner'); var k = pk(a, 'Chips'); var sheet = null; a.kgForm = function(o){ sheet = o; }; a.kg3NewJob(k.id);
   var m = sheet.fields.filter(function(f){ return f.id === 'metal'; })[0]; eq(m.type, 'chips'); eq(m.options.map(function(o){ return o[1]; }).join('|'), 'Gold 22K|Gold 18K|Silver|Other');
   ok(sheet.fields[0].type === 'note' && /Chips/.test(sheet.fields[0].html), 'For row'); ok(m.options[0][2].purity === '91.6' && m.options[1][2].purity === '75', 'chips pre-fill the purity');
-  var by = {}; sheet.fields.forEach(function(f){ by[f.id] = f; }); ok(by.points.more && by.tag.more && by.pieces.more, 'optional fields under More details'); ok(by.wt.row && by.wt.row === by.purity.row && by.wt.row === by.due.row, 'weight, purity, due share a row');
+  var by = {}; sheet.fields.forEach(function(f){ by[f.id] = f; }); ok(by.points.more && by.tag.more && by.pieces.more, 'optional fields under More details'); ok(by.wt.row && by.wt.row === by.purity.row && !by.due.row && by.due.type === 'date', 'weight and purity share a row; the due date has a full-width line of its own');
   eq(sheet.submitText({title:'x', wt:'', purity:''}), 'Create job'); eq(sheet.submitText({metal:'gold22', wt:'10', purity:'92'}), 'Create job and issue gold'); eq(sheet.submitText({metal:'silver', wt:'10', purity:'92.5'}), 'Create job and issue silver');
   var did = null; sheet.onSubmit({title:'Silver ring', metal:'silver', wt:'10', purity:'92.5', chip:false, confirmed:true, points:'', tag:'', pieces:'', due:'', ord:'', opId:op()}, function(err){ did = err || 'ok'; }); eq(did, 'ok'); eq(a.S.kgJobs[0].metal, 'silver');
   sheet.onSubmit({title:'Gold 18', metal:'gold18', wt:'', purity:'', chip:false, confirmed:false, points:'', tag:'', pieces:'', due:'', ord:'', opId:op()}, function(err){ did = err || 'ok'; }); eq(a.S.kgJobs[1].metal, 'gold');
@@ -3117,6 +3117,85 @@ test('R18 two karigars on one job: one labour row each at his own frozen rate; r
   var info = a.kgReopenInfo(j.id); eq(info.labourPaise, 110000); eq(info.owesShopPaise, 60000, 'only B would owe the shop'); eq(info.needsConfirm, true);
   ok(call(function(cb){ a.kgReopenJob(j.id, cb, {}); }).err, 'warns before reversing paid labour');
   ok(!call(function(cb){ a.kgReopenJob(j.id, cb, {confirmed:true}); }).err); eq(labRows(a, j).length, 0); eq(a.kgSalaryBalance(A.id).payable, 0); eq(a.kgSalaryBalance(B.id).payable, -60000);
+});
+
+console.log('\nKarigar round 19 A - order cost, profile save rollback, key order, signs, creator id, detached save, salary privacy');
+
+test('R19 A1: a cash stage needs a cost above zero (and at most 1e7); blank or 0 is refused with a clear message', function(){
+  var a = fresh('owner');
+  eq(typeof a.orderStageCostProblem, 'function');
+  var st = function(c){ return {karigarId:'k1', karigarPayMode:'cash', karigarCost:c}; };
+  ok(a.orderStageCostProblem(st(0)), 'zero'); ok(a.orderStageCostProblem(st(undefined)), 'blank'); ok(a.orderStageCostProblem(st(NaN)), 'NaN'); ok(a.orderStageCostProblem(st(-5)), 'negative'); ok(a.orderStageCostProblem(st(10000001)), 'too big');
+  eq(a.orderStageCostProblem(st(500)), ''); eq(a.orderStageCostProblem(st(10000000)), ''); eq(a.orderStageCostProblem({karigarId:'k1', karigarPayMode:'wastage', karigarWastagePct:3}), '', 'a wastage stage needs no cash');
+  eq(a.orderStageCostProblem({karigarId:'', karigarPayMode:'cash', karigarCost:0}), '', 'a row with no karigar is dropped on save, never blocks');
+  ok(/cash/i.test(a.orderStageCostProblem(st(0))), a.orderStageCostProblem(st(0)));
+});
+test('R19 A2: a failed save of Details rolls the karigar back and says so; a good save says nothing', function(){
+  var a = fresh('owner'); var k = a.addOrGetKarigar('Old Name'); k.phone = '9820012345'; k.skills = 'old skill'; k.note = 'old note';
+  var good = a.saveToCloud; a.saveToCloud = function(cb){ cb(new Error('net')); }; var out = null;
+  eq(a.updateKarigarProfile(k.id, {name:'New Name', phone:'9820099999', skills:'x', note:'y'}, function(msg){ out = msg; }), '', 'the typed values are valid');
+  ok(out && /not saved|could not save/i.test(out), 'told: ' + out); eq(k.name, 'Old Name'); eq(k.phone, '9820012345'); eq(k.skills, 'old skill'); eq(k.note, 'old note');
+  a.saveToCloud = good; out = null; eq(a.updateKarigarProfile(k.id, {name:'New Name', phone:'', skills:'', note:''}, function(msg){ out = msg; }), ''); eq(out, ''); eq(k.name, 'New Name');
+  var sheet = null; a.kgForm = function(o){ sheet = o; }; a.kg3EditDetails(k.id); a.saveToCloud = function(cb){ cb(new Error('net')); }; var r = null; sheet.onSubmit({name:'Third', phone:'', skills:'', note:''}, function(err){ r = err || 'ok'; }); ok(r && r !== 'ok', 'the sheet shows the error'); eq(k.name, 'New Name');
+});
+test('R19 A3: a failed reopen keeps the job keys in their old order; signs use one glyph', function(){
+  var a = fresh('owner'); var k = lk(a, 'Ord', '150'); trust(a, k); var j = labJob(a, k); receiptV(a, j, {gross:'5', purity:'92', agreed:'92'}); ok(!closeCarry(a, j).err);
+  var before = Object.keys(j).join(','); var good = a.saveToCloud; a.saveToCloud = function(cb){ cb(new Error('net')); };
+  ok(call(function(cb){ a.kgReopenJob(j.id, cb, {}); }).err); a.saveToCloud = good; eq(Object.keys(j).join(','), before, 'same key order'); eq(j.status, 'closed'); ok(j.earnings && j.earnings.labourPaise === 75000);
+  eq(a.kgSigned(-500, a.kgFmtRs), '-₹5'); eq(a.kgSigned(500, a.kgFmtRs), '+₹5'); eq(a.kgSigned(-500, a.kgFmtG), '-' + a.kgFmtG(500)); eq(a.kgFmtRs(-500), '-₹5', 'one plain minus everywhere');
+});
+test('R19 A4: a manager may cancel an empty job only if THEY made it, matched by e-mail when there is one, not by display name', function(){
+  var a = fresh('owner'); var k = pk(a, 'Who'); a.SAAS.user = {name:'Sam', email:'sam1@example.com', role:'manager'};
+  var j = pjob(a, k); eq(j.createdWho, 'sam1@example.com');
+  a.SAAS.user = {name:'Sam', email:'sam2@example.com', role:'manager'}; ok(call(function(cb){ a.kgCancelJob(j.id, 'not my job', cb); }).err, 'another Sam may not');
+  a.SAAS.user = {name:'Sam', email:'SAM1@example.com', role:'manager'}; ok(!call(function(cb){ a.kgCancelJob(j.id, 'my own mistake', cb); }).err, 'the same account may (case-insensitive)');
+  var old = pjob(a, k); delete old.createdWho; old.createdBy = 'Sam'; a.SAAS.user = {name:'Sam', email:'sam1@example.com', role:'manager'}; ok(!call(function(cb){ a.kgCancelJob(old.id, 'older job, same name', cb); }).err, 'a job from before this round falls back to the name');
+});
+test('R19 A12: a Save that finishes after its sheet is gone does not throw', function(){
+  var e = sheetEnv(); var a = e.a; var done = null;
+  a.kgForm({title:'T', fields:[{id:'amt', label:'Amount', type:'text', value:''}], onSubmit:function(v, fin){ done = fin; }});
+  e.reg['kg2-save'].onclick(); var real = a.document.getElementById; a.document.getElementById = function(id){ return (id === 'kg2-err' || id === 'kg2-save') ? null : real.call(a.document, id); };
+  var threw = null; try{ done(new Error('late')); done(null); }catch(x){ threw = x; } eq(threw, null, threw && threw.message);
+});
+test('R19 A13: a manager never sees a salary amount (Terms tab, profile line); the owner does', function(){
+  var a = fresh('owner'); var s = pk(a, 'Salaried', 'salary');
+  ok(/30,000/.test(a.kgAgreementText(a.kgAgreementFor(s.id, a.kgToday()))), 'owner sees it');
+  a.SAAS.user.role = 'manager'; var t = a.kgAgreementText(a.kgAgreementFor(s.id, a.kgToday())); ok(!/30,000|monthly/.test(t), t); ok(/Salary/.test(t));
+  ok(a.kg2KarigarsHtml().indexOf('30,000') === -1, 'Terms tab'); ok(a.kg3ProfileHtml(s.id).indexOf('30,000') === -1, 'profile'); ok(a.kg3RowsHtml().indexOf('30,000') === -1, 'list');
+});
+
+console.log('\nKarigar round 19 B - statement tiles, close sheet, receive sheet, job page, history, tab switch');
+test('R19 B5: statement tiles never leave one alone; dates cannot push past the gutter', function(){
+  var a = fresh('owner'); var k = pk(a, 'Tiles'); a._kg2.stFrom = '2000-01-01'; a._kg2.stTo = '2999-12-31';
+  function shape(metal){ a._kg2.stMetal = metal; var h = a.kg3StatementHtml(k.id), tl = h.match(/class="kg2-kpi ?(wide)?"/g) || []; var wide = tl.filter(function(x){ return /wide/.test(x); }).length; return {n:tl.length, wide:wide}; }
+  var g = shape('gold'); ok(g.n >= 3, 'tiles were counted: ' + g.n); eq((g.n - g.wide) % 2, 0, 'gold half tiles even'); var r = shape('rupees'); eq((r.n - r.wide) % 2, 0, 'rupees half tiles even');
+  var list = a.kg3KpiHtml([['Opening', '0'], ['Given', '1'], ['Returned', '1'], ['Closing', '0']]); eq((list.match(/kg2-kpi wide/g) || []).length, 0, '2x2 when Closing makes it even');
+  var five = a.kg3KpiHtml([['Opening', '0'], ['Given', '1'], ['Returned', '1'], ['Other', '1'], ['Closing', '0']]); eq((five.match(/kg2-kpi wide/g) || []).length, 1, 'Closing is the full last row');
+  var css = readIndex(); ok(/\.kgx-dates > \*\{min-width:0;\}/.test(css) && /\.kgx-dates input\[type=date\]\{min-width:0;max-width:100%;\}/.test(css), 'date inputs may shrink'); ok(/@media \(max-width:360px\)\{\.kgx-dates\{grid-template-columns:1fr;\}\}/.test(css), 'dates stack on a very small phone');
+});
+test('R19 B6: the Close sheet summary is compact: one posted line, one small line, short choices, no tall header', function(){
+  var a = fresh('owner'); var k = pk(a, 'Compact'); trust(a, k); var j = pjob(a, k); issueV(a, j, '10', '92'); var sheet = null; a.kgForm = function(o){ sheet = o; }; a.kg3Close(j.id);
+  var pv = sheet.preview({}); eq((pv.match(/<div/g) || []).length, 2, 'two blocks only: ' + pv); ok(/He returns to you/.test(pv) && /Given 9\.200 g/.test(pv));
+  sheet.fields[0].options.forEach(function(o){ ok(String(o[2] || '').length <= 60, o[0] + ' description is one short line'); });
+  var css = readIndex(); ok(/\.kgx-posted\{padding:8px 12px;\}/.test(css) && /\.kg2-prev:empty,\.kg2-err:empty\{display:none;\}/.test(css), 'compact box and no blank band');
+});
+test('R19 B7: Receive sheet - five essentials first, the rest under More details; job page buttons; pages share the profile look', function(){
+  var a = fresh('owner'); var k = pk(a, 'Rcv'); var j = pjob(a, k); var sheet = null; a.kgForm = function(o){ sheet = o; }; a.kg3Receive(j.id);
+  var first = sheet.fields.filter(function(f){ return !f.more; }).map(function(f){ return f.id; }), more = sheet.fields.filter(function(f){ return f.more; }).map(function(f){ return f.id; });
+  eq(sheet.doneToast, '\u2713 Receipt recorded', 'a real tick, not build-script text'); eq(first.join(','), 'stage,gross,chip,purity,confirmed,stone,piece'); eq(more.join(','), 'unit,stoneMode,agreed,qty,tag');
+  var did = null; issueV(a, j, '30', '', '', '999'); sheet.onSubmit({stage:'', gross:'5', unit:'g', stone:'', stoneMode:'A', purity:'92', chip:false, agreed:'92', piece:'ring', qty:'1', tag:'', confirmed:true, opId:op()}, function(err){ did = err || 'ok'; }); eq(did, 'ok', did && did.message);
+  var h = a.kg3JobHtml(j); a._kg2.more = ''; ok(/btn btn-sm btn-gold" onclick="kg3Issue/.test(h) && /btn btn-sm kgx-outline" onclick="kg3Receive/.test(h), 'Give metal filled, Receive outlined');
+  var css = readIndex(); ok(/#kg2-root \.kg2-head > \.kg2-title\{font-size:28px/.test(css), 'Terms, Reports, Salary titles'); ok(/#kg2-root \.kg2-right\{flex-wrap:nowrap;\}/.test(css), 'Slip / Reverse stay in one line');
+});
+test('R19 B9/B10: the pay button is "Pay" (still named Record payment for screen readers); History shows jobs closed and the average days', function(){
+  var a = fresh('owner'); var k = lk(a, 'Hist', ''); trust(a, k); var h = a.kg3ProfileHtml(k.id); ok(/aria-label="Record payment"[^>]*>Pay<\/button>/.test(h), 'short label'); ok(h.indexOf('History') === -1, 'no History block before a job closed');
+  var j = pjob(a, k); issueV(a, j, '10', '92'); j.createdAt = '2026-11-01T10:00:00.000Z'; ok(!closeCarry(a, j).err); a.kgFindJob(j.id).closedAt = '2026-11-04T10:00:00.000Z';
+  h = a.kg3ProfileHtml(k.id); ok(/1 job closed &middot; average 3 days/.test(h), h.slice(h.indexOf('History') - 30, h.indexOf('History') + 120));
+});
+test('R19 B11: leaving the Karigars tab hands back its history entries; coming back puts them back', function(){
+  var e = sheetEnv(), a = e.a, st = 0, pend = []; a.history = {pushState:function(){ st++; }, back:function(){ pend.push(1); }, go:function(n){ pend.push(-n); }}; a.renderKgV2 = function(){};
+  var k = pk(a, 'Tab'); a._kg2.seen = true; a.kg3Open(k.id); eq(st, 1); a.kgTabChanged('dashboard'); eq(pend.length, 1, 'the entry is handed back'); pend.shift(); st -= 1; a.kgPopHandler(); eq(st, 0);
+  a.kgTabChanged('karigars'); eq(st, 1, 'back on the tab: the profile owns an entry again'); eq(a._kg2.view, 'profile');
 });
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }
