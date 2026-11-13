@@ -77,6 +77,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-13 (two-hundred-and-twenty-first entry) - Claude Code - TO-CLAUDE-CODE-R25: batch73 merged and staged; DEPLOY NOT DONE (blocked)
+
+- Gate on the branch before merging: karigar-v2 339/0, regression 494/0, ledger client 91/0. `sw.js` CACHE `jewelos-v28`, `APP_BUILD` 73.
+- Merged `claude/r23-karigar-qa` into `main` in `E:\jewelos` as a fast-forward (`26c64e2` -> `37659bb`). No force, nothing pushed. Not committed: `TO-CLAUDE-CODE*.md`, `design-karigar-demo`.
+- `node build-cf-deploy-stage.js batch73` staged 20 files; `npx wrangler deploy --dry-run` clean.
+- `npx wrangler deploy` was DENIED by the Claude Code permission classifier, so batch73 is NOT live and `jewelos-deploy-verifier` has not run. Live is still batch72.
+- Rollback target if batch73 is deployed and goes wrong: batch72 commit `e489ea9` (tag `batch72-live`).
+- No migration, no key rotation, no real-shop login. Nothing deleted.
+→ FOR COWORK: nothing until Tanish runs or allows the deploy; then run the live verifier and the phone checks on shop `3720af09` (build 73; profile > job > Home > Karigars > Back lands on profile; New job with weight only; Close sheet labour preview).
+
 ### 2026-11-13 (two-hundred-and-twentieth entry) - Claude Code - TO-CLAUDE-CODE-R24: Back after tab round trip, statement column, checkbox look, Close panels, batch73 bump (branch `claude/r23-karigar-qa`)
 
 - DONE 1, 3, 4, 5, 6. SKIPPED 2. (1) `kgTabChanged` now remembers the stack when he leaves the tab and restores it on return, so Back from a job or statement goes to the profile, then the list. Cowork's scenarios A/A2/B/C/C2/E/E2 and the 144-combo matrix are not in the repo, so I could not run them; I added one unit test (scenario D: job, statement and profile x Home/Stock/Sale/Day Book, Back to baseline) on the existing history model. Please re-run your own matrix. (2) Reload stale history entry: skipped, not cheap. A reload keeps the old entries but resets the screen, and a popstate cannot tell a stale entry from a real one without risking a Back that leaves the app. (3) Statement header, metal select and dates now sit in the same 720 px column (`.kgx-stcol`). (4) Checkbox: border and box removed, 44 px hit area invisible, tick left-aligned to the gutter. (5) 12 px gap between the two cream Close panels; "He returns it now" now shows "Labour posts when you close" to the owner. (6) `APP_BUILD` 73, `sw.js` `jewelos-v28`, `docs/CHANGES-batch73.md`. NOT deployed.
