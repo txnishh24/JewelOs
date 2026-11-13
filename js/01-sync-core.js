@@ -1572,7 +1572,8 @@ function saveEditBill(){
   var t = r.t;
   // R26: dropping items while keeping the same rupee discount raises its percent; judge the percent, not just the rupees
   var _bef = JSON.parse(_beforeEdit); var _befBase = calcSaleTotals(_bef).sub, _nowBase = calcSaleTotals(sale).sub;
-  var _pctUp = _nowBase > 0 && (_prevDisc / (_befBase || 1)) < (parseFloat(sale.discount)||0) / _nowBase - 1e-9;
+  // only when the rupee discount did not go DOWN: a lowered discount is never refused
+  var _pctUp = _nowBase > 0 && (parseFloat(sale.discount)||0) >= _prevDisc && (_prevDisc / (_befBase || 1)) < (parseFloat(sale.discount)||0) / _nowBase - 1e-9;
   var _dp = discountProblem(sale, _pctUp ? null : _prevDisc);   // R26: cap by role, and never above the bill total
   if(_dp){
     S.sales[S.sales.indexOf(sale)] = JSON.parse(_beforeEdit);

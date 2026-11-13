@@ -561,7 +561,7 @@ var DB_ERR_TEXT = {
   'not-allowed':'only the owner or a manager can close a day',
   'owner-only':'only the owner can do this',
   'not-closed':'that day is not closed',
-  'adjustments-posted':'a correction for this day was already posted to a later day, so reopening would count it twice'
+  'adjustments-posted':'a correction for this day was already posted to a later day, so reopening would count it twice. Use Correct count or add a Day Book entry instead'
 };
 function dbErrText(err){
   var m = err && err.message;
