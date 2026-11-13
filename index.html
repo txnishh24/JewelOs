@@ -3464,7 +3464,7 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
     <div class="card">
       <div class="card-title"><span><span data-icon="download"></span> Backup &amp; Export</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-        <button onclick="exportFullBackup()" class="btn btn-gold">⬇ JSON Backup</button>
+        <button id="btn-json-backup" onclick="exportFullBackup()" class="btn btn-gold">⬇ JSON Backup</button>
         <button onclick="exportCSV()" class="btn"><span data-icon="chart"></span> Export CSV</button>
         <button onclick="showPdfReport()" class="btn-pdf" style="padding:8px 14px;font-size:12px;"><span data-icon="printer"></span> PDF Report</button>
       </div>

@@ -291,7 +291,7 @@ function dbAutoLines(dateKey){
     var base = (e.type === 'REVERSAL') ? _kgById[e.reversesId] : e;
     if(!base || (base.type !== 'ADVANCE' && base.type !== 'PAYMENT')) return;
     if(dbDayKey(e.date || e.ts) !== dateKey || !(base.amountPaise > 0)) return;
-    var rev = (e.type === 'REVERSAL'), kname = (findKarigar(base.karigarId) || {}).name || '';
+    var rev = (e.type === 'REVERSAL'), kname = (dbSeesKarigarNames() ? (findKarigar(base.karigarId) || {}).name : '') || '';   // the amount stays (the cash tally needs it); a manager or staff member does not see whose salary or advance it is
     var kdir = rev ? 'in' : 'out';
     var kcat = rev ? 'karigar-salary-reversal' : 'karigar-salary';
     var klabel = 'Karigar ' + (base.type === 'ADVANCE' ? 'advance' : 'salary') + (kname ? ' - ' + kname : '') + (rev ? ' (reversed)' : '');
@@ -310,7 +310,7 @@ function dbAutoLines(dateKey){
     var base = (e.type === 'reversal') ? _kpById[e.reversesId] : e;
     if(!base || base.type !== 'cash' || base.dbPost !== true || !(parseFloat(base.amount) > 0)) return;
     if(dbDayKey(e.date || e.ts) !== dateKey) return;
-    var krev = (e.type === 'reversal'), kn = (findKarigar(base.karigarId) || {}).name || '';
+    var krev = (e.type === 'reversal'), kn = ((base.advance && !dbSeesKarigarNames()) ? '' : (findKarigar(base.karigarId) || {}).name) || '';   // order-work payments keep the name; an advance does not for a manager or staff member
     var kmode2 = base.mode || 'cash', kamt = dbRound(parseFloat(base.amount));
     var kl = (base.advance ? 'Karigar advance' : 'Karigar payment') + (kn ? ' - ' + kn : '') + (krev ? ' (reversed)' : '') + (!dbIsCash(kmode2) ? ' (' + kmode2 + ')' : '');
     var kline = {dir:(krev ? 'in' : 'out'), amount:kamt, cat:(krev ? 'karigar-payment-reversal' : 'karigar-payment'), label:kl, src:'karigar', srcId:base.karigarId, ref:e.id};
@@ -321,6 +321,8 @@ function dbAutoLines(dateKey){
   return lines;
 }
 
+// Only the owner sees which karigar a salary or advance line belongs to.
+function dbSeesKarigarNames(){ return !!(SAAS && SAAS.user && SAAS.user.role === 'owner'); }
 function dbAutoTotals(dateKey){
   var lines = dbAutoLines(dateKey);
   var totals = {in:0, out:0, unknownCount:0, nonCashCount:0, nonCashAmount:0};

@@ -3301,5 +3301,142 @@ test('R20 fuzz: job karigar + two stage karigars (one with no rate), random rece
   a.SAAS.user = {name:'Mgr', email:'m@example.com', role:'manager'}; [A, B, C].forEach(function(k){ eq(a.kgAccount(k.id).rupees.payablePaise, 0, 'manager sees no total for ' + k.name); });
   a.SAAS.user = {name:'Owner', email:'o@example.com', role:'owner'};
 });
+
+console.log('\nKarigar round 21 - managers and staff see no rupee leaks (audit, Day Book, legacy job page, backup, helpers, sheets); reopen wording; in-flight duplicates');
+
+var AMT = /(₹|Rs\.?)\s?-?\d/;
+function money(a){   // an owner builds a shop with every kind of karigar money
+  var k = lk(a, 'Leaky', '150'); trust(a, k); var j = labJob(a, k); receiptV(a, j, {gross:'8', purity:'92', agreed:'92'}); ok(!closeCarry(a, j).err);
+  ok(!call(function(cb){ a.kgSetTerms(k.id, {kind:'wastage', points:'4', labourRate:'150', labourBase:'net'}, cb); }).err);
+  ok(!call(function(cb){ a.kgAddSalary({type:'PAYMENT', opId:op(), karigarId:k.id, amountPaise:10000, mode:'cash', note:''}, cb); }).err);
+  ok(!call(function(cb){ a.kgAddSalary({type:'ADVANCE', opId:op(), karigarId:k.id, amountPaise:250000, mode:'cash', note:'advance for diwali'}, cb); }).err);
+  var s = lk(a, 'Salaried', '', 'salary');
+  orderStage(a, k, 2000); ok(!call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', '500', 'adv', op(), cb, {advance:true, reason:'festival advance', confirmed:true, mode:'UPI', dbPost:true}); }).err);
+  ok(!call(function(cb){ a.kg3PayOrderSave(k.id, 'cash', '300', 'part', op(), cb, {mode:'cash', dbPost:true}); }).err);
+  return {k:k, s:s, j:j};
+}
+test('R21 A1: the Audit Trail shows a manager the action only, never an amount, a rate or a salary; the owner still sees all', function(){
+  var a = fresh('owner'); var m = money(a); var el = function(){ return a._els['audit-log-list'].innerHTML; };
+  a.renderAuditLog(); var own = el(); ok(AMT.test(own), 'the owner sees amounts'); ok(/labour/i.test(own));
+  a.SAAS.user = {name:'Mgr', email:'m@example.com', role:'manager'}; a.renderAuditLog(); var mg = el();
+  ok(!AMT.test(mg), 'no amount for a manager: ' + (mg.match(/.{30}(₹|Rs)\s?\d.{20}/) || [''])[0]); ok(!/\/g on net/.test(mg) && !/monthly/i.test(mg), 'no rate, no salary terms');
+  ok(/Labour posted/.test(mg) && /Salary payment/.test(mg) && /Advance given/.test(mg), 'the action words stay');
+  ok(!/title="[^"]*(₹|Rs)\s?\d/.test(mg), 'and not in the title attribute');
+  a.SAAS.user = {name:'Staff', role:'staff'}; a.renderAuditLog(); ok(!AMT.test(el()), 'staff too');
+});
+test('R21 A1b: any other karigar audit note has its rupee amounts stripped for a manager (the fallback really matches)', function(){
+  var a = fresh('owner'); a.S.auditLog = [{id:'x1', action:'kg_loss', entity:'kgJob', entityId:'j1', user:'Own', role:'owner', ts:new Date().toISOString(), note:'Loss bill KJ-0001 " + "\u20b91,400.50 and -\u20b9250 for ring Rs 5'}];
+  a.SAAS.user = {name:'Mgr', role:'manager'}; a.renderAuditLog(); var h = a._els['audit-log-list'].innerHTML; ok(!AMT.test(h), h); ok(/Loss bill KJ-0001/.test(h) && /for ring/.test(h), 'the words stay: ' + h);
+  a.SAAS.user = {name:'Own', role:'owner'}; a.renderAuditLog(); ok(/\u20b91,400\.50/.test(a._els['audit-log-list'].innerHTML), 'owner sees it');
+});
+test('R21 A2: the Day Book keeps the amount but a manager or staff does not see the karigar NAME on salary and advance lines', function(){
+  var a = fresh('owner'); var m = money(a); var d = a.kgToday();
+  function labels(){ return a.dbAutoLines(d).filter(function(l){ return l.src === 'karigar'; }); }
+  var own = labels(); ok(own.length >= 3, 'lines exist: ' + own.length); ok(own.some(function(l){ return /Karigar salary - Leaky/.test(l.label); }), 'owner: salary line has the name'); ok(own.some(function(l){ return /Karigar advance - Leaky/.test(l.label); }), 'owner: advance names him');
+  ['manager', 'staff'].forEach(function(role){
+    a.SAAS.user = {name:'X', email:'x@example.com', role:role}; var l = labels();
+    var sal = l.filter(function(x){ return x.cat === 'karigar-salary'; })[0], adv = l.filter(function(x){ return /advance/i.test(x.label); });
+    eq(sal.label, 'Karigar salary', role); eq(sal.amount, 100, 'the amount stays for the cash tally'); ok(adv.length >= 1 && adv.every(function(x){ return !/Leaky/.test(x.label) && x.amount > 0; }), role + ' advance lines have no name');
+    var pay = l.filter(function(x){ return x.cat === 'karigar-payment' && !/advance/i.test(x.label); }); ok(pay.length === 1 && /Karigar payment - Leaky/.test(pay[0].label), role + ': order payment lines keep today\'s text');
+  });
+});
+test('R21 A3: the legacy closed-job page hides the labour rupees from a manager', function(){
+  var a = fresh('owner'); var k = wastageKarigar(a, 'Leg', {kind:'wastage', wastagePct:'4', labourRate:'9.6', labourBase:'net'});
+  var j = job(a, k); metal(a, j, 'ISSUE', 100000, '999'); receipt(a, j, 100000, 'other', {pct:'96'}); ok(!call(function(cb){ a.kgCloseJob(j.id, cb); }).err);
+  ok(/labour ₹/.test(a.kg2JobHtml(j)), 'owner sees it'); a.SAAS.user = {name:'Mgr', role:'manager'}; var h = a.kg2JobHtml(j); ok(!AMT.test(h), 'manager: ' + (h.match(/.{20}labour.{30}/) || [''])[0]);
+});
+test('R21 A4: the JSON backup is owner-only: the button is hidden and the function refuses', function(){
+  var a = fresh('owner'); var made = 0, said = ''; a.toast = function(m){ said = m; }; var real = a.document.createElement; a.document.createElement = function(t){ made++; return real.call(a.document, t); };
+  a.SAAS.user = {name:'Mgr', role:'manager'}; a.exportFullBackup(); ok(/owner/i.test(said), said); eq(made, 0, 'nothing was built or downloaded'); a.SAAS.user = {name:'Staff', role:'staff'}; said = ''; a.exportFullBackup(); ok(/owner/i.test(said));
+  ok(typeof a.applyBackupButtonRole === 'function'); var btn = a.document.getElementById('btn-json-backup'); btn.style.display = '';
+  a.SAAS.user = {name:'Mgr', role:'manager'}; a.applyBackupButtonRole(); eq(btn.style.display, 'none'); a.SAAS.user = {name:'Own', role:'owner'}; a.applyBackupButtonRole(); eq(btn.style.display, '');
+});
+test('R21 A5: helpers and sheet openers give a manager no rupee data and open nothing', function(){
+  var a = fresh('owner'); var m = money(a); var k = m.k; var asOwner = {
+    bal:a.kgSalaryBalance(k.id).payable, cash:a.kgOrderWork(k.id).owed.cash, owedCash:a.karigarOwed(k.id).cash, rows:a.kgRupeeStatementRange(k.id, '2000-01-01', '2999-12-31').rows.length, pay:a.kgOrderPayRows(k.id, '2000-01-01', '2999-12-31').rows.length, chk:a.kg3PayOrderCheck(k.id, 'cash', '10', true), prev:a.kg3PayOrderPreviewText(k.id, 'cash', '10', true)};
+  ok(asOwner.bal !== 0 && asOwner.cash !== 0 && asOwner.owedCash !== 0 && asOwner.rows > 0 && asOwner.pay > 0 && asOwner.chk.amount === 10 && asOwner.prev.length > 0, 'the owner gets real numbers: ' + JSON.stringify(asOwner));
+  a.SAAS.user = {name:'Mgr', role:'manager'};
+  eq(a.kgSalaryBalance(k.id).payable, 0); eq(a.kgSalaryBalance(k.id).accrued, 0); eq(a.kgRupeeStatementRange(k.id, '2000-01-01', '2999-12-31').rows.length, 0); eq(a.kgRupeeStatementRange(k.id, '2000-01-01', '2999-12-31').closingPaise, 0);
+  eq(a.kgOrderWork(k.id).owed.cash, 0); eq(a.karigarOwed(k.id).cash, 0); var pr = a.kgOrderPayRows(k.id, '2000-01-01', '2999-12-31'); eq(pr.rows.length, 0); eq(pr.opening, 0);
+  eq(a.kgReopenInfo(m.j.id).labourPaise, 0); eq(a.kgReopenInfo(m.j.id).needsConfirm, false); eq(a.kg3PayOrderPreviewText(k.id, 'cash', '10', true), ''); ok(a.kg3PayOrderCheck(k.id, 'cash', '10', true).error, 'no amount for a manager');
+  var opened = 0, said = ''; a.kgForm = function(){ opened++; }; a.toast = function(t){ said = t; };
+  [['kg2Terms', [k.id]], ['kg2Reopen', [m.j.id]], ['kg3PayOrder', [k.id]], ['kg3PayOrder', [k.id, 'advance']], ['kg2Money', [k.id, 'PAYMENT']], ['kg2Accrue', [m.s.id]], ['kg3RupeeOpening', [k.id]], ['kg3PayOrderReverseSheet', ['x']]].forEach(function(c){ said = ''; a[c[0]].apply(a, c[1]); ok(/owner/i.test(said), c[0] + ' says owner only: ' + said); });
+  eq(opened, 0, 'no sheet opened for a manager');
+  ok(a.kg3ProfileHtml(k.id).indexOf('Fine gold with him') !== -1, 'gold and job screens still work for a manager'); var s2 = null; a.kgForm = function(o){ s2 = o; }; a.kg3NewJob(k.id); ok(s2 && s2.title === 'New job', 'a manager can still start a job');
+  a.SAAS.user = {name:'Own', role:'owner'}; a.kgForm = function(o){ s2 = o; }; s2 = null; a.kg2Terms(k.id); ok(s2, 'the owner still opens Terms');
+});
+test('R21 A6: a manager reading every reachable screen, its attributes, share text and exports finds no rupee amount; the owner finds them', function(){
+  var a = fresh('owner'); var m = money(a); var k = m.k; a._kg2.stFrom = '2000-01-01'; a._kg2.stTo = '2999-12-31';
+  function sweep(){
+    var out = [], sheets = []; var keep = a.kgForm; a.kgForm = function(o){ sheets.push(o); };
+    ['gold', 'silver', 'rupees'].forEach(function(mt){ a._kg2.stMetal = mt; out.push(a.kg3StatementHtml(k.id)); out.push(a.kg3StatementText(k.id, mt, '2000-01-01', '2999-12-31')); });
+    out.push(a.kg3PeopleHtml(), a.kg3RowsHtml(), a.kg3ProfileHtml(k.id), a.kg3JobHtml(m.j), a.kg2KarigarsHtml(), a.kg2ReportsHtml(), a.kg2SalaryHtml(), a.kg3SlipText ? 'x' : '', a.kg2TodayHtml(), a.kg2JobsHtml(), a.kg2KhataHtml());
+    a._kg2.more = 'p:' + k.id; out.push(a.kg3ProfileHtml(k.id)); a._kg2.more = '';
+    a.kg3NewJob(k.id); a.kg3Close(m.j.id); a.kg3Receive(m.j.id); a.kg3Issue(m.j.id); a.kg3Scrap(m.j.id); a.kg3AddKarigar(); a.kg3EditDetails(k.id); a.kg3Count(k.id); a.kg3Carry(k.id);
+    sheets.forEach(function(o){ out.push(o.title, o.submitLabel || '', o.preview ? o.preview({}) : '', o.preview ? o.preview({wt:'10', purity:'92', metal:'gold22'}) : ''); (o.fields || []).forEach(function(f){ out.push(f.label || '', f.hint || '', f.html || '', String(f.value || ''), (f.options || []).map(function(x){ return x.join(' '); }).join(' ')); }); });
+    a.kgForm = keep; a.renderAuditLog(); out.push(a._els['audit-log-list'].innerHTML);
+    a.dbAutoLines(a.kgToday()).forEach(function(l){ if(l.src === 'karigar') out.push(l.label); });
+    return out.join('\n');
+  }
+  var own = sweep(); ok(AMT.test(own), 'the owner sees amounts');
+  a.SAAS.user = {name:'Mgr', email:'m@example.com', role:'manager'}; var mg = sweep();
+  var leak = (mg.match(/.{40}(₹|Rs\.?)\s?-?\d.{20}/) || [''])[0]; ok(!AMT.test(mg.replace(/Rs 10,000/g, '')), 'no rupee amount anywhere for a manager: ' + leak);
+  ok(!/owes the shop|you owe/i.test(mg), 'no owes text');
+});
+test('R21 B7: the reopen warning names the paying karigar\'s own labour, and a loss bill is called a bill', function(){
+  var a = fresh('owner'); var k1 = lk(a, 'R1', '150'), k2 = lk(a, 'R2', '80'); trust(a, k1); trust(a, k2);
+  var j = labJob(a, k1); var s2 = call(function(cb){ a.kgAddStage(j.id, 'Setting', k2.id, cb); }).v;
+  ok(!call(function(cb){ a.kgTransfer({jobId:j.id, fromStageId:'', toStageId:s2.id, wt:'10', purity:'', chip:'999', confirmed:true, opId:op()}, cb); }).err);
+  receiptV(a, j, {gross:'5', purity:'92', agreed:'92'}); receiptV(a, j, {gross:'7', purity:'92', agreed:'92'}, s2.id); ok(!closeCarry(a, j).err);
+  ok(!call(function(cb){ a.kgAddSalary({type:'PAYMENT', opId:op(), karigarId:k2.id, amountPaise:56000, mode:'cash', note:''}, cb); }).err);
+  var r = call(function(cb){ a.kgReopenJob(j.id, cb, {}); }); ok(r.err, 'warned'); ok(/₹560/.test(r.err.message) && !/₹1,310/.test(r.err.message), r.err.message); ok(/R2/.test(r.err.message), 'says which karigar');
+  var b = fresh('owner'); var k = lk(b, 'Bill', '100'); var jb = labJob(b, k, '', '10'); receiptV(b, jb, {gross:'5', purity:'92', agreed:'92'}); ok(!closeV(b, jb, {settle:'loss-cash', reason:'making loss billed', billText:'1400', opId:op()}).err);
+  var r2 = call(function(cb){ b.kgReopenJob(jb.id, cb, {}); }); ok(r2.err && /₹1,400 deducted by loss bill/.test(r2.err.message), r2.err && r2.err.message);
+});
+test('R21 B8: a second call with the same opId while the first save is in flight waits and hears the first call\'s real result (salary, close, terms, entries)', function(){
+  function twice(a, run1, run2){ var pending = []; var good = a.saveToCloud; a.saveToCloud = function(cb){ pending.push(cb); }; var r1 = {}, r2 = {}; run1(function(e){ r1.e = e; r1.done = true; }); run2(function(e){ r2.e = e; r2.done = true; }); a.saveToCloud = good; return {pending:pending, r1:r1, r2:r2}; }
+  var a = fresh('owner'); var k = lk(a, 'Fl', '100'); trust(a, k); var j = labJob(a, k); receiptV(a, j, {gross:'5', purity:'92', agreed:'92'});
+  var sid = op(), t = twice(a, function(d){ a.kgAddSalary({type:'ADVANCE', opId:sid, karigarId:k.id, amountPaise:5000, mode:'cash', note:'advance first'}, d); }, function(d){ a.kgAddSalary({type:'ADVANCE', opId:sid, karigarId:k.id, amountPaise:5000, mode:'cash', note:'advance first'}, d); });
+  eq(!!t.r2.done, false, 'salary: the second waits'); eq(t.pending.length, 1); t.pending[0](new Error('net')); ok(t.r1.e && t.r2.e, 'salary: both told it failed'); eq(a.S.kgSalary.length, 0);
+  var cid = op(), c = twice(a, function(d){ a.kgCloseJob(j.id, function(e){ d(e); }, {settle:'carry', opId:cid}); }, function(d){ a.kgCloseJob(j.id, function(e){ d(e); }, {settle:'carry', opId:cid}); });
+  eq(!!c.r2.done, false, 'close: the second waits'); c.pending[0](new Error('net')); ok(c.r1.e && c.r2.e, 'close: both told it failed'); eq(a.kgFindJob(j.id).status, 'open'); eq(labRows(a, j).length, 0);
+  var gid = op(), g = twice(a, function(d){ a.kgAddAgreement(k.id, {kind:'wastage', points:'4', labourRate:'120', labourBase:'net'}, a.kgToday(), gid, d); }, function(d){ a.kgAddAgreement(k.id, {kind:'wastage', points:'4', labourRate:'120', labourBase:'net'}, a.kgToday(), gid, d); });
+  eq(!!g.r2.done, false, 'terms: the second waits'); g.pending[0](new Error('net')); ok(g.r1.e && g.r2.e, 'terms: both told it failed');
+  var j2 = pjob(a, k); var eid = op(), mk = function(){ return a.kgBuildIssue(j2.id, '', {wt:'5', chip:'999', opId:eid}).entry; };
+  var en = twice(a, function(d){ a.kgAddEntries([mk()], d); }, function(d){ a.kgAddEntries([mk()], d); });
+  eq(!!en.r2.done, false, 'entries: the second waits'); en.pending[0](new Error('net')); ok(en.r1.e && en.r2.e, 'entries: both told it failed'); eq(a.S.kgLedger.filter(function(x){ return x.jobId === j2.id; }).length, 0);
+  var ok1 = twice(a, function(d){ a.kgAddSalary({type:'ADVANCE', opId:op(), karigarId:k.id, amountPaise:1000, mode:'cash', note:'advance ok'}, d); }, function(d){ d(null); }); ok1.pending[0](null); ok(ok1.r1.done && !ok1.r1.e, 'a good first save still reports success');
+});
+test('R21 B9: a manager doing gold issue / receipt / close inside a random run gets exactly the owner\'s gold ledger and labour rows; the rupee gates never block gold work', function(){
+  function run(role){
+    var a = fresh('owner'); var A = lk(a, 'MgA', '100'), B = lk(a, 'MgB', '60'); trust(a, A); trust(a, B); var seed = 13579246;
+    function rnd(n){ seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) % n; }
+    a.SAAS.user = {name:'X', email:'x@example.com', role:role}; var jobs = [], errs = 0;
+    for(var i = 0; i < 80; i++){
+      var o = rnd(5), open = jobs.filter(function(j){ return a.kgFindJob(j.id).status === 'open'; });
+      if(o === 0 || !open.length){ var j = pjob(a, rnd(2) ? A : B); issueV(a, j, '200', '', '', '999'); jobs.push(j); }
+      else if(o <= 2){ var oj = open[rnd(open.length)]; var b = a.kgBuildReceipt(oj.id, '', {gross:((1 + rnd(300)) / 1000 * 3).toFixed(3), purity:'92', agreed:'92', piece:'p', qty:'1', confirmed:true, opId:'mg-' + role + i}); if(b.entry){ var r = call(function(cb){ a.kgAddEntry(b.entry, cb); }); if(r.err) errs++; } }
+      else if(o === 3){ var r2 = closeCarry(a, open[rnd(open.length)]); if(r2.err) errs++; }
+      else { var b2 = a.kgBuildIssue(open[rnd(open.length)].id, '', {wt:'5', chip:'999', confirmed:true, opId:'mi-' + role + i}); if(b2.entry){ var r3 = call(function(cb){ a.kgAddEntry(b2.entry, cb); }); if(r3.err) errs++; } }
+    }
+    a.SAAS.user = {name:'Own', email:'o@example.com', role:'owner'};
+    return {errs:errs, gold:a.S.kgLedger.map(function(e){ return e.type + ':' + e.mg + ':' + (e.jobId ? a.S.kgJobs.map(function(x){ return x.id; }).indexOf(e.jobId) : ''); }).join('|'), closed:a.S.kgJobs.filter(function(j){ return j.status === 'closed'; }).length, lab:labRows(a).map(function(x){ return x.amountPaise; }).join('|')};
+  }
+  var o = run('owner'), m = run('manager');
+  ok(o.closed > 2 && o.gold.length > 50, 'the run did real work: closed ' + o.closed);
+  eq(m.errs, 0, 'the manager hit no error on gold work'); eq(m.closed, o.closed, 'same jobs closed'); eq(m.gold, o.gold, 'same gold ledger'); eq(m.lab, o.lab, 'same labour rows posted for the owner to see');
+});
+test('R21 B10: a throw inside the save of kgAddSalary / kgCloseJob / kgAddEntry reports the error and leaves the op id free, so a retry with the same id works', function(){
+  var a = fresh('owner'); var k = lk(a, 'Th', '100'); trust(a, k); var j = labJob(a, k); receiptV(a, j, {gross:'5', purity:'92', agreed:'92'}); var good = a.saveToCloud;
+  function boom(){ a.saveToCloud = function(){ throw new Error('boom'); }; }
+  var sid = op(), sal = {type:'ADVANCE', opId:sid, karigarId:k.id, amountPaise:5000, mode:'cash', note:'advance after boom'};
+  boom(); var r1 = call(function(cb){ a.kgAddSalary(sal, cb); }); ok(r1.err && /boom/.test(r1.err.message), 'salary: throw reported'); a.saveToCloud = good;
+  var r2 = call(function(cb){ a.kgAddSalary(sal, cb); }); ok(!r2.err, 'salary: retry runs, not stuck busy'); eq(a.S.kgSalary.filter(function(x){ return x.type === 'ADVANCE'; }).length, 1, 'recorded once');
+  var cid = op(); boom(); var c1 = call(function(cb){ a.kgCloseJob(j.id, cb, {settle:'carry', opId:cid}); }); ok(c1.err, 'close: throw reported'); a.saveToCloud = good;
+  var c2 = call(function(cb){ a.kgCloseJob(j.id, cb, {settle:'carry', opId:cid}); }); ok(!c2.err, 'close: retry works, not stuck busy'); eq(a.kgFindJob(j.id).status, 'closed'); eq(labRows(a, j).length, 1, 'one labour row, never two');
+  var j2 = pjob(a, k); var eid = op(), mk = function(){ return a.kgBuildIssue(j2.id, '', {wt:'5', chip:'999', opId:eid}).entry; };
+  boom(); var e1 = call(function(cb){ a.kgAddEntry(mk(), cb); }); ok(e1.err, 'entry: throw reported'); a.saveToCloud = good;
+  var e2 = call(function(cb){ a.kgAddEntry(mk(), cb); }); ok(!e2.err, 'entry: retry answers, not stuck busy'); eq(a.S.kgLedger.filter(function(x){ return x.jobId === j2.id; }).length, 1);
+});
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }

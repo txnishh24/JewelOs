@@ -1291,6 +1291,18 @@ document.addEventListener('keydown',function(e){
 // ===================================================================
 // --- AUDIT LOG RENDERER --------------------------------------------
 // ===================================================================
+// A manager or staff member reading the Audit Trail sees the karigar action, never its money: no amount, rate or salary term.
+var AUDIT_KG_WORDS = {kg_agreement:'Terms changed', kg_salary_payment:'Salary payment', kg_salary_advance:'Advance given', kg_salary_accrual:'Salary entry', kg_salary_deduction:'Deduction recorded',
+  kg_salary_opening:'Opening balance entered', kg_salary_reversal:'Salary entry reversed', kg_order_payment:'Payment (order work)', kg_order_advance:'Advance given', kg_order_payment_reverse:'Payment reversed'};
+function auditNoteFor(e){
+  var note = String(e.note || '');
+  if(SAAS.user && SAAS.user.role === 'owner') return note;
+  var act = String(e.action || '');
+  if(act.indexOf('kg_') !== 0) return note;
+  if(act === 'kg_job_close') return /labour/i.test(note) ? 'Labour posted' : 'Job closed';
+  if(AUDIT_KG_WORDS[act]) return AUDIT_KG_WORDS[act];
+  return note.replace(/[-\u2212]?(\u20b9|Rs\.?)\s?[\d,]+(\.[\d]+)?/g, '').replace(/\s{2,}/g, ' ').trim();   // any other karigar line: amounts stripped
+}
 function renderAuditLog() {
   var el = document.getElementById('audit-log-list');
   if(!el) return;
@@ -1325,7 +1337,7 @@ function renderAuditLog() {
       '<td style="padding:6px 8px;font-weight:600;color:var(--ink2);">'+escHtml(e.user||'-')+'<br><span style="font-size:var(--text-xs);color:var(--text3);">'+escHtml(e.role||'')+'</span></td>'+
       '<td style="padding:6px 8px;"><span style="background:'+color+'22;color:'+color+';padding:2px 8px;border-radius:100px;font-size:var(--text-xs);font-weight:700;text-transform:uppercase;">'+escHtml(e.action||'-')+'</span></td>'+
       '<td style="padding:6px 8px;color:var(--ink3);">'+escHtml(e.entity||'-')+'<br><span style="font-size:var(--text-xs);color:var(--text3);">'+escHtml(e.entityId||'')+'</span></td>'+
-      '<td style="padding:6px 8px;color:var(--ink3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+escHtml(e.note||'')+'">'+escHtml(e.note||'-')+'</td>'+
+      '<td style="padding:6px 8px;color:var(--ink3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+escHtml(auditNoteFor(e))+'">'+escHtml(auditNoteFor(e)||'-')+'</td>'+
     '</tr>';
   });
   html += '</tbody></table>';

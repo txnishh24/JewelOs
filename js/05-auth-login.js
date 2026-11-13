@@ -961,8 +961,11 @@ function saveRazorpayKey(){
 }
 
 // ── SETTINGS PANEL ───────────────────────────────────────────────────
+// The JSON Backup button (which holds every karigar amount) is the owner's.
+function applyBackupButtonRole(){ var b = document.getElementById('btn-json-backup'); if(b) b.style.display = isOwner() ? '' : 'none'; }
 function renderSettings(){
   if(!SAAS.shop || !SAAS.user) return;
+  applyBackupButtonRole();
 
   // Fill shop profile
   var sn = document.getElementById('set-shopname');
@@ -1173,6 +1176,7 @@ if(document.readyState==='loading'){
 
 // ── BACKUP & RESTORE ─────────────────────────────────────────────────
 function exportFullBackup(){
+  if(!isOwner()){ toast('Only the owner can download the JSON backup'); return; }   // it holds every salary, payment and labour rate
   if(!guardFeature('csvExport','basic')) return;
   // v9: previously this saved only products/sales/orders/girvi/rates/customers,
   // silently leaving out purchase bills, suppliers and stock-movement history —

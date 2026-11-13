@@ -1999,6 +1999,7 @@ function karigarOwed(karigarId){
     if(p.type === 'gold')   totals.gold   -= (parseFloat(p.amount)||0);
     if(p.type === 'silver') totals.silver -= (parseFloat(p.amount)||0);
   });
+  if(typeof SAAS !== 'undefined' && SAAS.user && SAAS.user.role !== 'owner') totals.cash = 0;   // a signed-in manager or staff member is given no rupee amounts (metal stays)
   return totals;
 }
 

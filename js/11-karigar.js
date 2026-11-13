@@ -192,6 +192,7 @@ function kgUser(){
   var u = (typeof SAAS !== 'undefined' && SAAS.user) ? SAAS.user : null;
   return u ? {name:(u.name || u.email || 'user'), role:(u.role || 'staff'), who:String(u.email || u.name || '').toLowerCase()} : {name:'system', role:'staff', who:''};
 }
+function kgIsOwner(){ return kgUser().role === 'owner'; }   // the one gate for every rupee amount in the Karigar code
 function kgRoleRank(role){ return role === 'owner' ? 3 : role === 'manager' ? 2 : role === 'staff' ? 1 : 0; }
 function kgCan(role, need){ return kgRoleRank(role) >= kgRoleRank(need); }
 
@@ -555,6 +556,7 @@ function kgDashboard(){
 
 function kgSalaryBalance(karigarId){
   var rev = {}, t = {accrued:0, deducted:0, advanced:0, paid:0};
+  if(!kgIsOwner()){ t.payable = 0; return t; }   // rupee totals are the owner's
   (S.kgSalary || []).forEach(function(e){ if(e.type === 'REVERSAL') rev[e.reversesId] = true; });
   (S.kgSalary || []).forEach(function(e){
     if(e.karigarId !== karigarId || e.type === 'REVERSAL' || rev[e.id]) return;
@@ -802,7 +804,8 @@ function kgAddEntryLedger(entry, done){
 }
 
 // done(err, entry, duplicate)
-function kgAddEntry(entry, done){
+function kgAddEntry(entry, done){ kgOnce(entry && entry.opId ? 'entry:' + entry.opId : '', done, function(d){ kgAddEntryNow(entry, d); }); }
+function kgAddEntryNow(entry, done){
   S.kgLedger = S.kgLedger || [];
   for(var i = 0; i < S.kgLedger.length; i++){
     if(S.kgLedger[i].opId === entry.opId){ done(null, S.kgLedger[i], true); return; }
@@ -845,7 +848,7 @@ function kgOnce(key, done, run){
   if(typeof key !== 'string' || !key) return run(done);
   if(_kgOnceBusy[key]){ _kgOnceBusy[key].push(done); return; }
   _kgOnceBusy[key] = [done];
-  function finish(){ var args = arguments, waiting = _kgOnceBusy[key] || []; delete _kgOnceBusy[key]; waiting.forEach(function(f){ f.apply(null, args); }); }
+  function finish(){ var args = arguments, waiting = _kgOnceBusy[key] || []; delete _kgOnceBusy[key]; waiting.forEach(function(f){ try{ f.apply(null, args); }catch(x){ try{ console.error(x); }catch(y){} } }); }   // one caller's throwing callback must not strand the others
   try{ run(finish); }catch(x){ finish(new Error('Could not save: ' + ((x && x.message) || x))); }   // a throw must never leave the key busy
 }
 function kgCreateJob(fields, opId, done){ kgOnce(opId ? 'job:' + opId : '', done, function(d){ kgCreateJobNow(fields, opId, d); }); }
@@ -916,7 +919,8 @@ function kgRestoreKeys(obj, snap){
   Object.keys(obj).forEach(function(k){ if(want.indexOf(k) === -1) want.push(k); });
   want.forEach(function(k){ var v = obj[k]; delete obj[k]; obj[k] = v; });
 }
-function kgCloseJob(jobId, done, opts){
+function kgCloseJob(jobId, done, opts){ kgOnce(opts && opts.opId ? 'close:' + opts.opId : '', done, function(d){ kgCloseJobNow(jobId, d, opts); }); }
+function kgCloseJobNow(jobId, done, opts){
   var job = kgFindJob(jobId), u = kgUser(), auditId = null, labourEntries = [], pre = null, jobSnap = null;
   if(job && opts && opts.opId && job.closeOpId === opts.opId) return done(null, job, true);   // a retry of a close that already went through
   kgTxn('job:' + jobId, function(){
@@ -985,23 +989,27 @@ function kgLiveLabourRows(job){
 }
 function kgReopenInfo(jobId){
   var job = kgFindJob(jobId);
-  if(!job) return {labourPaise:0, owesShopPaise:0, needsConfirm:false, why:''};
-  var rows = kgLiveLabourRows(job), labour = 0, owes = 0, mine = {}, why = '';
-  rows.forEach(function(x){ labour += x.amountPaise; mine[x.karigarId] = (mine[x.karigarId] || 0) + x.amountPaise; });
-  Object.keys(mine).forEach(function(kid){
+  if(!job || !kgIsOwner()) return {labourPaise:0, owesShopPaise:0, needsConfirm:false, why:''};
+  var rows = kgLiveLabourRows(job), labour = 0, owes = 0, mine = {}, order = [], why = '';
+  rows.forEach(function(x){ labour += x.amountPaise; if(mine[x.karigarId] === undefined){ mine[x.karigarId] = 0; order.push(x.karigarId); } mine[x.karigarId] += x.amountPaise; });
+  order.forEach(function(kid){
     var t = kgSalaryBalance(kid), after = t.payable - mine[kid];
     if(after < 0){
       owes += -after;
-      if(!why){   // say what really drew his balance down
-        var others = [];
+      if(!why){   // say what really drew HIS balance down, with HIS own labour amount
+        var bill = 0, manual = 0, others = [];
+        (S.kgSalary || []).forEach(function(x){ if(x.type === 'DEDUCTION' && x.karigarId === kid && !kgSalaryReversed(x.id)){ if(x.lossId) bill += x.amountPaise; else manual += x.amountPaise; } });
         if(t.advanced > 0) others.push(kgFmtRs(t.advanced) + ' advanced');
-        if(t.deducted > 0) others.push(kgFmtRs(t.deducted) + ' deducted');
-        why = (t.paid > 0 ? 'Labour of ' + kgFmtRs(labour) + ' was already paid' + (others.length ? ' (and ' + others.join(', ') + ')' : '') : 'Labour of ' + kgFmtRs(labour) + ' is on his account, and ' + (others.length ? others.join(', ') : 'money has already been taken against it'));
+        if(bill > 0) others.push(kgFmtRs(bill) + ' deducted by loss bill');
+        if(manual > 0) others.push(kgFmtRs(manual) + ' deducted');
+        var own = kgFmtRs(mine[kid]), who = (order.length > 1 ? kg3Name(kid) + ': ' : '');
+        why = who + (t.paid > 0 ? 'Labour of ' + own + ' was already paid' + (others.length ? ' (and ' + others.join(', ') + ')' : '') : 'Labour of ' + own + ' is on his account, and ' + (others.length ? others.join(', ') : 'money has already been taken against it'));
       }
     }
   });
   return {labourPaise:labour, owesShopPaise:owes, needsConfirm:(labour > 0 && owes > 0), why:why};
 }
+function kgSalaryReversed(id){ return (S.kgSalary || []).some(function(x){ return x.type === 'REVERSAL' && x.reversesId === id; }); }
 function kgReopenJob(jobId, done, opts){
   var job = kgFindJob(jobId), u = kgUser(), auditId = null, oldEarnings = null, reversals = [], jobSnap = null;
   kgTxn('job:' + jobId, function(){
@@ -1111,7 +1119,8 @@ function kgMirrorTerms(k, a){
   if(a.kind === 'wastage'){ k.wastageBp = a.wastageBp; k.fixedMg = a.fixedMg; k.labour = a.labour; k.wastagePoints = (a.wastagePoints != null ? a.wastagePoints : null); delete k.salary; }
   else { k.salary = a.salary; delete k.wastageBp; delete k.fixedMg; delete k.labour; delete k.wastagePoints; }
 }
-function kgAddAgreement(karigarId, terms, effectiveFrom, opId, done){
+function kgAddAgreement(karigarId, terms, effectiveFrom, opId, done){ kgOnce(opId ? 'agreement:' + opId : '', done, function(d){ kgAddAgreementNow(karigarId, terms, effectiveFrom, opId, d); }); }
+function kgAddAgreementNow(karigarId, terms, effectiveFrom, opId, done){
   S.kgAgreements = S.kgAgreements || [];
   for(var i = 0; i < S.kgAgreements.length; i++){
     if(S.kgAgreements[i].opId === opId){ done(null, S.kgAgreements[i], true); return; }
@@ -1142,7 +1151,8 @@ function kgAddAgreement(karigarId, terms, effectiveFrom, opId, done){
 }
 
 // entry: {type, karigarId, amountPaise?, period?, mode?, note?, reversesId?, reason?, opId}
-function kgAddSalary(entry, done){
+function kgAddSalary(entry, done){ kgOnce(entry && entry.opId ? 'salary:' + entry.opId : '', done, function(d){ kgAddSalaryNow(entry, d); }); }
+function kgAddSalaryNow(entry, done){
   S.kgSalary = S.kgSalary || [];
   for(var i = 0; i < S.kgSalary.length; i++){
     if(S.kgSalary[i].opId === entry.opId){ done(null, S.kgSalary[i], true); return; }
@@ -1500,7 +1510,8 @@ function kgPushValidated(list, u, undos){
   }
   return '';
 }
-function kgAddEntries(list, done){
+function kgAddEntries(list, done){ kgOnce(list && list.length && list.every(function(e){ return e && e.opId; }) ? 'entries:' + list.map(function(e){ return e.opId; }).join(',') : '', done, function(d){ kgAddEntriesNow(list, d); }); }
+function kgAddEntriesNow(list, done){
   S.kgLedger = S.kgLedger || [];
   if(!list || !list.length) return done(new Error('Nothing to save'), list, false);
   var live = 0;
@@ -1681,7 +1692,7 @@ function kgOrderWork(karigarId){
   if(typeof karigarMetalHeld !== 'function') return {held:{gold:0, silver:0}, owed:{cash:0, gold:0, silver:0}, queue:[], any:false};
   var held = karigarMetalHeld(karigarId), owed = karigarOwed(karigarId), queue = karigarQueue(karigarId);
   function rnd(x, unit){ var v = Math.round(x * unit) / unit; return v === 0 ? 0 : v; }   // -0 === 0, so a negative zero comes back as plain 0
-  owed = {cash:rnd(owed.cash, 100), gold:rnd(owed.gold, 1000), silver:rnd(owed.silver, 1000)};   // whole paise / mg: 0.7 + 0.1 - 0.8 is zero, not -1e-16
+  owed = {cash:(kgIsOwner() ? rnd(owed.cash, 100) : 0), gold:rnd(owed.gold, 1000), silver:rnd(owed.silver, 1000)};   // whole paise / mg: 0.7 + 0.1 - 0.8 is zero, not -1e-16
   return {held:held, owed:owed, queue:queue, any:(queue.length > 0 || held.gold > 0 || held.silver > 0 || owed.cash !== 0 || owed.gold !== 0 || owed.silver !== 0)};
 }
 // Order numbers (old way) where this job's karigars also have a stage: the one place two systems could confuse a person.
@@ -1711,6 +1722,7 @@ function kgSalaryDelta(e){
   return 0;
 }
 function kgRupeeStatementRange(karigarId, from, to){
+  if(!kgIsOwner()) return {karigarId:karigarId, from:from, to:to, openingPaise:0, closingPaise:0, rows:[]};
   var rows = [], before = 0, run, byId = {}, list = [];
   (S.kgSalary || []).forEach(function(e){ byId[e.id] = e; });
   (S.kgSalary || []).forEach(function(e){
@@ -2100,7 +2112,7 @@ function kg2JobHtml(job){
   '</div>';
   if(job.earnings) html += '<div class="kg2-note">Final at close: karigar keeps ' + kgFmtG(job.earnings.earnedFine) + ' fine' +
     (job.earnings.fixedFine ? ' (' + kgFmtG(job.earnings.percentFine) + ' percentage + ' + kgFmtG(job.earnings.fixedFine) + ' fixed)' : '') +
-    (job.earnings.labourPaise ? ' &middot; labour ' + kgFmtRs(job.earnings.labourPaise) + ' on ' + kgFmtG(job.earnings.labourBase === 'fine' ? job.earnings.fineMg : job.earnings.netMg) + ' ' + escHtml(job.earnings.labourBase) + ' weight' : '') + '</div>';
+    (job.earnings.labourPaise && kgIsOwner() ? ' &middot; labour ' + kgFmtRs(job.earnings.labourPaise) + ' on ' + kgFmtG(job.earnings.labourBase === 'fine' ? job.earnings.fineMg : job.earnings.netMg) + ' ' + escHtml(job.earnings.labourBase) + ' weight' : '') + '</div>';
   var kgQ = kgQueuedForJob(job.id);
   if(kgQ > 0) html += '<div class="kg2-note warn">' + kgQ + ' gold entr' + (kgQ === 1 ? 'y is' : 'ies are') + ' waiting for confirmation from the ledger. Do not enter ' + (kgQ === 1 ? 'it' : 'them') + ' again. ' + (kgQ === 1 ? 'It sends' : 'They send') + ' on their own when the phone is online.</div>';
   if(b.pendingLoss > 0) html += '<div class="kg2-note warn">A loss of ' + kgFmtG(b.pendingLoss) + ' fine is waiting for owner approval.</div>';
@@ -2523,11 +2535,12 @@ function kg2Close(jobId){
   go();
 }
 function kg2Reopen(jobId){
+  if(!kgIsOwner()){ toast('Only the owner can reopen a job'); return; }
   var ri = kgReopenInfo(jobId);
   if(ri.needsConfirm){
     kgForm({title:'Reopen this job?', submitLabel:'Reopen job', doneToast:'Job reopened',
       fields:[{id:'ok', label:'I understand: the labour is reversed and he will owe the shop ' + kgFmtRs(ri.owesShopPaise), type:'check'}],
-      preview:function(){ return 'Labour of <b>' + escHtml(kgFmtRs(ri.labourPaise)) + '</b> was already paid to him. Reopening reverses it, and he will owe the shop <b>' + escHtml(kgFmtRs(ri.owesShopPaise)) + '</b>.'; },
+      preview:function(){ return escHtml(ri.why) + '. Reopening reverses the labour, and he will owe the shop <b>' + escHtml(kgFmtRs(ri.owesShopPaise)) + '</b>.'; },
       onSubmit:function(v, fin){
         if(!v.ok) return kg2Err('Tick the box to confirm', fin);
         kgReopenJob(jobId, function(err){ fin(err); }, {confirmed:true});
@@ -2565,6 +2578,7 @@ function kg2NewJob(){
     }});
 }
 function kg2Terms(karigarId){
+  if(!kgIsOwner()){ toast('Only the owner can change compensation terms'); return; }
   var k = findKarigar(karigarId); if(!k) return;
   var cur = kgAgreementFor(karigarId, kgToday()) || k;
   var hist = kgAgreementHistory(karigarId).map(function(a){ return a.effectiveFrom + ': ' + kgAgreementText(a); }).join(' | ');
@@ -2588,6 +2602,7 @@ function kg2Terms(karigarId){
     }});
 }
 function kg2Accrue(karigarId){
+  if(!kgIsOwner()){ toast('Only the owner can use the salary register'); return; }
   var k = findKarigar(karigarId); if(!k || !k.salary) return;
   var daily = k.salary.mode === 'daily', now = kgToday();
   kgForm({title: daily ? 'Add working day(s)' : 'Add month salary', submitLabel:'Record', doneToast:'\u2713 Recorded',
@@ -2608,6 +2623,7 @@ function kg2Accrue(karigarId){
     }});
 }
 function kg2Money(karigarId, type){
+  if(!kgIsOwner()){ toast('Only the owner can use the salary register'); return; }
   var titles = {ADVANCE:'Record advance', PAYMENT:'Record payment', DEDUCTION:'Record deduction'};
   kgForm({title:titles[type], submitLabel:'Record', doneToast:'\u2713 Recorded',
     fields:[
@@ -3336,6 +3352,7 @@ function kg3OrderOwedText(type, n){
   return (Math.round(n * 1000) / 1000) + ' g ' + type;
 }
 function kg3PayOrderCheck(kid, type, text, advance){
+  if(!kgIsOwner()) return {error:'Only the owner can record a payment'};
   if(typeof type !== 'string') return {error:'Choose cash, gold or silver'};
   if(typeof text !== 'string' && typeof text !== 'number') return {error:'Enter the amount as a plain number'};
   if(!Object.prototype.hasOwnProperty.call(KG_PAY_UNITS, type)) return {error:'Choose cash, gold or silver'};
@@ -3417,6 +3434,7 @@ function kg3OrderAdvanceInfo(kid){
 }
 // The line under the pay sheet: what is owed, any advance already adjusted, and what this entry would do.
 function kg3PayOrderPreviewText(kid, type, text, advance){
+  if(!kgIsOwner()) return '';
   var ow = kgOrderWork(kid).owed, owed = ow[type] || 0, c = String(text || '').trim() === '' ? null : kg3PayOrderCheck(kid, type, text, advance === true);
   var html = (advance ? 'Now: <b>' + escHtml(kg3OrderOwedText(type, owed)) + '</b>' : (owed < 0 ? '<b>' + escHtml(kg3OrderOwedText(type, owed).replace(/^he/, 'He')) + '</b>' : 'Owed to him: <b>' + escHtml(kg3OrderOwedText(type, owed)) + '</b>'));
   var ai = type === 'cash' ? kg3OrderAdvanceInfo(kid) : null;
@@ -3451,6 +3469,7 @@ function kg3PayOrderReverseNow(paymentId, reason, opId, done){
   function(err){ done(err); });
 }
 function kg3PayOrderReverseSheet(paymentId){
+  if(!kgIsOwner()){ toast('Only the owner can reverse a payment'); return; }
   kgForm({title:'Reverse this payment', submitLabel:'Reverse', doneToast:'\u2713 Payment reversed',
     fields:[{id:'reason', label:'Reason (at least 5 letters)'}],
     onSubmit:function(v, fin){ kg3PayOrderReverse(paymentId, v.reason, v.opId, function(err){ fin(err); }); }});
@@ -3470,6 +3489,7 @@ function kg3PayOrderRecentHtml(kid){
   return html;
 }
 function kg3PayOrder(kid, startKind){
+  if(!kgIsOwner()){ toast('Only the owner can record a payment'); return; }
   var k = findKarigar(kid); if(!k) return;
   var ow = kgOrderWork(kid).owed, adv = (startKind === 'advance');
   // two sheets, so the title and the button always say what will happen: a payment for work done, or an advance
@@ -3649,6 +3669,7 @@ function kg3AddKarigar(){
 // Cash given to him for order work, as rows like the gold statement: a payment or advance is a row on its own day (+), a reversal is its own row on ITS day (-);
 // the original row is never relabelled, so a printed range never changes when something is reversed later. A record with no date counts in the opening (as it does in what is owed).
 function kgOrderPayRows(kid, from, to){
+  if(!kgIsOwner()) return {rows:[], opening:0, total:0, closing:0, openingText:'', totalText:'', closingText:''};
   var all = S.karigarPayments || [], byId = {}, list = [];
   all.forEach(function(x){ byId[x.id] = x; });
   function paise(x){ return Math.round((parseFloat(x.amount) || 0) * 100); }
@@ -3725,6 +3746,7 @@ function kg3Opening(kid){
     onSubmit:function(v, fin){ var p = kg3PuV(v); p.karigarId = kid; p.metal = v.metal; p.wt = v.wt; p.opId = v.opId; p.note = v.note; kgAddOpening(p, function(err){ fin(err); }); }});
 }
 function kg3RupeeOpening(kid){
+  if(!kgIsOwner()){ toast('Only the owner can enter opening balances'); return; }
   var k = findKarigar(kid); if(!k) return;
   kgForm({title:'Rupee opening for ' + k.name, submitLabel:'Save', doneToast:'\u2713 Saved',
     fields:[{id:'dir', label:'Who owes whom', type:'select', options:[['owe', 'You owe him'], ['advance', 'He owes the shop (advance)']], value:'owe'},
