@@ -2254,16 +2254,23 @@ function kgSyncHistory(){
   else _kgStack = _kgWantStack.slice();
 }
 // Called when the app switches tabs: leaving Karigars hands its history entries back (so the next Back is not eaten), coming back restores them.
+var _kgLeftStack = [];   // the pages we handed back when he left the tab: a job or statement comes back WITH the profile under it
 function kgTabChanged(tab){
-  if(tab === 'karigars'){ if(_kg2.seen && ['profile', 'job', 'statement'].indexOf(_kg2.view) !== -1) kgSetView(_kg2.view); }
-  else if(_kgWantStack.length){ _kgWantStack = []; kgSyncHistory(); }
+  if(tab === 'karigars'){
+    if(_kg2.seen && ['profile', 'job', 'statement'].indexOf(_kg2.view) !== -1){
+      var left = _kgLeftStack; _kgLeftStack = [];
+      if(left.length && left[left.length - 1] === _kg2.view && !_kgWantStack.length){ _kgWantStack = left.slice(); kgSyncHistory(); }
+      else kgSetView(_kg2.view);
+    }
+  }
+  else if(_kgWantStack.length){ _kgLeftStack = _kgWantStack.slice(); _kgWantStack = []; kgSyncHistory(); }
 }
 function kgSetView(view){
   _kg2.view = view;
   var w = _kgWantStack.slice();
   if(view === 'profile'){ var i = w.lastIndexOf('profile'); w = (i === -1 ? ['profile'] : w.slice(0, i + 1)); }
   else if(view === 'job' || view === 'statement'){ if(w[w.length - 1] !== view) w = w.concat(view); }
-  else w = [];
+  else { w = []; _kgLeftStack = []; }
   _kgWantStack = w;
   kgSyncHistory();
 }
@@ -3117,7 +3124,9 @@ function kg3KpiHtml(list){
   var last = list.length - 1, closeWide = ((last % 2) === 0);   // an even number of tiles before Closing: Closing gets its own full row; odd: it pairs up, so no tile is ever alone
   return '<div class="kg2-kpis">' + list.map(function(t, i){ return kg3Tile(t[0], escHtml(t[1]), t[2] ? escHtml(t[2]) : '', (i === last && closeWide) ? 'wide' : ''); }).join('') + '</div>';
 }
-function kg3StatementHtml(kid){
+// header, metal and dates sit in the same 720 px column as the rows
+function kg3StatementHtml(kid){ return '<div class="kgx-stcol">' + kg3StatementBody(kid) + '</div>'; }
+function kg3StatementBody(kid){
   var k = findKarigar(kid); if(!k) return '<div class="kg2-empty">Karigar not found.</div>';
   var metal = _kg2.stMetal || 'gold'; if(metal === 'rupees' && kgUser().role !== 'owner') metal = 'gold';
   var from = _kg2.stFrom || (kgToday().slice(0, 7) + '-01'), to = _kg2.stTo || kgToday();
@@ -3617,8 +3626,9 @@ function kg3Close(jobId){
       function ln(label, val){ return '<div><span>' + escHtml(label) + '</span><span>' + escHtml(val) + '</span></div>'; }
       var rec = '<div class="kgx-lines">' + ln('Given', kgFmtG(jb.issuedFine) + ' fine') + ln('Counted back (pieces)', kgFmtG(jb.receiptFine) + ' fine') +
         (jb.scrapFine > 0 ? ln('Returned (scrap / dust)', kgFmtG(jb.scrapFine) + ' fine') : '') + ln('Carry / balance', kgFmtG(total) + ' fine') + '</div>';
-      // the labour that closing will post: owner only, a manager sees no rupees. Not shown on the "he returns it now" shortcut, which closes nothing.
-      var lab = (owner && plan.labourPaise > 0 && !(open.length && v && v.settle === 'return')) ? '<div class="kgx-posted"><span>Labour posted to his account</span><b>' + escHtml(kgFmtRs(plan.labourPaise)) + '</b></div>' : '';
+      // the labour that closing will post: owner only, a manager sees no rupees
+      var later = !!(open.length && v && v.settle === 'return');   // "he returns it now" closes nothing yet: the labour posts when the job is closed after the return
+      var lab = (owner && plan.labourPaise > 0) ? '<div class="kgx-posted"><span>' + (later ? 'Labour posts when you close' : 'Labour posted to his account') + '</span><b>' + escHtml(kgFmtRs(plan.labourPaise)) + '</b></div>' : '';
       if(!open.length) return '<div class="kgx-small">All metal is accounted for.</div>' + rec + lab;
       return rec + lab + '<div class="kgx-posted"><span>He returns to you</span><b>' + escHtml(kgFmtG(total)) + ' fine</b></div>' +
         '<div class="kgx-small">Given ' + escHtml(kgFmtG(given)) + (counted > 0 ? ' &middot; ornament counted ' + escHtml(kgFmtG(counted)) : '') + ' &middot; ' + escHtml(job.title) + (open.length > 1 ? ' &middot; ' + escHtml(who) : '') + '. Record returns first (Receive piece, Scrap / dust).</div>' +

@@ -1714,11 +1714,12 @@ tr:hover td{background:var(--bg2);}
 /* review fixes (11 Nov): preview + errors stay on top and Save stays at the bottom while the sheet scrolls; check boxes get a 44px tap row; long names never push a number onto two lines */
 .kg2-top{position:sticky;top:-16px;z-index:2;background:var(--surface);margin:-16px -16px 0;padding:16px 16px 6px;border-bottom:1px solid var(--border);}
 .kg2-foot{position:sticky;bottom:-16px;z-index:2;background:var(--surface);margin:12px -16px -16px;padding:10px 16px max(16px,env(safe-area-inset-bottom));border-top:1px solid var(--border);}
-.kg2-chk{display:flex;align-items:center;gap:8px;min-height:44px;font-size:14px;color:var(--text);cursor:pointer;}.kg2-chk input{width:44px;height:44px;flex:none;margin:0 0 0 -10px;-webkit-appearance:none;appearance:none;background:no-repeat center/24px 24px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1.5' y='1.5' width='21' height='21' rx='5' fill='white' stroke='%23B8892B' stroke-width='2'/%3E%3C/svg%3E");}
+.kg2-chk{display:flex;align-items:center;gap:8px;min-height:44px;font-size:14px;color:var(--text);cursor:pointer;}.kg2-chk input{width:44px;height:44px;flex:none;margin:0 -12px 0 0;padding:0;border:0;border-radius:0;box-shadow:none;-webkit-appearance:none;appearance:none;background:transparent no-repeat left center/24px 24px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1.5' y='1.5' width='21' height='21' rx='5' fill='white' stroke='%23B8892B' stroke-width='2'/%3E%3C/svg%3E");}
 .kg2-chk input:checked{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='5' fill='%23B8892B'/%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");}
-.kg2-chk input:focus-visible{outline:2px solid #B8892B;outline-offset:-6px;border-radius:12px;}
+.kg2-chk input:focus-visible{outline:2px solid #B8892B;outline-offset:-10px;border-radius:8px;}
+.kgx-posted + .kgx-posted{margin-top:12px;}
 .kg2-line.kgx-entry{flex-direction:column;align-items:stretch;gap:8px;}.kgx-etop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}.kgx-etop>div:first-child{min-width:0;overflow-wrap:anywhere;}.kgx-eacts{display:flex;gap:8px;flex-wrap:wrap;}
-#kg3-print{max-width:720px;margin-left:auto;margin-right:auto;}
+.kgx-stcol{max-width:720px;margin-left:auto;margin-right:auto;}
 .kg2-fchk{margin-top:4px;}
 .kg2-kpi.wide{grid-column:1/-1;}   /* the Closing tile takes the whole row */
 .kg2-f label.kg2-chk{display:flex;align-items:center;margin-bottom:0;}   /* .kg2-f label{display:block} used to win and push the tick box away from its words */

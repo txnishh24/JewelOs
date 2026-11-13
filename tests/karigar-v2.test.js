@@ -3456,6 +3456,9 @@ test('R23 2: Close sheet shows Given / Counted back / Carry and the labour that 
   var sheet = null; a.kgForm = function(o){ sheet = o; }; a.kg3Close(j.id); var pv = sheet.preview({});
   ok(/Given/.test(pv) && /Counted back/.test(pv) && /Carry/.test(pv), pv);
   ok(/Labour posted/.test(pv) && /₹750/.test(pv), 'owner sees the labour: ' + pv);
+  var kr = fresh('owner'); var k3 = lk(kr, 'R24b', '150'); trust(kr, k3); var j3 = labJob(kr, k3); receiptV(kr, j3, {gross:'5', stoneCt:'', stoneMode:'A', purity:'', chip:'999'});
+  kr.kgForm = function(o){ sheet = o; }; kr.kg3Close(j3.id); var open0 = sheet.preview({settle:'return'}); ok(/Labour posts when you close/.test(open0) || /He returns/.test(open0), 'return choice: ' + open0);
+  ok(/\.kgx-posted \+ \.kgx-posted\{margin-top:12px;\}/.test(readIndex()), '12 px between the two cream panels');
   a.SAAS.user.role = 'manager'; a.kg3Close(j.id); pv = sheet.preview({}); ok(/Given/.test(pv) && !/₹|Labour/.test(pv), 'manager: reconciliation yes, rupees no: ' + pv);
 });
 test('R23 4: a closed job leaves NOW for History; no "average 0 days"', function(){
@@ -3471,7 +3474,7 @@ test('R23 3,5,6,7: entry rows stack text above 44 px buttons; checkbox hit area 
   var css = readIndex();
   ok(/#kg2-root \.kg2-right \.btn\{min-height:44px/.test(css), 'buttons 44');
   ok(/\.kg2-chk input\{width:44px;height:44px/.test(css), 'checkbox hit area 44');
-  ok(/#kg3-print\{max-width:720px;margin-left:auto;margin-right:auto;\}/.test(css), 'statement max width');
+  ok(/\.kgx-stcol\{max-width:720px;margin-left:auto;margin-right:auto;\}/.test(css), 'statement column max width'); ok(/^<div class="kgx-stcol">/.test(fresh('owner').kg3StatementHtml('nobody')), 'header and filters inside the column');
   ok(/#kg2-root\{padding-bottom:140px;\}/.test(css), 'room under the last row');
   var a = fresh('owner'), k = pk(a, 'R23e'); var j = pjob(a, k); issueV(a, j, '10', '92'); var h = a.kg3JobHtml(j);
   ok(/kgx-entry/.test(h) && /kgx-eacts/.test(h) && /kg3ShareSlip/.test(h), 'entry has a text row and an actions row');
@@ -3481,6 +3484,22 @@ test('R23 8,9: profile subline is skills and phone; kg3OrderAdvanceInfo gives a 
   var a = fresh('owner'), k = pk(a, 'R23f'); k.skills = 'Kundan'; k.phone = '9876543210'; var h = a.kg3ProfileHtml(k.id);
   ok(/Kundan &middot; 9876543210/.test(h), 'skills and phone');
   var m = fresh('manager'); var r = m.kg3OrderAdvanceInfo('x'); eq(r.given + r.adjusted + r.outstanding + r.labour, 0);
+});
+// ── Round 24: Back after a tab round trip lands on the profile ──
+test('R24 1 (scenario D): profile > job/statement > other tab > back to Karigars > Back goes to the profile, then the list; also from the profile itself', function(){
+  ['job', 'statement', 'profile'].forEach(function(page){
+    ['Home', 'Stock', 'Sale', 'Day Book'].forEach(function(tab){
+      var e = sheetEnv(), a = e.a; a.renderKgV2 = function(){}; a.kgPanelActive = function(){ return true; }; var hb = a.history; a.history = {pushState:hb.pushState, back:hb.back, go:function(n){ for(var q = 0; q < -n; q++) e.userBack(); }};
+      var k = pk(a, 'D' + page + tab); a._kg2.seen = true; a.kg3Open(k.id);
+      if(page === 'job'){ a._kg2.jobId = 'j1'; a.kgSetView('job'); } else if(page === 'statement'){ a.kg3Statement(k.id); }
+      var depth = page === 'profile' ? 1 : 2; eq(e.h.idx, depth, page + ' pushes ' + depth);
+      a.kgTabChanged(tab); e.flush(); eq(e.h.idx, 0, 'entries handed back on leaving');
+      a.kgTabChanged('karigars'); e.flush(); eq(e.h.idx, depth, 'entries restored on return: ' + page + '/' + tab); eq(a._kgStack.join(','), page === 'profile' ? 'profile' : 'profile,' + page);
+      e.userBack(); e.flush(); eq(a._kg2.view, page === 'profile' ? 'people' : 'profile', 'first Back: ' + page + '/' + tab);
+      if(page !== 'profile'){ e.userBack(); e.flush(); eq(a._kg2.view, 'people', 'second Back reaches the list'); }
+      eq(e.h.idx, 0, 'back at baseline');
+    });
+  });
 });
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }
