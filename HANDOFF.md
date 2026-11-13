@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody.** Batch71 is LIVE on the Cloudflare worker (12 Nov 18:05 IST, Version ID `85eeafc2-8db0-45b3-8520-f82e66b6385c`, commit `f763218`, tag `batch71-live`, rollback tag `batch70-live`). Includes the Karigar redesign screens (OFF behind per-device `kgProfileUi`) and phone round 1-2. Backend unchanged: migrations to 014, `store-proxy` v18, no migration in this deploy. Ledger flag OFF for every shop. Local `main` NOT pushed to GitHub.
+> **Nobody.** batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
 ---
 
 ## WAITING ON TANISH
@@ -76,6 +76,19 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-13 (two-hundred-and-eighteenth entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R22: R21 done, gate green, `kg-always-on` merged into `main`, batch72 DEPLOYED and verified live
+
+- Order followed: (1) R21 first (previous entry, commit `6e76458`): manager rupee leaks closed, reopen wording, in-flight opId. (2) Gate, exact counts, all green before merging: karigar-v2 333/0, regression 494/0, ledger client 91/0, sql-kg-ledger and sql-store-history all passed, backup-check exit 0, roundtrip PASS (32 keys), syntax ok on all js; `jewelos-invariant-tester` (it added the manager-gold fuzz and throw tests) and `jewelos-bug-pattern-reviewer` (one real bug, the audit-trail regex, fixed and tested). The gate was re-run on `main` after the merge and after the bump: same counts.
+- (3) Merge: `git merge --ff-only kg-always-on` in `E:\jewelos` (a clean fast-forward of 6 commits: R16 ce3f8af, R17 295daf7, R18 9b8f08d, R19 d271263, R20 0c4169f, R21 6e76458). No conflicts, no force, nothing pushed to GitHub. Not committed: `TO-CLAUDE-CODE*.md`, `design-karigar-demo`, `.claude/settings.json`, `checks/globals.json`, `cf-deploy-stage/`.
+- (4) Bump: `APP_BUILD` 72, `sw.js` cache `jewelos-v27`, `docs/CHANGES-batch72.md` (commit `e489ea9`). `/careful` was on for the deploy. `node build-cf-deploy-stage.js batch72` staged 20 files; `npx wrangler deploy --dry-run` clean; `npx wrangler deploy` at 14:00 IST. Live at `https://jewelos.jewelos-e2e.workers.dev`, Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`. Tag `batch72-live` on `e489ea9`.
+- (5) `jewelos-deploy-verifier` on the LIVE origin: PASS on all 8 checks. Every staged file served and byte-matches (sha256 of `/` = `95417725...a8907`, sw.js, manifest, both icons, CHANGELOG.md, js/00..12); `sw.js` is `jewelos-v27`; `APP_BUILD = 72`; `viewport-fit=cover` present; `kgProfileUi` appears in no served script (only in CHANGELOG.md as a note); nothing sets `kgLedgerOn` to a literal true (it is only ever the server's answer, or the value this device last got from the server; still OFF); `wrangler.jsonc`, `.wrangler`, `package.json`, `HANDOFF.md`, `README.md`, `.git/config` all 404; security headers present (CSP is report-only, as staged). Not checked by it: a browser run, or the service worker updating on a phone.
+- (6) No migration, no key rotation, no real-shop login, no test on any real shop. Rollback: previous batch71 commit `f763218` (tag `batch71-live`): `git checkout f763218` then `node build-cf-deploy-stage.js batch71` then `npx wrangler deploy`, or `npx wrangler rollback`. No data migration is involved, so a rollback is only code (a shop that already used the new screens keeps its data; the old cards read the same lists).
+- (7) The Karigar module is now ALWAYS ON for ALL shops: there is no per-device switch any more; the old Karigar 2.0 cards are gone from the tab; old order-side data shows as "Order work" on each profile. Labour for wastage karigars is live (per gram of net weight, owner sets the rate). Managers and staff see no karigar rupee amounts. Silver labour is unchanged by Tanish's decision (same per-gram rate as gold).
+- (8) Nothing deleted: `TO-CLAUDE-CODE*.md` and `design-karigar-demo` stay until Tanish says.
+- NOT verified: a real phone; `npm run test:e2e` (no env file, still the open item); whether open phones have picked up the new service worker (cache bump `v27` is the mechanism, a reload or two may be needed).
+-> FOR COWORK: batch72 is live; read-only smoke only, no login to real shops; if you smoke test, use the E2E shop `77c4aefe` or a local copy.
+-> FOR TANISH: please check on your phone, shop `3720af09` (your own shop): (1) open the app, wait for it to update (close and reopen once if the Karigars tab still looks old: the footer/Settings should say build 72); (2) Karigars tab: you should see the new list with a `+` button, search and your karigars; (3) tap one: profile with Add job / Pay / More, tiles, jobs, Full statement; (4) Add job on a test karigar: the New job sheet opens as a bottom sheet, chips for Gold 22K / 18K / Silver / Other, Create job and issue gold; (5) press the phone's Back button inside a profile: it must return to the list, and Back from the list leaves as before; (6) sign in once as a manager (if you have one) and confirm Karigars shows no rupee amounts. Tell Cowork what looks wrong.
 
 ### 2026-11-13 (two-hundred-and-seventeenth entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R21: manager rupee leaks closed + small labour findings, on `kg-always-on` (own commit after R20); R22 merge/deploy follows in the next entry
 
