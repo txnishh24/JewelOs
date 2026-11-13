@@ -77,6 +77,14 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-13 (two-hundred-and-nineteenth entry) - Claude Code - TO-CLAUDE-CODE-R23: batch72 design QA fixes (branch `claude/r23-karigar-qa`, off `main`)
+
+- DONE 1-9. (1) New job: preselected chip now fills purity (91.6) when the sheet opens, in the shared `kgForm`; Give/Receive have no metal chips so were not affected. (2) Close sheet always shows Given / Counted back / Returned (scrap) / Carry, plus a "Labour posted" line for the owner only; labour maths extracted unchanged into `kgJobLabourPlan` (close uses the same function). (3) Job entry rows: text row above an actions row, buttons 44 px, "Extra allowed for loss". (4) Profile: Now = open jobs only, closed jobs under History (last 5), average hidden when it rounds to 0, new line "Returned x g less than allowed across n jobs". My reading: that is the sum of wastage credited above the fine really in the pieces (`concededFine`); tell me if you meant something else. (5) Checkbox input is now 44 px hit area (custom drawn box, 24 px visual). (6) Page bottom padding 96 -> 140 px. (7) Statement max-width 720 px centred. (8) Profile subline = skills and phone; the terms sentence only shows when it says "not set" (kept as a warning). (9) `kg3OrderAdvanceInfo` returns zeros for a non-owner.
+- Gate: karigar-v2 338/0 (5 new R23 tests; 3 old tests updated for the new design: close summary, 140 px gutter), regression 494/0, ledger client 91/0, backup-check and roundtrip PASS, making-basis PASS. NOT run: e2e and SQL suites (no node_modules in worktree), edge-functions (needs sucrase), no browser click-through, nothing checked on a phone. `tests/cowork-live-check.js` fails identically on clean HEAD (not ours).
+- Not committed: `TO-CLAUDE-CODE-R23.md`. Nothing deployed, merged, pushed or migrated.
+- Visual items (3, 5, 6, 7) are CSS only and unseen in a real browser: please look at them.
+→ FOR COWORK: look at the job page, Close sheet and New job sheet in a browser on the test shop; if good, ask Tanish whether to merge `claude/r23-karigar-qa` and cut batch73.
+
 ### 2026-11-13 (two-hundred-and-eighteenth entry) - Claude Code (Sonnet) - TO-CLAUDE-CODE-R22: R21 done, gate green, `kg-always-on` merged into `main`, batch72 DEPLOYED and verified live
 
 - Order followed: (1) R21 first (previous entry, commit `6e76458`): manager rupee leaks closed, reopen wording, in-flight opId. (2) Gate, exact counts, all green before merging: karigar-v2 333/0, regression 494/0, ledger client 91/0, sql-kg-ledger and sql-store-history all passed, backup-check exit 0, roundtrip PASS (32 keys), syntax ok on all js; `jewelos-invariant-tester` (it added the manager-gold fuzz and throw tests) and `jewelos-bug-pattern-reviewer` (one real bug, the audit-trail regex, fixed and tested). The gate was re-run on `main` after the merge and after the bump: same counts.

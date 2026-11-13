@@ -2952,7 +2952,7 @@ test('R17 B13: days read like 13 Nov, in the job chips and account rows', functi
   var k = pk(a, 'Dates'); var j = pjob(a, k, {dueDate:yr + '-12-30'}); issueV(a, j, '10', '92'); var h = a.kg3ProfileHtml(k.id); ok(/Due 30 Dec/.test(h), 'due chip'); ok(!/\d{4}-\d{2}-\d{2}/.test(h.replace(/value="[^"]*"/g, '')), 'no ISO date left on the profile');
 });
 test('R17 B14/B9/B16: css - gutter, sheet title, gold focus ring, ellipsis, grey page, no dead "Karigar 2.0" text', function(){
-  var css = readIndex(); ok(/#kg2-root\{[^}]*padding:16px 0 96px/.test(css), 'no second gutter'); ok(/\.kgx-sheethead \.kg2-title\{[^}]*color:#1D1D1F[^}]*text-overflow:ellipsis/.test(css), 'sheet title');
+  var css = readIndex(); ok(/#kg2-root\{[^}]*padding:16px 0 140px/.test(css), 'no second gutter'); ok(/\.kgx-sheethead \.kg2-title\{[^}]*color:#1D1D1F[^}]*text-overflow:ellipsis/.test(css), 'sheet title');
   ok(/\.kg2-ov input:focus[^{]*\{[^}]*#B8892B/.test(css), 'gold focus ring'); ok(/body:has\(#panel-karigars\.active\)\{background:#F5F5F7/.test(css), 'no cream around the card'); ok(css.indexOf('.kg2-new') === -1, '.kg2-new removed');
   var a = fresh('owner'); ok(a.kg2TodayHtml().indexOf('2.0') === -1, 'Karigar 2.0 text removed');
 });
@@ -3175,7 +3175,7 @@ test('R19 B5: statement tiles never leave one alone; dates cannot push past the 
 });
 test('R19 B6: the Close sheet summary is compact: one posted line, one small line, short choices, no tall header', function(){
   var a = fresh('owner'); var k = pk(a, 'Compact'); trust(a, k); var j = pjob(a, k); issueV(a, j, '10', '92'); var sheet = null; a.kgForm = function(o){ sheet = o; }; a.kg3Close(j.id);
-  var pv = sheet.preview({}); eq((pv.match(/<div/g) || []).length, 2, 'two blocks only: ' + pv); ok(/He returns to you/.test(pv) && /Given 9\.200 g/.test(pv));
+  var pv = sheet.preview({}); eq((pv.match(/class="kgx-lines"/g) || []).length, 1, 'one reconciliation block: ' + pv); eq((pv.match(/class="kgx-posted"/g) || []).length, 1, 'one posted line'); ok(/He returns to you/.test(pv) && /Given 9\.200 g/.test(pv));
   sheet.fields[0].options.forEach(function(o){ ok(String(o[2] || '').length <= 60, o[0] + ' description is one short line'); });
   var css = readIndex(); ok(/\.kgx-posted\{padding:8px 12px;\}/.test(css) && /\.kg2-prev:empty,\.kg2-err:empty\{display:none;\}/.test(css), 'compact box and no blank band');
 });
@@ -3437,6 +3437,50 @@ test('R21 B10: a throw inside the save of kgAddSalary / kgCloseJob / kgAddEntry 
   var j2 = pjob(a, k); var eid = op(), mk = function(){ return a.kgBuildIssue(j2.id, '', {wt:'5', chip:'999', opId:eid}).entry; };
   boom(); var e1 = call(function(cb){ a.kgAddEntry(mk(), cb); }); ok(e1.err, 'entry: throw reported'); a.saveToCloud = good;
   var e2 = call(function(cb){ a.kgAddEntry(mk(), cb); }); ok(!e2.err, 'entry: retry answers, not stuck busy'); eq(a.S.kgLedger.filter(function(x){ return x.jobId === j2.id; }).length, 1);
+});
+// ── Round 23: design QA findings ──
+test('R23 1: New job - the preselected Gold 22K chip fills purity 91.6 at once; the job can be created with just title and weight', function(){
+  var e = sheetEnv(), a = e.a, k = pk(a, 'R23a'); a.kg3NewJob(k.id);
+  eq(e.reg['kg2f-purity'].value, '91.6', 'purity prefilled by the preselected chip');
+  e.reg['kg2f-title'].value = 'Chain'; e.reg['kg2f-wt'].value = '10';
+  e.reg['kg2-save'].onclick();
+  eq(String(e.reg['kg2-err'].textContent || ''), '', 'no "type the purity too" refusal'); ok(a.S.kgJobs.some(function(j){ return j.title === 'Chain'; }), 'job created');
+  var f = sheetEnv();   // a value already in the field is not overwritten by the preset
+  f.reg['kg2f-purity'] = {style:{setProperty:function(){}}, value:'80', innerHTML:'', textContent:'', addEventListener:function(){}, removeEventListener:function(){}, querySelector:function(){ return null; }};
+  f.a.kgForm({title:'T', fields:[{id:'purity', label:'P', value:'80'}, {id:'metal', label:'M', type:'chips', value:'gold22', options:[['gold22', 'G', {purity:'91.6'}]]}], onSubmit:function(v, fin){ fin(null); }});
+  eq(f.reg['kg2f-purity'].value, '80', 'typed value kept');
+});
+test('R23 2: Close sheet shows Given / Counted back / Carry and the labour that will post; a manager sees no rupees', function(){
+  var a = fresh('owner'); var k = lk(a, 'R23b', '150'); trust(a, k); var j = labJob(a, k);
+  receiptV(a, j, {gross:'5', stoneCt:'', stoneMode:'A', purity:'', chip:'999'});
+  var sheet = null; a.kgForm = function(o){ sheet = o; }; a.kg3Close(j.id); var pv = sheet.preview({});
+  ok(/Given/.test(pv) && /Counted back/.test(pv) && /Carry/.test(pv), pv);
+  ok(/Labour posted/.test(pv) && /₹750/.test(pv), 'owner sees the labour: ' + pv);
+  a.SAAS.user.role = 'manager'; a.kg3Close(j.id); pv = sheet.preview({}); ok(/Given/.test(pv) && !/₹|Labour/.test(pv), 'manager: reconciliation yes, rupees no: ' + pv);
+});
+test('R23 4: a closed job leaves NOW for History; no "average 0 days"', function(){
+  var a = fresh('owner'), k = lk(a, 'R23d', ''); trust(a, k); var j = pjob(a, k); issueV(a, j, '10', '92');
+  var h = a.kg3ProfileHtml(k.id); ok(h.indexOf(j.title) !== -1, 'open job listed');
+  j.createdAt = '2026-11-01T10:00:00.000Z'; ok(!closeCarry(a, j).err); a.kgFindJob(j.id).closedAt = '2026-11-01T11:00:00.000Z';
+  h = a.kg3ProfileHtml(k.id);
+  var now = h.slice(h.indexOf('>Now<'), h.indexOf('>Account<')), hist = h.slice(h.indexOf('>History<'));
+  ok(now.indexOf(j.title) === -1, 'closed job not under Now'); ok(hist.indexOf(j.title) !== -1, 'closed job under History');
+  ok(h.indexOf('average') === -1, 'same-day close: no average shown'); ok(h.indexOf('less than allowed') === -1, 'nothing conceded: no line');
+});
+test('R23 3,5,6,7: entry rows stack text above 44 px buttons; checkbox hit area 44 px; toast room; statement width; plain wording', function(){
+  var css = readIndex();
+  ok(/#kg2-root \.kg2-right \.btn\{min-height:44px/.test(css), 'buttons 44');
+  ok(/\.kg2-chk input\{width:44px;height:44px/.test(css), 'checkbox hit area 44');
+  ok(/#kg3-print\{max-width:720px;margin-left:auto;margin-right:auto;\}/.test(css), 'statement max width');
+  ok(/#kg2-root\{padding-bottom:140px;\}/.test(css), 'room under the last row');
+  var a = fresh('owner'), k = pk(a, 'R23e'); var j = pjob(a, k); issueV(a, j, '10', '92'); var h = a.kg3JobHtml(j);
+  ok(/kgx-entry/.test(h) && /kgx-eacts/.test(h) && /kg3ShareSlip/.test(h), 'entry has a text row and an actions row');
+  ok(h.indexOf('Wastage allowed') === -1, 'jargon gone');
+});
+test('R23 8,9: profile subline is skills and phone; kg3OrderAdvanceInfo gives a manager zeros', function(){
+  var a = fresh('owner'), k = pk(a, 'R23f'); k.skills = 'Kundan'; k.phone = '9876543210'; var h = a.kg3ProfileHtml(k.id);
+  ok(/Kundan &middot; 9876543210/.test(h), 'skills and phone');
+  var m = fresh('manager'); var r = m.kg3OrderAdvanceInfo('x'); eq(r.given + r.adjusted + r.outstanding + r.labour, 0);
 });
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }
