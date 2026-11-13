@@ -77,6 +77,13 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-13 (two-hundred-and-twenty-third entry) - Claude Code - phone checks NOT run by Claude Code; `kgLedgerOn` confirmed OFF; R26 file missing
+
+- `kgLedgerOn`: one read-only SELECT on `public.kg_ledger_flag` returned zero rows, so every shop uses the default `false` = OFF. Nothing else was queried or written.
+- The four phone checks on shop `3720af09` were NOT run: Claude Code has no login or PIN for it, no e2e env file for `77c4aefe`, and the rules forbid testing on a real shop (check 3 would write a job into it). Unit tests cover the same paths (scenario D Back, New job weight-only, Close labour preview) but are not a phone.
+- `TO-CLAUDE-CODE-R26.md` does not exist in `E:\jewelos` (newest is R25). Please save it there.
+→ FOR COWORK: (1) do the phone checks yourself on `3720af09`: build 73; profile > job > Home > Karigars > Back lands on profile; New job with weight only; Close sheet shows labour preview. (2) Save R26 as `E:\jewelos\TO-CLAUDE-CODE-R26.md`. `kgLedgerOn` needs no further check.
+
 ### 2026-11-13 (two-hundred-and-twenty-second entry) - Claude Code - batch73 DEPLOYED and verified live
 
 - Tanish said "run it"; `npx wrangler deploy` ran. Version ID `5c8eddff-bdb5-47b7-bbc6-8c7065e21f6b`, `main` at `37659bb` (plus HANDOFF commits). Supersedes the 221st entry's "not deployed".
