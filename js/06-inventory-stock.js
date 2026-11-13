@@ -424,7 +424,7 @@ function renderDash(){
         return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;">'+
           '<div><div style="font-weight:600;">'+escHtml(o.customer)+'</div>'+
           '<div style="font-size:11px;color:var(--text3);">'+escHtml(o.items&&o.items.length?o.items[0].desc:(o.desc||''))+'</div>'+
-          (profEst>0?'<div style="font-size:var(--text-xs);color:var(--success);">Est profit: '+fmt(Math.round(profEst))+'</div>':'')+
+          (profEst>0 && canSeeProfit()?'<div style="font-size:var(--text-xs);color:var(--success);">Est profit: '+fmt(Math.round(profEst))+'</div>':'')+
           '</div>'+
           '<div style="text-align:right;"><div style="font-weight:700;color:'+risk.color+';">'+risk.label+'</div>'+
           '<div style="font-size:11px;color:var(--text3);">'+fmtDate(o.delivery)+'</div></div></div>';
@@ -452,7 +452,7 @@ function renderDash(){
           '<div style="background:var(--bg3);border-radius:4px;height:5px;overflow:hidden;">'+
             '<div style="height:100%;width:'+Math.round(c.rev/maxRev*100)+'%;background:var(--gold);border-radius:4px;"></div>'+
           '</div>'+
-          '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">'+c.units+' sold &bull; profit: '+fmt(Math.round(c.profit))+'</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">'+c.units+' sold'+(canSeeProfit()?' &bull; profit: '+fmt(Math.round(c.profit)):'')+'</div>'+
         '</div>';
       }).join('');
     } else {
@@ -465,7 +465,7 @@ function renderDash(){
   var girviSlot=document.getElementById('dash-more-girvi');
   var girvi=(S.girvi||[]).filter(function(g){return !g._deleted;});
   if(!girviSlot) return;
-  if(!girvi.length){ girviSlot.innerHTML=''; return; }
+  if(!girvi.length || isStaff()){ girviSlot.innerHTML=''; return; }   // R26: staff see no girvi totals
   var gActive=girvi.filter(function(g){return g.status==='active';}).length;
   var gOverdue=girvi.filter(function(g){return g.status==='overdue'||g.status==='atrisk';}).length;
   var gDeflt=girvi.filter(function(g){return g.status==='defaulted';}).length;
@@ -715,7 +715,7 @@ function renderOrdersPipeline(){
       var totalBal=active.reduce(function(s,o){return s+Math.max(0,(o.quote||0)-ordAdvance(o));},0);
       return '<div style="display:flex;gap:16px;font-size:12px;padding-top:6px;border-top:0.5px solid var(--border);flex-wrap:wrap;">'+
         '<span>Active: <strong>'+active.length+'</strong></span>'+
-        '<span>Est. profit: <strong style="color:var(--success);">'+fmt(Math.round(totalProfit))+'</strong></span>'+
+        (canSeeProfit()?'<span>Est. profit: <strong style="color:var(--success);">'+fmt(Math.round(totalProfit))+'</strong></span>':'')+
         '<span>Balance due: <strong style="color:var(--danger);">'+fmt(Math.round(totalBal))+'</strong></span>'+
       '</div>';
     }());
@@ -920,13 +920,21 @@ function clearDemoData(){
   try{ downloadBackupFile(buildBackupPayload()); }catch(e){ toast('Could not make the backup first, so nothing was deleted.'); return; }
   safeConfirm('Clear ALL data?','The backup file has downloaded. This cannot be undone. All products, sales, orders and girvi records will be permanently deleted.',function(){
     if(!ownerGate()) return;
+    var _keep = { products:S.products, sales:S.sales, orders:S.orders, girvi:S.girvi, stockMovements:S.stockMovements,
+      nextId:S.nextId, nextSaleId:S.nextSaleId, nextInvNo:S.nextInvNo, nextOrdId:S.nextOrdId, nextGirviId:S.nextGirviId };
     S.products=[]; S.sales=[]; S.orders=[]; S.girvi=[];
     S.stockMovements=[]; // F2: now synced -- demo stock history must not reach other phones
     S.nextId=1; S.nextSaleId=1; S.nextInvNo=1; S.nextOrdId=1; S.nextGirviId=1;
     DEMO_ACTIVE=false;
     document.getElementById('demo-banner').classList.remove('visible');
     document.body.classList.remove('demo-mode');
-    saveToCloud(function(){ renderDash(); toast('All data cleared.'); });
+    saveToCloud(function(err){
+      if(err){   // R26: a failed save puts everything back and says so (the backup file already downloaded)
+        for(var k in _keep) S[k] = _keep[k];
+        renderDash(); toast('Could not save, so nothing was cleared. Check your connection and try again.'); return;
+      }
+      renderDash(); toast('All data cleared.');
+    });
   },true);
   return;
 }

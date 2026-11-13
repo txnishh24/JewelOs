@@ -7583,6 +7583,82 @@ test('R26 D: old gold with a weight and no purity is refused, not valued at Rs 0
   assert(saved === 0 && a.said.some(function(m){ return /old gold purity/.test(m); }), 'refused: ' + JSON.stringify(a.said));
 });
 
+test('R26 C: a manager void puts stock back once and keeps the invoice number used; the owner delete does the same', function(){
+  ['manager', 'owner'].forEach(function(role){
+    var a = r26App(role); a.prompt = function(){ return 'customer cancelled'; };
+    a.showCustHistory = function(){}; a.closeCustModal = function(){}; a.renderCustomers = function(){};
+    a.S.products = [{ id:'p1', name:'Ring', qty:0, unitWeight:4.743, weight:0, status:'sold', _origQty:2 }];
+    a.S.sales = [r26Sale({ items:[{ pid:'p1', name:'Ring', weight:4.743, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }] })];
+    a.deleteSale('s1'); a.deleteSale('s1');
+    var p = a.S.products[0];
+    assert(p.qty === 1 && p.status === 'available' && Math.abs(p.weight - 4.743) < 1e-9, role + ': stock back exactly once, weight derived, got ' + JSON.stringify(p));
+    assert(a.S.voidedInvNos.length === 1 && a.S.voidedInvNos[0] === 'INV-001', role + ': invoice number stays used');
+  });
+});
+
+test('R26 C: a manager refund needs a reason; the owner does not; staff already blocked above', function(){
+  function refund(role, reason, note){
+    var a = r26App(role); a.S.sales = [r26Sale()]; a.S.products = [];
+    var vals = { 'rfnd-amount':'1000', 'rfnd-mode':'Cash', 'rfnd-reason':reason, 'rfnd-note':note };
+    var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
+    a._submitRefund('s1'); return a;
+  }
+  var m1 = refund('manager', '', '');
+  assert(!(m1.S.sales[0].refunds||[]).length && m1.said.some(function(x){ return /reason/.test(x); }), 'manager, no reason: no refund');
+  var m2 = refund('manager', 'Other', '');
+  assert(!(m2.S.sales[0].refunds||[]).length, 'manager, "Other" with no note: no refund');
+  var m3 = refund('manager', 'Other', 'wrong size');
+  assert(m3.S.sales[0].refunds.length === 1, 'manager with a reason: one refund');
+  var o = refund('owner', '', '');
+  assert(o.S.sales[0].refunds.length === 1, 'owner needs no reason');
+});
+
+test('R26 C: a manager edit over the discount cap is rolled back and not saved; a within-cap edit saves with the reason in the audit trail', function(){
+  var a = r26App('manager'); a.S.sales = [r26Sale()]; a._editBillId = 's1';
+  var vals = { 'eb-reason':'discount', 'eb-disc':'20000', 'eb-gst':'0' };
+  var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
+  var saved = 0; a.saveToCloud = function(cb){ saved++; if(cb) cb(null); };
+  a.closeEditBillModal = function(){}; a.showCustHistory = function(){}; a.renderCustomers = function(){};
+  a.saveEditBill();
+  assert(saved === 0 && a.S.sales[0].discount === 0, 'over-cap edit: nothing saved, discount rolled back, got ' + a.S.sales[0].discount);
+  vals['eb-disc'] = '1000'; a.saveEditBill();
+  assert(saved === 1 && a.S.sales[0].discount === 1000, 'within cap: saved');
+  assert(/discount/.test((a.S.auditLog[0]||{}).note || ''), 'reason is in the audit note: ' + JSON.stringify(a.S.auditLog[0]));
+});
+
+
+test('R26 review fixes: reopen is refused once a correction was posted for that day; a failed clear restores everything; a smaller bill cannot keep a big discount', function(){
+  var o = r26App('owner');
+  o.S.dayBook = { opening:null, entries:[{ id:'e1', kind:'adjust', srcDate:'2026-11-01', dir:'in', amount:500, date:'2026-11-03' }], closes:[{ date:'2026-11-01', closing:0, counted:0, diff:0, ts:'2026-11-01T10:00:00.000Z' }], reopens:[] };
+  var err; o.dbReopenDay('2026-11-01', 'x', function(e){ err = e; });
+  assert(err && /adjustments-posted/.test(err.message) && o.dbCloseFor('2026-11-01') && /twice/.test(o.dbErrText(err)), 'refused, still closed, in words');
+  var c = r26App('owner'); c.S.products = [{ id:'p1' }]; c.S.sales = [r26Sale()]; c.S.nextInvNo = 7;
+  c.downloadBackupFile = function(){}; c.prompt = function(){ return 'DELETE'; };
+  c.saveToCloud = function(cb){ cb(new Error('offline')); }; c.clearDemoData();
+  assert(c.S.products.length === 1 && c.S.sales.length === 1 && c.S.nextInvNo === 7, 'a failed save puts the data back');
+  assert(c.said.some(function(m){ return /nothing was cleared/.test(m); }), 'and says so');
+  var m = r26App('manager'); m.S.sales = [r26Sale({ discount:4000 })]; m._editBillId = 's1';
+  var vals = { 'eb-reason':'trim items', 'eb-disc':'4000', 'eb-gst':'0', 'ei-wt-0':'1.0' };
+  var _o = m.document.getElementById; m.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
+  var saved = false; m.saveToCloud = function(){ saved = true; };
+  m.saveEditBill();
+  assert(!saved && m.S.sales[0].items[0].weight === 4.743 && m.said.some(function(x){ return /Needs owner approval/.test(x); }), 'same rupees on a much smaller bill is judged by percent and refused');
+});
+
+test('R26 review fixes: manager and staff Home hide per-order and per-category profit; staff see no girvi portfolio card', function(){
+  function dash(role){
+    var a = r26App(role); var today = new Date().toISOString();
+    a.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', weight:1, qty:1, status:'available', cat:'Rings' }];
+    a.S.sales = [r26Sale({ date:today, byId:'u_'+role, items:[{ pid:'p1', name:'Ring', metal:'gold', purity:'22K', weight:1, grossWeight:1, qty:1, making:0, diamond:0, lockedRate:7200 }], lockedGrand:7200, cat:'Rings' })];
+    a.S.orders = [{ id:'o1', ordNo:'O1', customer:'Cu', status:'new', delivery:'2099-01-01', items:[{ name:'Chain', weight:5, metal:'gold', purity:'22K' }], estWeight:5, quote:50000, advance:1000 }];
+    a.S.girvi = [{ id:'g1', grvNo:'G1', status:'active', customer:'Gc', principal:50000, items:[], payments:[], date:today }];
+    a.renderDash(); try{ a.renderOrders(); }catch(e){}
+    return ['dash-orders-due','dash-top-cats','dash-more-girvi','ord-summary','ord-footer'].map(function(id){ return a._els[id] ? a._els[id].innerHTML : ''; }).join('\n') + Object.keys(a._els).filter(function(k){ return /^ord/.test(k); }).map(function(k){ return a._els[k].innerHTML || ''; }).join('\n');
+  }
+  ['manager', 'staff'].forEach(function(r){ assert(!/Est\.? profit|profit:/i.test(dash(r)), r + ': no estimated or category profit'); });
+  assert(!/Girvi Portfolio/.test(dash('staff')), 'staff: no girvi portfolio'); assert(/Girvi Portfolio/.test(dash('owner')), 'owner keeps it');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

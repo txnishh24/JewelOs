@@ -560,7 +560,8 @@ var DB_ERR_TEXT = {
   'reason-required':'please give a reason',
   'not-allowed':'only the owner or a manager can close a day',
   'owner-only':'only the owner can do this',
-  'not-closed':'that day is not closed'
+  'not-closed':'that day is not closed',
+  'adjustments-posted':'a correction for this day was already posted to a later day, so reopening would count it twice'
 };
 function dbErrText(err){
   var m = err && err.message;
@@ -666,6 +667,9 @@ function dbReopenDay(dateKey, reason, cb){
   (S.dayBook.closes||[]).forEach(function(x){ if(!latest || x.date > latest.date) latest = x; });
   if(latest.date !== dateKey){ if(cb) cb(new Error('not-latest-close')); return; }
   if(!reason || !String(reason).trim()){ if(cb) cb(new Error('reason-required')); return; }
+  // A correction already posted to a later day for this close would be counted twice once the day is live again.
+  var _posted = (S.dayBook.entries||[]).some(function(e){ return e.kind === 'adjust' && e.srcDate === dateKey && !e.voided; });
+  if(_posted){ if(cb) cb(new Error('adjustments-posted')); return; }
   var snap = _dbSnapshot();
   S.dayBook.closes = S.dayBook.closes.filter(function(x){ return x.date !== dateKey; });
   if(!Array.isArray(S.dayBook.reopens)) S.dayBook.reopens = [];
