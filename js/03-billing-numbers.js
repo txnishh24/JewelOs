@@ -641,7 +641,7 @@ function showCustHistory(encKey){
     btnEdit.style.cssText='background:var(--info);color:#fff;font-size:11px;';
     btnEdit.innerHTML='&#9998; Edit';
     (function(sid){btnEdit.onclick=function(){openEditBill(sid);};})(s.id);
-    btnRow.appendChild(btnEdit);
+    if(canEditBills()) btnRow.appendChild(btnEdit);
 
     // Mark as Paid button (only if balance due)
     if(!isPaid){
@@ -666,13 +666,13 @@ function showCustHistory(encKey){
     btnRef.style.cssText='background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning);';
     btnRef.innerHTML='&#128260; Refund';
     (function(sid){btnRef.onclick=function(){openRefundModal(sid);};})(s.id);
-    btnRow.appendChild(btnRef);
+    if(canEditBills()) btnRow.appendChild(btnRef);
     // Delete button
     var btnDel=document.createElement('button');
     btnDel.className='btn btn-sm btn-danger';
-    btnDel.innerHTML='&#128465; Delete';
+    btnDel.innerHTML=isOwner()?'&#128465; Delete':'&#128465; Void';
     (function(sid){btnDel.onclick=function(){deleteSale(sid);};})(s.id);
-    btnRow.appendChild(btnDel);
+    if(isManager()) btnRow.appendChild(btnDel);
 
     card.appendChild(btnRow);
     body.appendChild(card);
@@ -737,8 +737,17 @@ function deleteSale(saleId){
   if(!isManager()){ toast('\u26a0 Only owners and managers can delete bills'); return; }
   var sale=S.sales.find(function(x){return x.id===saleId;});
   if(!sale) return;
+  // R26: a manager VOIDS (reason required, not on a closed day). Only the owner deletes outright.
+  var isVoid = !isOwner();
+  var voidReason = '';
+  if(isVoid){
+    if(dbSaleDayClosed(sale)){ toast('That bill is on a closed day. Only the owner can void it.'); return; }
+    voidReason = String((typeof prompt === 'function' ? prompt('Reason for voiding this bill (required):','') : '') || '').trim();
+    if(!voidReason){ toast('A reason is required to void a bill.'); return; }
+  }
   var t=calcSaleTotals(sale);
-  safeConfirm('Delete bill '+sale.invNo+'?','\u20b9'+Math.round(t.grand).toLocaleString('en-IN')+' for '+sale.customer+'. Cannot be undone.',function(){
+  safeConfirm((isVoid?'Void':'Delete')+' bill '+sale.invNo+'?','\u20b9'+Math.round(t.grand).toLocaleString('en-IN')+' for '+sale.customer+'. Cannot be undone.',function(){
+    if(!isManager()) return;
     (sale.items||[]).forEach(function(i){
       var p=S.products.find(function(x){return x.id===i.pid;});
       if(!p) return;
@@ -752,10 +761,10 @@ function deleteSale(saleId){
     S.sales=S.sales.filter(function(x){return x.id!==saleId;});
     // Its invoice number stays used: never re-issued or re-typed (GST).
     if(sale.invNo){ if(!Array.isArray(S.voidedInvNos)) S.voidedInvNos=[]; S.voidedInvNos.push(sale.invNo); }
-    auditLog('delete','sale',saleId,'Bill '+sale.invNo+' deleted — ₹'+Math.round(t.grand).toLocaleString('en-IN')); // H4: bill delete had no central audit trail
+    auditLog('delete','sale',saleId,'Bill '+sale.invNo+(isVoid?' voided':' deleted')+' — ₹'+Math.round(t.grand).toLocaleString('en-IN')+(isVoid?' | reason: '+voidReason:'')); // H4: bill delete had no central audit trail
     saveToCloud(function(err){
       if(!err){
-        toast('Bill deleted & stock restored');
+        toast(isVoid?'Bill voided & stock restored':'Bill deleted & stock restored');
         var remaining=S.sales.filter(function(s){
           return ((s.customer||'Walk-in')+(s.phone?'_'+s.phone:''))===((sale.customer||'Walk-in')+(sale.phone?'_'+sale.phone:''));
         });
@@ -1118,11 +1127,12 @@ function renderReports(entrance){
   var totalPending = S.sales.reduce(function(s,x){return s+calcSaleTotals(x).bal;},0);
   var girviTotal   = (S.girvi||[]).filter(function(g){return !g._deleted && g.status!=='closed';}).reduce(function(s,g){return s+girviOutstanding(g);},0);
 
+  var _showP = canSeeProfit();   // R26: profit, cost, margin and P&L are the owner's only
   // ── Key metrics row ──
   var rm=document.getElementById('rep-metrics');
   if(rm) rm.innerHTML=
     '<div class="metric"><div class="metric-label">Revenue</div><div class="metric-value" style="color:var(--gold-dark)">'+fmt(mProfit.revenue)+'</div><div class="metric-sub">'+plural(monthSales.length,'bill')+' + girvi interest'+(mProfit.refunds>0?' − '+fmt(mProfit.refunds)+' refunds':'')+'</div></div>'+
-    '<div class="metric"><div class="metric-label">Profit</div><div class="metric-value" style="color:'+(mProfit.netProfit>=0?'var(--success)':'var(--danger)')+'">'+fmt(mProfit.netProfit)+'</div><div class="metric-sub">net of expenses</div></div>'+
+    (_showP ? '<div class="metric"><div class="metric-label">Profit</div><div class="metric-value" style="color:'+(mProfit.netProfit>=0?'var(--success)':'var(--danger)')+'">'+fmt(mProfit.netProfit)+'</div><div class="metric-sub">net of expenses</div></div>' : '')+
     '<div class="metric"><div class="metric-label">GST Collected</div><div class="metric-value">'+fmt(mProfit.gst)+'</div><div class="metric-sub">govt portion'+(mProfit.refundGst>0?'<br>Net of '+fmt(mProfit.refundGst)+' GST on refunds. Not in the GSTR-1 export — issue credit notes separately.':'')+'</div></div>'+
     '<div class="metric"><div class="metric-label">Total Collected</div><div class="metric-value" style="color:var(--success)">'+fmt(cf.cashIn)+'</div><div class="metric-sub">cash + UPI + card — not the same as Day Book’s cash-only "Cash In"</div></div>'+
     '<div class="metric"><div class="metric-label">Credit Given</div><div class="metric-value" style="color:var(--danger)">'+fmt(cf.credit)+'</div><div class="metric-sub">pending this month</div></div>'+
@@ -1141,12 +1151,12 @@ function renderReports(entrance){
   var le=document.getElementById('rep-chart-labels');
   if(ce) ce.innerHTML=chartData.map(function(d){
     var hRev   =Math.max(4,Math.round(d.rev/mx*80));
-    var hProfit=Math.max(2,Math.round(Math.max(0,d.profit)/mx*80));
+    var hProfit=_showP ? Math.max(2,Math.round(Math.max(0,d.profit)/mx*80)) : 0;
     return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">'+
       '<div style="font-size:var(--text-xs);color:var(--text3);">'+(d.rev>0?fmt(d.rev).replace('\u20b9',''):'')+'</div>'+
       '<div style="width:100%;position:relative;height:80px;display:flex;align-items:flex-end;gap:1px;">'+
         '<div style="flex:1;height:'+hRev+'px;background:'+(d.active?'var(--gold)':'var(--bg3)')+';border-radius:3px 3px 0 0;"></div>'+
-        '<div style="flex:1;height:'+hProfit+'px;background:'+(d.profit>=0?'var(--success)':'var(--danger)')+';border-radius:3px 3px 0 0;opacity:0.8;"></div>'+
+        (_showP ? '<div style="flex:1;height:'+hProfit+'px;background:'+(d.profit>=0?'var(--success)':'var(--danger)')+';border-radius:3px 3px 0 0;opacity:0.8;"></div>' : '')+
       '</div></div>';
   }).join('');
   if(le) le.innerHTML=chartData.map(function(d){
@@ -1155,7 +1165,9 @@ function renderReports(entrance){
 
   // ── P&L Statement ──
   var plEl=document.getElementById('rep-pl');
-  if(!plEl){
+  if(!_showP){ var _plc=document.getElementById('rep-pl-card'); if(_plc) _plc.style.display='none'; if(plEl) plEl.innerHTML=''; plEl=null; }
+  else { var _plc2=document.getElementById('rep-pl-card'); if(_plc2) _plc2.style.display=''; }
+  if(!plEl && _showP){
     // Insert P&L section dynamically
     var reportPanel=document.getElementById('panel-reports');
     if(reportPanel){
@@ -1262,7 +1274,7 @@ function renderReports(entrance){
           '</div>'+
           '<div style="text-align:right;">'+
             '<div style="font-weight:700;color:var(--gold-dark);">'+fmt(cu.rev)+'</div>'+
-            '<div style="font-size:11px;color:var(--success);">Profit: '+fmt(Math.round(cu.profit))+'</div>'+
+            (_showP ? '<div style="font-size:11px;color:var(--success);">Profit: '+fmt(Math.round(cu.profit))+'</div>' : '')+
             (cu.pending>0?'<div style="font-size:11px;color:var(--danger);">Due: '+fmt(cu.pending)+'</div>':'<div style="font-size:11px;color:var(--success);">\u2713 Cleared</div>')+
           '</div></div>';
       }).join('');

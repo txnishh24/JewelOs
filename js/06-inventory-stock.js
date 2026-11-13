@@ -234,9 +234,11 @@ function renderDash(){
   // ── RATES STRIP ─────────────────────────────────────────────────
   var ratesEl = document.getElementById('dash-rates-strip');
   if(ratesEl){
-    ratesEl.innerHTML =
-      '<span style="color:var(--gold-dark);">&#127775; 22K '+fmt(S.rates.g22)+'/g</span>'+
-      '<span style="color:var(--ink3);">&#11088; Silver '+fmt(S.rates.sil)+'/g</span>';
+    // R26: before the owner has saved real rates, never show the sample figures as if they were today's rate
+    ratesEl.innerHTML = !ratesConfirmed()
+      ? '<span style="color:var(--gold-dark);">&#127775; Set today\'s rate</span>'
+      : '<span style="color:var(--gold-dark);">&#127775; 22K '+fmt(S.rates.g22)+'/g</span>'+
+        '<span style="color:var(--ink3);">&#11088; Silver '+fmt(S.rates.sil)+'/g</span>';
   }
 
   // ── 1. TODAY STRIP (sales / purchase / profit — today only) ──────
@@ -257,7 +259,7 @@ function renderDash(){
       // Colour by sign, like the Net Cash line below — a loss shown in the
       // same green as a profit is the one number on this strip a jeweller
       // cannot afford to misread.
-      fsnCard("Today's Profit", fmt(todayProfitTotal), '', null, '', todayProfitTotal>=0?'var(--success)':'var(--danger)');
+      (canSeeProfit() ? fsnCard("Today's Profit", fmt(todayProfitTotal), '', null, '', todayProfitTotal>=0?'var(--success)':'var(--danger)') : '');   // R26: owner only
   }
 
   // ── 3. BUSINESS SNAPSHOT (the 4 numbers before any decision) ────
@@ -274,9 +276,9 @@ function renderDash(){
   var snapEl2 = document.getElementById('dash-business-snapshot');
   if(snapEl2){
     snapEl2.innerHTML =
-      fsnCard('Stock Value', fmt(tgv+tsv), 'gold + silver stock', null, '', 'var(--gold-dark)')+
+      (canSeeProfit() ? fsnCard('Stock Value', fmt(tgv+tsv), 'gold + silver stock', null, '', 'var(--gold-dark)') : '')+
       fsnCard('Outstanding Payments', fmt(totalPendingBal), getSalesDueSoon(30).length+' overdue 30d+', null, '', totalPendingBal>0?'var(--danger)':'var(--success)')+
-      fsnCard('Pending Girvi', fmt(activeGirviTotal), activeGirviList.length+' active loan(s)', null, '', 'var(--warning)')+
+      (!isStaff() ? fsnCard('Pending Girvi', fmt(activeGirviTotal), activeGirviList.length+' active loan(s)', null, '', 'var(--warning)') : '')+   // R26: staff see no girvi totals
       fsnCard('Pieces in Stock', stockPieces, stockCatCount+' categor'+(stockCatCount===1?'y':'ies'), null, '', 'var(--gold-dark)');
   }
 
@@ -324,8 +326,8 @@ function renderDash(){
         '<div style="display:grid;gap:6px;margin-top:8px;">'+
           '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Total Collected (all modes)</span><span style="font-weight:700;color:var(--success);">'+fmt(cfMonth.cashIn)+'</span></div>'+
           '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Cash Out (old gold)</span><span style="font-weight:700;color:var(--danger);">'+fmt(cfMonth.cashOut)+'</span></div>'+
-          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Girvi Lent</span><span style="font-weight:700;color:var(--warning);">'+fmt(cfMonth.girviOut)+'</span></div>'+
-          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Girvi Collected</span><span style="font-weight:700;color:var(--success);">'+fmt(cfMonth.girviIn)+'</span></div>'+
+          (!isStaff() ? ('<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Girvi Lent</span><span style="font-weight:700;color:var(--warning);">'+fmt(cfMonth.girviOut)+'</span></div>'+
+          '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Girvi Collected</span><span style="font-weight:700;color:var(--success);">'+fmt(cfMonth.girviIn)+'</span></div>') : '')+
           (cfMonth.expenses>0?'<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Expenses</span><span style="font-weight:700;color:var(--danger);">'+fmt(cfMonth.expenses)+'</span></div>':'')+
           '<div style="border-top:0.5px solid var(--border);padding-top:6px;display:flex;justify-content:space-between;font-size:14px;">'+
             '<span style="font-weight:700;">Net Cash</span>'+
@@ -333,7 +335,7 @@ function renderDash(){
           '</div>'+
         '</div>'+
       '</div>'+
-      '<div class="sbox sbox-s">'+
+      (canSeeProfit() ? ('<div class="sbox sbox-s">'+
         '<div class="sbox-title">\ud83d\udcca Capital Status</div>'+
         '<div style="display:grid;gap:6px;margin-top:8px;">'+
           '<div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--text3);">Stock Value</span><span style="font-weight:700;color:var(--gold-dark);">'+fmt(tgv+tsv)+'</span></div>'+
@@ -344,7 +346,7 @@ function renderDash(){
             '<span style="font-weight:800;color:var(--danger);">'+fmt(totalPendingBal+activeGirviTotal)+'</span>'+
           '</div>'+
         '</div>'+
-      '</div>';
+      '</div>') : '');
   }
 
   // ── E. GOLD/SILVER BREAKDOWN ──────────────────────────────────
@@ -361,7 +363,8 @@ function renderDash(){
     :'<div class="empty"><span class="empty-icon">&#11088;</span>No silver yet</div>';
 
   // ── F. RECENT SALES WITH PROFIT ───────────────────────────────
-  var rec=S.sales.slice().reverse().slice(0,5);
+  // R26: staff see only the bills they made themselves
+  var rec=S.sales.filter(function(s){ return !isStaff() || !SAAS.user || !s.byId || s.byId===(SAAS.user.id||SAAS.user.email||''); }).reverse().slice(0,5);
   document.getElementById('recent-sales').innerHTML=rec.length
     ?rec.map(function(s){
       var t=calcSaleTotals(s),p=calcSaleProfit(s);
@@ -372,7 +375,7 @@ function renderDash(){
           '<div style="font-size:11px;color:var(--text3);">'+(s.items||[]).map(function(i){return escHtml(i.name);}).join(', ')+' &bull; '+fmtW(wt)+'</div></div>'+
           '<div style="text-align:right;">'+
             '<div style="font-weight:700;color:var(--gold-dark);">'+fmt(t.grand)+'</div>'+
-            '<div style="font-size:11px;color:var(--success);">\u2191 '+fmt(Math.round(p.profit))+'</div>'+
+            (canSeeProfit() ? '<div style="font-size:11px;color:var(--success);">\u2191 '+fmt(Math.round(p.profit))+'</div>' : '')+
             (t.bal>0?'<div style="font-size:11px;color:var(--danger);">Due: '+fmt(t.bal)+'</div>':'')+
           '</div>'+
         '</div></div>';
@@ -629,7 +632,7 @@ function renderReportsIntelligence(){
   var catPerf = calcCategoryPerf(repYear, repMonth); // QA 3 Oct M8: match the month this page is actually showing
   catCard.innerHTML='<div class="card-title"><span>'+svgIcon('tag')+' Category Intelligence — This Month</span></div>'+
     (catPerf.length?
-      '<div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Revenue</th><th>Units</th><th>Profit</th><th>Trend</th></tr></thead><tbody>'+
+      '<div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Revenue</th><th>Units</th>'+(canSeeProfit()?'<th>Profit</th>':'')+'<th>Trend</th></tr></thead><tbody>'+
       catPerf.map(function(c){
         var tIcon = c.prevRev>0?(c.trend>=0?'\u25B2 '+Math.round(c.trend)+'%':'\u25BC '+Math.abs(Math.round(c.trend))+'%'):'—';
         var tColor= c.prevRev>0?(c.trend>=0?'var(--success)':'var(--danger)'):'var(--text3)';
@@ -637,7 +640,7 @@ function renderReportsIntelligence(){
           '<td style="font-weight:600;">'+escHtml(c.cat)+'</td>'+
           '<td style="font-weight:700;color:var(--gold-dark);">'+fmt(Math.round(c.rev))+'</td>'+
           '<td>'+c.units+'</td>'+
-          '<td style="color:var(--success);">'+fmt(Math.round(c.profit))+'</td>'+
+          (canSeeProfit() ? '<td style="color:var(--success);">'+fmt(Math.round(c.profit))+'</td>' : '')+
           '<td style="color:'+tColor+';font-weight:600;font-size:11px;">'+tIcon+'</td>'+
         '</tr>';
       }).join('')+'</tbody></table></div>'
@@ -745,6 +748,7 @@ function filterOrdersByStatus(status){
 
 // ── SETTINGS TABS ────────────────────────────────────────────────────
 function showSettingsTab(tab){
+  if((tab==='audit' || tab==='analytics') && !isOwner()){ toast('Only the owner can do this'); tab='profile'; }
   var tabs = ['profile','automation','analytics','team','plan','audit','data','account'];
   tabs.forEach(function(t){
     var el = document.getElementById('stab-'+t);
@@ -824,6 +828,7 @@ function showSettingsTab(tab){
 var DEMO_ACTIVE = false;
 
 function loadDemoData(){
+  if(!ownerGate()) return;
   safeConfirm('Load sample data?','This will ADD demo records to your current data for you to explore.',function(){
   DEMO_ACTIVE = true;
   document.getElementById('demo-banner').classList.add('visible');
@@ -908,7 +913,13 @@ function loadDemoData(){
 }
 
 function clearDemoData(){
-  safeConfirm('Clear ALL data?','This cannot be undone. All products, sales, orders and girvi records will be permanently deleted.',function(){
+  if(!ownerGate()) return;
+  // R26: a backup file is downloaded first and the owner must type DELETE. A mis-tap can no longer wipe a shop.
+  var typed = (typeof prompt === 'function') ? prompt('This deletes ALL products, sales, orders and girvi records. A backup file will download first.\n\nType DELETE to continue:', '') : null;
+  if(String(typed == null ? '' : typed).trim() !== 'DELETE'){ toast('Cancelled. Nothing was deleted.'); return; }
+  try{ downloadBackupFile(buildBackupPayload()); }catch(e){ toast('Could not make the backup first, so nothing was deleted.'); return; }
+  safeConfirm('Clear ALL data?','The backup file has downloaded. This cannot be undone. All products, sales, orders and girvi records will be permanently deleted.',function(){
+    if(!ownerGate()) return;
     S.products=[]; S.sales=[]; S.orders=[]; S.girvi=[];
     S.stockMovements=[]; // F2: now synced -- demo stock history must not reach other phones
     S.nextId=1; S.nextSaleId=1; S.nextInvNo=1; S.nextOrdId=1; S.nextGirviId=1;
@@ -1311,11 +1322,8 @@ function showDailyDigest(){
       '<div style="font-size:11px;color:var(--text3);">Today\'s revenue &bull; '+plural(todaySales.length,'bill')+'</div>'+
     '</div>'+
     digestSection('\ud83d\udcb0 This Month So Far',[
-      ['Revenue', fmt(thisMonth.revenue)],
-      ['Profit',  fmt(thisMonth.netProfit)],
-      ['Cash In', fmt(cf.cashIn)],
-      ['Margin',  thisMonth.margin.toFixed(1)+'%']
-    ])+
+      ['Revenue', fmt(thisMonth.revenue)]
+    ].concat(canSeeProfit() ? [['Profit',  fmt(thisMonth.netProfit)]] : []).concat([['Cash In', fmt(cf.cashIn)]]).concat(canSeeProfit() ? [['Margin',  thisMonth.margin.toFixed(1)+'%']] : []))+
     digestSection('\u26a0\ufe0f Action Needed',[
       ['Overdue girvi', overdueG.length ? overdueG.length+' loans' : '\u2705 Clear'],
       ['Pending dues',  pendingBal > 0  ? fmt(pendingBal)          : '\u2705 Clear'],
@@ -1358,7 +1366,7 @@ function shareDigestWhatsApp(){
     dayName+'\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n'+
     '\ud83d\udcb0 *This Month*\n'+
     'Revenue: '+fmt(thisMonth.revenue)+'\n'+
-    'Profit: '+fmt(thisMonth.netProfit)+' ('+netMargin.toFixed(1)+'%)\n\n'+
+    (canSeeProfit() ? 'Profit: '+fmt(thisMonth.netProfit)+' ('+netMargin.toFixed(1)+'%)\n' : '')+'\n'+
     '\u26a0\ufe0f *Action Items*\n'+
     'Pending dues: '+fmt(pendingBal)+'\n'+
     'Girvi outstanding: '+fmt(Math.round(girviOut))+'\n\n'+
@@ -1418,6 +1426,7 @@ function calcCLV(custName, phone){
 }
 
 function renderSettingsAnalytics(){
+  if(!canSeeProfit()) return;   // R26: CLV, profit trends and capital are the owner's only
   // ── CLV Table ──────────────────────────────────────────────────
   var clvEl = document.getElementById('set-clv-list');
   if(clvEl){

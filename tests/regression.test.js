@@ -2425,6 +2425,7 @@ test('a hostile product id is escaped the same way in the "returned" button and 
 
 test('a hostile customer name is escaped in the PDF business report, which document.write()s into a same-origin window (independent review finding, 10 Oct)', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: the business report is owner only
   a.SAAS.shop = { id:'shop_a', name:'Shop' };
   a.S.sales = [{ id:'s1', customer:HOSTILE, phone:'9', invNo:'INV-1', date:new Date().toISOString(),
     items:[{ name:'Ring', purity:'22K', weight:1, qty:1, rate:7000, making:0 }], gst:0, discount:0 }];
@@ -3769,6 +3770,7 @@ function dashWithProfit(costRate){
   var a = loadApp();
   a.S.rates = { g24:7500, g22:7200, g18:6000, g14:4500, sil:90 };
   a.SAAS.shop = { id:'shop1', name:'Test Shop' };
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: profit tiles are owner only
   var today = new Date().toISOString();
   a.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', weight:1, costRate:costRate }];
   a.S.sales = [{ id:'s1', invNo:'INV-001', date:today,
@@ -3951,6 +3953,7 @@ console.log('\nDemo data is obviously fake (18 Sep):');
 function seededDemo(){
   var a = loadApp();
   a.SAAS.shop = { id:'shop1', name:'Test Shop' };
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: demo data is owner only
   a.safeConfirm = function(_t, _m, cb){ cb(); };   // the real one waits on a click
   a.saveToCloud = function(cb){ if(cb) cb(null); }; // no reachable backend from here
   a.loadDemoData();
@@ -3995,6 +3998,7 @@ test('clearing demo data leaves nothing behind', function(){
   // The button says "Clear All Data", so it has to clear everything the demo
   // seeded — not just most of it.
   var a = seededDemo();
+  a.prompt = function(){ return 'DELETE'; }; a.downloadBackupFile = function(){};   // R26: typed confirm + backup first
   a.clearDemoData();
   ['products', 'sales', 'orders', 'girvi'].forEach(function(k){
     assert((a.S[k] || []).length === 0, 'S.' + k + ' still has ' + (a.S[k]||[]).length + ' demo records');
@@ -4524,6 +4528,7 @@ function fakeEbSplitRows(a, vals){
 
 test('QA 1 Oct P0-2: Edit Bill refuses payments above the bill and leaves the bill untouched', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
     payStatus:'full', gst:0, discount:0, making:0, diamond:0,
     items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
@@ -4549,6 +4554,7 @@ test('QA 1 Oct P0-2: Edit Bill refuses payments above the bill and leaves the bi
 
 test('Edit Bill refuses taking a GST bill down to 0% GST', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10300, advance:0, billType:'gst',
     payStatus:'pending', gst:3, discount:0, making:0, diamond:0,
     items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }] }];
@@ -4570,6 +4576,7 @@ test('Edit Bill refuses taking a GST bill down to 0% GST', function(){
 
 test('C1: an edited bill re-locks to the NEW total, not the stale pre-edit one (discount)', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
     payStatus:'full', gst:0, discount:0, making:0, diamond:0,
     items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
@@ -4594,6 +4601,7 @@ test('C1: an edited bill re-locks to the NEW total, not the stale pre-edit one (
 
 test('C1: an edited bill re-locks to the NEW total, not the stale pre-edit one (item weight raises it, payStatus degrades)', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
     payStatus:'full', gst:0, discount:0, making:0, diamond:0,
     items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
@@ -4618,6 +4626,7 @@ test('C1: an edited bill re-locks to the NEW total, not the stale pre-edit one (
 
 test('QA M3: the Edit Bill live preview shows the SAME grand total and balance Save actually stores (custom item, gross-weight making, extra payment)', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   // A custom item with the gross-weight making basis (itemMakingWeight charges
   // on grossWeight, not net weight, net weight is lower here on purpose so a
   // formula that used net instead of gross would also be caught) and a
@@ -4659,6 +4668,7 @@ test('QA M3: the Edit Bill live preview shows the SAME grand total and balance S
 
 test('QA M3 follow-up: clearing Old Gold / Advance to 0 in Edit Bill actually clears them, not just sale.advance', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   // Created with 4000 old gold + 3000 prev advance (advance=7000 total) against
   // a 10000 bill. The edit clears BOTH payment fields to 0 (e.g. corrected --
   // the customer never actually brought old gold or paid an advance).
@@ -4691,6 +4701,7 @@ test('QA M3 follow-up: clearing Old Gold / Advance to 0 in Edit Bill actually cl
 
 test('QA M3 follow-up: clearing all split-payment rows to 0 in Edit Bill also clears the stale sale.nowPaying tier', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   // An older-style bill: paid via nowPaying (no splitPayments array at all),
   // same shape dbAutoLines()' and calcSaleTotals()' tier-2 precedence reads.
   a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:5000,
@@ -4721,6 +4732,7 @@ test('QA M3 follow-up: clearing all split-payment rows to 0 in Edit Bill also cl
 
 test('QA M3 follow-up: dbAutoLines never posts a line for prevAdvance/oldGold money, even after it becomes the only tier left standing', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   // Created with a 3000 advance paid separately (prevAdvance) PLUS a 5000
   // split-payment at creation. dbAutoLines()'s own header comment says
   // prevAdvance must NEVER become a line (posted elsewhere, double-counts).
@@ -4756,6 +4768,7 @@ test('QA M3 follow-up: dbAutoLines never posts a line for prevAdvance/oldGold mo
 
 test('QA M3 follow-up: Edit Bill pre-fills a 0 payment row (not prevAdvance/oldGold money) when nothing new was actually paid', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   // Same shape as the dbAutoLines test above (a pure exchange sale, or a
   // bill already edited down to this state): fully covered by prevAdvance,
   // nothing in splitPayments/nowPaying. openEditBill() can't be unit-tested
@@ -4795,6 +4808,7 @@ test('QA M3 follow-up: Edit Bill pre-fills a 0 payment row (not prevAdvance/oldG
 
 test('Edit Bill: removing a split-payment row from the middle still saves AND previews every row after it', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
     payStatus:'full', billType:'memo', gst:0, discount:0, making:0, diamond:0,
     items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
@@ -4836,6 +4850,7 @@ test('Edit Bill refuses to open, and to save, a bill with ANY refund against it 
   ];
   variants.forEach(function(v){
     var a = loadApp();
+    a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
     var sale = { id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
       payStatus:'full', billType:'memo', gst:0, discount:0, making:0, diamond:0,
       items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
@@ -4864,6 +4879,7 @@ test('Edit Bill refuses to open, and to save, a bill with ANY refund against it 
   });
   // Control: a bill with no refund still opens.
   var b = loadApp();
+  b.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   b.S.sales = [{ id:'s2', invNo:'INV-002', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
     payStatus:'full', billType:'memo', gst:0, discount:0, making:0, diamond:0,
     items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }] }];
@@ -4873,6 +4889,7 @@ test('Edit Bill refuses to open, and to save, a bill with ANY refund against it 
 
 test('Edit Bill: bill-level extra making/diamond round-trips, and the printed invoice\'s rows add up to its Grand Total', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   // Created in New Sale with Extra making 500 + Extra diamond 1500 (s-making/s-diamond):
   // (10000 + 500 + 1500) x 1.03 = 12360.
   a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:12360, advance:12360,
@@ -6273,6 +6290,7 @@ test('the typed-number guard uses the highest real bill, not a stale saved "next
 
 test('a deleted bill\'s invoice number is never issued or accepted again', function(){
   var a = _freshSaleHarness();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   a.isManager = function(){ return true; };
   a.safeConfirm = function(t, m, ok){ ok(); };
   a.saveToCloud = function(cb){ cb(null); };
@@ -6426,6 +6444,7 @@ test('QA 3 Oct H4: a failed order cancel leaves no audit log line behind', funct
 
 test('QA 3 Oct H4: editing a bill is logged in the central audit trail', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   a.S.sales = [{ id:'s1', invNo:'INV-001', customer:'C', date:'2026-09-05', lockedGrand:10000, advance:10000,
     payStatus:'full', gst:0, discount:0, making:0, diamond:0,
     items:[{ name:'Ring', weight:1, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
@@ -6447,6 +6466,7 @@ test('QA 3 Oct H4: editing a bill is logged in the central audit trail', functio
 
 test('QA 3 Oct H4: changing rates is logged in the central audit trail', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   a.S.rates = { g24:7000, g22:6400, g18:5200, g14:4100, sil:80 };
   var els = { 'rate-g24':'7100', 'rate-g22':'6500', 'rate-g18':'5300', 'rate-g14':'4200', 'rate-sil':'85' };
   var _o = a.document.getElementById;
@@ -6459,6 +6479,7 @@ test('QA 3 Oct H4: changing rates is logged in the central audit trail', functio
 
 test('QA 3 Oct H4: deleting a bill is logged in the central audit trail', function(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   a.isManager = function(){ return true; };
   a.safeConfirm = function(t,m,ok){ ok(); };
   a.saveToCloud = function(cb){ cb(null); };
@@ -6474,6 +6495,7 @@ console.log('\nM8 — Category Intelligence matches the Reports month:');
 
 function _catPerfFixture(){
   var a = loadApp();
+  a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   a.S.products = [];
   a.S.sales = [
     { id:'aug', date:'2026-08-15', items:[{ cat:'Rings', metal:'gold', purity:'22K', weight:10, qty:1, lockedRate:5000 }] },
@@ -7322,6 +7344,243 @@ test('30 Oct wastage: assign flow -- "wastage" = karigar keeps it, "wastage-paid
   assert(t3.a.S.orders[0].items[0].karigarStages[0].wastageKept === false, 'cash stage records wastageKept:false');
   var t4 = _assignApp([_gItem('Ring')], ['Ramesh','Gold work','weird','4']);
   assert(t4.a.assignOrderToKarigar('o1') === false && t4.saved() === 0, 'unknown mode still cancels');
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// R26 (14 Nov 2026) — role permissions from the showroom review.
+// Every test calls the function DIRECTLY as manager and staff (a hidden button is not a lock).
+// ═══════════════════════════════════════════════════════════════════════
+console.log('\nR26 — role permissions:');
+
+function r26App(role){
+  var a = require('./harness.js').loadApp();
+  a.SAAS.shop = { id:'shop1', name:'Test Shop' };
+  a.SAAS.user = { id:'u_'+role, name:role, email:role+'@x.in', role:role };
+  a.SAAS.sessionToken = 'tok';
+  a.said = [];
+  a.toast = function(m){ a.said.push(String(m)); };
+  a.safeConfirm = function(t, m, ok){ ok(); };
+  a.saveToCloud = function(cb){ if(cb) cb(null); };
+  a.S.rates = { g24:7500, g22:7200, g18:6000, g14:4500, sil:90, setAt:'2026-11-01T00:00:00.000Z' };
+  try{ a.dbInit(); }catch(e){}
+  return a;
+}
+function r26Sale(extra){
+  var s = { id:'s1', invNo:'INV-001', customer:'C', date:new Date().toISOString(), gst:0, discount:0, making:0, diamond:0,
+    items:[{ name:'Ring', weight:4.743, qty:1, lockedRate:10000, making:0, diamond:0, metal:'gold', purity:'22K' }],
+    lockedGrand:47430, advance:47430, payStatus:'full', billType:'memo' };
+  for(var k in (extra||{})) s[k] = extra[k];
+  return s;
+}
+
+test('R26 A: manager and staff calling clear / demo / restore / team / audit functions directly change nothing; the owner still can', function(){
+  ['manager', 'staff'].forEach(function(role){
+    var a = r26App(role);
+    a.S.products = [{ id:'p1', name:'Ring' }]; a.S.sales = [r26Sale()];
+    var downloads = 0; a.downloadBackupFile = function(){ downloads++; };
+    a.prompt = function(){ return 'DELETE'; };
+    a.clearDemoData(); a.loadDemoData();
+    assert(a.S.products.length === 1 && a.S.sales.length === 1, role + ': clearDemoData/loadDemoData must change nothing');
+    assert(downloads === 0, role + ': no backup should even be made');
+    a.importBackup(); a.processBackupFile({ files:[{}], value:'x' });
+    var calls = 0; a.authGatewayCall = function(){ calls++; return { then:function(){ return { catch:function(){} }; } }; };
+    a.openInviteStaff(); a.sendStaffInvite(); a.removeStaff('u9');
+    assert(calls === 0, role + ': no team call may reach the server');
+    a.document.getElementById('audit-log-list').innerHTML = 'untouched';
+    a.renderAuditLog(); a.renderActivityLogGrouped(); a.showAuditSubtab('activity');
+    assert(a.document.getElementById('audit-log-list').innerHTML === 'untouched', role + ': audit trail must not render');
+    assert(a.said.filter(function(m){ return /Only the owner/.test(m); }).length >= 6, role + ': each refusal says so, got ' + JSON.stringify(a.said));
+  });
+  var o = r26App('owner'); o.S.products = [{ id:'p1', name:'Ring' }]; o.S.sales = [r26Sale()];
+  var made = 0; o.downloadBackupFile = function(){ made++; };
+  o.prompt = function(){ return 'nope'; }; o.clearDemoData();
+  assert(o.S.products.length === 1 && made === 0, 'owner who types the wrong word deletes nothing and gets no download');
+  o.prompt = function(){ return 'DELETE'; }; o.clearDemoData();
+  assert(made === 1 && o.S.products.length === 0 && o.S.sales.length === 0, 'owner typing DELETE: backup first, then it clears');
+});
+
+test('R26 A: Settings hides the owner-only controls and tabs from a manager', function(){
+  var a = r26App('manager');
+  var shown = {};
+  ['btn-json-backup','btn-restore-backup','set-invite-btn','set-danger-zone','set-activity-card','set-disc-card'].forEach(function(id){ shown[id] = a.document.getElementById(id); });
+  a.applyBackupButtonRole();
+  Object.keys(shown).forEach(function(id){ assert(shown[id].style.display === 'none', id + ' should be hidden for a manager'); });
+  var o = r26App('owner'); var el = o.document.getElementById('set-danger-zone'); o.applyBackupButtonRole();
+  assert(el.style.display === '', 'owner sees the danger zone');
+  a.showSettingsTab('audit'); assert(a.said.some(function(m){ return /Only the owner/.test(m); }), 'a manager cannot switch to the audit tab');
+});
+
+test('R26 C: staff can neither edit, refund, void, nor change rates; state is untouched', function(){
+  var a = r26App('staff'); a.S.sales = [r26Sale()]; var before = JSON.stringify(a.S.sales); var rates = JSON.stringify(a.S.rates);
+  a.openEditBill('s1'); a.openRefundModal('s1'); a._submitRefund('s1'); a.deleteSale('s1');
+  a._editBillId = 's1'; a.saveEditBill();
+  var els = { 'rate-g24':'8000', 'rate-g22':'7600', 'rate-g18':'6000', 'rate-g14':'4500', 'rate-sil':'95' };
+  var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in els) return { value: els[id] }; return _o(id); };
+  a.saveRates();
+  assert(JSON.stringify(a.S.sales) === before, 'sale untouched');
+  assert(JSON.stringify(a.S.rates) === rates, 'rates untouched');
+  assert(a.said.filter(function(m){ return /Staff accounts cannot/.test(m); }).length >= 5, 'each says why: ' + JSON.stringify(a.said));
+});
+
+test('R26 C: a manager voids with a required reason, not on a closed day; the owner deletes; the reason reaches the audit trail', function(){
+  var a = r26App('manager'); a.S.sales = [r26Sale()];
+  a.prompt = function(){ return ''; }; a.deleteSale('s1');
+  assert(a.S.sales.length === 1 && a.said.some(function(m){ return /reason is required/i.test(m); }), 'no reason, no void');
+  a.prompt = function(){ return 'customer cancelled'; }; a.deleteSale('s1');
+  assert(a.S.sales.length === 0, 'with a reason the bill is voided');
+  var e = a.S.auditLog && a.S.auditLog[0];
+  assert(e && /voided/.test(e.note) && /customer cancelled/.test(e.note), 'audit says voided + reason: ' + JSON.stringify(e));
+  var b = r26App('manager'); b.S.sales = [r26Sale({ date:'2026-11-01T10:00:00.000Z' })];
+  b.S.dayBook = { opening:null, entries:[], closes:[{ date:b.dbDayKey('2026-11-01T10:00:00.000Z'), opening:0, closing:0, counted:0, diff:0, ts:'2026-11-02T00:00:00.000Z' }] };
+  b.prompt = function(){ return 'reason'; }; b.deleteSale('s1');
+  assert(b.S.sales.length === 1 && b.said.some(function(m){ return /closed day/.test(m); }), 'a manager cannot void a bill on a closed day');
+  var o = r26App('owner'); o.S.sales = [r26Sale({ date:'2026-11-01T10:00:00.000Z' })];
+  o.S.dayBook = JSON.parse(JSON.stringify(b.S.dayBook)); o.prompt = function(){ return ''; }; o.deleteSale('s1');
+  assert(o.S.sales.length === 0, 'the owner may, with no prompt');
+});
+
+test('R26 C: a manager edit needs a reason and cannot touch a bill on a closed day', function(){
+  var a = r26App('manager'); a.S.sales = [r26Sale()]; a._editBillId = 's1';
+  var vals = { 'eb-reason':'', 'eb-disc':'0', 'eb-gst':'0' };
+  var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
+  var saved = false; a.saveToCloud = function(){ saved = true; };
+  a.saveEditBill();
+  assert(!saved && a.said.some(function(m){ return /reason for the edit/.test(m); }), 'no reason, no save');
+  a.S.dayBook = { opening:null, entries:[], closes:[{ date:a.dbDayKey(a.S.sales[0].date), opening:0, closing:0, counted:0, diff:0, ts:new Date().toISOString() }] };
+  vals['eb-reason'] = 'weight fix'; a.saveEditBill();
+  assert(!saved && a.said.some(function(m){ return /closed day/.test(m); }), 'closed day: refused');
+});
+
+test('R26 C: a discount above the cap needs the owner, and one above the bill total is refused for everyone', function(){
+  var big = r26Sale({ discount:99999 });
+  ['staff', 'manager', 'owner'].forEach(function(role){
+    var a = r26App(role);
+    var why = a.discountProblem(big);
+    assert(/more than the bill total/.test(why), role + ': Rs 99,999 off Rs 47,430 must be refused, got "' + why + '"');
+  });
+  var staff = r26App('staff'), mgr = r26App('manager'), own = r26App('owner');
+  var d10 = r26Sale({ discount:4743 }), d3 = r26Sale({ discount:1423 }), d20 = r26Sale({ discount:9486 }), d40 = r26Sale({ discount:18972 });
+  assert(/Needs owner approval/.test(staff.discountProblem(d10)), 'staff: 10% refused (cap 5%)');
+  assert(staff.discountProblem(d3) === '', 'staff: 3% is fine');
+  assert(mgr.discountProblem(d10) === '', 'manager: 10% is fine (cap 15%)');
+  assert(/Needs owner approval/.test(mgr.discountProblem(d20)), 'manager: 20% refused');
+  assert(own.discountProblem(d40) === '', 'owner: 40% is fine');
+  mgr.S.rates.discCaps = { staff:2, manager:30 };
+  assert(mgr.discountProblem(d20) === '', 'the owner can raise the manager cap');
+  assert(/negative/.test(own.discountProblem(r26Sale({ discount:-5 }))), 'a negative discount is refused');
+  assert(mgr.discountProblem(r26Sale({ discount:9486 }), 9486) === '', 'an old discount that did not change is not re-refused on edit');
+});
+
+test('R26 C: discount cap settings are owner only and survive a failed save', function(){
+  var m = r26App('manager'); m.document.getElementById('set-disc-staff').value = '50'; m.document.getElementById('set-disc-mgr').value = '50';
+  m.saveDiscountCaps(); assert(!(m.S.rates.discCaps), 'manager cannot change the caps');
+  var o = r26App('owner'); o.document.getElementById('set-disc-staff').value = '7'; o.document.getElementById('set-disc-mgr').value = '20';
+  o.saveDiscountCaps(); assert(o.S.rates.discCaps.staff === 7 && o.S.rates.discCaps.manager === 20, 'owner saves');
+  o.document.getElementById('set-disc-staff').value = '9'; o.saveToCloud = function(cb){ cb(new Error('x')); }; o.saveDiscountCaps();
+  assert(o.S.rates.discCaps.staff === 7, 'a failed save rolls the caps back');
+});
+
+test('R26 C: recordSale refuses an over-cap discount for staff and an oversize one for the owner too', function(){
+  var a = r26App('staff'); var saved = 0; a.saveToCloud = function(){ saved++; };
+  a.document.getElementById('s-cust').value = 'Cust';
+  a.buildSaleObj = function(){ return r26Sale({ discount:99999, invNo:'' }); };
+  a.recordSale();
+  assert(saved === 0 && a.said.some(function(m){ return /more than the bill total/.test(m); }), 'refused, nothing saved');
+});
+
+test('R26 C: Close Day is for the owner and managers; Reopen Day is the owner only, needs a reason, reverses nothing', function(){
+  var s = r26App('staff'), res;
+  s.dbCloseDay(s.dbToday(), 0, function(err){ res = err; });
+  assert(res && /not-allowed/.test(res.message) && /owner or a manager/.test(s.dbErrText(res)), 'staff cannot close a day');
+  s.dbOpenCloseModal(); assert(s.said.some(function(m){ return /Only the owner or a manager/.test(m); }), 'staff cannot open the close sheet');
+  var m = r26App('manager'); var ok;
+  m.dbCloseDay(m.dbToday(), 0, function(err){ ok = err; });
+  assert(!ok && m.dbCloseFor(m.dbToday()), 'a manager closes the day');
+  var closeBefore = JSON.stringify(m.dbCloseFor(m.dbToday())); var entriesBefore = JSON.stringify(m.S.dayBook.entries);
+  var e1; m.dbReopenDay(m.dbToday(), 'because', function(err){ e1 = err; });
+  assert(e1 && /owner-only/.test(e1.message) && m.dbCloseFor(m.dbToday()), 'manager cannot reopen');
+  var o = r26App('owner'); o.S.dayBook = JSON.parse(JSON.stringify(m.S.dayBook));
+  var e2; o.dbReopenDay(o.dbToday(), '  ', function(err){ e2 = err; });
+  assert(e2 && /reason-required/.test(e2.message) && o.dbCloseFor(o.dbToday()), 'a reason is required');
+  var e3 = 'unset'; o.dbReopenDay(o.dbToday(), 'miscounted cash', function(err){ e3 = err; });
+  assert(!e3 && !o.dbCloseFor(o.dbToday()), 'owner reopens; the lock is gone');
+  assert(JSON.stringify(o.S.dayBook.entries) === entriesBefore, 'reopening reverses nothing: entries are the same');
+  assert(o.S.dayBook.reopens.length === 1 && o.S.dayBook.reopens[0].reason === 'miscounted cash' && JSON.parse(closeBefore).closing === o.S.dayBook.reopens[0].closing, 'the reason and the old figures are kept');
+  assert(o.S.auditLog[0].action === 'reopen', 'audit-logged');
+  var p = r26App('owner'); p.S.dayBook = { opening:null, entries:[], closes:[{date:'2026-11-01',closing:0,counted:0,diff:0,ts:'2026-11-01T10:00:00.000Z'},{date:'2026-11-02',closing:0,counted:0,diff:0,ts:'2026-11-02T10:00:00.000Z'}], reopens:[] };
+  var e4; p.dbReopenDay('2026-11-01', 'x', function(err){ e4 = err; });
+  assert(e4 && /not-latest-close/.test(e4.message), 'only the latest close can be reopened');
+});
+
+test('R26 B: manager and staff Home, Reports and exports carry no profit, cost, margin, stock value or girvi totals; the owner sees them', function(){
+  function sweep(role){
+    var a = r26App(role); var today = new Date().toISOString();
+    a.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', weight:10, qty:1, status:'available', costRate:5000, cat:'Rings' }];
+    a.S.sales = [r26Sale({ date:today, byId:'u_'+role, items:[{ pid:'p1', name:'Ring', metal:'gold', purity:'22K', weight:1, grossWeight:1, qty:1, making:0, diamond:0, lockedRate:7200 }], lockedGrand:7200 })];
+    a.S.girvi = [{ id:'g1', grvNo:'G1', status:'active', customer:'Girvi Cust', principal:50000, items:[], payments:[], date:today }];
+    a.repYear = new Date().getFullYear(); a.repMonth = new Date().getMonth();
+    var out = [];
+    a.renderDash(); ['dash-today-strip','dash-business-snapshot','stock-banner','recent-sales','dash-insights','dash-more-girvi'].forEach(function(id){ var e = a._els[id]; if(e) out.push(e.innerHTML); });
+    try{ a.renderReports(); }catch(e){}
+    ['rep-metrics','rep-pl','rep-chart','rep-top-custs','cat-perf'].forEach(function(id){ var e = a._els[id]; if(e) out.push(e.innerHTML); });
+    try{ a.renderReportsIntelligence(); }catch(e){}
+    var blob = null; a.Blob = function(parts){ blob = parts.join(''); }; a.URL = { createObjectURL:function(){ return 'x'; }, revokeObjectURL:function(){} };
+    a.document.createElement = (function(f){ return function(t){ var e = f(t); e.click = function(){}; return e; }; })(a.document.createElement);
+    try{ a.exportCSV(); }catch(e){}
+    if(blob) out.push(blob);
+    return out.join('\n');
+  }
+  var own = sweep('owner');
+  assert(/Today.s Profit/.test(own) && /Stock Value/.test(own), 'the owner sees profit and stock value');
+  assert(/Net Profit/.test(own) && /Profit:/.test(own) && /,Profit/.test(own), 'the owner sees the P&L, the customer profit line and the CSV Profit column (so the sweep really rendered them)');
+  ['manager', 'staff'].forEach(function(role){
+    var t = sweep(role);
+    ['Today.s Profit', 'Net Profit', 'Gross Profit', 'Metal Cost', 'Stock Value', 'Capital Status', 'Capital Stuck', '>Profit<', 'Profit:', 'Avg Margin', 'Gross margin'].forEach(function(w){
+      assert(!new RegExp(w).test(t), role + ': found "' + w + '"');
+    });
+    assert(!/,Profit|Profit\n/.test(t.split('\n').filter(function(l){ return /^Invoice,/.test(l); }).join('')), role + ': CSV has no Profit column');
+    if(role === 'staff') assert(!/Pending Girvi|Girvi Lent|Girvi Collected|In Girvi/.test(t), 'staff see no girvi totals');
+    else assert(/Pending Girvi/.test(t), 'a manager keeps the girvi total');
+    assert(/Outstanding Payments/.test(t) && /Pieces in Stock/.test(t), role + ' keeps dues and the stock count');
+  });
+  var m = r26App('manager'); var said = []; m.toast = function(x){ said.push(x); }; m.showPdfReport();
+  assert(said.some(function(x){ return /Only the owner/.test(x); }), 'the business report is the owner\'s');
+});
+
+test('R26 B: staff Home lists only their own bills; the sale records who made it', function(){
+  var a = r26App('staff'); var today = new Date().toISOString();
+  a.S.sales = [r26Sale({ id:'s1', customer:'MINE', date:today, byId:'u_staff' }), r26Sale({ id:'s2', customer:'THEIRS', date:today, byId:'u_other' })];
+  a.renderDash(); var h = a._els['recent-sales'].innerHTML;
+  assert(/MINE/.test(h) && !/THEIRS/.test(h), 'staff see only their own bill, got ' + h.slice(0, 200));
+  var o = r26App('owner'); o.S.sales = a.S.sales; o.renderDash(); assert(/THEIRS/.test(o._els['recent-sales'].innerHTML), 'the owner sees every bill');
+});
+
+test('R26 D: signing out clears the reserved-invoice pool, the cached ledger flag and the release-notes marker, not the server flag', function(){
+  var a = r26App('owner');
+  var ls = a.localStorage;
+  ls.setItem('jewelos_inv_pool::shop1', '["INV-9"]'); ls.setItem('kg_ledger_flag::shop1', '1'); ls.setItem('jewelos_v18_seen::shop1', '1'); ls.setItem('something_else', 'keep');
+  a.kgLedgerOn = true;
+  a._clearDeviceSession();
+  assert(ls.getItem('jewelos_inv_pool::shop1') == null && ls.getItem('kg_ledger_flag::shop1') == null && ls.getItem('jewelos_v18_seen::shop1') == null, 'the three keys are gone');
+  assert(ls.getItem('something_else') === 'keep', 'unrelated keys stay');
+});
+
+test('R26 D: before the owner saves rates, Home and the rate boxes say "Set today\'s rate", not the sample figures; staff cannot edit the boxes', function(){
+  var a = r26App('owner'); a.S.rates = { g24:7800, g22:7200, g18:6000, g14:4500, sil:95 };
+  a.loadRates(); a.renderDash();
+  assert(a.document.getElementById('rate-g22').value === '', 'boxes stay empty');
+  assert(/Set today/.test(a._els['dash-rates-strip'].innerHTML) && !/7,200/.test(a._els['dash-rates-strip'].innerHTML), 'Home strip says set the rate');
+  var s = r26App('staff'); s.loadRates(); assert(s.document.getElementById('rate-g22').readOnly === true, 'staff: boxes are read-only');
+  s.S.rates.g22 = 7100; s.loadRates(); assert(s.document.getElementById('rate-g22').value == 7100, 'staff still see today\'s rate');
+});
+
+test('R26 D: old gold with a weight and no purity is refused, not valued at Rs 0', function(){
+  var a = r26App('owner'); var saved = 0; a.saveToCloud = function(){ saved++; };
+  a.document.getElementById('s-cust').value = 'Cust';
+  a.buildSaleObj = function(){ return r26Sale({ invNo:'', oldGold:{ weight:5, purity:'', value:0 } }); };
+  a.recordSale();
+  assert(saved === 0 && a.said.some(function(m){ return /old gold purity/.test(m); }), 'refused: ' + JSON.stringify(a.said));
 });
 
 Promise.all(asyncTests).then(function(){

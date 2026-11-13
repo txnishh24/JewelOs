@@ -162,6 +162,8 @@ function _clearDeviceSession(){
   try{ localStorage.removeItem(kgOutboxKey()); localStorage.removeItem(kgRejectedKey()); }catch(e){}
   // At boot after an expired session SAAS.shop is null, so the keys above point at 'noshop'. Sweep every shop's copy.
   try{ for(var q = localStorage.length - 1; q >= 0; q--){ var qk = localStorage.key(q); if(qk && /^kg_outbox(_rejected)?::/.test(qk)) localStorage.removeItem(qk); } }catch(e){}
+  // R26: the reserved-invoice pool, the cached ledger flag (the SERVER flag is untouched) and the release-notes marker are this shop's too.
+  try{ for(var q2 = localStorage.length - 1; q2 >= 0; q2--){ var qk2 = localStorage.key(q2); if(qk2 && /^(jewelos_inv_pool|kg_ledger_flag|jewelos_v18_seen)::/.test(qk2)) localStorage.removeItem(qk2); } }catch(e){}
   var keys = [AUTH_KEY, USERS_KEY, SHOPS_KEY, 'ssj_cache', 'ssj_last_save', 'ssj_last_cloud_load'];
   for(var i = 0; i < keys.length; i++){ try{ localStorage.removeItem(keys[i]); }catch(e){} }
   SAAS.sessionToken = null;
@@ -702,6 +704,68 @@ function isOwner(){  return SAAS.user && SAAS.user.role === 'owner';   }
 function isManager(){ return SAAS.user && (SAAS.user.role==='owner'||SAAS.user.role==='manager'); }
 function isStaff(){  return SAAS.user && SAAS.user.role === 'staff';   }
 
+// R26: owner-only gate. Call it as the FIRST line INSIDE a function body, so a stale
+// button, a console call or a deep link cannot get round it by the button being hidden.
+function ownerGate(what){
+  if(isOwner()) return true;
+  toast('Only the owner can do this');
+  return false;
+}
+// R26: the one rule for "may this user see profit, cost price, margin, stock value, P&L".
+// Owner only. Use this everywhere instead of testing the role by hand.
+function canSeeProfit(){ return !!isOwner(); }
+// R26: Close Day and Reopen Day: Close = owner or manager, Reopen = owner only.
+function canCloseDay(){ return !!isManager(); }
+// R26: editing, refunding, voiding a bill and changing rates: owner or manager. Staff: never.
+function canEditBills(){ return !!isManager(); }
+
+// R26: discount limits. Owner is unlimited. Defaults: staff 5%, manager 15%. The owner can change
+// them in Settings; they are kept inside S.rates (already saved, synced and backed up with the rates).
+var DISC_CAP_DEFAULTS = {staff:5, manager:15};
+function discountCapPct(role){
+  if(role === 'owner') return null;
+  var c = (S.rates && S.rates.discCaps) || {};
+  var v = parseFloat(c[role]);
+  if(!(v >= 0)) v = DISC_CAP_DEFAULTS[role];
+  return (v >= 0) ? v : 0;
+}
+// '' when fine, else the words to show. prevDisc = the discount already on the bill (Edit Bill):
+// an unchanged old discount is never re-refused. No signed-in user = no role to limit (never true in the app).
+function discountProblem(sale, prevDisc){
+  var d = parseFloat(sale.discount) || 0;
+  if(d < 0) return 'Discount cannot be negative.';
+  if(d === 0) return '';
+  var base = calcSaleTotals(sale).sub;
+  if(d > base + 0.5) return 'Discount (Rs '+Math.round(d).toLocaleString('en-IN')+') is more than the bill total (Rs '+Math.round(base).toLocaleString('en-IN')+').';
+  if(prevDisc != null && d <= prevDisc) return '';
+  if(!SAAS.user) return '';
+  var role = SAAS.user.role || 'staff';
+  var cap = discountCapPct(role);
+  if(cap == null) return '';
+  var pct = base > 0 ? d / base * 100 : 0;
+  if(pct > cap + 1e-9) return 'Needs owner approval: this discount is '+(Math.round(pct*10)/10)+'% and your limit is '+cap+'%.';
+  return '';
+}
+function saveDiscountCaps(){
+  if(!ownerGate()) return;
+  var st = parseFloat((document.getElementById('set-disc-staff')||{}).value);
+  var mg = parseFloat((document.getElementById('set-disc-mgr')||{}).value);
+  if(!(st >= 0 && st <= 100) || !(mg >= 0 && mg <= 100)){ toast('Enter a percent from 0 to 100 for both.'); return; }
+  if(!S.rates) S.rates = {};
+  var prev = S.rates.discCaps;
+  S.rates.discCaps = {staff:st, manager:mg};
+  auditLog('update','settings','','Discount limits: staff '+st+'% / manager '+mg+'%');
+  saveToCloud(function(err){
+    if(err){ if(prev === undefined) delete S.rates.discCaps; else S.rates.discCaps = prev; return; }
+    toast('Discount limits saved');
+  });
+}
+function fillDiscountCaps(){
+  var a = document.getElementById('set-disc-staff'), b = document.getElementById('set-disc-mgr');
+  if(a) a.value = discountCapPct('staff');
+  if(b) b.value = discountCapPct('manager');
+}
+
 // Staff guard: blocks delete/edit operations for staff-only users
 function guardWrite(action){
   if(isStaff()){
@@ -725,11 +789,13 @@ function guardWrite(action){
 
 // ── STAFF MANAGEMENT ────────────────────────────────────────────────
 function openInviteStaff(){
+  if(!ownerGate()) return;
   document.getElementById('set-invite-form').style.display = '';
   document.getElementById('inv-name').focus();
 }
 
 function sendStaffInvite(){
+  if(!ownerGate()) return;
   var name  = (document.getElementById('inv-name').value||'').trim();
   var email = (document.getElementById('inv-email').value||'').trim().toLowerCase();
   var role  = document.getElementById('inv-role').value;
@@ -962,10 +1028,19 @@ function saveRazorpayKey(){
 
 // ── SETTINGS PANEL ───────────────────────────────────────────────────
 // The JSON Backup button (which holds every karigar amount) is the owner's.
-function applyBackupButtonRole(){ var b = document.getElementById('btn-json-backup'); if(b) b.style.display = isOwner() ? '' : 'none'; }
+function applyBackupButtonRole(){
+  var own = !!isOwner();
+  // R26: every owner-only control is hidden for others; the function bodies check the role again.
+  ['btn-json-backup','btn-restore-backup','set-invite-btn','set-danger-zone','set-activity-card','set-disc-card'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.style.display = own ? '' : 'none';
+  });
+  var at = document.querySelector('.settings-tab[data-tab="audit"]'); if(at) at.style.display = own ? '' : 'none';
+  var an = document.querySelector('.settings-tab[data-tab="analytics"]'); if(an) an.style.display = canSeeProfit() ? '' : 'none';
+}
 function renderSettings(){
   if(!SAAS.shop || !SAAS.user) return;
   applyBackupButtonRole();
+  fillDiscountCaps();
 
   // Fill shop profile
   var sn = document.getElementById('set-shopname');
@@ -1143,7 +1218,7 @@ function saveShopProfile(){
 }
 
 function removeStaff(userId){
-  if(!isOwner()){ toast('Only the owner can remove staff'); return; }
+  if(!ownerGate()) return;
   if(!SAAS.sessionToken){ toast('\u26a0 Session expired — please sign in again'); return; }
   safeConfirm('Remove staff member?','This will revoke their access to the shop.',function(){
     authGatewayCall('remove-staff', {sessionToken: SAAS.sessionToken, staffUserId: userId})
@@ -1178,6 +1253,12 @@ if(document.readyState==='loading'){
 function exportFullBackup(){
   if(!isOwner()){ toast('Only the owner can download the JSON backup'); return; }   // it holds every salary, payment and labour rate
   if(!guardFeature('csvExport','basic')) return;
+  downloadBackupFile(buildBackupPayload());
+  saasActivityLog('backup', 'Full backup exported');
+  toast('✓ Backup downloaded!');
+}
+
+function buildBackupPayload(){
   // v9: previously this saved only products/sales/orders/girvi/rates/customers,
   // silently leaving out purchase bills, suppliers and stock-movement history —
   // so a "Full Backup" was not full, and restoring one wiped those lists.
@@ -1241,6 +1322,10 @@ function exportFullBackup(){
       nextPurchaseBillNo: S.nextPurchaseBillNo
     }
   };
+  return payload;
+}
+
+function downloadBackupFile(payload){
   var blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
   var url  = URL.createObjectURL(blob);
   var a    = document.createElement('a');
@@ -1249,15 +1334,15 @@ function exportFullBackup(){
   a.download = (SAAS.shop?SAAS.shop.name.replace(/\s+/g,'-'):'JewelOS')+'-backup-'+date+'.json';
   a.click();
   URL.revokeObjectURL(url);
-  saasActivityLog('backup', 'Full backup exported');
-  toast('\u2713 Backup downloaded!');
 }
 
 function importBackup(){
+  if(!ownerGate()) return;
   document.getElementById('backup-file-input').click();
 }
 
 function processBackupFile(input){
+  if(!ownerGate()){ try{ input.value=''; }catch(e){} return; }
   var file = input.files[0];
   if(!file) return;
   safeConfirm('Restore from backup?','This will REPLACE your current data. A cloud save will be triggered immediately.',function(){
@@ -1656,7 +1741,7 @@ function runInsightEngine(){
   }
 
   // ── RULE 2: Profit margin health ─────────────────────────────────
-  if(thisM.revenue > 0){
+  if(thisM.revenue > 0 && canSeeProfit()){
     var margin = thisM.margin;
     if(margin < 5){
       insights.push({type:'negative',icon:'⚠️',
@@ -1773,7 +1858,7 @@ function runInsightEngine(){
 
   // ── RULE 11: Capital stuck analysis ─────────────────────────────
   var totalAssets = stockGV() + stockSV() + totalPending + girviExposure;
-  if(totalAssets > 0){
+  if(totalAssets > 0 && canSeeProfit()){
     var capitalStuck = totalPending + girviExposure;
     var stuckPct = (capitalStuck/totalAssets*100).toFixed(0);
     if(stuckPct > 30){

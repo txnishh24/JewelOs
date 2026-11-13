@@ -1336,6 +1336,8 @@ function _saleHasRefund(sale){
 function openEditBill(saleId){
   var sale = S.sales.find(function(x){return x.id===saleId;});
   if(!sale) return;
+  if(!canEditBills()){ toast('Staff accounts cannot edit bills. Ask the owner or a manager.'); return; }
+  if(!isOwner() && dbSaleDayClosed(sale)){ toast('That bill is on a closed day. Only the owner can change it.'); return; }
   if(_saleHasRefund(sale)){toast('Bill has a refund against it — it can no longer be edited');return;}
   _editBillId = saleId;
 
@@ -1434,7 +1436,7 @@ function openEditBill(saleId){
   // Reason input + save
   var reasonRow = document.createElement('div');
   reasonRow.innerHTML=
-    '<div class="fg" style="margin-bottom:10px;"><label>Reason for edit (optional)</label><input id="eb-reason" placeholder="e.g. Weight correction, customer request..."/></div>'+
+    '<div class="fg" style="margin-bottom:10px;"><label>Reason for edit ('+(isOwner()?'optional':'required')+')</label><input id="eb-reason" placeholder="e.g. Weight correction, customer request..."/></div>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
       '<button class="btn btn-gold" onclick="saveEditBill()">'+svgIcon('cloud')+' Save Changes</button>'+
       '<button class="btn" onclick="closeEditBillModal()">Cancel</button>'+
@@ -1542,6 +1544,13 @@ function calcEditTotal(){
 function saveEditBill(){
   var sale = S.sales.find(function(x){return x.id===_editBillId;});
   if(!sale) return;
+  if(!canEditBills()){ toast('Staff accounts cannot edit bills. Ask the owner or a manager.'); return; }
+  var _reasonTxt = ((document.getElementById('eb-reason')||{value:''}).value||'').trim();
+  if(!isOwner()){
+    if(dbSaleDayClosed(sale)){ toast('That bill is on a closed day. Only the owner can change it.'); return; }
+    if(!_reasonTxt){ toast('Please give a reason for the edit.'); return; }
+  }
+  var _prevDisc = parseFloat(sale.discount) || 0;
   // Re-checked here, not just in openEditBill(): a refund can land (another
   // device, background sync) while this modal is already open.
   if(_saleHasRefund(sale)){toast('Bill has a refund against it — it can no longer be edited');return;}
@@ -1561,6 +1570,12 @@ function saveEditBill(){
   sale.lastEditedAt = new Date().toISOString();
   var r = _applyEditBillForm(sale);
   var t = r.t;
+  var _dp = discountProblem(sale, _prevDisc);   // R26: cap by role, and never above the bill total
+  if(_dp){
+    S.sales[S.sales.indexOf(sale)] = JSON.parse(_beforeEdit);
+    toast('\u26a0 '+_dp);
+    return;
+  }
   // QA 1 Oct P0-2, same rule as recordSale: payments above the bill are refused.
   var _over = saleOverpaidBy({lockedGrand:sale.lockedGrand, nowPaying:{amount:r.splitAdv}, oldGold:{value:r.og}, prevAdvance:{amount:r.prevAdv}});
   if(_over > 0){
@@ -1576,7 +1591,7 @@ function saveEditBill(){
     return;
   }
   sale.payStatus = t.bal<=0 ? 'full' : (t.adv>0 ? 'advance' : 'pending');
-  auditLog('update','sale',sale.id,'Bill '+(sale.invNo||sale.id)+' edited (v'+sale.editHistory.length+')'); // H4: bill edits were the one money action with no central audit trail
+  auditLog('update','sale',sale.id,'Bill '+(sale.invNo||sale.id)+' edited (v'+sale.editHistory.length+')'+(_reasonTxt?' | '+_reasonTxt:'')); // H4: bill edits were the one money action with no central audit trail
   saveToCloud(function(err){
     if(!err){
       closeEditBillModal();
@@ -2469,6 +2484,7 @@ function reverseSalePayment(saleId, paymentId){
 function openRefundModal(saleId) {
   var sale=(S.sales||[]).find(function(x){return x.id===saleId;});
   if(!sale){toast('Sale not found');return;}
+  if(!canEditBills()){ toast('Staff accounts cannot issue refunds. Ask the owner or a manager.'); return; }
   if(sale.refundStatus==='full'){toast('Already fully refunded');return;}
   var t=calcSaleTotals(sale);
   var done=(sale.refunds||[]).reduce(function(s,r){return s+r.amount;},0);
@@ -2548,12 +2564,14 @@ function closeRefundModal() {
 function _submitRefund(saleId) {
   var sale=(S.sales||[]).find(function(x){return x.id===saleId;});
   if(!sale) return;
+  if(!canEditBills()){ toast('Staff accounts cannot issue refunds. Ask the owner or a manager.'); return; }
   if(_refundSubmitLock){ toast('Refund already being processed — please wait'); return; }
   var amount=parseFloat(document.getElementById('rfnd-amount').value);
   var mode  =document.getElementById('rfnd-mode').value;
   var reason=document.getElementById('rfnd-reason').value;
   var note  =(document.getElementById('rfnd-note').value||'').trim();
   if(!amount||amount<=0){toast('Enter valid amount');return;}
+  if(!isOwner() && (!reason || (reason==='Other' && !note))){ toast('Please give the reason in the notes box.'); return; }
   var t=calcSaleTotals(sale);
   var done=(sale.refunds||[]).reduce(function(s,r){return s+r.amount;},0);
   if(amount > t.grand-done+1){toast('Amount exceeds refundable');return;}

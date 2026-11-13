@@ -4,6 +4,7 @@
 
 // ── PDF REPORT EXPORT ─────────────────────────────────────────────────
 function showPdfReport(){
+  if(!canSeeProfit()){ toast('Only the owner can open the business report (it carries profit and stock value)'); return; }
   var now   = new Date();
   var year  = now.getFullYear();
   var month = now.getMonth();
@@ -102,7 +103,8 @@ function printPdfPreview(){
 
 // ── CSV EXPORT ────────────────────────────────────────────────────────
 function exportCSV(){
-  var rows = [['Invoice','Date','Customer','Phone','Items','Weight(g)','Total','Paid','Balance','GST','Profit']];
+  var _showP = canSeeProfit();   // R26: no Profit column for a manager or staff
+  var rows = [['Invoice','Date','Customer','Phone','Items','Weight(g)','Total','Paid','Balance','GST'].concat(_showP ? ['Profit'] : [])];
   S.sales.forEach(function(s){
     var t=calcSaleTotals(s); var p=calcSaleProfit(s);
     var wt=(s.items||[]).reduce(function(a,i){return a+i.weight*(i.qty||1);},0);
@@ -110,8 +112,8 @@ function exportCSV(){
       s.invNo, s.date, s.customer, s.phone||'',
       (s.items||[]).map(function(i){return i.name;}).join('; '),
       wt.toFixed(2), Math.round(t.grand), Math.round(t.adv),
-      Math.round(t.bal), Math.round(t.gstAmt), Math.round(p.profit)
-    ]);
+      Math.round(t.bal), Math.round(t.gstAmt)
+    ].concat(_showP ? [Math.round(p.profit)] : []));
   });
   var csv = rows.map(function(r){return r.map(csvCell).join(',');}).join('\n');
   var blob = new Blob([csv],{type:'text/csv'});

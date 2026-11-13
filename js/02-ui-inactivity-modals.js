@@ -230,14 +230,20 @@ document.addEventListener('keydown',function(e){
 
 // ─── RATES ────────────────────────────────────────────────────────────────
 function loadRates(){
-  document.getElementById('rate-g24').value=S.rates.g24||'';
-  document.getElementById('rate-g22').value=S.rates.g22||'';
-  document.getElementById('rate-g18').value=S.rates.g18||'';
-  document.getElementById('rate-g14').value=S.rates.g14||'';
-  document.getElementById('rate-sil').value=S.rates.sil||'';
+  // R26: until the owner saves real rates, show empty boxes and "Set today's rate", not the sample figures.
+  var _unset = !ratesConfirmed();
+  document.getElementById('rate-g24').value=_unset?'':(S.rates.g24||'');
+  document.getElementById('rate-g22').value=_unset?'':(S.rates.g22||'');
+  document.getElementById('rate-g18').value=_unset?'':(S.rates.g18||'');
+  document.getElementById('rate-g14').value=_unset?'':(S.rates.g14||'');
+  document.getElementById('rate-sil').value=_unset?'':(S.rates.sil||'');
+  // R26: staff can read today's rate to bill, but not change it.
+  var _ro = !canEditBills();
+  ['g24','g22','g18','g14','sil'].forEach(function(k){ var e=document.getElementById('rate-'+k); if(e) e.readOnly=_ro; });
+  var _sb = document.querySelector ? document.querySelector('.rate-save') : null; if(_sb) _sb.style.display = _ro ? 'none' : '';
   // One-line summary for the collapsed rate editor (UI/UX audit, 15 Oct).
   var sumEl=document.getElementById('rate-summary-line');
-  if(sumEl) sumEl.textContent='22K ₹'+(S.rates.g22||0).toLocaleString('en-IN')+' · Silver ₹'+(S.rates.sil||0).toLocaleString('en-IN')+' · Edit';
+  if(sumEl) sumEl.textContent=_unset ? 'Set today\'s rate' : '22K ₹'+(S.rates.g22||0).toLocaleString('en-IN')+' · Silver ₹'+(S.rates.sil||0).toLocaleString('en-IN')+' · Edit';
 }
 // QA 1 Oct P1-6: 24K = Rs 0, Rs 100, or 22K above 24K all saved. Returns what is
 // wrong in words, or '' when the rates look like real per-gram prices.
@@ -264,6 +270,7 @@ function needRatesFirst(){
   return true;
 }
 function saveRates(){
+  if(!canEditBills()){ toast('Staff accounts cannot change rates. Ask the owner or a manager.'); return; }
   var r = {
     g24:parseFloat(document.getElementById('rate-g24').value)||0,
     g22:parseFloat(document.getElementById('rate-g22').value)||0,
@@ -1532,6 +1539,7 @@ function buildSaleObj(){
     // every bill. Store the picked LOCAL day with the current time of day.
     date:billDateISO(document.getElementById('s-date').value),
     createdAt:new Date().toISOString(),
+    byId:(typeof SAAS!=='undefined' && SAAS.user) ? (SAAS.user.id||SAAS.user.email||'') : '',   // R26: staff Home lists only their own bills
     customer:document.getElementById('s-cust').value||'Walk-in',
     phone:document.getElementById('s-phone').value||'',
     addr:document.getElementById('s-addr').value||'',
@@ -1615,6 +1623,11 @@ function recordSale(){
   var sale=buildSaleObj();
   if(!sale.items||!sale.items.length){toast('Add at least one item');return;}
   if(needRatesFirst()) return;
+  var _dp = discountProblem(sale);   // R26: cap by role, and never above the bill total
+  if(_dp){ toast('⚠ '+_dp); return; }
+  // R26: old gold with a weight but no purity used to be valued at Rs 0 without a word
+  var _og = sale.oldGold || {};
+  if(_og.weight > 0 && !_og.purity && !(_og.value > 0)){ toast('⚠ Select the old gold purity, or its value would be Rs 0.'); return; }
   // Phone validation — must be empty OR 10 digits
   if(sale.phone){
     var _cleanPhone = (sale.phone||'').replace(/\D/g,'');

@@ -3318,15 +3318,17 @@ function money(a){   // an owner builds a shop with every kind of karigar money
 test('R21 A1: the Audit Trail shows a manager the action only, never an amount, a rate or a salary; the owner still sees all', function(){
   var a = fresh('owner'); var m = money(a); var el = function(){ return a._els['audit-log-list'].innerHTML; };
   a.renderAuditLog(); var own = el(); ok(AMT.test(own), 'the owner sees amounts'); ok(/labour/i.test(own));
-  a.SAAS.user = {name:'Mgr', email:'m@example.com', role:'manager'}; a.renderAuditLog(); var mg = el();
+  a.SAAS.user = {name:'Mgr', email:'m@example.com', role:'manager'};
+  a._els['audit-log-list'].innerHTML = ''; a.renderAuditLog(); ok(el() === '', 'R26: a manager cannot open the audit trail at all');
+  var mg = a.S.auditLog.map(function(e){ return a.auditNoteFor(e); }).join(' | ');   // the strip rule still holds if a note ever reaches a manager
   ok(!AMT.test(mg), 'no amount for a manager: ' + (mg.match(/.{30}(₹|Rs)\s?\d.{20}/) || [''])[0]); ok(!/\/g on net/.test(mg) && !/monthly/i.test(mg), 'no rate, no salary terms');
   ok(/Labour posted/.test(mg) && /Salary payment/.test(mg) && /Advance given/.test(mg), 'the action words stay');
   ok(!/title="[^"]*(₹|Rs)\s?\d/.test(mg), 'and not in the title attribute');
-  a.SAAS.user = {name:'Staff', role:'staff'}; a.renderAuditLog(); ok(!AMT.test(el()), 'staff too');
+  a.SAAS.user = {name:'Staff', role:'staff'}; a._els['audit-log-list'].innerHTML = ''; a.renderAuditLog(); ok(el() === '', 'staff too');
 });
 test('R21 A1b: any other karigar audit note has its rupee amounts stripped for a manager (the fallback really matches)', function(){
   var a = fresh('owner'); a.S.auditLog = [{id:'x1', action:'kg_loss', entity:'kgJob', entityId:'j1', user:'Own', role:'owner', ts:new Date().toISOString(), note:'Loss bill KJ-0001 " + "\u20b91,400.50 and -\u20b9250 for ring Rs 5'}];
-  a.SAAS.user = {name:'Mgr', role:'manager'}; a.renderAuditLog(); var h = a._els['audit-log-list'].innerHTML; ok(!AMT.test(h), h); ok(/Loss bill KJ-0001/.test(h) && /for ring/.test(h), 'the words stay: ' + h);
+  a.SAAS.user = {name:'Mgr', role:'manager'}; var h = a.S.auditLog.map(function(e){ return a.auditNoteFor(e); }).join(' | '); ok(!AMT.test(h), h); ok(/Loss bill KJ-0001/.test(h) && /for ring/.test(h), 'the words stay: ' + h);
   a.SAAS.user = {name:'Own', role:'owner'}; a.renderAuditLog(); ok(/\u20b91,400\.50/.test(a._els['audit-log-list'].innerHTML), 'owner sees it');
 });
 test('R21 A2: the Day Book keeps the amount but a manager or staff does not see the karigar NAME on salary and advance lines', function(){
@@ -3374,7 +3376,7 @@ test('R21 A6: a manager reading every reachable screen, its attributes, share te
     a._kg2.more = 'p:' + k.id; out.push(a.kg3ProfileHtml(k.id)); a._kg2.more = '';
     a.kg3NewJob(k.id); a.kg3Close(m.j.id); a.kg3Receive(m.j.id); a.kg3Issue(m.j.id); a.kg3Scrap(m.j.id); a.kg3AddKarigar(); a.kg3EditDetails(k.id); a.kg3Count(k.id); a.kg3Carry(k.id);
     sheets.forEach(function(o){ out.push(o.title, o.submitLabel || '', o.preview ? o.preview({}) : '', o.preview ? o.preview({wt:'10', purity:'92', metal:'gold22'}) : ''); (o.fields || []).forEach(function(f){ out.push(f.label || '', f.hint || '', f.html || '', String(f.value || ''), (f.options || []).map(function(x){ return x.join(' '); }).join(' ')); }); });
-    a.kgForm = keep; a.renderAuditLog(); out.push(a._els['audit-log-list'].innerHTML);
+    a.kgForm = keep; out.push(a.S.auditLog.map(function(e){ return a.auditNoteFor(e); }).join('\n'));
     a.dbAutoLines(a.kgToday()).forEach(function(l){ if(l.src === 'karigar') out.push(l.label); });
     return out.join('\n');
   }

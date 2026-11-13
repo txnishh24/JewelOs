@@ -1304,6 +1304,7 @@ function auditNoteFor(e){
   return note.replace(/[-\u2212]?(\u20b9|Rs\.?)\s?[\d,]+(\.[\d]+)?/g, '').replace(/\s{2,}/g, ' ').trim();   // any other karigar line: amounts stripped
 }
 function renderAuditLog() {
+  if(!ownerGate()) return;
   var el = document.getElementById('audit-log-list');
   if(!el) return;
   var log = getAuditLog(200);
@@ -1345,6 +1346,7 @@ function renderAuditLog() {
 }
 
 function showAuditSubtab(sub){
+  if(!ownerGate()) return;
   var isTrail = sub==='trail';
   document.getElementById('audit-subtab-trail').style.display = isTrail ? '' : 'none';
   document.getElementById('audit-subtab-activity').style.display = isTrail ? 'none' : '';
@@ -1360,6 +1362,7 @@ function showAuditSubtab(sub){
 // logged by saasActivityLog() on every successful sign-in) become that
 // user's section header rather than just another row in the list.
 function renderActivityLogGrouped(){
+  if(!ownerGate()) return;
   var el = document.getElementById('activity-log-grouped');
   if(!el) return;
   var roleFilter = (document.getElementById('activity-role-filter')||{}).value || 'all';

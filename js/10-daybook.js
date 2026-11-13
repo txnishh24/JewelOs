@@ -103,6 +103,7 @@ function dbInit(){
   }
   if(!Array.isArray(S.dayBook.entries)) S.dayBook.entries = [];
   if(!Array.isArray(S.dayBook.closes))  S.dayBook.closes  = [];
+  if(!Array.isArray(S.dayBook.reopens)) S.dayBook.reopens = [];
   if(S.dayBook.opening !== null && typeof S.dayBook.opening !== 'object') S.dayBook.opening = null;
 }
 
@@ -556,7 +557,10 @@ var DB_ERR_TEXT = {
   'not-found':'the entry was not found (it may have changed on another phone)',
   'not-latest-close':'only the most recently closed day can be corrected',
   'opening-locked':'the opening balance cannot change after a day has been closed',
-  'reason-required':'please give a reason'
+  'reason-required':'please give a reason',
+  'not-allowed':'only the owner or a manager can close a day',
+  'owner-only':'only the owner can do this',
+  'not-closed':'that day is not closed'
 };
 function dbErrText(err){
   var m = err && err.message;
@@ -646,7 +650,44 @@ function dbFirstOpenDay(){
 // closed, or a date earlier than the latest existing close — days
 // skipped in between stay live and their movement rolls into the next
 // close's opening via dbOpening's walk.
+// R26: is this bill dated on a closed day? Used to stop a manager editing or voiding it.
+function dbSaleDayClosed(sale){
+  try{ return !!(sale && sale.date && dbCloseFor(dbDayKey(sale.date))); }catch(e){ return false; }
+}
+
+// R26: owner-only. Reopening reverses nothing (no entry, sweep adjustment or count is touched);
+// it only removes the lock so edits to that day are live again. Only the LATEST close can be
+// reopened, because every later opening balance is derived from it. The reason is kept.
+function dbReopenDay(dateKey, reason, cb){
+  if(!isOwner()){ if(cb) cb(new Error('owner-only')); return; }
+  var c = dbCloseFor(dateKey);
+  if(!c){ if(cb) cb(new Error('not-closed')); return; }
+  var latest = null;
+  (S.dayBook.closes||[]).forEach(function(x){ if(!latest || x.date > latest.date) latest = x; });
+  if(latest.date !== dateKey){ if(cb) cb(new Error('not-latest-close')); return; }
+  if(!reason || !String(reason).trim()){ if(cb) cb(new Error('reason-required')); return; }
+  var snap = _dbSnapshot();
+  S.dayBook.closes = S.dayBook.closes.filter(function(x){ return x.date !== dateKey; });
+  if(!Array.isArray(S.dayBook.reopens)) S.dayBook.reopens = [];
+  S.dayBook.reopens.push({date:dateKey, ts:new Date().toISOString(), by:_dbUserName(), reason:String(reason).trim(), closing:c.closing, counted:c.counted, diff:c.diff});
+  saasActivityLog('daybook', 'Day reopened '+dateKey+': '+String(reason).trim());
+  auditLog('reopen', 'daybook', dateKey, 'Reopened: '+String(reason).trim());
+  _dbCommit(snap, function(err){ if(cb) cb(err); });
+}
+function dbOpenReopen(){
+  if(!isOwner()){ toast('Only the owner can do this'); return; }
+  var dateKey = dbUiDate();
+  var reason = String((typeof prompt === 'function' ? prompt('Why are you reopening '+fmtDate(dateKey)+'? (required)','') : '') || '').trim();
+  if(!reason){ toast('A reason is required to reopen a day.'); return; }
+  dbReopenDay(dateKey, reason, function(err){
+    if(err){ toast('⚠ Could not reopen: '+dbErrText(err)); return; }
+    toast('Day reopened. Nothing was reversed; edits are open again.');
+    renderDayBook();
+  });
+}
+
 function dbCloseDay(dateKey, counted, cb){
+  if(SAAS.user && !canCloseDay()){ if(cb) cb(new Error('not-allowed')); return; }   // staff never; no session = engine tests
   if(dateKey > dbToday()){ if(cb) cb(new Error('future-date')); return; }
   if(dbCloseFor(dateKey)){ if(cb) cb(new Error('already-closed')); return; }
   var latest = null;
@@ -947,6 +988,7 @@ function _dbPaintDay(){
       '<div class="card-title"><span>'+svgIcon('lock')+' Day closed</span></div>'+
       '<div style="font-size:12px;color:var(--text2);">Counted '+fmt(v.counted)+' — '+diffTxt+'.</div>'+
       (dbDayKey(v.close.ts)===dbToday() ? '<button class="btn btn-sm" style="margin-top:8px;" onclick="dbOpenCorrectModal()">Correct today\'s count</button>' : '')+
+      (isOwner() ? '<button class="btn btn-sm" style="margin:8px 0 0 6px;" onclick="dbOpenReopen()">Reopen day</button>' : '')+
     '</div>';
   }
 
@@ -1014,7 +1056,7 @@ function _dbPaintDay(){
   if(!v.closed){
     html += '<div class="sticky-action-bar" style="display:flex;gap:8px;flex-wrap:wrap;">'+
       '<button class="btn btn-gold" style="min-height:44px;" onclick="dbOpenEntryModal()">+ Add Entry</button>'+
-      '<button class="btn" style="min-height:44px;" onclick="dbOpenCloseModal()">'+svgIcon('lock')+' Close Day</button>'+
+      (canCloseDay() ? '<button class="btn" style="min-height:44px;" onclick="dbOpenCloseModal()">'+svgIcon('lock')+' Close Day</button>' : '')+
     '</div>';
   }
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 20px;">'+
@@ -1245,6 +1287,7 @@ function dbSubmitVoid(){
 }
 
 function dbOpenCloseModal(){
+  if(!canCloseDay()){ toast('Only the owner or a manager can close a day'); return; }
   var dateKey = dbUiDate();
   var v = dbDayView(dateKey);
   var sum = document.getElementById('db-close-summary');
@@ -1254,6 +1297,7 @@ function dbOpenCloseModal(){
 }
 
 function dbSubmitClose(){
+  if(!canCloseDay()){ toast('Only the owner or a manager can close a day'); return; }
   var counted = parseFloat((document.getElementById('db-close-counted')||{}).value);
   if(!(counted >= 0)){ toast('⚠ Enter the amount actually counted'); return; }
   var dateKey = dbUiDate();
