@@ -170,6 +170,7 @@ function checkNewSale(role: string, s: any, caps: any, closed: Record<string, bo
 }
 
 function checkChangedSale(role: string, before: any, afterRaw: any, caps: any, closed: Record<string, boolean>): Violation | null {
+  if (deepEq(before, afterRaw)) return null;   // most bills in a save are untouched: skip the copy below
   const after = withoutMigration(before, afterRaw, role);
   const keys = changedKeys(before, after);
   if (!keys.length) return null;
