@@ -149,6 +149,7 @@ test.describe('reports', () => {
     await openCustomerHistory(page, custName);
     await page.locator('#cust-modal').getByRole('button', { name: /refund/i }).click();
     await expect(page.locator('#refund-modal')).toBeVisible();
+    await page.locator('#rfnd-reason').selectOption('Wrong Item'); // R27: a refund reason is required
     await page.getByRole('button', { name: /issue refund/i }).click();
     await page.locator('#safe-confirm-ok').click();
     await expect(page.getByText(/Refund .* issued/)).toBeVisible({ timeout: 10000 });
