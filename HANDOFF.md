@@ -77,6 +77,15 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-14 (two-hundred-and-thirty-first entry) - Claude Code - DRAFT migration 015 (revoke EXECUTE on `rls_auto_enable()`) on `claude/r29-role-check`. NOTHING APPLIED; no live write
+
+- Cowork's advisor note: `public.rls_auto_enable()` (SECURITY DEFINER) is callable by anon and authenticated over the API. Tanish said draft the migration and its check, apply nothing.
+- Read-only catalog queries on the live project (no data read, no write): the function RETURNS event_trigger, owner postgres, used only by event trigger `ensure_rls` (ddl_command_end; CREATE TABLE / CREATE TABLE AS / SELECT INTO), not part of an extension. Grants are `{=X/postgres, postgres, anon, authenticated, service_role}`: `=X` is PUBLIC, so revoking from anon and authenticated alone would change nothing; PUBLIC must be revoked as well.
+- Files: `supabase/migrations/015_revoke_rls_auto_enable_execute.sql` (3 REVOKEs: public, anon, authenticated; idempotent; rollback is one GRANT, in the file header) and `tests/sql-rls-auto-enable.test.mjs` (PGlite, uses the exact live function body and trigger). 10 checks, all ok: before 015 anon/authenticated/a plain role can execute it; after 015 none can, service_role and postgres keep EXECUTE, a new public table STILL gets RLS enabled (also when created by an ordinary role), a direct call as anon is refused, running 015 twice changes nothing.
+- Not verified: Supabase's own platform behaviour on the live project after the revoke (the test proves Postgres semantics; the live project has not been touched), and the advisor warning actually clearing. Apply only with Tanish's go, after `/careful`; then re-run the advisor and create a throwaway table check on a branch or test project, not a customer shop.
+-> FOR COWORK: nothing until Tanish says go; after applying, re-run get_advisors to confirm the warning is gone.
+-> FOR TANISH: approve applying migration 015 with the R29 shadow deploy: yes/no.
+
 ### 2026-11-14 (two-hundred-and-thirtieth entry) - Claude Code - TO-CLAUDE-CODE-R29: server-side role check, code + tests on branch `claude/r29-role-check` (off `main` batch74). NOT merged, pushed, deployed, migrated; `store-proxy` v18 still live; no key rotated; no live shop touched
 
 - DONE (a): `supabase/functions/store-proxy/role-check.ts` (pure, no Deno), wired into the `store-proxy` PUT branch in `index.ts`. Manager/staff only; owner never read or checked; skipped when `_v` differs (CAS answers 409); fails OPEN on any read error; a crash inside the check REFUSES (found by the audit). `ROLE_CHECK_MODE` = `off` / `log` (default if unset or mistyped) / `enforce` (403 `role_forbidden`). Costs one extra row read per manager/staff save. Rules, gaps and the phase-2 profit-hiding design (failure cases) are in `docs/ROLE-CHECK-DESIGN.md`.
