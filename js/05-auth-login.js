@@ -648,6 +648,7 @@ function applyFeatureGates(){
         if(tabs[i]===t) el.style.display='none';
       });
     });
+    var _pTab = document.getElementById('invsub-tab-purchases'); if(_pTab) _pTab.style.display = 'none';   // R27: staff see no purchases
     // Show a staff badge in header
     var headerRight = document.querySelector('.header-right, .topbar-right, header .right');
     var staffBadge = document.getElementById('staff-role-badge');
@@ -731,26 +732,31 @@ function discountCapPct(role){
 }
 // '' when fine, else the words to show. prevDisc = the discount already on the bill (Edit Bill):
 // an unchanged old discount is never re-refused. No signed-in user = no role to limit (never true in the app).
-function discountProblem(sale, prevDisc){
+function discountProblem(sale, prevDisc, prevBase){
   var d = parseFloat(sale.discount) || 0;
   if(d < 0) return 'Discount cannot be negative.';
   if(d === 0) return '';
   var base = calcSaleTotals(sale).sub;
   if(d > base + 0.5) return 'Discount (Rs '+Math.round(d).toLocaleString('en-IN')+') is more than the bill total (Rs '+Math.round(base).toLocaleString('en-IN')+').';
-  if(prevDisc != null && d <= prevDisc) return '';
+  // Edit Bill (prevBase given): judge the PERCENT of the new base. Refuse only when it is over the cap AND higher than the bill's original percent.
+  var prevPct = (prevDisc != null && prevBase > 0) ? prevDisc / prevBase * 100 : null;
+  if(prevPct == null && prevDisc != null && d <= prevDisc) return '';
   if(!SAAS.user) return '';
   var role = SAAS.user.role || 'staff';
   var cap = discountCapPct(role);
   if(cap == null) return '';
   var pct = base > 0 ? d / base * 100 : 0;
-  if(pct > cap + 1e-9) return 'Needs owner approval: this discount is '+(Math.round(pct*10)/10)+'% and your limit is '+cap+'%.';
+  if(prevPct != null && pct <= prevPct + 0.05) return '';
+  if(pct > cap + 1e-9) return 'Needs owner approval: this discount is '+pct.toFixed(2)+'% and your limit is '+cap+'%.';
   return '';
 }
 function saveDiscountCaps(){
   if(!ownerGate()) return;
   var st = parseFloat((document.getElementById('set-disc-staff')||{}).value);
   var mg = parseFloat((document.getElementById('set-disc-mgr')||{}).value);
-  if(!(st >= 0 && st <= 100) || !(mg >= 0 && mg <= 100)){ toast('Enter a percent from 0 to 100 for both.'); return; }
+  if(!(st >= 0 && st <= 100)){ toast('Staff limit: enter a percent from 0 to 100.'); return; }
+  if(!(mg >= 0 && mg <= 100)){ toast('Manager limit: enter a percent from 0 to 100.'); return; }
+  if(st > mg){ toast('The staff limit ('+st+'%) cannot be higher than the manager limit ('+mg+'%).'); return; }
   if(!S.rates) S.rates = {};
   var prev = S.rates.discCaps;
   S.rates.discCaps = {staff:st, manager:mg};
@@ -1714,7 +1720,7 @@ function runInsightEngine(){
   var thisM = calcMonthProfit(year, month);
   var lastM = calcMonthProfit(month===0?year-1:year, month===0?11:month-1);
   var prevM = calcMonthProfit(month<=1?year-1:year, month<=1?month+10:month-2);
-  var activeGirvi = (S.girvi||[]).filter(function(g){return !g._deleted && g.status!=='closed';});
+  var activeGirvi = isStaff() ? [] : (S.girvi||[]).filter(function(g){return !g._deleted && g.status!=='closed';});   // R27
   var thisWeekSales = S.sales.filter(function(s){
     return (now - new Date(s.date)) < 7*86400000;
   });
@@ -1722,7 +1728,7 @@ function runInsightEngine(){
     var d = now - new Date(s.date);
     return d >= 7*86400000 && d < 14*86400000;
   });
-  var totalPending = S.sales.reduce(function(s,x){return s+calcSaleTotals(x).bal;},0);
+  var totalPending = isStaff() ? 0 : S.sales.reduce(function(s,x){return s+calcSaleTotals(x).bal;},0);   // R27: staff see no receivables
   var girviExposure = activeGirvi.reduce(function(s,g){return s+girviOutstanding(g);},0);
 
   // ── RULE 1: Revenue trend (month vs last month) ───────────────────
@@ -1892,6 +1898,9 @@ function buildTodayActions(){
   var today = dbDayKey(now);
   var activeGirvi = (S.girvi||[]).filter(function(g){return !g._deleted && g.status!=='closed';});
 
+  var _stf = isStaff();   // R27: staff see no girvi or receivables hints
+  if(_stf) activeGirvi = [];
+
   // 1. Overdue girvi
   var overdueG = activeGirvi.filter(function(g){
     if(!g.duration) return false;
@@ -1917,7 +1926,7 @@ function buildTodayActions(){
   }
 
   // 3. Pending payments > 30 days
-  var overduePay = getSalesDueSoon(30);
+  var overduePay = _stf ? [] : getSalesDueSoon(30);
   if(overduePay.length){
     var payAmt = overduePay.reduce(function(s,x){return s+calcSaleTotals(x).bal;},0);
     actions.push({type:'urgent',icon:'💸',

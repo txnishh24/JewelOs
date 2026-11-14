@@ -114,7 +114,7 @@ function renderTab(tab, isEntrance){
   if(tab==='customers')  showSkeleton('cust-list','4','list');
   if(tab==='dashboard')  renderDash();
   else if(tab==='inventory'){loadRates();renderInv(isEntrance);}
-  else if(tab==='sales'){initSaleDate();renderSaleItems();}
+  else if(tab==='sales'){initSaleDate();setSaleFormBillType((_saleFormBillType==='memo' || !shopCanChargeGST()) ? 'memo' : 'gst');renderSaleItems();}   // R27: a fresh sale screen (no clearSale yet) showed GST 0 on a GST bill
   else if(tab==='orders')renderOrders();
   else if(tab==='karigars')renderKarigarList();
   else if(tab==='girvi')renderGirvi();
@@ -266,7 +266,7 @@ function ratesConfirmed(){
 }
 function needRatesFirst(){
   if(ratesConfirmed()) return false;
-  toast('⚠ Enter today\'s gold rates first (Stock tab → Rates) and tap Save.');
+  toast(isStaff() ? '⚠ Today\'s rates are not set. Ask the owner or manager to set them.' : '⚠ Enter today\'s gold rates first (Stock tab → Rates) and tap Save.');
   return true;
 }
 function saveRates(){

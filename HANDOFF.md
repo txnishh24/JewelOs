@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody.** (e2e run of 14 Nov finished, see 224th entry.) batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
+> **Nobody.** (R27 done, see 226th entry; previous: e2e run of 14 Nov finished, see 224th entry.) batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
 ---
 
 ## WAITING ON TANISH
@@ -76,6 +76,18 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-14 (two-hundred-and-twenty-sixth entry) - Claude Code - TO-CLAUDE-CODE-R27: review findings on `claude/r26-role-perms` (new commit). NOT merged, pushed, deployed or migrated; `kgLedgerOn` untouched
+
+- DONE (A): 1 staff Day Book folds girvi into one "Other cash movements" line (mask is display-only in `dbDayView`; a first version in `dbAutoLines` was caught by the bug-pattern reviewer because it would have fed the restate sweep). 2 staff: Purchases sub-tab hidden, `renderPurchases`/ledger/wastage/payment/history return nothing, Home "Today's Purchase" hidden. 3 edit-bill cap: percent of the new base on every save, refused only if over cap AND above the bill's original percent +0.05 (staff cannot edit at all). 4 refund: refused for manager/staff on a closed day (bill's day, or today if closed), reason must be chosen for everyone, "Other" needs a note, toast shows invoice no. 5 reopen cancels (voids, audit-logged) the cashShort/cashExcess the close posted (tagged `srcClose`, old entries matched by note); cycles keep Opening+In-Out=Closing. 6 GST 3%: cause was that `clearSale` was the only caller of `setSaleFormBillType`, so a first-opened sale screen kept the HTML 0; `renderTab('sales')` now sets it.
+- DONE (B): 7 closed-day view uses figures as closed (first restatement's prevIn/prevOut) so the sum matches, later corrections listed in a card. 8 Clear All keeps `nextInvNo` and `voidedInvNos`, says "Clearing...", redraws only after a good save, restores demo banner on failure; Load Demo only on a shop with no real records, owner types DEMO (my choice of word). 9 staff: no girvi/receivable hints or "Outstanding Payments" tile, rates toast names owner/manager, `dbCloseDay` toasts. 10 Lifetime Value owner only. 11 two-decimal cap message, per-field limit errors, staff cap cannot exceed manager cap. 12 UUID gone from refund toast. 13 Reopen and void use new `askReason()` modal (no native prompt). 14 E17 Forgot PIN needs account password (via login call); D14 "Other (g)" already showed on stock rows and invoice, now test-covered.
+- SKIPPED: "Cancelled" record in invoice list for a voided number (not cheap: a void is still a delete); D12 stays refused; E18 later. Not done: Back button on new modals (only Karigar sheets have Back handling; no other modal does, unchanged).
+- Reviews: bug-pattern reviewer found the Day Book mask defect (fixed + test) and low points (password left in input: cleared; no rate-limit call on PIN reset: server throttles). Invariant tester added 2 tests, no code defects. Not run: jewelos-security-auditor on the PIN-reset change, jewelos-test-runner as agent (I ran the suites myself).
+- Gate: regression 529/0 (was 513), karigar-v2 339/0 (one run of five showed 338/1 once, not reproduced in 12 more runs, same on HEAD), ledger client 91/0, sql-kg-ledger and sql-store-history all passed, backup-check and roundtrip PASS, making-basis PASS, scope/handlers/ids/css/loadorder/unescaped-ids as before. NOT run: e2e (no node_modules or env file in this worktree), phone/iPhone 13 or desktop click-through, 30-sale speed run, Team invite/remove in a browser, SQL suites other than the two above, edge-functions.
+- Not committed: `TO-CLAUDE-CODE-R27.md`.
+-> FOR COWORK: re-walk owner, manager, staff on the branch (staff Day Book, Purchases, edit cap, closed-day refund, reopen after shortfall, fresh sale GST, Forgot PIN) and run e2e where the env file exists.
+-> FOR TANISH: say whether to merge `claude/r26-role-perms` and cut batch74; confirm typing DEMO (not DELETE) for Load Demo.
+
 
 ### 2026-11-14 (two-hundred-and-twenty-fifth entry) - Claude Code - TO-CLAUDE-CODE-R26: role permissions (branch `claude/r26-role-perms`, off `main` batch73). NOT merged, pushed, deployed or migrated; `kgLedgerOn` untouched
 

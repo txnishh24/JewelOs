@@ -3955,6 +3955,7 @@ function seededDemo(){
   a.SAAS.shop = { id:'shop1', name:'Test Shop' };
   a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: demo data is owner only
   a.safeConfirm = function(_t, _m, cb){ cb(); };   // the real one waits on a click
+  a.prompt = function(){ return 'DEMO'; };   // R27: typed confirm
   a.saveToCloud = function(cb){ if(cb) cb(null); }; // no reachable backend from here
   a.loadDemoData();
   return a;
@@ -7362,6 +7363,8 @@ function r26App(role){
   a.toast = function(m){ a.said.push(String(m)); };
   a.safeConfirm = function(t, m, ok){ ok(); };
   a.saveToCloud = function(cb){ if(cb) cb(null); };
+  // R27: the app's own reason box; the tests answer it through a.prompt, as before
+  a.askReason = function(t, h, ok, cb){ var v = String(a.prompt ? a.prompt(t) : '').trim(); if(!v){ a.toast('A reason is required.'); return; } cb(v); };
   a.S.rates = { g24:7500, g22:7200, g18:6000, g14:4500, sil:90, setAt:'2026-11-01T00:00:00.000Z' };
   try{ a.dbInit(); }catch(e){}
   return a;
@@ -7542,7 +7545,9 @@ test('R26 B: manager and staff Home, Reports and exports carry no profit, cost, 
     assert(!/,Profit|Profit\n/.test(t.split('\n').filter(function(l){ return /^Invoice,/.test(l); }).join('')), role + ': CSV has no Profit column');
     if(role === 'staff') assert(!/Pending Girvi|Girvi Lent|Girvi Collected|In Girvi/.test(t), 'staff see no girvi totals');
     else assert(/Pending Girvi/.test(t), 'a manager keeps the girvi total');
-    assert(/Outstanding Payments/.test(t) && /Pieces in Stock/.test(t), role + ' keeps dues and the stock count');
+    assert(/Pieces in Stock/.test(t), role + ' keeps the stock count');
+    if(role === 'staff') assert(!/Outstanding Payments|uncollected/.test(t), 'R27: staff see no receivables');
+    else assert(/Outstanding Payments/.test(t), role + ' keeps dues');
   });
   var m = r26App('manager'); var said = []; m.toast = function(x){ said.push(x); }; m.showPdfReport();
   assert(said.some(function(x){ return /Only the owner/.test(x); }), 'the business report is the owner\'s');
@@ -7596,7 +7601,7 @@ test('R26 C: a manager void puts stock back once and keeps the invoice number us
   });
 });
 
-test('R26 C: a manager refund needs a reason; the owner does not; staff already blocked above', function(){
+test('R26 C: a manager refund needs a reason; so does the owner (R27); staff already blocked above', function(){
   function refund(role, reason, note){
     var a = r26App(role); a.S.sales = [r26Sale()]; a.S.products = [];
     var vals = { 'rfnd-amount':'1000', 'rfnd-mode':'Cash', 'rfnd-reason':reason, 'rfnd-note':note };
@@ -7610,7 +7615,9 @@ test('R26 C: a manager refund needs a reason; the owner does not; staff already 
   var m3 = refund('manager', 'Other', 'wrong size');
   assert(m3.S.sales[0].refunds.length === 1, 'manager with a reason: one refund');
   var o = refund('owner', '', '');
-  assert(o.S.sales[0].refunds.length === 1, 'owner needs no reason');
+  assert(!(o.S.sales[0].refunds||[]).length, 'R27: the owner needs a reason too');
+  var o2 = refund('owner', 'Customer Return', '');
+  assert(o2.S.sales[0].refunds.length === 1 && /Customer Return/.test(o2.S.auditLog[0].note), 'owner with a reason: one refund, reason in the audit note');
 });
 
 test('R26 C: a manager edit over the discount cap is rolled back and not saved; a within-cap edit saves with the reason in the audit trail', function(){
@@ -7657,6 +7664,266 @@ test('R26 review fixes: manager and staff Home hide per-order and per-category p
   }
   ['manager', 'staff'].forEach(function(r){ assert(!/Est\.? profit|profit:/i.test(dash(r)), r + ': no estimated or category profit'); });
   assert(!/Girvi Portfolio/.test(dash('staff')), 'staff: no girvi portfolio'); assert(/Girvi Portfolio/.test(dash('owner')), 'owner keeps it');
+});
+
+// ───────── R27 ─────────
+function r27Book(a, openAmt){ a.S.dayBook = { opening:{ date:a.dbToday(), amount:openAmt, ts:new Date().toISOString() }, entries:[], closes:[], reopens:[] }; }
+
+test('R27 A1: a staff Day Book folds every girvi line into ONE "Other cash movements" line and still adds up; manager and owner keep the loan lines', function(){
+  function view(role){
+    var a = r26App(role); r27Book(a, 50000); var d = a.dbToday();
+    a.S.girvi = [{ id:'g1', grvNo:'G07', customer:'Gc', principal:20000, startDate:d, disburseMode:'Cash', payments:[{ id:'p1', date:d, amount:3000, mode:'Cash', type:'payment' }] }];
+    return a.dbDayView(d);
+  }
+  var st = view('staff'), mg = view('manager'), ow = view('owner');
+  assert(!st.lines.some(function(l){ return /Loan|G07/.test(l.label||''); }), 'staff: no loan label');
+  var other = st.lines.filter(function(l){ return l.label === 'Other cash movements'; });
+  assert(other.length === 1 && other[0].dir === 'out' && other[0].amount === 17000, 'staff: one line, net 17,000 out: ' + JSON.stringify(other));
+  assert(st.opening + st.totalIn - st.totalOut === st.closing && st.closing === 33000, 'staff: Opening + In - Out = Closing (33,000), got ' + st.closing);
+  assert(mg.lines.some(function(l){ return /Loan G07 disbursed/.test(l.label||''); }) && ow.lines.some(function(l){ return /Loan G07 disbursed/.test(l.label||''); }), 'manager and owner still see the loan lines');
+  assert(mg.closing === 33000 && ow.closing === 33000, 'same closing for every role');
+});
+
+test('R27 A2: staff see no Purchases (render and helpers return nothing, Home has no Today\'s Purchase); manager keeps them', function(){
+  function go(role){
+    var a = r26App(role); var d = a.dbToday();
+    a.S.purchases = [{ id:'b1', billNo:'B1', supplier:'Sup', date:d, totalAmount:90000, amountPaid:0, items:[], supplierPayments:[] }];
+    a.renderPurchases(); a.renderDash();
+    return { a:a, root:(a._els['inv-sub-purchases']||{}).innerHTML || '', strip:(a._els['dash-today-strip']||{}).innerHTML || '' };
+  }
+  var st = go('staff'), mg = go('manager');
+  assert(st.root === '', 'staff: purchases panel stays empty, got ' + st.root.length + ' chars');
+  assert(st.a.pbSupplierLedgerHtml() === '' && st.a.pbWastageReportHtml() === '', 'staff: ledger and wastage helpers return nothing');
+  assert(!/Today.s Purchase/.test(st.strip) && /Today.s Purchase/.test(mg.strip), 'Home: staff no purchase tile, manager keeps it');
+  assert(mg.root.length > 0, 'manager: purchases render');
+});
+
+function r27Edit(role, sale, vals){
+  var a = r26App(role); a.S.sales = [sale]; a._editBillId = sale.id;
+  var base = { 'eb-reason':'fix', 'eb-gst':'0' };
+  for(var k in vals) base[k] = vals[k];
+  var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in base) return { value: base[id] }; return _o(id); };
+  a.closeEditBillModal = function(){}; a.showCustHistory = function(){}; a.renderCustomers = function(){};
+  var saved = 0; a.saveToCloud = function(cb){ saved++; if(cb) cb(null); };
+  a.saveEditBill(); a._saved = saved; return a;
+}
+test('R27 A3: edit-bill discount cap is judged by PERCENT of the new base on every save (manager; staff cannot edit)', function(){
+  var stf = r27Edit('staff', r26Sale({ discount:1000 }), { 'eb-disc':'1000', 'ei-wt-0':'4.743' });
+  assert(stf._saved === 0, 'staff cannot edit a bill at all (so the percent rule is for managers)');
+  ['manager'].forEach(function(role){
+    var cap = 15, ok = cap - 1;
+    var disc = Math.round(47430 * ok / 100);
+    var bill = function(){ return r26Sale({ discount:disc }); };
+    var a1 = r27Edit(role, bill(), { 'eb-disc':String(disc), 'ei-wt-0':'4.743' });
+    assert(a1._saved === 1, role + ': an unchanged edit saves');
+    var a2 = r27Edit(role, bill(), { 'eb-disc':String(disc - 1), 'ei-wt-0':'1.4229' });
+    assert(a2._saved === 0 && a2.S.sales[0].items[0].weight === 4.743 && a2.said.some(function(m){ return /Needs owner approval/.test(m); }), role + ': weight to 30% and Rs 1 less discount is refused (the Cowork case)');
+    var a3 = r27Edit(role, bill(), { 'eb-disc':String(Math.round(disc / 2)), 'ei-wt-0':'4.743' });
+    assert(a3._saved === 1, role + ': a lowered discount saves');
+    var a4 = r27Edit(role, bill(), { 'eb-disc':String(Math.round(47430 * (cap + 2) / 100)), 'ei-wt-0':'4.743' });
+    assert(a4._saved === 0, role + ': a raised rupee discount over the cap is refused');
+    var a5 = r27Edit(role, bill(), { 'eb-disc':String(disc), 'ei-wt-0':'3.0' });
+    assert(a5._saved === 0, role + ': the same rupees on a smaller bill is refused');
+    var big = Math.round(47430 * 0.40);
+    var a6 = r27Edit(role, r26Sale({ discount:big }), { 'eb-disc':String(big), 'ei-wt-0':'4.743' });
+    assert(a6._saved === 1, role + ': an owner-given 40% discount can be left as it is');
+    var a7 = r27Edit(role, r26Sale({ discount:big }), { 'eb-disc':String(big + 3000), 'ei-wt-0':'4.743' });
+    assert(a7._saved === 0, role + ': ...but never raised');
+  });
+  var o = r27Edit('owner', r26Sale({ discount:30000 }), { 'eb-disc':'30000', 'ei-wt-0':'4.743' });
+  assert(o._saved === 1, 'the owner is not limited');
+});
+
+test('R27 A4: refund on a closed day is refused for a manager, allowed for the owner; a reason is required for everyone ("Other" needs a note); the toast names the invoice', function(){
+  function refund(role, reason, note, closed){
+    var a = r26App(role); a.S.sales = [r26Sale()]; a.S.products = [];
+    if(closed) a.S.dayBook = { opening:null, entries:[], closes:[{ date:a.dbDayKey(new Date()), opening:0, closing:0, counted:0, diff:0, ts:new Date().toISOString() }], reopens:[] };
+    var vals = { 'rfnd-amount':'1000', 'rfnd-mode':'Cash', 'rfnd-reason':reason, 'rfnd-note':note };
+    var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
+    a.renderTab = function(){}; a._submitRefund('s1'); return a;
+  }
+  var m = refund('manager', 'Customer Return', '', true);
+  assert(!(m.S.sales[0].refunds||[]).length && m.said.some(function(x){ return /closed/.test(x); }), 'manager: closed day refused');
+  var m0 = r26App('manager'); m0.S.sales = [r26Sale()]; m0.S.dayBook = JSON.parse(JSON.stringify(m.S.dayBook)); m0.openRefundModal('s1');
+  assert(m0.said.some(function(x){ return /closed/.test(x); }), 'manager: the modal does not even open on a closed day');
+  var o = refund('owner', 'Customer Return', '', true);
+  assert(o.S.sales[0].refunds.length === 1, 'owner: allowed on a closed day');
+  assert(/INV-001/.test(o.said.join('|')) && !/[0-9a-f]{8}-[0-9a-f]{4}/.test(o.said.join('|')), 'the toast names the invoice, not a UUID: ' + o.said.join('|'));
+  assert(!(refund('owner', '', '', false).S.sales[0].refunds||[]).length, 'no reason chosen: refused even for the owner');
+  assert(!(refund('manager', 'Other', '', false).S.sales[0].refunds||[]).length, '"Other" without a note: refused');
+  var ok = refund('manager', 'Wrong Item', '', false);
+  assert(ok.S.sales[0].refunds.length === 1 && ok.S.sales[0].refunds[0].reason === 'Wrong Item' && /Wrong Item/.test(ok.S.auditLog[0].note), 'reason stored and audit-logged');
+});
+
+test('R27 A5: reopening a day cancels the shortfall its close posted; reopen + close cycles keep Opening + In - Out = Closing on every day and never double-count', function(){
+  var a = r26App('owner'); r27Book(a, 50000); var d = a.dbToday(), err;
+  a.dbAddEntry(d, 'in', 10000, 'capital', 'x', function(e){ err = e; }); assert(!err, 'entry');
+  function closeAndRecord(){
+    var res; a.dbCloseDay(d, 59000, function(e, r){ err = e; res = r; }); assert(!err && res.diff === -1000, 'close: 1,000 short, got ' + JSON.stringify(res) + ' ' + (err && err.message));
+    var land = a.dbFirstOpenDay();
+    a.dbAddEntry(land, 'out', 1000, 'cashShort', 'From closing ' + d, function(e){ err = e; }, null, d); assert(!err, 'shortfall entry ' + (err && err.message));
+    return land;
+  }
+  function live(){ return a.S.dayBook.entries.filter(function(e){ return !e.voided && e.cat === 'cashShort'; }); }
+  var land = closeAndRecord();
+  assert(live().length === 1 && a.dbDayView(land).opening === 60000, 'after the first close: one shortfall, next day opens at 60,000');
+  for(var i = 0; i < 3; i++){
+    var rr; a.dbReopenDay(d, 'recount', function(e, r){ err = e; rr = r; }); assert(!err && rr.reversed === 1, 'reopen reverses the shortfall (round ' + i + ') ' + (err && err.message));
+    assert(live().length === 0, 'no live shortfall while the day is open');
+    var v = a.dbDayView(d); assert(v.opening + v.totalIn - v.totalOut === v.closing && v.closing === 60000, 'open day adds up');
+    land = closeAndRecord();
+    assert(live().length === 1, 'exactly one live shortfall after re-close (round ' + i + ')');
+  }
+  [d, land].forEach(function(k){ var w = a.dbDayView(k); assert(Math.abs(w.opening + w.totalIn - w.totalOut - w.closing) < 0.001, k + ': Opening + In - Out = Closing'); });
+  assert(a.dbDayView(land).closing === 59000, 'the next day closes at 59,000 (60,000 less ONE shortfall), got ' + a.dbDayView(land).closing);
+  assert(a.S.dayBook.reopens.length === 3, 'every reopen is kept');
+});
+
+test('R27 A6: a fresh sale screen defaults a GST bill to 3% (owner and staff, with no clearSale first); memo stays 0; no GSTIN means memo', function(){
+  ['owner', 'staff'].forEach(function(role){
+    var a = r26App(role); a.SAAS.shop.gstin = '27AAPFU0939F1ZV';
+    var el = a.document.getElementById('s-gst'); el.value = '0';
+    a.renderTab('sales');
+    assert(el.value === '3', role + ': fresh sale screen shows GST 3, got ' + el.value);
+  });
+  var n = r26App('owner'); var e2 = n.document.getElementById('s-gst'); e2.value = '0'; n.renderTab('sales');
+  assert(e2.value === '0', 'no GSTIN: memo bill, GST stays 0');
+});
+
+test('R27 B7: a closed day still shows Opening + In - Out = Closing after a later correction; the correction is listed', function(){
+  var a = r26App('owner'); var d = a.dbToday();
+  a.S.dayBook = { opening:null, reopens:[], entries:[{ id:'a1', kind:'adjust', cat:'adjust', srcDate:d, dir:'out', amount:5000, date:'2099-01-01', voided:false }],
+    closes:[{ date:d, opening:50000, autoIn:100000, autoOut:5000, manualIn:0, manualOut:0, closing:150000, counted:150000, diff:0, ts:new Date().toISOString(), restatements:[{ prevIn:100000, prevOut:0, newIn:100000, newOut:5000, entryId:'a1' }] }] };
+  var v = a.dbDayView(d);
+  assert(v.opening + v.totalIn - v.totalOut === v.closing, 'sums to closing: ' + v.opening + ' + ' + v.totalIn + ' - ' + v.totalOut + ' vs ' + v.closing);
+  assert(v.laterCorrections.length === 1 && v.laterCorrections[0].amount === 5000, 'the later correction is listed');
+});
+
+test('R27 B7b: a REAL restatement sweep after a close keeps the closed day adding up, lists the correction, and blocks a reopen that would count it twice', function(){
+  var a = r26App('owner'); r27Book(a, 50000); var d = a.dbToday(), err;
+  a.S.sales = [r26Sale({ advance:47430, splitPayments:[{ amount:47430, mode:'Cash' }] })];
+  a.dbCloseDay(d, 97430, function(e){ err = e; }); assert(!err, 'close ' + (err && err.message));
+  a.S.sales[0].splitPayments[0].amount = 40000;
+  var n; a.dbSweepRestatements(function(e, c){ err = e; n = c; });
+  assert(!err && n === 1, 'sweep restated one day, got ' + n + ' ' + (err && err.message));
+  var v = a.dbDayView(d);
+  assert(Math.abs(v.opening + v.totalIn - v.totalOut - v.closing) < 0.001, 'closed day still adds up: ' + v.opening + ' + ' + v.totalIn + ' - ' + v.totalOut + ' vs ' + v.closing);
+  assert(v.laterCorrections.length === 1, 'the correction is listed');
+  var re; a.dbReopenDay(d, 'why', function(e){ re = e; });
+  assert(re && re.message === 'adjustments-posted', 'reopen refused while the correction is live');
+});
+test('R27 A5b: reopen cancels only that close\'s shortfall (srcClose or old "From closing" note); entries of other closes stay live', function(){
+  var a = r26App('owner'); r27Book(a, 50000); var d = a.dbToday(), err;
+  a.dbCloseDay(d, 49000, function(e){ err = e; }); assert(!err, 'close');
+  var land = a.dbFirstOpenDay();
+  a.dbAddEntry(land, 'out', 1000, 'cashShort', 'From closing ' + d, function(e){ err = e; });
+  a.dbAddEntry(land, 'out', 700, 'cashShort', 'From closing 2020-01-01', function(e){ err = e; });
+  a.dbAddEntry(land, 'in', 300, 'cashExcess', 'From closing 2020-02-02', function(e){ err = e; });
+  var rr; a.dbReopenDay(d, 'recount', function(e, r){ err = e; rr = r; });
+  assert(!err && rr.reversed === 1, 'only this close\'s shortfall reversed, got ' + (rr && rr.reversed) + ' ' + (err && err.message));
+  var live = a.S.dayBook.entries.filter(function(e){ return !e.voided; }).map(function(e){ return e.amount; }).sort();
+  assert(live.join() === '300,700', 'unrelated entries stay live: ' + live.join());
+});
+
+test('R27 B8: Clear All Data keeps invoice numbers; says "Clearing..." and does not redraw until the save succeeds; Load Demo only on an empty shop with a typed confirm', function(){
+  var a = r26App('owner'); a.S.products = [{ id:'p1' }]; a.S.sales = [r26Sale()]; a.S.nextInvNo = 9; a.S.voidedInvNos = ['INV-003'];
+  a.downloadBackupFile = function(){}; a.prompt = function(){ return 'DELETE'; };
+  var cb0 = null, drawn = 0; a.renderDash = function(){ drawn++; }; a.saveToCloud = function(cb){ cb0 = cb; };
+  a.clearDemoData();
+  assert(a.said.some(function(m){ return /Clearing/.test(m); }) && drawn === 0, 'says Clearing..., no redraw before the save answers');
+  cb0(null);
+  assert(a.S.sales.length === 0 && a.S.nextInvNo === 9 && a.S.voidedInvNos[0] === 'INV-003', 'cleared, nextInvNo and voidedInvNos kept');
+  assert(drawn === 1 && a.said.some(function(m){ return /All data cleared/.test(m); }), 'redraws after success');
+  var r = r26App('owner'); r.S.products = [{ id:'p1', name:'Real' }]; r.prompt = function(){ return 'DEMO'; }; r.loadDemoData();
+  assert(r.S.products.length === 1 && r.said.some(function(m){ return /real records/.test(m); }), 'real data: demo refused with a message');
+  var e = r26App('owner'); e.S.products = []; e.S.sales = []; e.S.orders = []; e.S.girvi = []; e.prompt = function(){ return 'nope'; }; e.loadDemoData();
+  assert(e.S.products.length === 0, 'wrong typed word: nothing added');
+});
+
+test('R27 B9: staff Home shows no girvi or receivables hints; the staff rates toast tells them who to ask; staff calling dbCloseDay gets a toast', function(){
+  function acts(role){
+    var a = r26App(role); var old = new Date(Date.now() - 400 * 86400000).toISOString();
+    a.S.girvi = [{ id:'g1', grvNo:'G1', status:'active', customer:'C', principal:90000, startDate:old, duration:3, items:[{ metal:'gold', weight:1, purity:'22K' }], payments:[] }];
+    a.S.sales = [r26Sale({ date:old, advance:0, payStatus:'pending' })];
+    return a.buildTodayActions().map(function(x){ return x.title + ' ' + x.sub; }).join('|');
+  }
+  var st = acts('staff'), mg = acts('manager');
+  assert(!/girvi|uncollected|LTV/i.test(st), 'staff: no girvi/receivables actions: ' + st);
+  assert(/girvi/i.test(mg) || /uncollected/.test(mg), 'manager still sees them: ' + mg);
+  var s = r26App('staff'); s.S.rates = { g24:7800, g22:7200 }; s.needRatesFirst();
+  assert(s.said.some(function(m){ return /Ask the owner or manager/.test(m); }), 'staff rates toast: ' + s.said.join('|'));
+  var c = r26App('staff'); var er; c.dbCloseDay(c.dbToday(), 0, function(e){ er = e; });
+  assert(er && c.said.some(function(m){ return /owner or a manager can close/.test(m); }), 'staff close: toast, not silence');
+});
+
+test('R27 B11: discount cap messages show two decimals; the limits card names the field and refuses staff above manager', function(){
+  var m = r26App('manager');
+  var why = m.discountProblem(r26Sale({ discount:Math.round(47430 * 0.1501) }));
+  assert(/15\.\d\d%/.test(why) && /limit is 15%/.test(why), 'two decimals: ' + why);
+  var o = r26App('owner'); var vals = { 'set-disc-staff':'20', 'set-disc-mgr':'10' };
+  var _o = o.document.getElementById; o.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
+  o.saveDiscountCaps(); assert(o.said.some(function(x){ return /staff limit.*cannot be higher/i.test(x); }), 'staff above manager refused: ' + o.said.join('|'));
+  vals['set-disc-staff'] = 'abc'; o.said = []; o.saveDiscountCaps(); assert(o.said.some(function(x){ return /^Staff limit/.test(x); }), 'names the staff field');
+  vals['set-disc-staff'] = '5'; vals['set-disc-mgr'] = '150'; o.said = []; o.saveDiscountCaps(); assert(o.said.some(function(x){ return /^Manager limit/.test(x); }), 'names the manager field');
+});
+
+testAsync('R27 B13/E17: the Reopen and void reasons use the app\'s own box; Forgot PIN needs the account password', function(){
+  var a = r26App('owner');
+  assert(!/prompt\(/.test(String(a.dbOpenReopen)) && !/prompt\(/.test(String(a.deleteSale)), 'no native prompt() in reopen or void');
+  var cleared = 0; a._pinDoForget = function(){ cleared++; };
+  a.askReason = function(t, h, ok, cb){ cb('pw'); };
+  a.authGatewayCall = function(){ return Promise.resolve({ user:{ id:'u_owner' } }); };
+  a.pinResetToDefault();
+  return new Promise(function(r){ setTimeout(r, 5); }).then(function(){
+    assert(cleared === 1, 'right password clears the PIN');
+    a.authGatewayCall = function(){ return Promise.reject({ status:401 }); }; a.pinResetToDefault();
+    return new Promise(function(r){ setTimeout(r, 5); });
+  }).then(function(){
+    assert(cleared === 1 && a.said.some(function(m){ return /Incorrect password/.test(m); }), 'wrong password: PIN kept, says so');
+  });
+});
+
+function r27Sell(role, extra){
+  var a = r26App(role);
+  a.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', unitWeight:10, qty:1, weight:10, netWeight:8.5, mcRate:0, status:'available', sku:'GLD-200', huid:'' }];
+  a.S.sales = []; a.UI.saleMode = 'stock'; a.UI.saleItems = [{ pid:'p1', qty:1, otherWt:1.5 }];
+  a.upsertCustomer = function(){}; a.addPaymentRecord = function(){}; a.clearSale = function(){}; a.renderDash = function(){}; a.switchTab = function(){};
+  a.isDuplicateSale = function(){ return false; };
+  a._saleFormBillType = 'memo';
+  var vals = { 's-cust':'Test Customer', 's-invno':'INV-0200', 's-oldgold-direct':'10000' };
+  var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { style:{}, value:vals[id] }; return _o(id); };
+  a.splitRows = [{ amount:15000, mode:'Cash' }, { amount:20000, mode:'UPI' }];
+  var calls = 0, held = null; a.saveToCloud = function(cb){ calls++; if(extra && extra.hold){ held = cb; } else if(cb) cb(null); };
+  a.recordSale(); if(extra && extra.hold){ a.recordSale(); a._held = held; }
+  a._calls = calls; return a;
+}
+test('R27 C: a sale with old-gold exchange and a split payment records for manager and staff; a double click records ONE sale; "Other (g)" shows on the invoice', function(){
+  ['manager', 'staff'].forEach(function(role){
+    var a = r27Sell(role);
+    assert(a.S.sales.length === 1, role + ': one sale recorded, got ' + a.S.sales.length + ' ' + a.said.join('|'));
+    var s = a.S.sales[0];
+    assert(s.oldGold && s.oldGold.value === 10000 && s.splitPayments.length === 2, role + ': old gold and both payments kept ' + JSON.stringify(s.oldGold) + JSON.stringify(s.splitPayments));
+    assert(s.items[0].otherWt === 1.5, role + ': gross minus net kept as otherWt');
+    var html = a.buildInvoiceHTML(s, 'memo');
+    assert(/1\.50g other|1\.50g<\/span> other|other/.test(html), role + ': the invoice shows the Other deduction');
+    var dbl = r27Sell(role, { hold:true });
+    assert(dbl.S.sales.length === 1, role + ': double click while the save is in flight: still ONE sale, got ' + dbl.S.sales.length);
+  });
+});
+test('R27 C: a double-submitted refund creates one refund', function(){
+  var a = r26App('manager'); a.S.sales = [r26Sale()]; a.S.products = []; a.renderTab = function(){};
+  var held; a.saveToCloud = function(cb){ held = cb; };
+  var vals = { 'rfnd-amount':'1000', 'rfnd-mode':'Cash', 'rfnd-reason':'Wrong Item', 'rfnd-note':'' };
+  var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
+  a._submitRefund('s1'); a._submitRefund('s1');
+  assert(a.S.sales[0].refunds.length === 1, 'one refund, got ' + a.S.sales[0].refunds.length);
+});
+
+test('R27 review: a staff view of the Day Book never changes the stored totals or posts a restatement', function(){
+  var a = r26App('staff'); r27Book(a, 50000); var d = a.dbToday();
+  a.S.girvi = [{ id:'g1', grvNo:'G07', customer:'Gc', principal:20000, startDate:d, disburseMode:'Cash', payments:[{ id:'p1', date:d, amount:3000, mode:'Cash', type:'payment' }] }];
+  var t = a.dbAutoTotals(d);
+  assert(t.in === 3000 && t.out === 20000, 'raw totals stay gross for every role: ' + JSON.stringify(t));
 });
 
 Promise.all(asyncTests).then(function(){

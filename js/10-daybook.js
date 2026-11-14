@@ -319,7 +319,24 @@ function dbAutoLines(dateKey){
     lines.push(kline);
   });
 
-  return lines;
+  return lines;   // raw: totals, close and the restate sweep must see real figures; staff masking happens in dbDayView only
+}
+
+// Staff must not see loan names or amounts. Every girvi line folds into ONE 'Other cash movements' line
+// (cash net, plus one non-cash and one unknown line when they exist) so Opening + In - Out = Closing still holds.
+function dbStaffMaskGirvi(lines){
+  if(!(SAAS && SAAS.user && SAAS.user.role === 'staff')) return lines;
+  var out = [], cash = 0, nc = 0, unk = 0, ncN = 0, unkN = 0;
+  lines.forEach(function(l){
+    if(l.src !== 'girvi'){ out.push(l); return; }
+    if(l.unknown){ unk = dbRound(unk + l.amount); unkN++; }
+    else if(l.nonCash){ nc = dbRound(nc + l.amount); ncN++; }
+    else cash = dbRound(cash + (l.dir === 'in' ? l.amount : -l.amount));
+  });
+  if(cash) out.push({dir:(cash > 0 ? 'in' : 'out'), amount:dbRound(Math.abs(cash)), cat:'other-cash', label:'Other cash movements', src:'other', srcId:'', ref:''});
+  if(ncN) out.push({dir:'out', nonCash:true, mode:'', amount:nc, cat:'other-cash', label:'Other cash movements (not cash)', src:'other', srcId:'', ref:''});
+  if(unkN) out.push({dir:null, unknown:true, amount:unk, cat:'other-cash', label:'Other movements, mode not recorded', src:'other', srcId:'', ref:''});
+  return out;
 }
 
 // Only the owner sees which karigar a salary or advance line belongs to.
@@ -456,8 +473,11 @@ function dbDayView(dateKey){
 
   var totalIn, totalOut, closing;
   if(closed){
-    totalIn  = dbRound(closed.autoIn  + closed.manualIn);
-    totalOut = dbRound(closed.autoOut + closed.manualOut);
+    // R27: show the figures AS CLOSED (before any later restatement), so Opening + In - Out = Closing still holds;
+    // what changed after the close is counted on a later day (the adjustment entry) and is listed in v.laterCorrections.
+    var _r0 = (closed.restatements && closed.restatements.length) ? closed.restatements[0] : null;
+    totalIn  = dbRound((_r0 ? _r0.prevIn  : closed.autoIn)  + closed.manualIn);
+    totalOut = dbRound((_r0 ? _r0.prevOut : closed.autoOut) + closed.manualOut);
     closing  = closed.closing;
   } else {
     totalIn  = dbRound(autoT.in  + manualT.in);
@@ -470,12 +490,16 @@ function dbDayView(dateKey){
     closed: !!closed,
     close: closed,
     opening: opening,
-    lines: autoLines.concat(manualLines),
+    lines: dbStaffMaskGirvi(autoLines).concat(manualLines),
     totalIn: totalIn,
     totalOut: totalOut,
     closing: closing,
     counted: closed ? closed.counted : null,
     diff: closed ? closed.diff : null,
+    laterCorrections: closed ? (closed.restatements||[]).map(function(rs){
+      var en = (S.dayBook.entries||[]).filter(function(e){ return e.id === rs.entryId; })[0];
+      return en ? {date:en.date, dir:en.dir, amount:en.amount} : null;
+    }).filter(function(x){ return x; }) : [],
     unknownCount: autoT.unknownCount,
     nonCashCount: autoT.nonCashCount,
     nonCashAmount: autoT.nonCashAmount
@@ -594,7 +618,7 @@ function dbCleanParty(party){
 }
 
 // party is last (after cb) so existing positional callers are unaffected.
-function dbAddEntry(dateKey, dir, amount, cat, note, cb, party){
+function dbAddEntry(dateKey, dir, amount, cat, note, cb, party, srcClose){
   if(dir !== 'in' && dir !== 'out'){ if(cb) cb(new Error('invalid-dir')); return; }
   if(!(amount > 0)){ if(cb) cb(new Error('invalid-amount')); return; }
   if(!DB_CATS[cat] || cat === 'adjust'){ if(cb) cb(new Error('invalid-cat')); return; } // adjust is system-only
@@ -615,6 +639,7 @@ function dbAddEntry(dateKey, dir, amount, cat, note, cb, party){
   };
   var cleanParty = dbCleanParty(party);
   if(cleanParty) entry.party = cleanParty;
+  if(srcClose) entry.srcClose = srcClose;   // R27: the close that posted this shortfall/excess; reopening that close reverses it
   S.dayBook.entries.push(entry);
   saasActivityLog('daybook', (dir==='in'?'Cash in ':'Expense ')+fmt(entry.amount)+' '+DB_CATS[cat].label+' on '+dateKey);
   auditLog('create', 'daybook', entry.id, DB_CATS[cat].label+' '+entry.amount+' on '+dateKey);
@@ -671,27 +696,37 @@ function dbReopenDay(dateKey, reason, cb){
   var _posted = (S.dayBook.entries||[]).some(function(e){ return e.kind === 'adjust' && e.srcDate === dateKey && !e.voided; });
   if(_posted){ if(cb) cb(new Error('adjustments-posted')); return; }
   var snap = _dbSnapshot();
+  // R27: the shortfall/excess this close posted on the next open day would otherwise stay live and be counted again by the next close.
+  // It is cancelled (kept, marked void with the reason) so Opening + In - Out = Closing holds on every day after a reopen and re-close.
+  var _rev = [];
+  (S.dayBook.entries||[]).forEach(function(e){
+    if(e.voided || (e.cat !== 'cashShort' && e.cat !== 'cashExcess')) return;
+    if(e.srcClose !== dateKey && e.note !== 'From closing '+dateKey) return;
+    e.voided = true; e.voidReason = 'Day '+dateKey+' reopened: '+String(reason).trim(); e.voidTs = new Date().toISOString(); e.voidBy = _dbUserName();
+    _rev.push(e);
+    auditLog('void', 'daybook', e.id, 'Reversed '+e.cat+' '+e.amount+' because '+dateKey+' was reopened: '+String(reason).trim());
+  });
   S.dayBook.closes = S.dayBook.closes.filter(function(x){ return x.date !== dateKey; });
   if(!Array.isArray(S.dayBook.reopens)) S.dayBook.reopens = [];
   S.dayBook.reopens.push({date:dateKey, ts:new Date().toISOString(), by:_dbUserName(), reason:String(reason).trim(), closing:c.closing, counted:c.counted, diff:c.diff});
   saasActivityLog('daybook', 'Day reopened '+dateKey+': '+String(reason).trim());
   auditLog('reopen', 'daybook', dateKey, 'Reopened: '+String(reason).trim());
-  _dbCommit(snap, function(err){ if(cb) cb(err); });
+  _dbCommit(snap, function(err){ if(cb) cb(err, err ? null : {reversed:_rev.length}); });
 }
 function dbOpenReopen(){
   if(!isOwner()){ toast('Only the owner can do this'); return; }
   var dateKey = dbUiDate();
-  var reason = String((typeof prompt === 'function' ? prompt('Why are you reopening '+fmtDate(dateKey)+'? (required)','') : '') || '').trim();
-  if(!reason){ toast('A reason is required to reopen a day.'); return; }
-  dbReopenDay(dateKey, reason, function(err){
+  askReason('Reopen '+fmtDate(dateKey)+'?', 'Why are you reopening this day? It is kept in the record.', 'Reopen day', function(reason){
+  dbReopenDay(dateKey, reason, function(err, res){
     if(err){ toast('⚠ Could not reopen: '+dbErrText(err)); return; }
-    toast('Day reopened. Nothing was reversed; edits are open again.');
+    toast('Day reopened. Edits are open again.'+(res && res.reversed ? ' The recorded shortfall/excess was cancelled; close the day again to re-record it.' : ''));
     renderDayBook();
+  });
   });
 }
 
 function dbCloseDay(dateKey, counted, cb){
-  if(SAAS.user && !canCloseDay()){ if(cb) cb(new Error('not-allowed')); return; }   // staff never; no session = engine tests
+  if(SAAS.user && !canCloseDay()){ toast('Only the owner or a manager can close a day'); if(cb) cb(new Error('not-allowed')); return; }   // staff never; no session = engine tests
   if(dateKey > dbToday()){ if(cb) cb(new Error('future-date')); return; }
   if(dbCloseFor(dateKey)){ if(cb) cb(new Error('already-closed')); return; }
   var latest = null;
@@ -994,6 +1029,11 @@ function _dbPaintDay(){
       (dbDayKey(v.close.ts)===dbToday() ? '<button class="btn btn-sm" style="margin-top:8px;" onclick="dbOpenCorrectModal()">Correct today\'s count</button>' : '')+
       (isOwner() ? '<button class="btn btn-sm" style="margin:8px 0 0 6px;" onclick="dbOpenReopen()">Reopen day</button>' : '')+
     '</div>';
+  }
+
+  if(v.closed && v.laterCorrections.length){
+    html += '<div class="card" style="border:1px solid var(--gold);"><div style="font-size:12px;color:var(--text2);">After this day closed, a record dated inside it changed. The figures above stay as closed. '+
+      v.laterCorrections.map(function(c){ return fmt(c.amount)+' ('+(c.dir==='in'?'cash in':'cash out')+') is counted on '+fmtDate(c.date); }).join('; ')+'.</div></div>';
   }
 
   if(v.nonCashCount > 0){
@@ -1321,7 +1361,7 @@ function dbSubmitClose(){
               if(err2){ toast('⚠ Could not record: '+dbErrText(err2)); return; }
               toast('✓ Recorded');
               renderDayBook();
-            });
+            }, null, dateKey);
           }
         );
       }

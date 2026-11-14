@@ -255,7 +255,8 @@ function renderDash(){
   if(todayEl){
     todayEl.innerHTML =
       fsnCard("Today's Sales", fmt(todaySalesTotal), todaySales.length+' bill(s)', null, '', 'var(--gold-dark)')+
-      fsnCard("Today's Purchase", fmt(todayPurchaseTotal), todayPurchases.length+' bill(s)', null, '', 'var(--warning)')+
+      (!isStaff() ? fsnCard("Today's Purchase", fmt(todayPurchaseTotal), todayPurchases.length+' bill(s)', null, '', 'var(--warning)') : '')+   // R27: staff see no purchases
+
       // Colour by sign, like the Net Cash line below — a loss shown in the
       // same green as a profit is the one number on this strip a jeweller
       // cannot afford to misread.
@@ -277,7 +278,7 @@ function renderDash(){
   if(snapEl2){
     snapEl2.innerHTML =
       (canSeeProfit() ? fsnCard('Stock Value', fmt(tgv+tsv), 'gold + silver stock', null, '', 'var(--gold-dark)') : '')+
-      fsnCard('Outstanding Payments', fmt(totalPendingBal), getSalesDueSoon(30).length+' overdue 30d+', null, '', totalPendingBal>0?'var(--danger)':'var(--success)')+
+      (!isStaff() ? fsnCard('Outstanding Payments', fmt(totalPendingBal), getSalesDueSoon(30).length+' overdue 30d+', null, '', totalPendingBal>0?'var(--danger)':'var(--success)') : '')+   // R27: staff see no receivables
       (!isStaff() ? fsnCard('Pending Girvi', fmt(activeGirviTotal), activeGirviList.length+' active loan(s)', null, '', 'var(--warning)') : '')+   // R26: staff see no girvi totals
       fsnCard('Pieces in Stock', stockPieces, stockCatCount+' categor'+(stockCatCount===1?'y':'ies'), null, '', 'var(--gold-dark)');
   }
@@ -829,6 +830,13 @@ var DEMO_ACTIVE = false;
 
 function loadDemoData(){
   if(!ownerGate()) return;
+  // R27: demo records go in only while the shop holds nothing of its own, and the owner types DEMO first.
+  var _real = ['products','sales','orders','girvi'].some(function(k){
+    return (S[k]||[]).some(function(x){ return !(x && String(x.id||'').indexOf('demo-') === 0); });
+  });
+  if(_real){ toast('This shop already has real records, so sample data cannot be added. Use a new test shop instead.'); return; }
+  var _t = (typeof prompt === 'function') ? prompt('This adds SAMPLE records (not real). Type DEMO to continue:', '') : null;
+  if(String(_t == null ? '' : _t).trim() !== 'DEMO'){ toast('Cancelled. Nothing was added.'); return; }
   safeConfirm('Load sample data?','This will ADD demo records to your current data for you to explore.',function(){
   DEMO_ACTIVE = true;
   document.getElementById('demo-banner').classList.add('visible');
@@ -921,16 +929,20 @@ function clearDemoData(){
   safeConfirm('Clear ALL data?','The backup file has downloaded. This cannot be undone. All products, sales, orders and girvi records will be permanently deleted.',function(){
     if(!ownerGate()) return;
     var _keep = { products:S.products, sales:S.sales, orders:S.orders, girvi:S.girvi, stockMovements:S.stockMovements,
-      nextId:S.nextId, nextSaleId:S.nextSaleId, nextInvNo:S.nextInvNo, nextOrdId:S.nextOrdId, nextGirviId:S.nextGirviId };
+      nextId:S.nextId, nextSaleId:S.nextSaleId, nextOrdId:S.nextOrdId, nextGirviId:S.nextGirviId };
     S.products=[]; S.sales=[]; S.orders=[]; S.girvi=[];
     S.stockMovements=[]; // F2: now synced -- demo stock history must not reach other phones
-    S.nextId=1; S.nextSaleId=1; S.nextInvNo=1; S.nextOrdId=1; S.nextGirviId=1;
+    // R27: invoice numbers (nextInvNo) and S.voidedInvNos are NOT reset: a number once used is never issued again.
+    S.nextId=1; S.nextSaleId=1; S.nextOrdId=1; S.nextGirviId=1;
+    toast('Clearing... please wait. Do not close the app.');
+    var _wasDemo = DEMO_ACTIVE;
     DEMO_ACTIVE=false;
     document.getElementById('demo-banner').classList.remove('visible');
     document.body.classList.remove('demo-mode');
     saveToCloud(function(err){
       if(err){   // R26: a failed save puts everything back and says so (the backup file already downloaded)
         for(var k in _keep) S[k] = _keep[k];
+        if(_wasDemo){ DEMO_ACTIVE=true; document.getElementById('demo-banner').classList.add('visible'); document.body.classList.add('demo-mode'); }
         renderDash(); toast('Could not save, so nothing was cleared. Check your connection and try again.'); return;
       }
       renderDash(); toast('All data cleared.');

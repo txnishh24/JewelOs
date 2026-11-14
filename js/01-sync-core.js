@@ -1059,6 +1059,39 @@ function safeConfirm(title, msg, onOk, danger){
   cancelBtn.onclick = function(){ cleanup(); };
 }
 
+// R27: the app's own reason box (replaces the native prompt()). onOk gets the trimmed, non-empty reason; Cancel does nothing.
+function askReason(title, hint, okLabel, onOk, asPassword){
+  var ov = document.getElementById('ask-reason-modal');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'ask-reason-modal';
+    ov.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10001;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+    ov.innerHTML = '<div style="background:var(--surface);border-radius:18px;max-width:420px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.35);padding:22px;">'+
+      '<h3 id="ask-reason-title" style="margin:0 0 8px;font-size:16px;"></h3>'+
+      '<div id="ask-reason-hint" style="font-size:12px;color:var(--text2);margin-bottom:12px;"></div>'+
+      '<input id="ask-reason-input" type="text" maxlength="200" placeholder="Reason (required)" style="width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border2);background:var(--surface);font-size:16px;font-family:inherit;box-sizing:border-box;">'+
+      '<div style="display:flex;gap:9px;margin-top:16px;">'+
+        '<button class="btn btn-sm" style="flex:1;" id="ask-reason-cancel">Cancel</button>'+
+        '<button class="btn btn-sm btn-dark" style="flex:1;" id="ask-reason-ok"></button>'+
+      '</div></div>';
+    document.body.appendChild(ov);
+  }
+  document.getElementById('ask-reason-title').textContent = title;
+  document.getElementById('ask-reason-hint').textContent = hint || '';
+  document.getElementById('ask-reason-ok').textContent = okLabel || 'OK';
+  var inp = document.getElementById('ask-reason-input'); inp.value = '';
+  inp.type = asPassword ? 'password' : 'text'; inp.placeholder = asPassword ? 'Account password' : 'Reason (required)';
+  ov.style.display = 'flex';
+  document.getElementById('ask-reason-cancel').onclick = function(){ ov.style.display = 'none'; inp.value = ''; };
+  document.getElementById('ask-reason-ok').onclick = function(){
+    var v = (inp.value||'').trim();
+    if(!v){ toast(asPassword ? 'Please enter your password' : 'Please enter a reason'); return; }
+    ov.style.display = 'none'; inp.value = '';
+    onOk(v);
+  };
+  setTimeout(function(){ try{ inp.focus(); }catch(e){} }, 50);
+}
+
 function toast(msg){
   var t=document.getElementById('toast');
   t.textContent=msg;t.classList.add('show');
@@ -1571,10 +1604,8 @@ function saveEditBill(){
   var r = _applyEditBillForm(sale);
   var t = r.t;
   // R26: dropping items while keeping the same rupee discount raises its percent; judge the percent, not just the rupees
-  var _bef = JSON.parse(_beforeEdit); var _befBase = calcSaleTotals(_bef).sub, _nowBase = calcSaleTotals(sale).sub;
-  // only when the rupee discount did not go DOWN: a lowered discount is never refused
-  var _pctUp = _nowBase > 0 && (parseFloat(sale.discount)||0) >= _prevDisc && (_prevDisc / (_befBase || 1)) < (parseFloat(sale.discount)||0) / _nowBase - 1e-9;
-  var _dp = discountProblem(sale, _pctUp ? null : _prevDisc);   // R26: cap by role, and never above the bill total
+  var _bef = JSON.parse(_beforeEdit); var _befBase = calcSaleTotals(_bef).sub;
+  var _dp = discountProblem(sale, _prevDisc, _befBase);   // R27: percent of the new base on every save; refused only if over the cap AND above the bill's original percent
   if(_dp){
     S.sales[S.sales.indexOf(sale)] = JSON.parse(_beforeEdit);
     toast('\u26a0 '+_dp);
@@ -2490,6 +2521,7 @@ function openRefundModal(saleId) {
   if(!sale){toast('Sale not found');return;}
   if(!canEditBills()){ toast('Staff accounts cannot issue refunds. Ask the owner or a manager.'); return; }
   if(sale.refundStatus==='full'){toast('Already fully refunded');return;}
+  if(_refundDayClosed(sale)){ toast('That day is closed. Only the owner can issue this refund.'); return; }
   var t=calcSaleTotals(sale);
   var done=(sale.refunds||[]).reduce(function(s,r){return s+r.amount;},0);
   var maxR=t.grand-done;
@@ -2548,7 +2580,7 @@ function openRefundModal(saleId) {
       '</select>'+
       '<label style="font-size:var(--text-xs);font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Reason</label>'+
       '<select id="rfnd-reason" style="width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border2);background:var(--surface);font-size:13px;font-family:inherit;">'+
-        '<option>Customer Return</option><option>Defective Item</option><option>Wrong Item</option>'+
+        '<option value="">Choose a reason...</option><option>Customer Return</option><option>Defective Item</option><option>Wrong Item</option>'+
         '<option>Price Correction</option><option>Order Cancelled</option><option>Other</option>'+
       '</select>'+
       '<input id="rfnd-note" type="text" placeholder="Additional notes (optional)" style="width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border2);background:var(--surface);font-size:13px;font-family:inherit;">'+
@@ -2558,6 +2590,12 @@ function openRefundModal(saleId) {
       '<button onclick="closeRefundModal()" class="btn" style="flex:1;">Cancel</button>'+
       '<button onclick="_submitRefund(\''+jsAttrEsc(saleId)+'\')" class="btn-danger" style="flex:2;padding:12px;border-radius:9px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--danger);color:#fff;">'+svgIcon('refresh')+' Issue Refund</button>'+
     '</div>';
+}
+
+// R27: a manager cannot refund against a closed day: the bill's own day, or today when today is already closed (the refund would post on it).
+function _refundDayClosed(sale){
+  if(isOwner()) return false;
+  try{ return dbSaleDayClosed(sale) || !!dbCloseFor(dbDayKey(new Date())); }catch(e){ return false; }
 }
 
 function closeRefundModal() {
@@ -2575,7 +2613,9 @@ function _submitRefund(saleId) {
   var reason=document.getElementById('rfnd-reason').value;
   var note  =(document.getElementById('rfnd-note').value||'').trim();
   if(!amount||amount<=0){toast('Enter valid amount');return;}
-  if(!isOwner() && (!reason || (reason==='Other' && !note))){ toast('Please give the reason in the notes box.'); return; }
+  if(_refundDayClosed(sale)){ toast('That day is closed. Only the owner can issue this refund.'); return; }
+  if(!reason){ toast('Please choose a reason for the refund.'); return; }
+  if(reason==='Other' && !note){ toast('Please write the reason in the notes box.'); return; }
   var t=calcSaleTotals(sale);
   var done=(sale.refunds||[]).reduce(function(s,r){return s+r.amount;},0);
   if(amount > t.grand-done+1){toast('Amount exceeds refundable');return;}
@@ -2647,7 +2687,7 @@ function _submitRefund(saleId) {
       _refundSubmitLock=false;
       if(!err){
         renderTab('sales');
-        toast('Refund '+refId+' issued'+(createdCount?' \u00b7 '+createdCount+' item(s) sent for inspection':''));
+        toast('Refund on '+(sale.invNo||'bill')+' issued'+(createdCount?' \u00b7 '+createdCount+' item(s) sent for inspection':''));
       } else {
         _refundRestore(_snap);
         saveCache();

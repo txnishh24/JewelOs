@@ -1511,11 +1511,16 @@ function updatePinShopName(){
 // tap this, same as before -- what changed is what happens next: no more
 // magic 1234, straight into setting a real new PIN.
 function pinResetToDefault(){
-  safeConfirm(
-    'Forgot PIN?',
-    'This will clear your PIN. You\'ll set a new one right now. Continue?',
-    _pinDoForget
-  );
+  // R27: clearing the PIN needs the account password (this device being unlocked is not proof of who is holding it).
+  if(!SAAS || !SAAS.user || !SAAS.user.email){ toast('Sign out and sign in again with your password to reset the PIN.'); return; }
+  askReason('Forgot PIN?', 'Enter your account password. Your PIN will be cleared and you will set a new one right now.', 'Clear PIN', function(pw){
+    authGatewayCall('login', {email:SAAS.user.email, password:pw}).then(function(res){
+      if(!res || !res.user || res.user.id !== SAAS.user.id){ toast('That password is not for this account.'); return; }
+      _pinDoForget();
+    }).catch(function(err){
+      toast(err && err.status === 401 ? 'Incorrect password.' : 'Could not check the password. Check your internet and try again.');
+    });
+  }, true);
 }
 
 function _pinDoForget(){

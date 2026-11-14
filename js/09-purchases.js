@@ -23,6 +23,7 @@ function pbToggleSettings(){
 
 // ── SUB-TAB SWITCH (Inventory ⇄ Purchases) ──────────────────────────────
 function switchInvSub(which){
+  if(which === 'purchases' && isStaff()) which = 'stock';   // R27: staff never see supplier or bill totals
   // Same tab-agnostic chrome as switchTab() (02-ui-inactivity-modals.js) --
   // close it so it can't follow across the Stock/Purchases sub-tab too (16 Oct).
   closeProdActionMenu();
@@ -100,6 +101,7 @@ function pbGoldRateFor(purity){
 function renderPurchases(){
   var root = document.getElementById('inv-sub-purchases');
   if(!root) return;
+  if(isStaff()){ root.innerHTML = ''; return; }   // R27: staff see no purchases
   var cfg = pbCfg();
   var html = '';
 
@@ -175,6 +177,7 @@ function renderPurchases(){
 }
 
 function pbSupplierLedgerHtml(){
+  if(isStaff()) return '';   // R27
   var byS = {};
   (S.purchases||[]).forEach(function(b){
     var k = (b.supplier||'Unknown').trim();
@@ -234,6 +237,7 @@ function pbWastagePct(grossWt, netWt){
 }
 
 function pbWastageReportHtml(){
+  if(isStaff()) return '';   // R27
   // Supplier side — from purchase bills
   var supplierRows = [];
   var bySupplier = {};
@@ -1140,6 +1144,7 @@ function pbSyncIndividualStockFromBill(bill, items){
 var _pbPaymentLock = {}; // keyed by bill id
 
 function pbOpenPaymentModal(billId){
+  if(isStaff()) return;   // R27
   var b = (S.purchases||[]).find(function(x){ return x.id===billId; });
   if(!b){ toast('Bill not found'); return; }
   pbRecalc(b);
@@ -1233,6 +1238,7 @@ function pbReversePayment(billId, payId){
 // render site anywhere in the app — write-only, invisible data. This is
 // that view: payment ledger + full edit/action history for one bill.
 function pbOpenHistoryModal(billId){
+  if(isStaff()) return;   // R27
   var b=(S.purchases||[]).find(function(x){ return x.id===billId; });
   if(!b){ toast('Bill not found'); return; }
   var mInner=document.getElementById('pbhist-modal-inner');
@@ -1359,6 +1365,7 @@ function pbGetFiltered(){
 }
 
 function renderPurchaseList(){
+  if(isStaff()) return;   // R27
   var all = pbGetFiltered();
   var totalPages = Math.max(1, Math.ceil(all.length / PB_PAGE_SIZE));
   if(pbUI.page > totalPages) pbUI.page = totalPages;

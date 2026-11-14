@@ -537,7 +537,7 @@ function showCustHistory(encKey){
     var totalPending=custSales.reduce(function(s,x){return s+calcSaleTotals(x).bal;},0);
     var paidAmt=totalSpent-totalPending;
     sumDiv.innerHTML=
-      '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Lifetime Value</div><div style="font-weight:700;color:var(--gold-dark);font-size:17px;">'+fmt(totalSpent)+'</div></div>'+
+      (isOwner() ? '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Lifetime Value</div><div style="font-weight:700;color:var(--gold-dark);font-size:17px;">'+fmt(totalSpent)+'</div></div>' : '')+   // R27: revenue per customer is owner-only
       '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Purchases</div><div style="font-weight:700;font-size:17px;">'+custSales.length+'</div></div>'+
       '<div><div style="font-size:var(--text-xs);color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;">Total Wt</div><div style="font-weight:700;font-size:17px;">'+fmtW(totalWt)+'</div></div>'+
       (paidAmt>0?'<div><div style="font-size:var(--text-xs);color:var(--success);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;">Paid</div><div style="font-weight:700;color:var(--success);font-size:15px;">'+fmt(paidAmt)+'</div></div>':'')+
@@ -742,9 +742,12 @@ function deleteSale(saleId){
   var voidReason = '';
   if(isVoid){
     if(dbSaleDayClosed(sale)){ toast('That bill is on a closed day. Only the owner can void it.'); return; }
-    voidReason = String((typeof prompt === 'function' ? prompt('Reason for voiding this bill (required):','') : '') || '').trim();
-    if(!voidReason){ toast('A reason is required to void a bill.'); return; }
+    askReason('Void bill '+sale.invNo+'?', 'Why is this bill being voided? It is kept in the audit trail.', 'Continue', function(r){ _deleteSaleGo(sale, saleId, true, r); });
+    return;
   }
+  _deleteSaleGo(sale, saleId, false, '');
+}
+function _deleteSaleGo(sale, saleId, isVoid, voidReason){
   var t=calcSaleTotals(sale);
   safeConfirm((isVoid?'Void':'Delete')+' bill '+sale.invNo+'?','\u20b9'+Math.round(t.grand).toLocaleString('en-IN')+' for '+sale.customer+'. Cannot be undone.',function(){
     if(!isManager()) return;
