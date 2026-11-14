@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody.** (R27 done, see 226th entry; previous: e2e run of 14 Nov finished, see 224th entry.) batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
+> **Nobody.** (R28 done, see 227th entry; previous: R27 done, see 226th entry; previous: e2e run of 14 Nov finished, see 224th entry.) batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
 ---
 
 ## WAITING ON TANISH
@@ -76,6 +76,16 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-14 (two-hundred-and-twenty-seventh entry) - Claude Code - TO-CLAUDE-CODE-R28: last fixes on `claude/r26-role-perms` (new commit). NOT merged, pushed, deployed or migrated; `kgLedgerOn` untouched
+
+- DONE 1-9. (1) Clear All: full-screen "Clearing..." cover until the save answers (z-index under the re-sign-in box, so a password prompt stays usable); a failed save restores memory AND the cache (`saveCache()`). (2) Load Demo: "real records" test now covers customers, purchases, suppliers, karigar data and Day Book entries/closes; typed word case-insensitive; second confirm dropped; demo sales, girvi and orders never post to the Day Book. (3) Refund confirm and audit note use the real rupee sign. (4) Reason box: Esc and phone Back close it (one history entry), OK button is the gold primary. (5) Overpayment shows red "Paying more than the bill by Rs X". (6) Staff Bill Preview hides Edit/Refund/Delete. (7) The delayed jump to Home is skipped if he tapped any tab in that 0.9 s; the jump itself stays (4 e2e specs expect it). (8) Cap message at the rounding edge: "max discount is Rs X (5%)". (9) Reopen hint says the close's shortfall/excess is cancelled.
+- SKIPPED as told. Not done: re-check of the "Other (g)" invoice line with a sale recorded in the app (no browser here).
+- Review: bug-pattern reviewer flagged the cover hiding the re-sign-in box (fixed), demo girvi/orders in the Day Book (fixed), and that the reason box and Karigar's popstate listener are independent (a Back echo could close a Karigar sheet if a reason box is opened while Karigars is the active tab; no current caller does that). Not run: security-auditor, invariant-tester, test-runner agent (I ran the suites myself).
+- Gate: regression 535/0 (was 529), karigar-v2 339/0, ledger client 91/0, sql-kg-ledger and sql-store-history passed, backup-check and roundtrip PASS, making-basis PASS, syntax OK on all js, scope/handlers/ids/css/loadorder as before (needed `acorn` from another folder; `checks/globals.json` reverted). NOT run: e2e, phone/browser click-through, other SQL suites, edge-functions.
+- Not committed: `TO-CLAUDE-CODE-R28.md`.
+-> FOR COWORK: re-walk the 9 items on the branch (Clear All with network blocked, Load Demo as "Demo", Reopen modal Esc/Back, staff Bill Preview) and record one sale to re-check "Other (g)".
+-> FOR TANISH: say go to merge `claude/r26-role-perms` into main; then e2e from `E:\jewelos`, deploy only if it passes (batch74).
 
 ### 2026-11-14 (two-hundred-and-twenty-sixth entry) - Claude Code - TO-CLAUDE-CODE-R27: review findings on `claude/r26-role-perms` (new commit). NOT merged, pushed, deployed or migrated; `kgLedgerOn` untouched
 

@@ -831,13 +831,14 @@ var DEMO_ACTIVE = false;
 function loadDemoData(){
   if(!ownerGate()) return;
   // R27: demo records go in only while the shop holds nothing of its own, and the owner types DEMO first.
-  var _real = ['products','sales','orders','girvi'].some(function(k){
+  // R28: any record at all counts (customers, purchases, suppliers, Day Book entries, karigar data too), not only four lists.
+  var _real = ['products','sales','orders','girvi','customers','purchases','suppliers','karigars','karigarPayments','kgJobs','kgLedger','kgSalary','kgAgreements','kgRoutes','kgParked'].some(function(k){
     return (S[k]||[]).some(function(x){ return !(x && String(x.id||'').indexOf('demo-') === 0); });
-  });
+  }) || !!(S.dayBook && ((S.dayBook.entries||[]).length || (S.dayBook.closes||[]).length));
   if(_real){ toast('This shop already has real records, so sample data cannot be added. Use a new test shop instead.'); return; }
   var _t = (typeof prompt === 'function') ? prompt('This adds SAMPLE records (not real). Type DEMO to continue:', '') : null;
-  if(String(_t == null ? '' : _t).trim() !== 'DEMO'){ toast('Cancelled. Nothing was added.'); return; }
-  safeConfirm('Load sample data?','This will ADD demo records to your current data for you to explore.',function(){
+  if(String(_t == null ? '' : _t).trim().toUpperCase() !== 'DEMO'){ toast('Cancelled. Nothing was added.'); return; }   // R28: iPhone capitalises the first letter
+  (function(){
   DEMO_ACTIVE = true;
   document.getElementById('demo-banner').classList.add('visible');
   document.body.classList.add('demo-mode');
@@ -916,8 +917,21 @@ function loadDemoData(){
   renderDash();
   toast('\u2705 Demo data loaded! Explore the dashboard, reports, and girvi tab.');
   switchTab('dashboard');
-  }); // end safeConfirm
+  }());
   return;
+}
+
+// R28: full-screen "Clearing..." cover for Clear All; hidden when the save succeeds or fails.
+function _clearBusy(on){
+  var ov = document.getElementById('clear-busy-overlay');
+  if(!ov){
+    if(!on) return;
+    ov = document.createElement('div'); ov.id = 'clear-busy-overlay';
+    ov.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:10000;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:600;text-align:center;padding:24px;';
+    ov.textContent = 'Clearing... please wait. Do not close the app.';
+    document.body.appendChild(ov);
+  }
+  ov.style.display = on ? 'flex' : 'none';
 }
 
 function clearDemoData(){
@@ -935,13 +949,16 @@ function clearDemoData(){
     // R27: invoice numbers (nextInvNo) and S.voidedInvNos are NOT reset: a number once used is never issued again.
     S.nextId=1; S.nextSaleId=1; S.nextOrdId=1; S.nextGirviId=1;
     toast('Clearing... please wait. Do not close the app.');
+    _clearBusy(true);   // R28: nothing can be tapped until the save has answered
     var _wasDemo = DEMO_ACTIVE;
     DEMO_ACTIVE=false;
     document.getElementById('demo-banner').classList.remove('visible');
     document.body.classList.remove('demo-mode');
     saveToCloud(function(err){
+      _clearBusy(false);
       if(err){   // R26: a failed save puts everything back and says so (the backup file already downloaded)
         for(var k in _keep) S[k] = _keep[k];
+        saveCache();   // R28: the cache was written empty while the save ran; put the kept data back there too
         if(_wasDemo){ DEMO_ACTIVE=true; document.getElementById('demo-banner').classList.add('visible'); document.body.classList.add('demo-mode'); }
         renderDash(); toast('Could not save, so nothing was cleared. Check your connection and try again.'); return;
       }

@@ -3679,7 +3679,7 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
         <button class="btn btn-full" onclick="closeModal()">Close</button>
       </div>
       <!-- QA 1 Oct P2: these used to exist only inside the customer popup. -->
-      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap" class="no-print">
+      <div id="inv-actions-row" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap" class="no-print">
         <button class="btn btn-sm" style="flex:1;background:var(--info);color:#fff;" onclick="invoiceBillAction(openEditBill)"><span data-icon="edit"></span> Edit</button>
         <button class="btn btn-sm" style="flex:1;background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning);" onclick="invoiceBillAction(openRefundModal)"><span data-icon="refresh"></span> Refund</button>
         <button class="btn btn-sm btn-danger" style="flex:1;" onclick="invoiceBillAction(deleteSale)"><span data-icon="trash"></span> Delete</button>

@@ -46,6 +46,8 @@ function openInvoiceModal(html, initialBillType){
   // the session token now lives in localStorage -- see F1, 29 Sep).
   document.getElementById('invoice-content').innerHTML = '<iframe id="inv-frame" sandbox="" style="width:100%;height:500px;border:none;border-radius:8px;" srcdoc=""></iframe>';
   document.getElementById('invoice-modal').classList.add('open');
+  // R28: staff cannot edit, refund or delete (the functions refuse anyway); do not show the buttons.
+  var _ar = document.getElementById('inv-actions-row'); if(_ar) _ar.style.display = canEditBills() ? 'flex' : 'none';
   setTimeout(function(){
     var f = document.getElementById('inv-frame');
     if(f) f.srcdoc = html;

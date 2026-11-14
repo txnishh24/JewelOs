@@ -7926,6 +7926,85 @@ test('R27 review: a staff view of the Day Book never changes the stored totals o
   assert(t.in === 3000 && t.out === 20000, 'raw totals stay gross for every role: ' + JSON.stringify(t));
 });
 
+test('R28: discount message at the cap rounds sensibly; refund confirm and audit note use the real rupee sign', function(){
+  var a = r26App('staff'); a.S.sales = [];
+  var sale = r26Sale({ discount:2372 });   // bill base 47430 -> 5.0011%, cap 5%
+  var msg = a.discountProblem(sale);
+  assert(/max discount is Rs 2,371 \(5%\)/.test(msg) && !/5\.00%/.test(msg), 'says the maximum in rupees, got ' + msg);
+  var m = r26App('manager'); m.S.sales = [r26Sale()]; var seen = '';
+  m.safeConfirm = function(t, txt){ seen = txt; };
+  var vals = { 'rfnd-amount':'1000', 'rfnd-mode':'Cash', 'rfnd-reason':'Wrong Item', 'rfnd-note':'' };
+  var _o = m.document.getElementById; m.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
+  m._submitRefund('s1');
+  assert(seen.indexOf('\u20b9') !== -1 && seen.indexOf('&#') === -1, 'refund confirm text has no HTML entity: ' + seen);
+  m.safeConfirm = function(t, txt, ok){ ok(); }; m._submitRefund('s1');
+  var note = (m.S.auditLog[0] || {}).note || '';
+  assert(note.indexOf('\u20b9') !== -1 && note.indexOf('&#') === -1, 'audit note has the real symbol: ' + note);
+});
+
+test('R28: Load Demo refuses when the shop holds customers/purchases/Day Book/karigar data, accepts "Demo", asks no second question, and adds no cash to the Day Book', function(){
+  [['customers', [{ name:'X', phone:'1' }]], ['purchases', [{ id:'pu1' }]], ['suppliers', [{ id:'su1' }]], ['kgJobs', [{ id:'j1' }]], ['karigars', [{ id:'k1' }]]].forEach(function(kv){
+    var a = r26App('owner'); a.S.products = []; a.S.sales = []; a.S.orders = []; a.S.girvi = []; a.S[kv[0]] = kv[1];
+    a.prompt = function(){ return 'DEMO'; }; a.loadDemoData();
+    assert(a.S.products.length === 0 && a.said.some(function(m){ return /real records/.test(m); }), kv[0] + ': demo refused');
+  });
+  var d = r26App('owner'); d.S.products = []; d.S.sales = []; d.S.orders = []; d.S.girvi = []; d.S.dayBook.entries = [{ id:'e1', dir:'in', amount:5, date:'2026-11-01' }];
+  d.prompt = function(){ return 'DEMO'; }; d.loadDemoData();
+  assert(d.S.products.length === 0, 'a Day Book entry counts as a real record');
+  var a2 = r26App('owner'); a2.S.products = []; a2.S.sales = []; a2.S.orders = []; a2.S.girvi = [];
+  var asked = 0; a2.safeConfirm = function(){ asked++; }; a2.prompt = function(){ return ' Demo '; }; a2.loadDemoData();
+  assert(a2.S.products.length === 5 && asked === 0, 'typed "Demo" works, no second confirm: ' + a2.S.products.length + ' products, asked ' + asked);
+  var t = a2.dbAutoTotals(a2.dbToday());
+  assert(t.in === 0 && t.out === 0, 'demo bills put nothing in today\'s Day Book: ' + JSON.stringify(t));
+});
+
+test('R28: a failed Clear All writes the restored data back to the cache too', function(){
+  var a = r26App('owner'); a.S.products = [{ id:'p1' }]; a.S.sales = [r26Sale()];
+  a.downloadBackupFile = function(){}; a.prompt = function(){ return 'DELETE'; };
+  var cached = []; a.saveCache = function(){ cached.push(a.S.products.length); };
+  a.saveToCloud = function(cb){ cb(new Error('offline')); };
+  a.clearDemoData();
+  assert(a.S.products.length === 1 && cached.length >= 1 && cached[cached.length - 1] === 1, 'cache rewritten after the restore, got ' + JSON.stringify(cached));
+});
+
+test('R28: after a saved sale the jump to Home is skipped when he tapped a tab in the meantime', function(){
+  var a = r26App('owner'); var timers = [], jumps = 0;
+  a.setTimeout = function(fn){ timers.push(fn); return 1; }; a.window.scrollTo = function(){}; a.scrollTo = function(){};
+  var _sw = a.switchTab; a.switchTab = function(t){ if(t === 'dashboard') jumps++; return _sw.apply(this, arguments); };
+  a._homeAfterSale(); a.switchTab('sales'); timers.forEach(function(f){ f(); });
+  assert(jumps === 0, 'a tab tapped inside the second wins over the delayed jump');
+  timers = []; a._homeAfterSale(); timers.forEach(function(f){ f(); });
+  assert(jumps === 1, 'with no tap the jump to Home still happens');
+});
+
+test('R28: staff Bill Preview hides Edit/Refund/Delete; owner and manager see them', function(){
+  ['staff', 'manager', 'owner'].forEach(function(role){
+    var a = r26App(role); var row = { style:{} }; var _o = a.document.getElementById;
+    a.document.getElementById = function(id){ return id === 'inv-actions-row' ? row : _o(id); };
+    a.CURRENT_SALE_FOR_PDF = null; a.S.sales = [r26Sale()];
+    try{ a.showSaleInvoice('s1'); }catch(e){}
+    assert(row.style.display === (role === 'staff' ? 'none' : 'flex'), role + ': actions row display is ' + row.style.display);
+  });
+});
+
+test('R28: the reason box takes one history entry, Esc and Back close it, and its own close gives the entry back', function(){
+  var a = require('./harness.js').loadApp(); var pushed = 0, backs = 0, ov = { style:{} }, inp = { value:'', style:{} };
+  var els = { 'ask-reason-modal':ov, 'ask-reason-title':{}, 'ask-reason-hint':{}, 'ask-reason-ok':{}, 'ask-reason-cancel':{}, 'ask-reason-input':inp };
+  a.document.getElementById = function(id){ return els[id] || null; };
+  a.history = { pushState:function(){ pushed++; }, back:function(){ backs++; } };
+  var got = null;
+  a.askReason('T', 'h', 'OK', function(v){ got = v; });
+  assert(pushed === 1 && ov.style.display === 'flex', 'opened with one history entry');
+  a._arClose(true);   // what the popstate (phone Back) does
+  assert(ov.style.display === 'none' && backs === 0, 'Back closes it without a second history.back()');
+  a.askReason('T', 'h', 'OK', function(v){ got = v; });
+  els['ask-reason-cancel'].onclick();
+  assert(ov.style.display === 'none' && backs === 1, 'Cancel gives its history entry back');
+  a.askReason('T', 'h', 'OK', function(v){ got = v; }); inp.value = ' why ';
+  els['ask-reason-ok'].onclick();
+  assert(got === 'why' && ov.style.display === 'none' && backs === 2, 'OK passes the trimmed reason and gives the entry back');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

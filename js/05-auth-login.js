@@ -747,6 +747,7 @@ function discountProblem(sale, prevDisc, prevBase){
   if(cap == null) return '';
   var pct = base > 0 ? d / base * 100 : 0;
   if(prevPct != null && pct <= prevPct + 0.05) return '';
+  if(pct > cap + 1e-9 && pct.toFixed(2) === Number(cap).toFixed(2)) return 'Needs owner approval: max discount is Rs '+Math.floor(base*cap/100).toLocaleString('en-IN')+' ('+cap+'%).';
   if(pct > cap + 1e-9) return 'Needs owner approval: this discount is '+pct.toFixed(2)+'% and your limit is '+cap+'%.';
   return '';
 }

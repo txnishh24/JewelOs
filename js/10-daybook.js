@@ -128,6 +128,8 @@ function dbAutoLines(dateKey){
 
   // ── A. Sales ──────────────────────────────────────────────────────
   (S.sales||[]).forEach(function(sale){
+    // R28: sample (demo) bills never put cash in the Day Book (INV-D001 had added Rs 1,20,000 to today).
+    if(String(sale.id||'').indexOf('demo-') === 0) return;
     // A1: creation-time payment, same three-tier precedence the edit-bill
     // modal uses (js/01-sync-core.js) — never sum tiers, only the first
     // that applies.
@@ -220,6 +222,7 @@ function dbAutoLines(dateKey){
 
   // ── C. Girvi (read-only; girviLedgerState is never touched here) ───
   (S.girvi||[]).forEach(function(g){
+    if(String(g.id||'').indexOf('demo-') === 0) return;   // R28: sample records never reach the Day Book
     // C1: loan disbursement. Only posted when disburseMode is present —
     // never defaulted to Cash, that would retro-post historical loans.
     if(dbDayKey(g.startDate) === dateKey && g.principal > 0){
@@ -256,6 +259,7 @@ function dbAutoLines(dateKey){
 
   // ── D. Orders ───────────────────────────────────────────────────────
   (S.orders||[]).forEach(function(o){
+    if(String(o.id||'').indexOf('demo-') === 0) return;   // R28: sample records never reach the Day Book
     if(o.ledger && o.ledger.length){
       // D1: the real payment ledger.
       o.ledger.forEach(function(txn){
@@ -716,7 +720,7 @@ function dbReopenDay(dateKey, reason, cb){
 function dbOpenReopen(){
   if(!isOwner()){ toast('Only the owner can do this'); return; }
   var dateKey = dbUiDate();
-  askReason('Reopen '+fmtDate(dateKey)+'?', 'Why are you reopening this day? It is kept in the record.', 'Reopen day', function(reason){
+  askReason('Reopen '+fmtDate(dateKey)+'?', 'Why are you reopening this day? It is kept in the record. The shortfall or excess recorded when this day closed will be cancelled; close the day again to record it afresh.', 'Reopen day', function(reason){
   dbReopenDay(dateKey, reason, function(err, res){
     if(err){ toast('⚠ Could not reopen: '+dbErrText(err)); return; }
     toast('Day reopened. Edits are open again.'+(res && res.reversed ? ' The recorded shortfall/excess was cancelled; close the day again to re-record it.' : ''));

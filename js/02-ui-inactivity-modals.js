@@ -126,7 +126,15 @@ function renderTab(tab, isEntrance){
 // Scroll position memory — keyed by tab name
 var _tabScrollPos = {};
 
+// R28: after a saved sale the app goes Home after 0.9 s, but only if he has not tapped a tab himself in that time
+// (a tap on Sale inside that second used to be overridden back to Home).
+var _tabSwitchN = 0;
+function _homeAfterSale(){
+  var n = _tabSwitchN;
+  setTimeout(function(){ if(_tabSwitchN === n) switchTab('dashboard'); }, 900);
+}
 function switchTab(tab){
+  _tabSwitchN++;
   // The product actions sheet is tab-agnostic chrome, not part of any one
   // screen -- close it on every tab switch so it can't follow you to a tab
   // where its remembered _prodActionId no longer makes sense (16 Oct).
@@ -1336,7 +1344,7 @@ function updateSum(){
   } else if(grand>0){
     html+='<div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;padding:7px 0;margin-top:4px;border-top:2px solid var(--success);color:var(--success);">'+
       '<span>&#10003; Fully Settled</span><span>'+fmt(grand)+'</span></div>';
-    if(overpaid>0) html+='<div style="font-size:12px;color:var(--text3);padding:3px 0;">Change to return: '+fmt(overpaid)+'</div>';
+    if(overpaid>0) html+='<div style="font-size:12px;color:var(--danger);font-weight:600;padding:3px 0;">Paying more than the bill by '+fmt(overpaid)+'</div>';
   }
   row.innerHTML=html;
 }
@@ -1923,7 +1931,7 @@ function _commitSaleTransactionNow(sale, ctx){
     clearSale();
     renderDash();
     toast('\u2705 Saved offline: '+sale.invNo+'. It will sync when the internet is back.');
-    setTimeout(function(){switchTab('dashboard');},900);
+    _homeAfterSale();
     return;
   }
 
@@ -1936,7 +1944,7 @@ function _commitSaleTransactionNow(sale, ctx){
       clearSale();
       renderDash();
       toast('\u2705 Sale recorded! Invoice: '+sale.invNo);
-      setTimeout(function(){switchTab('dashboard');},900);
+      _homeAfterSale();
     } else {
       // Roll back the order link too — the sale that would have justified
       // it never actually made it to the cloud.

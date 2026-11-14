@@ -1060,6 +1060,26 @@ function safeConfirm(title, msg, onOk, danger){
 }
 
 // R27: the app's own reason box (replaces the native prompt()). onOk gets the trimmed, non-empty reason; Cancel does nothing.
+// R28: Esc and the phone's Back button close it. It owns ONE history entry while open (_arHist); a close we make ourselves
+// takes that entry back with history.back() and swallows the popstate that causes (_arEcho), so Back never leaves the page.
+var _arHist = false, _arEcho = 0;
+function _arClose(fromPop){
+  var ov = document.getElementById('ask-reason-modal'); if(ov) ov.style.display = 'none';
+  var inp = document.getElementById('ask-reason-input'); if(inp) inp.value = '';
+  if(_arHist){ _arHist = false; if(!fromPop){ _arEcho++; try{ history.back(); }catch(e){ _arEcho--; } } }
+}
+try{
+  window.addEventListener('popstate', function(){
+    if(_arEcho > 0){ _arEcho--; return; }
+    var ov = document.getElementById('ask-reason-modal');
+    if(_arHist && ov && ov.style.display !== 'none') _arClose(true);
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape') return;
+    var ov = document.getElementById('ask-reason-modal');
+    if(ov && ov.style.display === 'flex') _arClose(false);
+  });
+}catch(e){}
 function askReason(title, hint, okLabel, onOk, asPassword){
   var ov = document.getElementById('ask-reason-modal');
   if(!ov){
@@ -1072,7 +1092,7 @@ function askReason(title, hint, okLabel, onOk, asPassword){
       '<input id="ask-reason-input" type="text" maxlength="200" placeholder="Reason (required)" style="width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border2);background:var(--surface);font-size:16px;font-family:inherit;box-sizing:border-box;">'+
       '<div style="display:flex;gap:9px;margin-top:16px;">'+
         '<button class="btn btn-sm" style="flex:1;" id="ask-reason-cancel">Cancel</button>'+
-        '<button class="btn btn-sm btn-dark" style="flex:1;" id="ask-reason-ok"></button>'+
+        '<button class="btn btn-sm btn-gold" style="flex:1;" id="ask-reason-ok"></button>'+
       '</div></div>';
     document.body.appendChild(ov);
   }
@@ -1082,11 +1102,12 @@ function askReason(title, hint, okLabel, onOk, asPassword){
   var inp = document.getElementById('ask-reason-input'); inp.value = '';
   inp.type = asPassword ? 'password' : 'text'; inp.placeholder = asPassword ? 'Account password' : 'Reason (required)';
   ov.style.display = 'flex';
-  document.getElementById('ask-reason-cancel').onclick = function(){ ov.style.display = 'none'; inp.value = ''; };
+  if(!_arHist){ try{ history.pushState({arReason:1}, ''); _arHist = true; }catch(e){} }
+  document.getElementById('ask-reason-cancel').onclick = function(){ _arClose(false); };
   document.getElementById('ask-reason-ok').onclick = function(){
     var v = (inp.value||'').trim();
     if(!v){ toast(asPassword ? 'Please enter your password' : 'Please enter a reason'); return; }
-    ov.style.display = 'none'; inp.value = '';
+    _arClose(false);
     onOk(v);
   };
   setTimeout(function(){ try{ inp.focus(); }catch(e){} }, 50);
@@ -2621,7 +2642,7 @@ function _submitRefund(saleId) {
   if(amount > t.grand-done+1){toast('Amount exceeds refundable');return;}
   var checkedIdx = Array.prototype.slice.call(document.querySelectorAll('.rfnd-item-chk:checked'))
     .map(function(el){ return parseInt(el.value,10); });
-  safeConfirm('Issue Refund?','Refund &#8377;'+Math.round(amount).toLocaleString('en-IN')+' to '+sale.customer+'?\nReason: '+reason,function(){
+  safeConfirm('Issue Refund?','Refund ₹'+Math.round(amount).toLocaleString('en-IN')+' to '+sale.customer+'?\nReason: '+reason,function(){
     var _snap = _refundSnapshot();
     _refundSubmitLock = true;
     if(!sale.refunds) sale.refunds=[];
@@ -2678,7 +2699,7 @@ function _submitRefund(saleId) {
       });
     });
 
-    auditLog('refund','sale',saleId,'&#8377;'+Math.round(amount)+' via '+mode+' | '+reason+(note?' | '+note:'')+(createdCount?' | '+createdCount+' item(s) returned to inventory':''));
+    auditLog('refund','sale',saleId,'₹'+Math.round(amount)+' via '+mode+' | '+reason+(note?' | '+note:'')+(createdCount?' | '+createdCount+' item(s) returned to inventory':''));
     closeRefundModal();
     // Same snapshot/rollback shape as girvi/orders/purchases — a failed
     // save must not leave the refund AND the new 'returned' product rows
