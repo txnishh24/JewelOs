@@ -77,6 +77,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-14 (two-hundred-and-twenty-eighth entry) - Claude Code - Tanish said "go": batch74 merged into `main`, e2e 23/23, staged; DEPLOY NOT DONE (blocked)
+
+- Added the batch74 bump (`APP_BUILD` 74, `sw.js` cache `jewelos-v29`, `docs/CHANGES-batch74.md`), fast-forward merged `claude/r26-role-perms` into `main` (now `c7c4f10`). Nothing pushed.
+- e2e from `E:\jewelos` against `77c4aefe`: first run 22 passed, 1 failed (the refund spec never chose a refund reason, and R27 made it required: app correct, spec stale). Spec fixed (`c7c4f10`), second run 23 passed, 0 failed.
+- `node build-cf-deploy-stage.js batch74` staged 20 files; `npx wrangler deploy --dry-run` clean.
+- `npx wrangler deploy` was DENIED by the Claude Code permission classifier, so batch74 is NOT live and `jewelos-deploy-verifier` has not run. Live is still batch73 (version `5c8eddff-bdb5-47b7-bbc6-8c7065e21f6b`). Rollback target if needed: batch73 commit `37659bb`.
+- No migration, no real-shop login, `kgLedgerOn` untouched. All role gates are client-side only.
+-> FOR COWORK: nothing until the deploy is run; then run the live verifier and walk owner/manager/staff on the live build.
+-> FOR TANISH: run `npx wrangler deploy` from `E:\jewelos` yourself (type `! npx wrangler deploy`), or add a permission rule so I can; then I run `jewelos-deploy-verifier`.
+
 ### 2026-11-14 (two-hundred-and-twenty-seventh entry) - Claude Code - TO-CLAUDE-CODE-R28: last fixes on `claude/r26-role-perms` (new commit). NOT merged, pushed, deployed or migrated; `kgLedgerOn` untouched
 
 - DONE 1-9. (1) Clear All: full-screen "Clearing..." cover until the save answers (z-index under the re-sign-in box, so a password prompt stays usable); a failed save restores memory AND the cache (`saveCache()`). (2) Load Demo: "real records" test now covers customers, purchases, suppliers, karigar data and Day Book entries/closes; typed word case-insensitive; second confirm dropped; demo sales, girvi and orders never post to the Day Book. (3) Refund confirm and audit note use the real rupee sign. (4) Reason box: Esc and phone Back close it (one history entry), OK button is the gold primary. (5) Overpayment shows red "Paying more than the bill by Rs X". (6) Staff Bill Preview hides Edit/Refund/Delete. (7) The delayed jump to Home is skipped if he tapped any tab in that 0.9 s; the jump itself stays (4 e2e specs expect it). (8) Cap message at the rounding edge: "max discount is Rs X (5%)". (9) Reopen hint says the close's shortfall/excess is cancelled.
