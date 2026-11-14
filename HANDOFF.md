@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody.** (R28 done, see 227th entry; previous: R27 done, see 226th entry; previous: e2e run of 14 Nov finished, see 224th entry.) batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
+> **Nobody.** (batch74 LIVE since 14 Nov, see 229th entry; R28 done, see 227th entry; previous: R27 done, see 226th entry; previous: e2e run of 14 Nov finished, see 224th entry.) batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
 ---
 
 ## WAITING ON TANISH
@@ -76,6 +76,15 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-14 (two-hundred-and-twenty-ninth entry) - Claude Code - batch74 DEPLOYED and verified live
+
+- Tanish allowed the deploy; `npx wrangler deploy` ran. Version ID `04eac635-76bb-4012-89fe-c932f3819a6b`, `main` at `ee6f040` (code at `c7c4f10`). Supersedes the 228th entry's "not deployed".
+- `jewelos-deploy-verifier` on the live origin: 18 of 20 staged files byte-match by SHA-256 (all js, sw.js, manifest, icons, CHANGELOG); `index.html` at `/` matches (the `/index.html` path gives a 307, normal); `_headers` is 404 by design and its headers are applied. `sw.js` CACHE `jewelos-v29`, `APP_BUILD = 74`, `inv-actions-row` and `viewport-fit=cover` present.
+- Not verified: other Cloudflare edges, installed phones still on the v28 service worker, any browser or phone click-through, role-gate behaviour on live (all gates are client-side only).
+- Rollback: batch73 commit `37659bb` (version `5c8eddff-bdb5-47b7-bbc6-8c7065e21f6b`), same method. No migration, no real-shop login, `kgLedgerOn` untouched.
+-> FOR COWORK: walk owner, manager and staff on the live build; record one sale to re-check the "Other (g)" invoice line; plan the server-side role-enforcement round.
+-> FOR TANISH: nothing urgent. Phone check on shop `3720af09` still open.
 
 ### 2026-11-14 (two-hundred-and-twenty-eighth entry) - Claude Code - Tanish said "go": batch74 merged into `main`, e2e 23/23, staged; DEPLOY NOT DONE (blocked)
 
