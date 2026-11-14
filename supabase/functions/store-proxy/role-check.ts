@@ -26,10 +26,10 @@ export type Violation = { code: string; message: string };
 export const SHRINK_MAX_FRACTION = 0.2;
 export const SHRINK_MIN_LEN = 5;
 export const SHRINK_LISTS = ["customers", "products", "girvi", "orders", "purchases"];
-// The client does NOT stop a new bill dated on a day that was already closed (a customer at 8:30 pm after the
-// 8 pm close, or an offline bill synced next morning). Refusing it here would stop staff selling, so this is OFF
-// until Tanish decides the product rule. Edit, refund and void on a closed day ARE refused (the client does too).
-export const BLOCK_NEW_SALE_ON_CLOSED_DAY = false;
+// Tanish, 14 Nov 2026: no bill after the day is closed, for staff or manager; the owner reopens the day first.
+// The client refuses it too (recordSale). Known edge: an offline bill made before the close and synced after it
+// is refused here; the phone sets it aside (quarantineOfflineSales) and the owner must reopen the day.
+export const BLOCK_NEW_SALE_ON_CLOSED_DAY = true;
 export const DEFAULT_DISC_CAPS = { staff: 5, manager: 15 };
 // The percent the client shows is rounded; allow this much slack so a bill the
 // client accepted at exactly the cap is never refused here.
@@ -180,7 +180,11 @@ function checkChangedSale(role: string, before: any, afterRaw: any, caps: any, c
   if (keys.indexOf("extraPayments") !== -1) {
     const b = arr(before.extraPayments), a = arr(after.extraPayments);
     if (!isPrefix(b, a)) return bad("payment_rewritten", "Bill " + inv + ": earlier payments cannot be changed or removed.");
-    for (const p of a.slice(b.length)) if (!(num(p.amount) > 0)) return bad("negative_amount", "Bill " + inv + ": a payment must be more than zero.");
+    for (const p of a.slice(b.length)) {
+      if (!(num(p && p.amount) > 0)) return bad("negative_amount", "Bill " + inv + ": a payment must be more than zero.");
+      // Tanish, 14 Nov 2026: staff cannot reverse a payment (manager and owner can).
+      if (role !== "manager" && p.type === "reversal") return bad("staff_reversal", "Staff cannot reverse a payment. Ask the owner or a manager.");
+    }
   }
   if (keys.indexOf("paymentHistory") !== -1) {
     const hb2 = arr(before.paymentHistory), ha2 = arr(after.paymentHistory);

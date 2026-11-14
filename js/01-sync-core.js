@@ -1816,7 +1816,7 @@ function renderPaymentHistory(sale){
   // this is the only place a "Reverse" action shows, since only entries
   // in sale.extraPayments (not the creation-time payment above) go
   // through the reversible ledger.
-  var reversibles = (sale.extraPayments||[]).filter(function(p){
+  var reversibles = !canEditBills() ? [] : (sale.extraPayments||[]).filter(function(p){
     return p.type!=='reversal' && !(sale.extraPayments||[]).some(function(x){return x.reversedPayment===p.id;});
   });
   if(reversibles.length){
@@ -2518,6 +2518,7 @@ function submitSalePayment(saleId){
 // Reverses one specific logged payment — appends a reversal entry,
 // never edits or deletes the original (Foundation audit §9).
 function reverseSalePayment(saleId, paymentId){
+  if(!canEditBills()){ toast('Staff cannot reverse payments. Ask the owner or a manager.'); return; }   // Tanish 14 Nov
   var sale=(S.sales||[]).find(function(x){return x.id===saleId;});
   if(!sale||!sale.extraPayments) return;
   var pay=sale.extraPayments.find(function(p){return p.id===paymentId;});

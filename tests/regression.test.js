@@ -8005,6 +8005,29 @@ test('R28: the reason box takes one history entry, Esc and Back close it, and it
   assert(got === 'why' && ov.style.display === 'none' && backs === 2, 'OK passes the trimmed reason and gives the entry back');
 });
 
+test('R29 policy (Tanish, 14 Nov): staff and manager cannot add a bill on a closed day, the owner can; staff cannot reverse a payment', function(){
+  function run(role){
+    var a = _freshSaleHarness(); a.SAAS.shop = { id:'shop1' }; a.SAAS.user = { id:'u', name:role, role:role };
+    a.S.rates = { g24:7500, g22:7200, setAt:'2026-01-01T00:00:00.000Z' };
+    try{ a.dbInit(); }catch(e){}
+    a.S.dayBook.closes = [{ date:a.dbToday() }];
+    var said = [], got = null; a.toast = function(m){ said.push(String(m)); };
+    var _o = a.document.getElementById; a.document.getElementById = function(id){ return id === 's-cust' ? { style:{}, value:'T' } : _o(id); };
+    a.buildSaleObj = function(){ var s = _sale('Z'); s.date = new Date().toISOString(); return s; };
+    a._commitSaleTransaction = function(s){ got = s; };
+    a.recordSale();
+    return { got:got, said:said };
+  }
+  ['staff', 'manager'].forEach(function(r){ var x = run(r); assert(x.got === null && x.said.some(function(m){ return /day is closed/.test(m); }), r + ': refused with a message, got ' + JSON.stringify(x.said)); });
+  assert(run('owner').got !== null, 'owner can still record it');
+  var st = _freshSaleHarness(); st.SAAS.user = { id:'u', name:'s', role:'staff' }; st.SAAS.shop = { id:'shop1' };
+  var said2 = []; st.toast = function(m){ said2.push(String(m)); };
+  st.S.sales = [{ id:'s1', invNo:'INV-1', extraPayments:[{ id:'p1', amount:50, mode:'Cash' }] }];
+  var saves = 0; st.saveToCloud = function(){ saves++; };
+  st.reverseSalePayment('s1', 'p1');
+  assert(saves === 0 && st.S.sales[0].extraPayments.length === 1 && said2.some(function(m){ return /Staff cannot reverse/.test(m); }), 'staff reversal refused, nothing saved');
+});
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');

@@ -1704,6 +1704,8 @@ function recordSale(){
     toast('\u26a0 Invoice '+sale.invNo+' is far ahead of your series. Check for a typo, or clear the Invoice No. box to get the next number.');
     return;
   }
+  // Tanish 14 Nov: no bill on a closed day for staff or manager; the owner reopens the day first.
+  if(!isOwner() && dbSaleDayClosed(sale)){ toast('That day is closed. Ask the owner to reopen it before adding a bill.'); return; }
   // Duplicate bill guard — catches a second, separate click after the
   // first sale already finished (different scenario from the in-flight
   // lock above, which catches a click while the first is still saving)

@@ -128,9 +128,18 @@ test('new bill: negative amount or negative discount is refused; zero and normal
   assert(code('manager', blob(), withSale(blob(), li)) === 'negative_amount', 'negative line');
   assert(code('manager', blob(), withSale(blob(), sale({ id: 's2', invNo: 'INV-2' }))) === null);
 });
-test('new bill on a closed day: allowed today (the client allows it); refused if the switch is turned on', function () {
+test('new bill on a closed day: refused for staff and manager (Tanish, 14 Nov); owner passes; an open day passes', function () {
   const cur = blob(); cur.dayBook.closes = [{ date: TODAY }];
-  assert(code('staff', cur, withSale(cur, sale({ id: 's2', invNo: 'INV-2' }))) === null);
+  ['staff', 'manager'].forEach(function (r) { assert(code(r, cur, withSale(cur, sale({ id: 's2', invNo: 'INV-2' }))) === 'closed_day', r); });
+  assert(code('owner', cur, withSale(cur, sale({ id: 's2', invNo: 'INV-2' }))) === null, 'owner');
+  const other = blob(); other.dayBook.closes = [{ date: '2026-11-01' }];
+  assert(code('staff', other, withSale(other, sale({ id: 's2', invNo: 'INV-2' }))) === null, 'a different closed day does not block today');
+});
+test('payment reversal: staff refused, manager passes (Tanish, 14 Nov)', function () {
+  const cur = blob(); cur.sales[0].extraPayments = [{ id: 'p1', amount: 500, mode: 'Cash' }];
+  const next = clone(cur); next.sales[0].extraPayments.push({ id: 'REV-1', type: 'reversal', amount: 500, mode: 'Cash', reversedPayment: 'p1' });
+  assert(code('staff', cur, next) === 'staff_reversal', 'staff');
+  assert(code('manager', cur, next) === null, 'manager');
 });
 test('manager void: needs voidedInvNos AND an audit entry with a reason (fail without either), and an open day', function () {
   const gone = blob(); gone.sales = [];
@@ -311,6 +320,7 @@ async function doSale(app, srv, role, discPct) {
   const s = { id, invNo: 'INV-' + String(1000 + _n), customer: 'Cust ' + _n, phone: '', items: [{ pid: 'p1', name: 'Ring', metal: 'gold', purity: '22K', weight: 5, qty: 1, lockedRate: 7200, making: 0, diamond: 0 }],
     nowPaying: { amount: 0, mode: 'Cash' }, gst: 3, discount: d, lockedGrand: Math.round((36000 - d) * 1.03 * 100) / 100, advance: 0, payStatus: 'pending', date: new Date().toISOString() };
   app.UI.saleItems = [{ pid: 'p1', qty: 1 }];
+  if (role !== 'owner' && app.dbSaleDayClosed(s)) return 0;   // recordSale refuses this for staff and manager (tested in regression.test.js)
   const before = srv.data.sales.length;
   app._commitSaleTransaction(s); await settle();
   REPLAY.flows++;
@@ -328,7 +338,7 @@ await atest('flow: staff records a sale, manager records a sale, owner records a
   assert(srv.refusals.length === 0, JSON.stringify(srv.refusals));
 });
 
-await atest('flow: staff adds a part-payment to an old bill; manager marks one paid; staff reverses a payment (3 flows) - none refused', async function () {
+await atest('flow: staff adds a part-payment to an old bill; manager marks one paid; staff reversal blocked, manager reverses (4 flows) - none refused', async function () {
   const srv = makeServer(seedBlob());
   const owner = loadApp(); wire(owner, srv, 'owner'); await doSale(owner, srv, 'owner');
   await doSale(owner, srv, 'owner');
@@ -341,8 +351,12 @@ await atest('flow: staff adds a part-payment to an old bill; manager marks one p
   mgr.markSalePaid(id2); await settle(); REPLAY.flows++;
   assert(srv.data.sales[1].payStatus === 'full', 'mark paid landed: ' + JSON.stringify(srv.refusals));
   const staff2 = loadApp(); wire(staff2, srv, 'staff'); load(staff2, srv);
-  staff2.reverseSalePayment(id1, srv.data.sales[0].extraPayments[0].id); await settle(); REPLAY.flows++;
-  assert(srv.data.sales[0].extraPayments.length === 2, 'reversal landed: ' + JSON.stringify(srv.refusals));
+  const payId = srv.data.sales[0].extraPayments[0].id;
+  staff2.reverseSalePayment(id1, payId); await settle(); REPLAY.flows++;   // the client itself now refuses staff
+  assert(srv.data.sales[0].extraPayments.length === 1 && srv.puts === srv.puts, 'staff reversal refused by the client, nothing sent');
+  const mgr2 = loadApp(); wire(mgr2, srv, 'manager'); load(mgr2, srv);
+  mgr2.reverseSalePayment(id1, payId); await settle(); REPLAY.flows++;
+  assert(srv.data.sales[0].extraPayments.length === 2, 'manager reversal landed: ' + JSON.stringify(srv.refusals));
   assert(srv.refusals.length === 0, JSON.stringify(srv.refusals));
 });
 
@@ -406,15 +420,17 @@ await atest('500 random legitimate sequences produce 0 refusals', async function
     for (let k = 0; k < len; k++) {
       const role = ['staff', 'manager'][rnd(2)]; const app = apps[role]; load(app, srv);
       const v0 = srv.data._v;
-      const sales = srv.data.sales; const pick = sales.length ? sales[rnd(sales.length)] : null; const op = rnd(8);
+      const sales = srv.data.sales; const pick = sales.length ? sales[rnd(sales.length)] : null; const op = rnd(10);
       if (op <= 2 || !pick) { landed += await doSale(app, srv, role, rnd(role === 'manager' ? 15 : 5) + 1); }
       else if (op === 3) { vals(app, { 'spay-amount': String(1 + rnd(900)), 'spay-mode': ['Cash', 'UPI'][rnd(2)], 'spay-ref': '' }); app.submitSalePayment(pick.id); }
       else if (op === 4) { app.markSalePaid(pick.id); }
       else if (op === 5 && role === 'manager') { app._editBillId = pick.id; vals(app, { 'eb-reason': 'fix ' + rnd(100), 'eb-disc': String(rnd(3) * 500), 'eb-gst': '3', 'ei-wt-0': String(4 + rnd(3)) }); app.saveEditBill(); }
       else if (op === 6 && role === 'manager') { vals(app, { 'rfnd-amount': String(10 + rnd(200)), 'rfnd-mode': 'Cash', 'rfnd-reason': 'Wrong Item', 'rfnd-note': '' }); app._submitRefund(pick.id); }
+      else if (op === 8 && role === 'manager') { app.dbCloseDay(app.dbToday(), 0, function () {}); }
+      else if (op === 9) { const ow = apps.owner; load(ow, srv); ow.dbReopenDay(ow.dbToday(), 'recount', function () {}); }
       else if (op === 7 && role === 'manager') { app.askReason = function (t, h, ok, cb) { cb('cancelled ' + rnd(9)); }; app.deleteSale(pick.id); }
       await settle(); ops++;
-      { const nm = ['sale','sale','sale','sale','payment','markpaid','edit','refund','void'][op <= 2 || !pick ? 0 : op + 1] || 'x'; if (srv.data._v > v0) tally[nm] = (tally[nm] || 0) + 1; }
+      { const nm = ['sale','sale','sale','sale','payment','markpaid','edit','refund','void','close','reopen'][op <= 2 || !pick ? 0 : op + 1] || 'x'; if (srv.data._v > v0) tally[nm] = (tally[nm] || 0) + 1; }
       assert(srv.refusals.length === 0, 'seq ' + seq + ' step ' + k + ' (' + role + ' op ' + op + ') refused: ' + JSON.stringify(srv.refusals));
     }
   }

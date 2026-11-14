@@ -32,14 +32,14 @@ Discount percent = `discount / base`, `base = lockedGrand / (1 + gst/100) + disc
 
 ## What I could NOT implement as written, and why
 1. **"Void = status change, voidReason; deleting a bill is refused for managers."** In this app a void IS a removal: `deleteSale` filters the bill out of `S.sales`, adds its number to `voidedInvNos` and writes an audit entry `... | reason: <text>`. There is no `status`/`voidReason` field. Refusing removal would stop managers voiding. Implemented as "removal allowed only when it is a recorded void" (above). The reason lives in the audit note, so the server checks the note, which a console user can fake, but not without a trace.
-2. **"New sale not on a closed day."** The client does not stop that today: `recordSale` has no closed-day check (a customer after the 8 pm close, or an offline bill synced the next morning). Refusing it would stop staff selling. Built as `BLOCK_NEW_SALE_ON_CLOSED_DAY = false`. Tanish decides the product rule first (client and server together).
+2. **"New sale not on a closed day."** DECIDED by Tanish, 14 Nov: no bill after the day is closed, for staff or manager; the owner reopens the day. Now ON (`BLOCK_NEW_SALE_ON_CLOSED_DAY = true`) and the client refuses it too (`recordSale`). Known edge: an offline bill made before the close and synced after it is refused by the server; the phone sets it aside (`quarantineOfflineSales`) and the owner must reopen the day. Until the client with this guard (batch75) is deployed, a batch74 phone still lets staff record such a bill; in log mode the server only logs it as `code=closed_day`.
 3. **"date not on a closed day" for staff payments** is not needed: a payment is dated when taken.
 4. **Old-bill part-payments (the question you asked):** the client does NOT edit the old sale's money fields. `submitSalePayment` appends to `sale.extraPayments` and `sale.paymentHistory`; `markSalePaid` (manager) appends a payment and sets `payStatus='full'`, `paidAt`, and fills `lockedGrand`/item `lockedRate` if missing. There is no `paid`/`due` field (balance is derived by `calcSaleTotals`). So the rule is: append-only on those two arrays plus `payStatus`/`paidAt`. A startup migration that fills a missing `lockedGrand`/`lockedRate` is ignored as a change.
 5. **Reason on a refund/edit** is checked in the new `refunds[]` / `editHistory[]` entries (fields `reason`), not in a separate place. An owner edit with no reason is stored as "Edited", so for managers the server can only require non-empty (a typed reason of one letter passes).
 6. **Profit hiding on GET:** phase 2, below. Not built.
 
 ## Client gaps found (not fixed here, for Tanish)
-- **Payment reversal is open to staff.** The "reverse" button on the payment history is shown to every role and `reverseSalePayment` has no role check. The server allows a staff append of a reversal (otherwise legit saves would be refused). Decide whether reversal should be manager-only; then change client and server together.
+- **Payment reversal** was open to staff (button shown to every role, no check in `reverseSalePayment`). DECIDED by Tanish, 14 Nov: staff cannot reverse. Server refuses it (`staff_reversal`); client change (button hidden, function refuses) is on this branch, not yet deployed (batch75). A batch74 phone still shows the button; in log mode the server logs the attempt.
 - **Offline bills refused by the server** would have been replayed and refused on every load. Fixed on the client: a `forbidden` answer to the replay save now moves those bills to `jewelos_sale_outbox_rejected::<shop>` on the phone, empties the outbox and reloads the cloud data (`quarantineOfflineSales`).
 - Any other flow that writes a refused change leaves that change in the phone's memory until the next load; the 403 toast shows the server's sentence and nothing retries (`js/01-sync-core.js` 403 branch: no retry, `_clearUnsynced`, callback gets `forbidden`).
 
@@ -76,7 +76,6 @@ Still open (known, not fixed; low enough for log mode, decide before `enforce`):
 - A manager can rewrite the figures of an existing Day Book close as long as its date stays.
 - A part-payment can be dated on a closed day (the app dates it "now"; the server does not check).
 - `lockedRate` backfill on an old bill accepts any positive number (the real migration writes today's rate).
-- Payment reversal is open to staff (client gap, above).
 - The role check needs `get_advisors` / RLS review on the live project; not run (waiting for Tanish).
 
 ## Tests
