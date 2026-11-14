@@ -183,7 +183,11 @@ function loadFromCloud(callback, skipPush, opts){
     var _replayed = (typeof replayOfflineSales==='function') ? replayOfflineSales() : 0;
     if(_replayed > 0){
       saveToCloud(function(err){
-        if(err) return; // still in the outbox; the next load replays it again
+        if(err){
+          // R29: the server refused these bills for this role (403 role_forbidden): replaying them on every load would refuse every save, so they are set aside on this phone.
+          if(err.message==='forbidden' && err.code==='role_forbidden' && typeof quarantineOfflineSales==='function') quarantineOfflineSales();
+          return; // otherwise still in the outbox; the next load replays it again
+        }
         pruneOfflineOutbox();
         toast('\u2705 '+_replayed+' offline bill'+(_replayed===1?'':'s')+' synced');
       });
@@ -483,7 +487,7 @@ function saveToCloud(callback){
         // save attempt.
         _unconfirmedSaveIds = [];
         _pendPushId = null;
-        if(callback) callback(new Error('forbidden'));
+        if(callback){ var _fe = new Error('forbidden'); _fe.code = (res.body && res.body.error) || ''; callback(_fe); }   // R29: .code tells role_forbidden from readonly / invalid_tenant
         return;
       }
       if(res.body && res.body.conflict && res.body.data && res.body.data._saveId === saveId){

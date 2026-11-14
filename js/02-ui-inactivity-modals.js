@@ -1785,6 +1785,19 @@ function salesKeptNote(){
   return ' ' + n + ' unsent bill' + (n === 1 ? '' : 's') + ' stay' + (n === 1 ? 's' : '') + ' on this phone and ' + (n === 1 ? 'is' : 'are') + ' sent after you sign in to that shop again.';
 }
 function offlineSalesPending(){ return _lsList(saleOutboxKey()).length; }
+// R29: the server refused the offline bills (role check). They move to a separate list on this phone (kept, not lost, for the
+// owner to look at), the outbox is emptied so the next load does not replay them, and the screen reloads the cloud's data
+// (the refused bills and their stock deduction only ever existed in memory).
+function quarantineOfflineSales(){
+  var box = _lsList(saleOutboxKey());
+  if(!box.length) return 0;
+  var rk = shopScopedKey('jewelos_sale_outbox_rejected');
+  _lsPut(rk, _lsList(rk).concat(box));
+  _lsPut(saleOutboxKey(), []);
+  toast('\u26a0 '+box.length+' offline bill'+(box.length===1?' was':'s were')+' not accepted for your role. They are kept on this phone. Ask the owner.');
+  try{ loadFromCloud(function(){ normaliseData(); saveCache(); renderDash(); }); }catch(e){}
+  return box.length;
+}
 // After a save that carried the replayed sales has landed: they are in the cloud now.
 function pruneOfflineOutbox(){
   var box = _lsList(saleOutboxKey());

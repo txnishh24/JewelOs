@@ -33,6 +33,7 @@
 // ══════════════════════════════════════════════════════════════════════
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { checkRoleWrite } from "./role-check.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -60,6 +61,10 @@ const KG_ROLES = new Set(["owner", "manager"]);
 // Optional old-build guard. Unset or 0 = off. Set MIN_CLIENT_BUILD to refuse saves and ledger
 // posts from app builds older than that number (a stale phone would otherwise save the shop
 // blob without newer keys and erase them). The client sends its build as _build.
+// R29: server-side role check on blob writes (role-check.ts). off = skip, log = record what WOULD be refused
+// and write anyway (the default, so a missing setting can never block a shop), enforce = refuse with 403 role_forbidden.
+const ROLE_CHECK_MODE = (Deno.env.get("ROLE_CHECK_MODE") ?? "log").toLowerCase();
+if (!["off", "log", "enforce"].includes(ROLE_CHECK_MODE)) console.warn("[store-proxy] ROLE_CHECK_MODE is not off, log or enforce: treated as log. Value was:", ROLE_CHECK_MODE);
 const MIN_CLIENT_BUILD = Number(Deno.env.get("MIN_CLIENT_BUILD") ?? "0") || 0;
 const buildOf = (v: unknown) => (typeof v === "number" && isFinite(v) ? v : 0);
 const isInt = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v);
@@ -380,6 +385,25 @@ Deno.serve(async (req) => {
       return json({ error: "client_outdated", message: "Please reload the app to update." }, 409, origin);
     }
     const expectedVersion = typeof body.expectedVersion === "number" ? body.expectedVersion : 0;
+
+    // R29: manager and staff writes are checked against the stored blob. Owner writes are never read or checked.
+    // Only when the client's version is the stored one (otherwise the CAS below answers 409 and the client retries on fresh data).
+    // Any trouble in the check itself fails OPEN: a bug here must never stop a shop saving.
+    if (role !== "owner" && ROLE_CHECK_MODE !== "off") {
+      try {
+        const { data: curRows, error: curErr } = await supabase.from("store").select("data").eq("id", shopKey).limit(1);
+        const cur = !curErr && curRows && curRows.length ? (curRows[0].data as Record<string, unknown>) : null;
+        if (cur && cur._v === expectedVersion) {
+          const v = checkRoleWrite(role, cur, body.data);
+          if (v) {
+            console.warn("[store-proxy] role-check", ROLE_CHECK_MODE, "role=" + role, "code=" + v.code, "user=" + session.userId);
+            if (ROLE_CHECK_MODE === "enforce") return json({ error: "role_forbidden", code: v.code, message: v.message }, 403, origin);
+          }
+        }
+      } catch (e) {
+        console.error("[store-proxy] role-check failed open:", e instanceof Error ? e.message : String(e));
+      }
+    }
 
     const { data: rpcRows, error: rpcError } = await supabase.rpc("store_cas_write", {
       p_shop_id: shopKey,
