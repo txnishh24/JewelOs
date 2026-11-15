@@ -10,7 +10,10 @@
 //
 // Not zero-dependency like regression.test.js: it needs `sucrase` to strip
 // TypeScript. Found via `require('sucrase')`, then $SUCRASE_PATH, then the
-// copy bundled inside a global expo-cli install. Skips (exit 0) if none.
+// copy next to the running node.exe, then the copy bundled inside a global
+// expo-cli install. FAILS (exit 1) if none: a quiet skip once hid a crash.
+// A relative import such as store-proxy's "./role-check.ts" is read from disk
+// and wrapped, so the real helper file is what runs here.
 //
 // Limit: the database is faked. consume_password_reset_code is modelled in
 // JS below, so this proves the Edge Function wiring and the algorithm, NOT
@@ -22,13 +25,14 @@ var fs = require('fs'), vm = require('vm'), path = require('path');
 var webcrypto = require('crypto').webcrypto;
 var sucrase = (function () {
   var tries = ['sucrase', process.env.SUCRASE_PATH,
+    path.join(path.dirname(process.execPath), 'node_modules/sucrase'),
     process.env.APPDATA && path.join(process.env.APPDATA, 'npm/node_modules/expo-cli/node_modules/sucrase')];
   for (var i = 0; i < tries.length; i++) { if (!tries[i]) continue; try { return require(tries[i]); } catch (e) {} }
   return null;
 })();
 if (!sucrase) {
-  console.log('SKIPPED — edge-functions.test.js needs `sucrase` to read TypeScript. Set SUCRASE_PATH or `npm i -g sucrase`.');
-  process.exit(0);
+  console.error('FAILED: edge-functions.test.js did not run. It needs `sucrase` to read TypeScript. Set SUCRASE_PATH or `npm i -g sucrase`. 0 tests ran.');
+  process.exit(1);
 }
 
 var SECRET = 'test-secret-0123456789abcdef';
@@ -183,6 +187,13 @@ function makeClient(db) {
 // to load a copy of the function as it behaves on a misconfigured project.
 function load(file, db, env) {
   var src = fs.readFileSync(file, 'utf8').replace(/^import \{ createClient \} from "jsr:[^"]+";$/m, 'const { createClient } = __mock;');
+  // Relative imports (store-proxy's role-check.ts): read the real file, strip its exports and run it in its own
+  // function so its helper names cannot clash with the importing file's. The import line becomes a destructure.
+  src = src.replace(/^import \{([^}]+)\} from "(\.\/[^"]+\.ts)";\r?$/gm, function (whole, names, rel) {
+    var dep = sucrase.transform(fs.readFileSync(path.join(path.dirname(file), rel), 'utf8'), { transforms: ['typescript'] }).code.replace(/^export\s+/gm, '');
+    var list = names.split(',').map(function (n) { return n.trim(); }).filter(Boolean);
+    return 'const {' + list.join(',') + '} = (function () {' + dep + '\nreturn {' + list.join(',') + '};})();';
+  });
   var js = sucrase.transform(src, { transforms: ['typescript'] }).code;
   var handler = null;
   var envMap = Object.assign({
