@@ -1794,7 +1794,8 @@ function quarantineOfflineSales(){
   var box = _lsList(saleOutboxKey());
   if(!box.length) return 0;
   var rk = shopScopedKey('jewelos_sale_outbox_rejected');
-  _lsPut(rk, _lsList(rk).concat(box));
+  // If the phone cannot store the rejected list (storage full), the bills must stay in the outbox, never be dropped.
+  if(!_lsPut(rk, _lsList(rk).concat(box))) return 0;
   _lsPut(saleOutboxKey(), []);
   toast('\u26a0 '+box.length+' offline bill'+(box.length===1?' was':'s were')+' not accepted for your role. They are kept on this phone. Ask the owner.');
   try{ loadFromCloud(function(){ normaliseData(); saveCache(); renderDash(); }); }catch(e){}

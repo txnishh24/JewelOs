@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody.** (R29 code + tests on branch `claude/r29-role-check`, see 230th entry; NOT deployed. batch74 LIVE since 14 Nov, see 229th entry; R28 done, see 227th entry; previous: R27 done, see 226th entry; previous: e2e run of 14 Nov finished, see 224th entry.) batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
+> **Claude Code (Sonnet), 15 Nov: deploying batch75 (R29 client guards, already on `main`) to the Cloudflare worker on Tanish's word; claimed before pre-release reviews.** Previous state: (R29 code + tests on branch `claude/r29-role-check`, see 230th entry; NOT deployed. batch74 LIVE since 14 Nov, see 229th entry; R28 done, see 227th entry; previous: R27 done, see 226th entry; previous: e2e run of 14 Nov finished, see 224th entry.) batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
 ---
 
 ## WAITING ON TANISH
