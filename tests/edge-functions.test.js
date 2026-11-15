@@ -185,12 +185,13 @@ function makeClient(db) {
 // ── load a real Edge Function into a sandbox ──────────────────────────
 // `env` overrides the defaults below; pass e.g. { RESEND_API_KEY: undefined }
 // to load a copy of the function as it behaves on a misconfigured project.
-function load(file, db, env) {
+// `deps` maps a relative import path to replacement TypeScript source (a stub that throws, for example).
+function load(file, db, env, deps) {
   var src = fs.readFileSync(file, 'utf8').replace(/^import \{ createClient \} from "jsr:[^"]+";$/m, 'const { createClient } = __mock;');
   // Relative imports (store-proxy's role-check.ts): read the real file, strip its exports and run it in its own
   // function so its helper names cannot clash with the importing file's. The import line becomes a destructure.
   src = src.replace(/^import \{([^}]+)\} from "(\.\/[^"]+\.ts)";\r?$/gm, function (whole, names, rel) {
-    var dep = sucrase.transform(fs.readFileSync(path.join(path.dirname(file), rel), 'utf8'), { transforms: ['typescript'] }).code.replace(/^export\s+/gm, '');
+    var dep = sucrase.transform((deps && deps[rel]) || fs.readFileSync(path.join(path.dirname(file), rel), 'utf8'), { transforms: ['typescript'] }).code.replace(/^export\s+/gm, '');
     var list = names.split(',').map(function (n) { return n.trim(); }).filter(Boolean);
     return 'const {' + list.join(',') + '} = (function () {' + dep + '\nreturn {' + list.join(',') + '};})();';
   });
@@ -218,7 +219,7 @@ function load(file, db, env) {
     Deno: { env: { get: function (k) { return envMap[k]; } }, serve: function (h) { handler = h; } },
     crypto: countingCrypto, TextEncoder: TextEncoder, TextDecoder: TextDecoder, btoa: btoa, atob: atob,
     Response: Response, URL: URL, Uint8Array: Uint8Array, Uint32Array: Uint32Array, Array: Array, String: String, JSON: JSON, Date: Date, Math: Math, Set: Set, Promise: Promise,
-    console: { log: function (m) { logs.push(String(m)); }, error: function (m, x) { logs.push('ERR ' + m + (x || '')); } },
+    console: { log: function (m) { logs.push(String(m)); }, warn: function () { logs.push('WARN ' + Array.prototype.slice.call(arguments).join(' ')); }, error: function (m, x) { logs.push('ERR ' + m + (x || '')); } },
   };
   vm.runInNewContext(js, ctx, { filename: file });
   return handler;
@@ -1157,6 +1158,128 @@ function eq(a, b, what) { if (a !== b) throw new Error(what + ': expected ' + JS
     eq((await spOn(ownerTok, 'PUT', { data: { a: 1, _build: 5 }, expectedVersion: v })).status, 200, 'save from build 5');
     eq((await spOn(ownerTok, 'POST', { action: 'increment_counter', counter: 'inv_no' })).status, 200, 'counters are not blocked');
     eq((await sp(ownerTok, 'POST', kgGood({ op_id: 'op-def-000001' }))).status, 200, 'default proxy (guard off) still accepts a build-less post');
+  });
+
+  // ── R29 role check, through the real store-proxy index.ts ─────────────
+  // The rules themselves are proven in tests/role-check.test.mjs. These prove the WIRING in index.ts: which
+  // modes write or refuse, that owners are never checked, a stale version skips the check, and that trouble
+  // OUTSIDE the rules (unreadable blob, a thrown error) never stops a shop saving. Mode names: off, log, enforce.
+  var rcClone = function (x) { return JSON.parse(JSON.stringify(x)); };
+  var rcSeed = {
+    sales: [
+      { id: 'b1', invNo: 'INV-1', date: '2026-11-14T10:00:00.000Z', items: [{ lockedRate: 100, weight: 1, qty: 1 }], lockedGrand: 100, discount: 0, gst: 0, notes: '' },
+      { id: 'b2', invNo: 'INV-2', date: '2026-11-14T11:00:00.000Z', items: [{ weight: 1, qty: 1 }], lockedGrand: 100, discount: 0, gst: 0, notes: '' },
+    ],
+    nextInvNo: 3, voidedInvNos: [], auditLog: [], rates: {}, dayBook: { closes: [{ date: '2026-11-14' }], reopens: [] },
+  };
+  var rcProxy = function (mode, deps) { return load(SP, db, mode === undefined ? {} : { ROLE_CHECK_MODE: mode }, deps); };
+  var rcCall = function (h, token, method, body) { return call(h, '', body, { 'x-session-token': token }, method); };
+  var rcRead = async function (h) { return (await rcCall(h, ownerTok, 'GET')).body.data; };
+  var rcReset = async function (h) {
+    var cur = await rcRead(h);
+    var r = await rcCall(h, ownerTok, 'PUT', { data: rcClone(rcSeed), expectedVersion: (cur && cur._v) || 0 });
+    eq(r.status, 200, 'seed the shop blob');
+    return rcRead(h);
+  };
+  var rcPut = function (h, token, blob, fn) { var d = rcClone(blob); fn(d); return rcCall(h, token, 'PUT', { data: d, expectedVersion: blob._v }); };
+  var rcLines = function (since) { return logs.slice(since).filter(function (l) { return /role-check/.test(l); }); };
+  var editNote = function (d) { d.sales[0].notes = 'changed'; };
+  var managerEdit = function (d) {
+    var b = d.sales[0]; b.notes = 'fixed'; b.lastEditedAt = '2026-11-15T09:00:00.000Z';
+    b.editHistory = [{ version: 1, at: b.lastEditedAt, grand: 100, reason: 'typo', snapshot: {} }];
+  };
+  var newSale = function (n) {
+    return function (d) { d.sales.push({ id: 'n' + n, invNo: 'INV-' + (2 + n), date: '2026-11-15T10:00:00.000Z', items: [{ lockedRate: 100, weight: 1, qty: 1 }], lockedGrand: 100, discount: 0, gst: 0 }); d.nextInvNo = 3 + n; };
+  };
+
+  await test('role check, log mode (the default): a violating staff or manager save is written AND logged; clean saves leave no line', async function () {
+    var h = rcProxy();
+    var b = await rcReset(h), m0 = logs.length;
+    var r1 = await rcPut(h, kgStaffTok, b, editNote);
+    eq(r1.status, 200, 'staff edit is written in log mode');
+    eq((await rcRead(h)).sales[0].notes, 'changed', 'the write really landed');
+    var l1 = rcLines(m0); eq(l1.length, 1, 'one line'); ok(/role-check log role=staff code=staff_edit user=usr_/.test(l1[0]), 'line says staff_edit: ' + l1[0]);
+    b = await rcReset(h); m0 = logs.length;
+    eq((await rcPut(h, mgrTok, b, managerEdit)).status, 200, 'manager edit on a closed day is written');
+    var l2 = rcLines(m0); eq(l2.length, 1, 'one line'); ok(/role-check log role=manager code=closed_day user=usr_/.test(l2[0]), 'line says closed_day: ' + l2[0]);
+    b = await rcReset(h); m0 = logs.length;
+    eq((await rcPut(h, kgStaffTok, b, newSale(1))).status, 200, 'staff clean sale');
+    b = await rcRead(h);
+    eq((await rcPut(h, mgrTok, b, newSale(2))).status, 200, 'manager clean sale');
+    eq(rcLines(m0).length, 0, 'clean saves log nothing');
+  });
+  await test('role check, enforce: violating staff and manager saves are refused 403 role_forbidden with the code, and nothing is written; clean saves and the owner pass', async function () {
+    var h = rcProxy('enforce');
+    var b = await rcReset(h), m0 = logs.length;
+    var r1 = await rcPut(h, kgStaffTok, b, editNote);
+    eq(r1.status, 403, 'staff edit refused'); eq(r1.body.error, 'role_forbidden', 'error'); eq(r1.body.code, 'staff_edit', 'code'); ok(r1.body.message && r1.body.message.length > 5, 'plain message for the user');
+    var after = await rcRead(h); eq(after._v, b._v, 'version unchanged'); eq(after.sales[0].notes, '', 'nothing written');
+    var r2 = await rcPut(h, mgrTok, b, managerEdit);
+    eq(r2.status, 403, 'manager closed-day edit refused'); eq(r2.body.code, 'closed_day', 'code');
+    eq((await rcRead(h))._v, b._v, 'still unchanged');
+    ok(rcLines(m0).length === 2 && rcLines(m0).every(function (l) { return /role-check enforce/.test(l); }), 'both refusals logged as enforce');
+    m0 = logs.length;
+    eq((await rcPut(h, kgStaffTok, b, newSale(1))).status, 200, 'staff clean sale passes');
+    var ob = await rcRead(h); db.fail.store = true; // a pending store failure is consumed by the first store read
+    eq((await rcPut(h, ownerTok, ob, editNote)).status, 200, 'the owner is never checked');
+    ok(db.fail.store === true, 'an owner save does not even read the stored blob'); delete db.fail.store;
+    eq(rcLines(m0).length, 0, 'no line for clean staff save or owner');
+  });
+  await test('role check, off: nothing is checked or logged, even for a violating staff save', async function () {
+    var h = rcProxy('off');
+    var b = await rcReset(h), m0 = logs.length;
+    eq((await rcPut(h, kgStaffTok, b, editNote)).status, 200, 'written'); eq(rcLines(m0).length, 0, 'no line');
+  });
+  await test('role check: an unknown ROLE_CHECK_MODE is treated as log (warned at start, never blocks a shop)', async function () {
+    var m0 = logs.length, h2 = rcProxy('bogus');
+    ok(logs.slice(m0).some(function (l) { return /^WARN .*not off, log or enforce.*bogus/.test(l); }), 'a warning naming the value was printed');
+    var b = await rcReset(h2);
+    eq((await rcPut(h2, kgStaffTok, b, editNote)).status, 200, 'unknown value does not enforce');
+    // the value is lower-cased, so "Enforce" really is enforce (but a stray space makes it unknown, hence log)
+    var h = rcProxy('Enforce'); b = await rcReset(h); eq((await rcPut(h, kgStaffTok, b, editNote)).status, 403, 'case-insensitive');
+    var hs = rcProxy('enforce '); b = await rcReset(hs); eq((await rcPut(hs, kgStaffTok, b, editNote)).status, 200, 'a trailing space is NOT enforce');
+  });
+  await test('role check: a stale expectedVersion skips the check and gets the normal 409 conflict (the client retries on fresh data)', async function () {
+    var h = rcProxy('enforce');
+    var b = await rcReset(h), m0 = logs.length, d = rcClone(b); editNote(d);
+    var r = await rcCall(h, kgStaffTok, 'PUT', { data: d, expectedVersion: b._v - 1 });
+    eq(r.status, 409, 'conflict'); eq(r.body.conflict, true, 'conflict flag'); eq(rcLines(m0).length, 0, 'check not run');
+  });
+  await test('role check fails OPEN: an unreadable stored blob (database error, or a thrown error) never stops a shop saving, even in enforce', async function () {
+    var h = rcProxy('enforce');
+    var b = await rcReset(h);
+    db.fail.store = true; // the next read of the store table errors: that is the role check\'s own read
+    var r1 = await rcPut(h, kgStaffTok, b, editNote);
+    eq(r1.status, 200, 'saved although the check could not read the blob'); eq((await rcRead(h)).sales[0].notes, 'changed', 'the write landed');
+    b = await rcReset(h); var m0 = logs.length, real = db.store;
+    Object.defineProperty(db, 'store', { configurable: true, get: function () { Object.defineProperty(db, 'store', { value: real, writable: true, configurable: true, enumerable: true }); throw new Error('boom'); } });
+    var r2 = await rcPut(h, kgStaffTok, b, editNote);
+    eq(r2.status, 200, 'saved although reading the blob threw');
+    ok(logs.slice(m0).some(function (l) { return /role-check failed open:\s*(Error: )?boom/.test(l); }), 'the failure was logged');
+    eq(db.store, real, 'test cleanup: the real store table is back');
+    // a brand-new shop has no stored blob yet: nothing to compare with, so allowed
+    var savedRows = db.store.slice(); db.store.length = 0;
+    var r3 = await rcCall(h, kgStaffTok, 'PUT', { data: rcClone(rcSeed), expectedVersion: 0 });
+    db.store.length = 0; savedRows.forEach(function (r) { db.store.push(r); });
+    eq(r3.status, 200, 'first save of a shop is not checked');
+  });
+  await test('role check fails OPEN when the check code itself throws (stubbed role-check.ts): saved in enforce and log mode, error logged', async function () {
+    var stub = { './role-check.ts': 'export function checkRoleWrite(role: string, cur: any, next: any) { throw new Error("stub boom"); }' };
+    var modes = ['enforce', 'log'];
+    for (var i = 0; i < modes.length; i++) {
+      var h = rcProxy(modes[i], stub), b = await rcReset(h), m0 = logs.length;
+      eq((await rcPut(h, kgStaffTok, b, editNote)).status, 200, modes[i] + ': saved');
+      ok(logs.slice(m0).some(function (l) { return /role-check failed open:\s*stub boom/.test(l); }), modes[i] + ': failure logged');
+    }
+  });
+  await test('role check: the REAL rules refuse (do not wave through) a save shaped to make them throw: 403 malformed in enforce, logged in log mode', async function () {
+    var poison = function (d) { d.sales[1].items = [null]; };
+    var h = rcProxy('enforce'), b = await rcReset(h);
+    var r = await rcPut(h, kgStaffTok, b, poison);
+    eq(r.status, 403, 'refused'); eq(r.body.code, 'malformed', 'code'); eq((await rcRead(h))._v, b._v, 'nothing written');
+    var hl = rcProxy('log'); b = await rcReset(hl); var m0 = logs.length;
+    eq((await rcPut(hl, mgrTok, b, poison)).status, 200, 'log mode writes it');
+    ok(rcLines(m0).some(function (l) { return /role=manager code=malformed/.test(l); }), 'and logs malformed');
   });
 
   var failed = 0;
