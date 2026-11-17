@@ -3503,5 +3503,48 @@ test('R24 1 (scenario D): profile > job/statement > other tab > back to Karigars
     });
   });
 });
+// R30 E1: one tap on "Give metal" must post ONE ISSUE entry; a second quick tap must not post another
+function e1Open(deferSave){
+  var e = sheetEnv(), a = e.a, k = pk(a, 'E1k' + (++seq)), j = pjob(a, k), pending = [];
+  a.toast = function(){}; a.renderKgV2 = function(){};
+  if(deferSave) a.saveToCloud = function(cb){ pending.push(cb); };   // the save is still "in flight" while the second tap arrives
+  a.kg3Issue(j.id);
+  e.reg['kg2f-wt'].value = '10'; e.reg['kg2f-purity'].value = '91.6';
+  var cnt = function(){ return a.S.kgLedger.filter(function(x){ return x.type === 'ISSUE' && x.jobId === j.id; }).length; };
+  return {e:e, a:a, j:j, pending:pending, cnt:cnt};
+}
+test('R30 E1: one clean tap on Give metal, ledger flag off (blob path), posts exactly one ISSUE', function(){
+  var t = e1Open(false); eq(t.a.S.kgLedgerOn === true, false, 'flag off');
+  t.e.reg['kg2-save'].onclick(); eq(t.cnt(), 1, 'one ISSUE after one tap'); t.e.flush();
+  eq(t.cnt(), 1, 'still one');
+});
+test('R30 E1: two quick taps on Save while the first save is still in flight post exactly one ISSUE', function(){
+  var t = e1Open(true);
+  t.e.reg['kg2-save'].onclick(); t.e.reg['kg2-save'].onclick();   // second tap: the button is disabled while saving
+  t.pending.forEach(function(cb){ cb(null); });
+  eq(t.cnt(), 1, 'one ISSUE after two taps in flight');
+});
+test('R30 E1: a second tap that slips through after the save finished still posts once (same opId answers "already there")', function(){
+  var t = e1Open(false); var save = t.e.reg['kg2-save']; var tap = save.onclick;
+  tap(); save.disabled = false; tap();   // worst case: the button was re-enabled and tapped again with the same sheet
+  eq(t.cnt(), 1, 'the operation id makes the repeat a no-op');
+});
+test('R30 E1: two separate sheet openings are two separate operations (not swallowed)', function(){
+  var t = e1Open(false); t.e.reg['kg2-save'].onclick(); t.e.flush();
+  t.a.kg3Issue(t.j.id); t.e.reg['kg2f-wt'].value = '10'; t.e.reg['kg2f-purity'].value = '91.6'; t.e.reg['kg2-save'].onclick();
+  eq(t.cnt(), 2, 'a deliberate second Give is allowed');
+});
+test('R30 E1: the single-entry path (kgAddEntry, flag off) gives one ISSUE for the same opId, called twice in flight or after', function(){
+  var a = fresh('owner'), k = pk(a, 'E1s'), j = pjob(a, k), pend = [];
+  var b = a.kgBuildIssue(j.id, '', {wt:'10', purity:'91.6', confirmed:true, opId:op()}); ok(b.entry, 'built');
+  a.saveToCloud = function(cb){ pend.push(cb); };
+  var r1 = {}, r2 = {};
+  a.kgAddEntry(b.entry, function(err, v, dup){ r1 = {err:err, dup:dup}; }); a.kgAddEntry(b.entry, function(err, v, dup){ r2 = {err:err, dup:dup}; });
+  pend.forEach(function(cb){ cb(null); });
+  a.saveToCloud = function(cb){ cb(null); };
+  var r3 = call(function(cb){ a.kgAddEntry(b.entry, cb); });
+  eq(a.S.kgLedger.filter(function(x){ return x.type === 'ISSUE' && x.jobId === j.id; }).length, 1, 'one ISSUE');
+  ok(!r1.err && !r2.err && !r3.err, 'no error to the repeat'); ok(r3.dup === true, 'the later repeat is told it was already there');
+});
 console.log('\n' + passed + ' passed, ' + failed + ' failed');
 if(failed){ console.log('\nFAILURES:\n  ' + failures.join('\n  ')); process.exit(1); }

@@ -589,6 +589,7 @@ select{
 .version-tag{background:var(--info-bg);color:var(--info);font-size:var(--text-sm);padding:2px 8px;border-radius:var(--radius-pill);margin-left:8px;font-weight:500;}
 
 /* ── TABLE ───────────────────────────────────────── */
+.col-stick-r{position:sticky;right:0;background:var(--surface);box-shadow:-6px 0 8px -6px rgba(0,0,0,.18);}   /* R30 B7: the View column stays on screen at 390px */
 .tbl-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);touch-action:pan-x pan-y;}
 table{width:100%;border-collapse:collapse;font-size:var(--text-base);min-width:520px;}
 th{
@@ -705,7 +706,9 @@ tr:last-child td{border-bottom:none;}
 }
 
 /* ── SPLIT PAYMENT ROWS ──────────────────────────── */
-.split-pay-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:end;margin-bottom:8px;}
+.split-pay-row{display:grid;grid-template-columns:minmax(110px,1.5fr) minmax(90px,1fr) auto;gap:8px;align-items:end;margin-bottom:8px;}
+.split-pay-row .fg{min-width:0;}
+.split-pay-row input,.split-pay-row select{width:100%;min-width:0;box-sizing:border-box;}   /* R30 C3 */
 .split-add-btn{width:100%;padding:8px;border:0.5px dashed var(--border2);border-radius:var(--radius);background:transparent;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;margin-top:4px;transition:border-color var(--t1),color var(--t1);}
 
 
@@ -817,6 +820,14 @@ html.dev .dev-only{display:block!important;}
 .toast{position:fixed;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 16px);left:50%;transform:translateX(-50%) translateY(8px);background:var(--ink);color:var(--on-ink);padding:10px 22px;border-radius:var(--radius);font-size:var(--text-base);font-weight:500;z-index:9999;opacity:0;pointer-events:none;transition:opacity var(--t2),transform var(--t2);white-space:normal;width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;text-align:center;line-height:1.4;box-shadow:var(--shadow-lg);}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 @media(min-width:640px){.toast{bottom:1.5rem;}}
+/* R30 C4 (phone, 390px): the toast sits at the TOP so it never covers the sticky Grand Total / Record bar; form labels stay on one line so inputs line up; the header's second line may wrap instead of being cut. */
+@media(max-width:639px){
+  .toast{bottom:auto;top:calc(env(safe-area-inset-top,0px) + 10px);transform:translateX(-50%) translateY(-8px);}
+  .toast.show{transform:translateX(-50%) translateY(0);}
+  .fg label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.04em;}
+  .logo-sub{white-space:normal;line-height:1.25;}
+  #staff-role-badge{display:none;}   /* the sub-line already says STAFF; the pill only took width from the name */
+}
 
 /* ── AUTOCOMPLETE PANELS (cust-suggestions / db-party-suggestions /
    of-cust-sug) ── Only the panel's own open/close transitions; the rows
@@ -2157,7 +2168,7 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
       <div class="sync-dot" id="sync-dot" role="status" aria-label="Sync status"></div>
       <button class="hdr-btn" onclick="forceSync()" title="Force sync" aria-label="Sync"><span data-icon="cloud"></span><span class="hdr-lbl"> Sync</span></button>
 
-      <button class="hdr-btn" onclick="switchTab('settings')" title="Settings & account" aria-label="Settings"><span data-icon="gear"></span><span class="hdr-lbl"> Settings</span></button>
+      <button class="hdr-btn" id="hdr-settings-btn" onclick="switchTab('settings')" title="Settings & account" aria-label="Settings"><span data-icon="gear"></span><span class="hdr-lbl"> Settings</span></button>
       <span id="sync-label"></span>
     </div>
     <nav class="dtabs" id="dtabs">
@@ -2787,7 +2798,7 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
   <details class="card" open>
     <summary style="cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:8px;font-family:var(--font-display);font-size:var(--text-xl);font-weight:600;color:var(--ink);margin-bottom:var(--space-3);">Sales in <span id="rep-hist-label"></span><span class="detail-arrow" style="font-weight:400;margin-left:auto;">&#9662;</span></summary>
     <button class="btn btn-sm" onclick="exportMonthCSV()" style="margin-bottom:8px;">&#11015; Export CSV</button>
-    <div class="tbl-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Items</th><th>Wt</th><th>Payment</th><th>Total</th><th>Balance</th><th></th></tr></thead><tbody id="sales-hist"></tbody></table></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Items</th><th>Wt</th><th>Payment</th><th>Total</th><th>Balance</th><th class="col-stick-r"></th></tr></thead><tbody id="sales-hist"></tbody></table></div>
   </details>
 
   <!-- TOP CUSTOMERS + AGING ROW -->
@@ -3480,7 +3491,7 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
         <button id="btn-json-backup" onclick="exportFullBackup()" class="btn btn-gold">⬇ JSON Backup</button>
         <button onclick="exportCSV()" class="btn"><span data-icon="chart"></span> Export CSV</button>
-        <button onclick="showPdfReport()" class="btn-pdf" style="padding:8px 14px;font-size:12px;"><span data-icon="printer"></span> PDF Report</button>
+        <button id="btn-pdf-report" onclick="showPdfReport()" class="btn-pdf" style="padding:8px 14px;font-size:12px;"><span data-icon="printer"></span> PDF Report</button>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button id="btn-restore-backup" onclick="importBackup()" class="btn">⬆ Restore Backup</button>
@@ -3591,10 +3602,10 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
   <div class="modal" style="max-width:380px;">
     <div class="modal-header"><h2>Product actions</h2><button class="modal-close" onclick="closeProdActionMenu()" aria-label="Close actions menu">&#10005;</button></div>
     <div class="modal-body" style="padding:.5rem;">
-      <button class="more-menu-item" onclick="prodActionRun('edit')"><span data-icon="edit"></span><span>&nbsp;Edit</span></button>
+      <button class="more-menu-item" id="pam-edit" onclick="prodActionRun('edit')"><span data-icon="edit"></span><span>&nbsp;Edit</span></button>
       <button class="more-menu-item" onclick="prodActionRun('history')"><span data-icon="clock"></span><span>&nbsp;Movement History</span></button>
-      <button class="more-menu-item" onclick="prodActionRun('adjust')">&#177;<span>&nbsp;Adjust Stock</span></button>
-      <button class="more-menu-item" onclick="prodActionRun('delete')" style="color:var(--danger);"><span data-icon="trash"></span><span>&nbsp;Delete</span></button>
+      <button class="more-menu-item" id="pam-adjust" onclick="prodActionRun('adjust')">&#177;<span>&nbsp;Adjust Stock</span></button>
+      <button class="more-menu-item" id="pam-delete" onclick="prodActionRun('delete')" style="color:var(--danger);"><span data-icon="trash"></span><span>&nbsp;Delete</span></button>
     </div>
   </div>
 </div>
@@ -3682,7 +3693,7 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
       <div id="inv-actions-row" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap" class="no-print">
         <button class="btn btn-sm" style="flex:1;background:var(--info);color:#fff;" onclick="invoiceBillAction(openEditBill)"><span data-icon="edit"></span> Edit</button>
         <button class="btn btn-sm" style="flex:1;background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning);" onclick="invoiceBillAction(openRefundModal)"><span data-icon="refresh"></span> Refund</button>
-        <button class="btn btn-sm btn-danger" style="flex:1;" onclick="invoiceBillAction(deleteSale)"><span data-icon="trash"></span> Delete</button>
+        <button id="inv-del-btn" class="btn btn-sm btn-danger" style="flex:1;" onclick="invoiceBillAction(deleteSale)"><span data-icon="trash"></span> Delete</button>
       </div>
     </div>
   </div>

@@ -33,6 +33,11 @@ function showSaleInvoice(saleId){
   var bt = sale.billType || 'gst';
   openInvoiceModal(buildInvoiceHTML(sale, bt), bt);
 }
+// R30 B4: edit / refund / void / delete a bill: owner always; manager only while its day is open; staff never.
+function canChangeBill(sale){
+  if(!canEditBills()) return false;
+  return isOwner() || !dbSaleDayClosed(sale);
+}
 function openInvoiceModal(html, initialBillType){
   var bt = initialBillType || 'gst';
   _billType = bt;
@@ -47,7 +52,9 @@ function openInvoiceModal(html, initialBillType){
   document.getElementById('invoice-content').innerHTML = '<iframe id="inv-frame" sandbox="" style="width:100%;height:500px;border:none;border-radius:8px;" srcdoc=""></iframe>';
   document.getElementById('invoice-modal').classList.add('open');
   // R28: staff cannot edit, refund or delete (the functions refuse anyway); do not show the buttons.
-  var _ar = document.getElementById('inv-actions-row'); if(_ar) _ar.style.display = canEditBills() ? 'flex' : 'none';
+  // R30 B4: a bill on a closed day cannot be changed by a manager either, so hide the buttons rather than show-then-refuse.
+  var _ar = document.getElementById('inv-actions-row'); if(_ar) _ar.style.display = canChangeBill(CURRENT_SALE_FOR_PDF) ? 'flex' : 'none';
+  var _vb = document.getElementById('inv-del-btn'); if(_vb) _vb.innerHTML = '<span data-icon="trash"></span> ' + (isOwner() ? 'Delete' : 'Void');   // R30 B5: a manager's button voids, so say Void
   setTimeout(function(){
     var f = document.getElementById('inv-frame');
     if(f) f.srcdoc = html;
@@ -222,16 +229,24 @@ function girviEntriesForCustomer(custId){
 }
 
 // ── CUSTOMER DATABASE ─────────────────────────────────────────────────
+// R30 D2: the comparison key for a phone: the 10-digit mobile when it is one, else just its digits (older records).
+function custPhoneKey(ph){
+  var n = normPhone10(ph);
+  return n ? n : String(ph||'').replace(/\D/g,'');
+}
 // Upserts customer into S.customers on every sale.
 // Keyed by phone number (most stable identifier).
 // Falls back to name-only key if no phone.
 function upsertCustomer(name, phone, extraFields){
   if(!name || name==='Walk-in') return;
   if(!Array.isArray(S.customers)) S.customers = [];
-  var key = phone ? phone.replace(/\D/g,'') : name.toLowerCase().trim();
+  // R30 D2: match on the normalised 10-digit mobile ("+91 98200 22222" and "9820022222" are one person), and store it that way.
+  var _np = phone ? normPhone10(phone) : '';
+  if(_np) phone = _np;
+  var key = phone ? custPhoneKey(phone) : name.toLowerCase().trim();
   var existing = S.customers.find(function(c){
     return phone
-      ? (c.phone||'').replace(/\D/g,'') === key
+      ? custPhoneKey(c.phone) === key
       : c.name.toLowerCase().trim() === key;
   });
   if(existing){
@@ -272,8 +287,14 @@ function saveCustomerEdit(custId){
   if(!nameEl){ toast('Edit form not found'); return; }
   var newName = nameEl.value.trim();
   if(!newName){ toast('Name cannot be empty'); return; }
+  var _newPhone = phoneEl ? phoneEl.value.trim() : c.phone;
+  if(_newPhone && _newPhone !== c.phone){   // R30 D2: a changed phone must be a real mobile; stored as 10 digits
+    var _p10e = normPhone10(_newPhone);
+    if(!_p10e){ toast('\u26a0 Enter a valid 10-digit mobile number (starting 6 to 9), or leave it blank'); return; }
+    _newPhone = _p10e;
+  }
   c.name  = newName;
-  c.phone = phoneEl ? phoneEl.value.trim() : c.phone;
+  c.phone = _newPhone;
   c.addr  = addrEl  ? addrEl.value.trim()  : c.addr;
   c.email = emailEl ? emailEl.value.trim() : c.email;
   c.notes = notesEl ? notesEl.value.trim() : c.notes;
@@ -312,15 +333,22 @@ function showAddCustomerModal(){
     var name  = (document.getElementById('ce-name').value||'').trim();
     var phone = (document.getElementById('ce-phone').value||'').trim();
     if(!name){ toast('Enter a customer name'); return; }
+    // R30 D2: a mobile is optional, but if typed it must be a real 10-digit Indian mobile (+91 and spaces are fine); stored as 10 digits.
+    if(phone){
+      var _p10 = normPhone10(phone);
+      if(!_p10){ toast('\u26a0 Enter a valid 10-digit mobile number (starting 6 to 9), or leave it blank'); return; }
+      phone = _p10;
+    }
+    var _wasThere = !!(phone && (S.customers||[]).some(function(c){ return custPhoneKey(c.phone) === custPhoneKey(phone); }));
     upsertCustomer(name, phone, {
       addr:  (document.getElementById('ce-addr').value||'').trim(),
       email: (document.getElementById('ce-email').value||'').trim()
     });
     // Set notes separately since upsertCustomer doesn't handle it
-    var nc = (S.customers||[]).find(function(c){ return c.name===name&&(c.phone||'')===(phone||''); });
+    var nc = (S.customers||[]).find(function(c){ return phone ? custPhoneKey(c.phone)===custPhoneKey(phone) : (c.name===name&&!c.phone); });   // R30 D2: same match upsertCustomer used
     if(nc) nc.notes = (document.getElementById('ce-notes').value||'').trim();
     saveToCloud(function(err){
-      if(!err){ toast('\u2705 Customer added'); document.getElementById('cust-edit-modal').style.display='none'; renderCustomers(); }
+      if(!err){ toast(_wasThere ? '\u2705 This number was already saved. Details updated' : '\u2705 Customer added'); document.getElementById('cust-edit-modal').style.display='none'; renderCustomers(); }
     });
   };
   modal.style.display = 'flex';
@@ -431,7 +459,7 @@ function renderCustomers(entrance){
         '<div>'+
           '<div style="font-weight:700;font-size:14px;">'+riskIcon+' '+escHtml(c.name)+'</div>'+
           (c.phone?'<div style="font-size:12px;color:var(--text3);">&#128222; '+escHtml(c.phone)+'</div>':'')+
-          '<div style="font-size:11px;color:var(--text3);margin-top:3px;">'+(last?plural(c.sales.length,'bill')+' &bull; '+fmtW(wt)+' &bull; Last: '+fmtDate(last.date):'No jewellery purchases &bull; Girvi account')+'</div>'+
+          '<div style="font-size:11px;color:var(--text3);margin-top:3px;">'+(last?plural(c.sales.length,'bill')+' &bull; '+fmtW(wt)+' &bull; Last: '+fmtDate(last.date):'No jewellery purchases'+(_cGirvi.length?' &bull; Girvi account':''))+'</div>'+
           (f.activeGirvi>0||_cGActive.length>0?
             '<div style="font-size:11px;color:var(--warning);font-weight:600;margin-top:2px;">🪙 '+(_cGActive.length||f.activeGirvi)+' active girvi · ₹'+Math.round(_cGOut||f.girviExposure).toLocaleString('en-IN')+' out · ₹'+Math.round(_cGInt).toLocaleString('en-IN')+' interest</div>'
             :'')+
@@ -643,7 +671,7 @@ function showCustHistory(encKey){
     btnEdit.style.cssText='background:var(--info);color:#fff;font-size:11px;';
     btnEdit.innerHTML='&#9998; Edit';
     (function(sid){btnEdit.onclick=function(){openEditBill(sid);};})(s.id);
-    if(canEditBills()) btnRow.appendChild(btnEdit);
+    if(canChangeBill(s)) btnRow.appendChild(btnEdit);
 
     // Mark as Paid button (only if balance due)
     if(!isPaid){
@@ -668,13 +696,13 @@ function showCustHistory(encKey){
     btnRef.style.cssText='background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning);';
     btnRef.innerHTML='&#128260; Refund';
     (function(sid){btnRef.onclick=function(){openRefundModal(sid);};})(s.id);
-    if(canEditBills()) btnRow.appendChild(btnRef);
+    if(canChangeBill(s)) btnRow.appendChild(btnRef);
     // Delete button
     var btnDel=document.createElement('button');
     btnDel.className='btn btn-sm btn-danger';
     btnDel.innerHTML=isOwner()?'&#128465; Delete':'&#128465; Void';
     (function(sid){btnDel.onclick=function(){deleteSale(sid);};})(s.id);
-    if(isManager()) btnRow.appendChild(btnDel);
+    if(isManager() && canChangeBill(s)) btnRow.appendChild(btnDel);
 
     card.appendChild(btnRow);
     body.appendChild(card);
@@ -824,6 +852,7 @@ function editProd(id){
   document.getElementById('edit-modal').classList.add('open');
 }
 function saveEditProd(){
+  if(!guardWrite('edit products')) return;   // R30 A1: staff cannot change price fields (making charge, weight) on stock
   var id=document.getElementById('ep-id').value;
   var p=S.products.find(function(x){return String(x.id)===id;});
   if(!p){toast('Product not found');return;}
@@ -1256,7 +1285,7 @@ function renderReports(entrance){
         '<td>'+q+'</td><td>'+fmtW(w)+'</td><td>'+escHtml(modes||'\u2014')+'</td>'+
         '<td style="font-weight:700;color:var(--gold-dark);">'+fmt(t.grand)+'</td>'+
         '<td style="color:'+(t.bal>0?'var(--danger)':'var(--success)')+'">'+(t.bal>0?fmt(t.bal):'\u2713')+'</td>'+
-        '<td><button class="btn btn-sm" onclick="showSaleInvoice(\''+jsAttrEsc(s.id)+'\')">View</button></td></tr>';
+        '<td class="col-stick-r"><button class="btn btn-sm" onclick="showSaleInvoice(\''+jsAttrEsc(s.id)+'\')">View</button></td></tr>';
     }).join('')
     ||'<tr><td colspan="9"><div class="empty">No sales this month — naya bill banane ke liye Sale par jao</div></td></tr>';
 

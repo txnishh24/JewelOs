@@ -648,7 +648,7 @@ function applyFeatureGates(){
         if(tabs[i]===t) el.style.display='none';
       });
     });
-    var _pTab = document.getElementById('invsub-tab-purchases'); if(_pTab) _pTab.style.display = 'none';   // R27: staff see no purchases
+    // (Purchases tab and cost field for staff AND manager are hidden just below, outside this staff-only block: R30 B2)
     // Show a staff badge in header
     var headerRight = document.querySelector('.header-right, .topbar-right, header .right');
     var staffBadge = document.getElementById('staff-role-badge');
@@ -661,6 +661,11 @@ function applyFeatureGates(){
       if(topbar) topbar.appendChild(staffBadge);
     }
   }
+  // R30 B2: the cost side (Purchases tab, the "Purchase rate" cost field on Add product) is the owner's. Staff and manager both lose it.
+  var _own = !!canSeeProfit();
+  var _gear = document.getElementById('hdr-settings-btn'); if(_gear) _gear.style.display = isStaff() ? 'none' : '';   // R30 B4: staff cannot open Settings; the gear led nowhere
+  var _pTab = document.getElementById('invsub-tab-purchases'); if(_pTab) _pTab.style.display = _own ? '' : 'none';
+  var _cr = document.getElementById('f-costrate'); var _crFg = _cr && _cr.closest ? _cr.closest('.fg') : null; if(_crFg) _crFg.style.display = _own ? '' : 'none';
 }
 
 // addGateOverlay() removed with the pricing modal. It painted a padlock over a
@@ -1042,6 +1047,8 @@ function applyBackupButtonRole(){
     var el = document.getElementById(id); if(el) el.style.display = own ? '' : 'none';
   });
   var at = document.querySelector('.settings-tab[data-tab="audit"]'); if(at) at.style.display = own ? '' : 'none';
+  var pdfB = document.getElementById('btn-pdf-report'); if(pdfB) pdfB.style.display = canSeeProfit() ? '' : 'none';   // R30 B4: the report carries profit; hidden, not refused
+  var tm = document.querySelector('.settings-tab[data-tab="team"]'); if(tm) tm.style.display = own ? '' : 'none';   // R30 B1: Team (and its Activity Log) is owner-only
   var an = document.querySelector('.settings-tab[data-tab="analytics"]'); if(an) an.style.display = canSeeProfit() ? '' : 'none';
 }
 function renderSettings(){
@@ -1486,30 +1493,9 @@ function whatsappInvoice(saleId){
 // before every real call to openInvoiceModal, so it's used here as the
 // "which sale is this modal showing" reference the old code expected a
 // saleId parameter for.
-(function patchBillWhatsApp(){
-  var _origOpenInvoiceModal = window.openInvoiceModal;
-  if(typeof _origOpenInvoiceModal !== 'function') return;
-  window.openInvoiceModal = function(html, initialBillType){
-    _origOpenInvoiceModal(html, initialBillType);
-    var saleForButton = (typeof CURRENT_SALE_FOR_PDF !== 'undefined') ? CURRENT_SALE_FOR_PDF : null;
-    if(!saleForButton || !saleForButton.id) return;
-    var saleId = saleForButton.id;
-    // Try to inject WA button into modal after a tick
-    setTimeout(function(){
-      var modal = document.getElementById('invoice-modal');
-      if(!modal) return;
-      var existing = modal.querySelector('.wa-btn-injected');
-      if(existing) existing.remove(); // avoid stacking one per re-open of the same modal instance
-      var waBtn = document.createElement('button');
-      waBtn.className = 'wa-btn-injected';
-      waBtn.style.cssText = 'margin:0 8px;padding:9px 18px;border-radius:10px;border:none;background:#25d366;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;';
-      waBtn.innerHTML = '\ud83d\udcf1 WhatsApp Invoice';
-      waBtn.onclick = function(){ whatsappInvoice(saleId); };
-      var footer = modal.querySelector('.modal-footer') || modal.querySelector('.print-row') || modal;
-      footer.appendChild(waBtn);
-    }, 100);
-  };
-}());
+// R30 C1: the injected "WhatsApp Invoice" button was removed. It was appended as a flex sibling inside #invoice-modal, which squeezed the
+// invoice to 251px of 390px, and it duplicated the existing "Share on WhatsApp" button.
+
 
 // ── INITIAL BOOT CHECK ────────────────────────────────────────────────
 // Called from window.onload — decides: show auth screen OR resume session

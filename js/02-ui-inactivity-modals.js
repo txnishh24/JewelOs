@@ -114,7 +114,7 @@ function renderTab(tab, isEntrance){
   if(tab==='customers')  showSkeleton('cust-list','4','list');
   if(tab==='dashboard')  renderDash();
   else if(tab==='inventory'){loadRates();renderInv(isEntrance);}
-  else if(tab==='sales'){initSaleDate();setSaleFormBillType((_saleFormBillType==='memo' || !shopCanChargeGST()) ? 'memo' : 'gst');renderSaleItems();}   // R27: a fresh sale screen (no clearSale yet) showed GST 0 on a GST bill
+  else if(tab==='sales'){if(!document.querySelector('#split-payments-wrap .split-pay-row') && typeof renderSplitRows==='function') renderSplitRows(); initSaleDate();setSaleFormBillType((_saleFormBillType==='memo' || !shopCanChargeGST()) ? 'memo' : 'gst');renderSaleItems();}   // R27: a fresh sale screen (no clearSale yet) showed GST 0 on a GST bill
   else if(tab==='orders')renderOrders();
   else if(tab==='karigars')renderKarigarList();
   else if(tab==='girvi')renderGirvi();
@@ -209,6 +209,8 @@ function closeMoreMenu(){
 var _prodActionId=null;
 function openProdActionMenu(id){
   _prodActionId=id;
+  // R30 A1/A2/B4: staff never see Edit, Adjust Stock or Delete (hidden, not show-then-refuse).
+  ['edit','adjust','delete'].forEach(function(a){ var b=document.getElementById('pam-'+a); if(b) b.style.display = isStaff() ? 'none' : ''; });
   var m=document.getElementById('prod-action-modal');
   if(m) m.classList.add('open');
 }
@@ -246,12 +248,12 @@ function loadRates(){
   document.getElementById('rate-g14').value=_unset?'':(S.rates.g14||'');
   document.getElementById('rate-sil').value=_unset?'':(S.rates.sil||'');
   // R26: staff can read today's rate to bill, but not change it.
-  var _ro = !canEditBills();
+  var _ro = !isOwner();   // R30 B3: rates are owner-only; a manager reads the line, read-only
   ['g24','g22','g18','g14','sil'].forEach(function(k){ var e=document.getElementById('rate-'+k); if(e) e.readOnly=_ro; });
   var _sb = document.querySelector ? document.querySelector('.rate-save') : null; if(_sb) _sb.style.display = _ro ? 'none' : '';
   // One-line summary for the collapsed rate editor (UI/UX audit, 15 Oct).
   var sumEl=document.getElementById('rate-summary-line');
-  if(sumEl) sumEl.textContent=_unset ? 'Set today\'s rate' : '22K ₹'+(S.rates.g22||0).toLocaleString('en-IN')+' · Silver ₹'+(S.rates.sil||0).toLocaleString('en-IN')+' · Edit';
+  if(sumEl) sumEl.textContent=_unset ? (!isOwner() ? 'Rates not set' : 'Set today\'s rate') : '22K ₹'+(S.rates.g22||0).toLocaleString('en-IN')+' · Silver ₹'+(S.rates.sil||0).toLocaleString('en-IN')+(isOwner()?' · Edit':'');
 }
 // QA 1 Oct P1-6: 24K = Rs 0, Rs 100, or 22K above 24K all saved. Returns what is
 // wrong in words, or '' when the rates look like real per-gram prices.
@@ -274,11 +276,11 @@ function ratesConfirmed(){
 }
 function needRatesFirst(){
   if(ratesConfirmed()) return false;
-  toast(isStaff() ? '⚠ Today\'s rates are not set. Ask the owner or manager to set them.' : '⚠ Enter today\'s gold rates first (Stock tab → Rates) and tap Save.');
+  toast(!isOwner() ? '⚠ Today\'s rates are not set. Ask the owner to set them.' : '⚠ Enter today\'s gold rates first (Stock tab → Rates) and tap Save.');
   return true;
 }
 function saveRates(){
-  if(!canEditBills()){ toast('Staff accounts cannot change rates. Ask the owner or a manager.'); return; }
+  if(!isOwner()){ toast('Only the owner can change rates.'); return; }   // R30 B3
   var r = {
     g24:parseFloat(document.getElementById('rate-g24').value)||0,
     g22:parseFloat(document.getElementById('rate-g22').value)||0,
@@ -503,6 +505,7 @@ function updQty(id,v){
 var _asProductId = null;
 
 function openAdjustStockModal(id){
+  if(!guardWrite('adjust stock')) return;   // R30 A2
   var p = S.products.find(function(x){ return x.id === id; });
   if(!p) return;
   _asProductId = id;
@@ -525,6 +528,7 @@ function openAdjustStockModal(id){
 }
 
 function submitAdjustStock(){
+  if(!guardWrite('adjust stock')) return;   // R30 A2: the console or a stale open sheet cannot get round the hidden menu item
   var newQty = parseInt((document.getElementById('as-new-qty')||{}).value, 10);
   if(isNaN(newQty) || newQty < 0){ toast('Enter a valid quantity (0 or more)'); return; }
   var id = _asProductId;
@@ -834,7 +838,7 @@ function renderSaleItems(){
     skuFg.appendChild(skuWrap);
 
     (function(idx,inp,sug){
-      inp.oninput=function(){skuSearch(idx,inp.value,sug);};
+      inp.oninput=function(){ detachSaleItemIfSkuChanged(idx,inp.value); skuSearch(idx,inp.value,sug); };
       inp.onkeydown=function(e){
         if(e.key==='Escape'){sug.style.display='none';}
         if(e.key==='Enter'){
@@ -1053,6 +1057,16 @@ function onSP(i,v){
   renderSaleItems();
 }
 
+// R30 D1: typing over the SKU of an item already attached detaches it. Before this, the box said ZZZ while the bill still recorded the old item.
+// Returns true when it detached. A typed text that matches nothing is then caught by recordSale() ("SKU not recognized").
+function detachSaleItemIfSkuChanged(idx, typed){
+  var it=UI.saleItems[idx];
+  if(!it || !it.pid) return false;
+  var cur=S.products.find(function(x){return x.id==it.pid;});
+  if(cur && String(cur.sku||'').toLowerCase()===String(typed||'').trim().toLowerCase()) return false;
+  it.pid=''; it.skuUnresolved=false; updateSum();
+  return true;
+}
 // FIX (sale SKU not saving): resolves whatever text is currently typed
 // in a sale row's SKU field into a real product, for the two cases
 // clicking a dropdown suggestion never covered — pressing Enter after
@@ -1286,6 +1300,13 @@ function updateSum(){
     }
   }
 
+  // R30 C2: the first payment row starts as "Cash, the whole amount due" and follows the total until the user types in it.
+  var _r0 = (typeof splitRows!=='undefined') ? splitRows[0] : null;
+  if(_r0 && _r0.auto && splitRows.length===1){
+    _r0.amount = Math.max(0, Math.round(grand - ogVal - Math.max(0, parseFloat((document.getElementById('s-prev-advance')||{value:0}).value)||0)));
+    var _i0 = document.querySelector('#split-payments-wrap .split-pay-row input');
+    if(_i0 && document.activeElement !== _i0) _i0.value = _r0.amount>0 ? _r0.amount : '';
+  }
   // Sync split total to legacy hidden field before reading
   if(typeof getSplitTotal==='function'){ var st=getSplitTotal(); var sa=document.getElementById('s-advance'); if(sa) sa.value=st; }
   // Prev advance
@@ -1706,6 +1727,16 @@ function recordSale(){
   }
   // Tanish 14 Nov: no bill on a closed day for staff or manager; the owner reopens the day first.
   if(!isOwner() && dbSaleDayClosed(sale)){ toast('That day is closed. Ask the owner to reopen it before adding a bill.'); return; }
+  // R30 C2: nothing paid at all (no cash, no old gold, no earlier advance) is recorded only after an explicit yes,
+  // so a forgotten amount can no longer turn a cash sale into a bill the customer owes.
+  var _tt = calcSaleTotals(sale);
+  if(_tt.grand > 0 && _tt.bal >= _tt.grand - 0.5){
+    safeConfirm('Record as unpaid?', 'Nothing has been paid on this bill. The customer will owe '+fmt(_tt.grand)+'. Record it as unpaid?', function(){ _recordSaleDupCheck(sale); });
+    return;
+  }
+  _recordSaleDupCheck(sale);
+}
+function _recordSaleDupCheck(sale){
   // Duplicate bill guard — catches a second, separate click after the
   // first sale already finished (different scenario from the in-flight
   // lock above, which catches a click while the first is still saving)

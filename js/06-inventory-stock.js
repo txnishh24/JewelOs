@@ -255,7 +255,7 @@ function renderDash(){
   if(todayEl){
     todayEl.innerHTML =
       fsnCard("Today's Sales", fmt(todaySalesTotal), todaySales.length+' bill(s)', null, '', 'var(--gold-dark)')+
-      (!isStaff() ? fsnCard("Today's Purchase", fmt(todayPurchaseTotal), todayPurchases.length+' bill(s)', null, '', 'var(--warning)') : '')+   // R27: staff see no purchases
+      (canSeeProfit() ? fsnCard("Today's Purchase", fmt(todayPurchaseTotal), todayPurchases.length+' bill(s)', null, '', 'var(--warning)') : '')+   // R27: staff see no purchases
 
       // Colour by sign, like the Net Cash line below — a loss shown in the
       // same green as a profit is the one number on this strip a jeweller
@@ -749,7 +749,7 @@ function filterOrdersByStatus(status){
 
 // ── SETTINGS TABS ────────────────────────────────────────────────────
 function showSettingsTab(tab){
-  if((tab==='audit' || tab==='analytics') && !isOwner()){ toast('Only the owner can do this'); tab='profile'; }
+  if((tab==='audit' || tab==='analytics' || tab==='team') && !isOwner()){ toast('Only the owner can do this'); tab='profile'; }
   var tabs = ['profile','automation','analytics','team','plan','audit','data','account'];
   tabs.forEach(function(t){
     var el = document.getElementById('stab-'+t);
@@ -800,7 +800,7 @@ function showSettingsTab(tab){
       staffEl.innerHTML=users.length
         ?users.map(function(u){
           return '<div class="log-row"><div><b>'+escHtml(u.name)+'</b><div style="font-size:11px;color:var(--text3);">'+escHtml(u.email)+' &bull; '+escHtml(u.role)+'</div></div>'+
-            '<div>'+(u.id!==SAAS.user.id&&isOwner()?'<button onclick="removeStaff(\''+jsAttrEsc(u.id)+'\')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;">Remove</button>':'<span style="font-size:11px;color:var(--text3);">You</span>')+'</div></div>';
+            '<div>'+(u.id!==SAAS.user.id&&isOwner()?'<button onclick="removeStaff(\''+jsAttrEsc(u.id)+'\')" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer;">Remove</button>':(u.id===SAAS.user.id?'<span style="font-size:11px;color:var(--text3);">You</span>':''))+'</div></div>';   // R30 B1: "You" only on your own row
         }).join('')
         :'<div style="font-size:12px;color:var(--text3);">No team members yet.</div>';
     }

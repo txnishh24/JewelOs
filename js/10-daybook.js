@@ -326,13 +326,13 @@ function dbAutoLines(dateKey){
   return lines;   // raw: totals, close and the restate sweep must see real figures; staff masking happens in dbDayView only
 }
 
-// Staff must not see loan names or amounts. Every girvi line folds into ONE 'Other cash movements' line
+// Staff must not see loan names, karigar names or their rupee amounts. Every girvi and karigar line folds into ONE 'Other cash movements' line
 // (cash net, plus one non-cash and one unknown line when they exist) so Opening + In - Out = Closing still holds.
 function dbStaffMaskGirvi(lines){
   if(!(SAAS && SAAS.user && SAAS.user.role === 'staff')) return lines;
   var out = [], cash = 0, nc = 0, unk = 0, ncN = 0, unkN = 0;
   lines.forEach(function(l){
-    if(l.src !== 'girvi'){ out.push(l); return; }
+    if(l.src !== 'girvi' && l.src !== 'karigar'){ out.push(l); return; }   // R30 A3: karigar salary, advance and order-payment lines fold in too
     if(l.unknown){ unk = dbRound(unk + l.amount); unkN++; }
     else if(l.nonCash){ nc = dbRound(nc + l.amount); ncN++; }
     else cash = dbRound(cash + (l.dir === 'in' ? l.amount : -l.amount));
@@ -588,6 +588,7 @@ var DB_ERR_TEXT = {
   'reason-required':'please give a reason',
   'not-allowed':'only the owner or a manager can close a day',
   'owner-only':'only the owner can do this',
+  'staff-blocked':'staff cannot add or change Day Book entries. Ask the owner or manager',
   'not-closed':'that day is not closed',
   'adjustments-posted':'a correction for this day was already posted to a later day, so reopening would count it twice. Use Correct count or add a Day Book entry instead'
 };
@@ -600,6 +601,7 @@ function dbErrText(err){
 // once, before the book has any history. A later correction is a manual
 // entry or, if wrong at the root, a job for whoever administers the shop.
 function dbSetOpening(dateKey, amount, cb){
+  if(isStaff()){ if(cb) cb(new Error('staff-blocked')); return; }   // R30 A2
   if(S.dayBook.closes && S.dayBook.closes.length){ if(cb) cb(new Error('opening-locked')); return; }
   if(!(amount >= 0)){ if(cb) cb(new Error('invalid-amount')); return; }
   var snap = _dbSnapshot();
@@ -623,6 +625,7 @@ function dbCleanParty(party){
 
 // party is last (after cb) so existing positional callers are unaffected.
 function dbAddEntry(dateKey, dir, amount, cat, note, cb, party, srcClose){
+  if(isStaff()){ if(cb) cb(new Error('staff-blocked')); return; }   // R30 A2
   if(dir !== 'in' && dir !== 'out'){ if(cb) cb(new Error('invalid-dir')); return; }
   if(!(amount > 0)){ if(cb) cb(new Error('invalid-amount')); return; }
   if(!DB_CATS[cat] || cat === 'adjust'){ if(cb) cb(new Error('invalid-cat')); return; } // adjust is system-only
@@ -651,6 +654,7 @@ function dbAddEntry(dateKey, dir, amount, cat, note, cb, party, srcClose){
 }
 
 function dbVoidEntry(entryId, reason, cb){
+  if(isStaff()){ if(cb) cb(new Error('staff-blocked')); return; }   // R30 A2: voiding is a Day Book change too
   var entry = null;
   (S.dayBook.entries||[]).forEach(function(e){ if(e.id === entryId) entry = e; });
   if(!entry){ if(cb) cb(new Error('not-found')); return; }
@@ -768,6 +772,7 @@ function dbCloseDay(dateKey, counted, cb){
 // observation may be corrected within the moment it was made; the book
 // itself is derived from records and is never rewritten this way.
 function dbCorrectCount(dateKey, newCounted, reason, cb){
+  if(isStaff()){ if(cb) cb(new Error('staff-blocked')); return; }   // R30 A2
   var latest = null;
   (S.dayBook.closes||[]).forEach(function(c){ if(!latest || c.date > latest.date) latest = c; });
   if(!latest || latest.date !== dateKey){ if(cb) cb(new Error('not-latest-close')); return; }
@@ -980,6 +985,7 @@ function _dbPaint(){
 
   // First-time setup: nothing entered yet at all.
   if(!S.dayBook.opening && !(S.dayBook.closes||[]).length){
+    if(isStaff()){ body.innerHTML = '<div class="card"><div style="font-size:13px;color:var(--text2);">The Day Book has not been set up yet. Ask the owner or manager to start it.</div></div>'; return; }   // R30 A2
     body.innerHTML =
       '<div class="card">'+
         '<div class="card-title"><span>'+svgIcon('book')+' Set up your Day Book</span></div>'+
@@ -1030,7 +1036,7 @@ function _dbPaintDay(){
     html += '<div class="card" style="border:1px solid rgba(179,146,87,0.3);">'+
       '<div class="card-title"><span>'+svgIcon('lock')+' Day closed</span></div>'+
       '<div style="font-size:12px;color:var(--text2);">Counted '+fmt(v.counted)+' — '+diffTxt+'.</div>'+
-      (dbDayKey(v.close.ts)===dbToday() ? '<button class="btn btn-sm" style="margin-top:8px;" onclick="dbOpenCorrectModal()">Correct today\'s count</button>' : '')+
+      (dbDayKey(v.close.ts)===dbToday() && !isStaff() ? '<button class="btn btn-sm" style="margin-top:8px;" onclick="dbOpenCorrectModal()">Correct today\'s count</button>' : '')+
       (isOwner() ? '<button class="btn btn-sm" style="margin:8px 0 0 6px;" onclick="dbOpenReopen()">Reopen day</button>' : '')+
     '</div>';
   }
@@ -1079,7 +1085,7 @@ function _dbPaintDay(){
         return;
       }
       running = dbRound(running + (line.dir==='in' ? line.amount : -line.amount));
-      var canVoid = (line.kind==='manual') && !line.voided && !v.closed;
+      var canVoid = (line.kind==='manual') && !line.voided && !v.closed && !isStaff();
       var catLabel = (line.cat && DB_CATS[line.cat]) ? DB_CATS[line.cat].label : (line.cat||'');
       var sourceTag = line.src ? ' • auto' : (line.kind==='manual' ? ' • manual' : '');
       var lineIcon = dbLineIcon(line);
@@ -1103,7 +1109,7 @@ function _dbPaintDay(){
   // (UI/UX audit, 15 Oct) — sticky just above the bottom nav on mobile.
   if(!v.closed){
     html += '<div class="sticky-action-bar" style="display:flex;gap:8px;flex-wrap:wrap;">'+
-      '<button class="btn btn-gold" style="min-height:44px;" onclick="dbOpenEntryModal()">+ Add Entry</button>'+
+      (isStaff() ? '' : '<button class="btn btn-gold" style="min-height:44px;" onclick="dbOpenEntryModal()">+ Add Entry</button>')+
       (canCloseDay() ? '<button class="btn" style="min-height:44px;" onclick="dbOpenCloseModal()">'+svgIcon('lock')+' Close Day</button>' : '')+
     '</div>';
   }

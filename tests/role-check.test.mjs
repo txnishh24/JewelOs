@@ -367,7 +367,7 @@ await atest('flow: manager edits a bill with a reason, refunds with a reason, vo
   const mgr = loadApp(); wire(mgr, srv, 'manager'); load(mgr, srv);
   mgr._editBillId = ids[0];
   vals(mgr, { 'eb-reason': 'fix weight', 'eb-disc': '0', 'eb-gst': '3', 'ei-wt-0': '5' });
-  mgr.saveEditBill(); await settle(); REPLAY.flows++;
+  mgr.saveEditBill('fix weight'); await settle(); REPLAY.flows++;
   assert(srv.refusals.length === 0, 'edit refused: ' + JSON.stringify(srv.refusals));
   load(mgr, srv);
   vals(mgr, { 'rfnd-amount': '100', 'rfnd-mode': 'Cash', 'rfnd-reason': 'Wrong Item', 'rfnd-note': '' });
@@ -424,7 +424,7 @@ await atest('500 random legitimate sequences produce 0 refusals', async function
       if (op <= 2 || !pick) { landed += await doSale(app, srv, role, rnd(role === 'manager' ? 15 : 5) + 1); }
       else if (op === 3) { vals(app, { 'spay-amount': String(1 + rnd(900)), 'spay-mode': ['Cash', 'UPI'][rnd(2)], 'spay-ref': '' }); app.submitSalePayment(pick.id); }
       else if (op === 4) { app.markSalePaid(pick.id); }
-      else if (op === 5 && role === 'manager') { app._editBillId = pick.id; vals(app, { 'eb-reason': 'fix ' + rnd(100), 'eb-disc': String(rnd(3) * 500), 'eb-gst': '3', 'ei-wt-0': String(4 + rnd(3)) }); app.saveEditBill(); }
+      else if (op === 5 && role === 'manager') { app._editBillId = pick.id; vals(app, { 'eb-reason': 'fix ' + rnd(100), 'eb-disc': String(rnd(3) * 500), 'eb-gst': '3', 'ei-wt-0': String(4 + rnd(3)) }); app.saveEditBill('fix'); }
       else if (op === 6 && role === 'manager') { vals(app, { 'rfnd-amount': String(10 + rnd(200)), 'rfnd-mode': 'Cash', 'rfnd-reason': 'Wrong Item', 'rfnd-note': '' }); app._submitRefund(pick.id); }
       else if (op === 8 && role === 'manager') { app.dbCloseDay(app.dbToday(), 0, function () {}); }
       else if (op === 9) { const ow = apps.owner; load(ow, srv); ow.dbReopenDay(ow.dbToday(), 'recount', function () {}); }

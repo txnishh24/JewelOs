@@ -1253,14 +1253,15 @@ function getItemRate(i){
 // reassign `splitRows = ...` anywhere else without immediately calling
 // renderSplitRows(), or a leftover rendered row's stale event would silently
 // write into the new array instead of a safely-orphaned old object.
-var splitRows = [{amount:0, mode:'Cash'}];
+var splitRows = [{amount:0, mode:'Cash', auto:true}];   // auto: R30 C2, the first row follows the amount due until the user types in it
 
 function initSplitPayments(){
-  splitRows = [{amount:0, mode:'Cash'}];
+  splitRows = [{amount:0, mode:'Cash', auto:true}];
   renderSplitRows();
 }
 
 function addSplitRow(){
+  if(splitRows[0]) splitRows[0].auto = false;   // a second mode means the user is splitting: stop auto-filling the first
   splitRows.push({amount:0, mode:'UPI'});
   renderSplitRows();
   updateSum();
@@ -1287,7 +1288,7 @@ function renderSplitRows(){
     var ai = document.createElement('input');
     ai.type='text'; ai.setAttribute('inputmode','decimal');
     ai.placeholder='0'; ai.value=row.amount>0?row.amount:'';
-    ai.style.cssText='font-size:15px;font-weight:700;';
+    ai.style.cssText='font-size:15px;font-weight:700;min-width:110px;width:100%;';   // R30 C3: a six-digit amount must stay readable
     // JEWELOS-2 (Sentry, 1 Oct): these handlers used to close over `i`, the index
     // captured at render time. If this row was removed (removeSplitRow splices
     // splitRows and re-renders) between a keystroke firing and this handler
@@ -1296,7 +1297,7 @@ function renderSplitRows(){
     // the row OBJECT itself instead of its index means a stale handler just
     // writes to an object nothing reads anymore (harmless) instead of indexing
     // past the end of a shrunk array (a crash).
-    ai.oninput=function(){ row.amount=parseFloat(this.value)||0;syncSplitToLegacy();updateSum(); };
+    ai.oninput=function(){ row.auto=false; row.amount=parseFloat(this.value)||0;syncSplitToLegacy();updateSum(); };
     af.appendChild(ai); div.appendChild(af);
     // Mode select
     var mf = document.createElement('div'); mf.className = 'fg';
@@ -1494,7 +1495,6 @@ function openEditBill(saleId){
   // Reason input + save
   var reasonRow = document.createElement('div');
   reasonRow.innerHTML=
-    '<div class="fg" style="margin-bottom:10px;"><label>Reason for edit ('+(isOwner()?'optional':'required')+')</label><input id="eb-reason" placeholder="e.g. Weight correction, customer request..."/></div>'+
     '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
       '<button class="btn btn-gold" onclick="saveEditBill()">'+svgIcon('cloud')+' Save Changes</button>'+
       '<button class="btn" onclick="closeEditBillModal()">Cancel</button>'+
@@ -1599,14 +1599,18 @@ function calcEditTotal(){
       '</div>':'');
 }
 
-function saveEditBill(){
+function saveEditBill(reasonArg){
   var sale = S.sales.find(function(x){return x.id===_editBillId;});
   if(!sale) return;
   if(!canEditBills()){ toast('Staff accounts cannot edit bills. Ask the owner or a manager.'); return; }
-  var _reasonTxt = ((document.getElementById('eb-reason')||{value:''}).value||'').trim();
+  // R30 B6: a manager's reason is asked in the same askReason() box as refund and void (no inline field). The owner is not asked.
+  var _reasonTxt = (typeof reasonArg === 'string') ? reasonArg.trim() : '';
   if(!isOwner()){
     if(dbSaleDayClosed(sale)){ toast('That bill is on a closed day. Only the owner can change it.'); return; }
-    if(!_reasonTxt){ toast('Please give a reason for the edit.'); return; }
+    if(!_reasonTxt){
+      askReason('Save changes to bill '+(sale.invNo||'')+'?', 'Why is this bill being edited? It is kept in the bill history and the audit trail.', 'Save', function(r){ saveEditBill(r); });
+      return;
+    }
   }
   var _prevDisc = parseFloat(sale.discount) || 0;
   // Re-checked here, not just in openEditBill(): a refund can land (another
@@ -1619,7 +1623,7 @@ function saveEditBill(){
     version: sale.editHistory.length+1,
     at: new Date().toISOString(),
     grand: sale.lockedGrand||sale.advance||0,
-    reason: (document.getElementById('eb-reason')||{value:''}).value||'Edited',
+    reason: _reasonTxt||'Edited',
     snapshot: JSON.parse(JSON.stringify({items:sale.items,advance:sale.advance,discount:sale.discount,gst:sale.gst,making:sale.making||0,diamond:sale.diamond||0}))
   });
   sale.customer=(document.getElementById('eb-cust')||{value:sale.customer}).value||sale.customer;

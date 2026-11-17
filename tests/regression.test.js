@@ -3481,6 +3481,7 @@ test('end-to-end: recordSale() on a partial multi-piece sale persists the real q
   a.renderDash = function(){};
   a.switchTab = function(){};
   a.isDuplicateSale = function(){ return false; };
+  a.safeConfirm = function(t, m, ok){ ok(); };   // R30 C2: nothing paid asks "Record as unpaid?"; these tests are about quantity, so say yes
   a.saveToCloud = function(cb){ cb(null); };
   a._saleFormBillType = 'memo'; // sidesteps recordSale()'s "GST bill needs a GST %" guard — not what this test is about
   var _orig = a.document.getElementById;
@@ -3521,6 +3522,7 @@ test('retry: a failed save on a partial multi-piece sale rolls back stock comple
   a.renderDash = function(){};
   a.switchTab = function(){};
   a.isDuplicateSale = function(){ return false; };
+  a.safeConfirm = function(t, m, ok){ ok(); };   // R30 C2
   a._saleFormBillType = 'memo'; // sidesteps recordSale()'s "GST bill needs a GST %" guard — not what this test is about
   var _orig = a.document.getElementById;
   // A fixed typed invoice number keeps the commit synchronous (a blank
@@ -7423,7 +7425,7 @@ test('R26 C: staff can neither edit, refund, void, nor change rates; state is un
   a.saveRates();
   assert(JSON.stringify(a.S.sales) === before, 'sale untouched');
   assert(JSON.stringify(a.S.rates) === rates, 'rates untouched');
-  assert(a.said.filter(function(m){ return /Staff accounts cannot/.test(m); }).length >= 5, 'each says why: ' + JSON.stringify(a.said));
+  assert(a.said.filter(function(m){ return /Staff accounts cannot|Only the owner can change rates/.test(m); }).length >= 5, 'each says why: ' + JSON.stringify(a.said));
 });
 
 test('R26 C: a manager voids with a required reason, not on a closed day; the owner deletes; the reason reaches the audit trail', function(){
@@ -7448,10 +7450,11 @@ test('R26 C: a manager edit needs a reason and cannot touch a bill on a closed d
   var vals = { 'eb-reason':'', 'eb-disc':'0', 'eb-gst':'0' };
   var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
   var saved = false; a.saveToCloud = function(){ saved = true; };
+  var asked = 0; a.askReason = function(){ asked++; };   // R30 B6: the reason now comes from the askReason box
   a.saveEditBill();
-  assert(!saved && a.said.some(function(m){ return /reason for the edit/.test(m); }), 'no reason, no save');
+  assert(!saved && asked === 1, 'no reason: the reason box opens and nothing is saved');
   a.S.dayBook = { opening:null, entries:[], closes:[{ date:a.dbDayKey(a.S.sales[0].date), opening:0, closing:0, counted:0, diff:0, ts:new Date().toISOString() }] };
-  vals['eb-reason'] = 'weight fix'; a.saveEditBill();
+  a.saveEditBill('weight fix');
   assert(!saved && a.said.some(function(m){ return /closed day/.test(m); }), 'closed day: refused');
 });
 
@@ -7626,9 +7629,9 @@ test('R26 C: a manager edit over the discount cap is rolled back and not saved; 
   var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
   var saved = 0; a.saveToCloud = function(cb){ saved++; if(cb) cb(null); };
   a.closeEditBillModal = function(){}; a.showCustHistory = function(){}; a.renderCustomers = function(){};
-  a.saveEditBill();
+  a.saveEditBill('discount');
   assert(saved === 0 && a.S.sales[0].discount === 0, 'over-cap edit: nothing saved, discount rolled back, got ' + a.S.sales[0].discount);
-  vals['eb-disc'] = '1000'; a.saveEditBill();
+  vals['eb-disc'] = '1000'; a.saveEditBill('discount');
   assert(saved === 1 && a.S.sales[0].discount === 1000, 'within cap: saved');
   assert(/discount/.test((a.S.auditLog[0]||{}).note || ''), 'reason is in the audit note: ' + JSON.stringify(a.S.auditLog[0]));
 });
@@ -7648,7 +7651,7 @@ test('R26 review fixes: reopen is refused once a correction was posted for that 
   var vals = { 'eb-reason':'trim items', 'eb-disc':'4000', 'eb-gst':'0', 'ei-wt-0':'1.0' };
   var _o = m.document.getElementById; m.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
   var saved = false; m.saveToCloud = function(){ saved = true; };
-  m.saveEditBill();
+  m.saveEditBill('trim items');
   assert(!saved && m.S.sales[0].items[0].weight === 4.743 && m.said.some(function(x){ return /Needs owner approval/.test(x); }), 'same rupees on a much smaller bill is judged by percent and refused');
 });
 
@@ -7694,8 +7697,8 @@ test('R27 A2: staff see no Purchases (render and helpers return nothing, Home ha
   var st = go('staff'), mg = go('manager');
   assert(st.root === '', 'staff: purchases panel stays empty, got ' + st.root.length + ' chars');
   assert(st.a.pbSupplierLedgerHtml() === '' && st.a.pbWastageReportHtml() === '', 'staff: ledger and wastage helpers return nothing');
-  assert(!/Today.s Purchase/.test(st.strip) && /Today.s Purchase/.test(mg.strip), 'Home: staff no purchase tile, manager keeps it');
-  assert(mg.root.length > 0, 'manager: purchases render');
+  assert(!/Today.s Purchase/.test(st.strip) && !/Today.s Purchase/.test(mg.strip) && /Today.s Purchase/.test(go('owner').strip), 'Home: staff and manager no purchase tile (R30 B2), owner keeps it');
+  assert(mg.root === '' && go('owner').root.length > 0, 'R30 B2: manager sees no purchases; owner renders them');
 });
 
 function r27Edit(role, sale, vals){
@@ -7705,7 +7708,7 @@ function r27Edit(role, sale, vals){
   var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in base) return { value: base[id] }; return _o(id); };
   a.closeEditBillModal = function(){}; a.showCustHistory = function(){}; a.renderCustomers = function(){};
   var saved = 0; a.saveToCloud = function(cb){ saved++; if(cb) cb(null); };
-  a.saveEditBill(); a._saved = saved; return a;
+  a.saveEditBill('fix'); a._saved = saved; return a;
 }
 test('R27 A3: edit-bill discount cap is judged by PERCENT of the new base on every save (manager; staff cannot edit)', function(){
   var stf = r27Edit('staff', r26Sale({ discount:1000 }), { 'eb-disc':'1000', 'ei-wt-0':'4.743' });
@@ -7851,7 +7854,7 @@ test('R27 B9: staff Home shows no girvi or receivables hints; the staff rates to
   assert(!/girvi|uncollected|LTV/i.test(st), 'staff: no girvi/receivables actions: ' + st);
   assert(/girvi/i.test(mg) || /uncollected/.test(mg), 'manager still sees them: ' + mg);
   var s = r26App('staff'); s.S.rates = { g24:7800, g22:7200 }; s.needRatesFirst();
-  assert(s.said.some(function(m){ return /Ask the owner or manager/.test(m); }), 'staff rates toast: ' + s.said.join('|'));
+  assert(s.said.some(function(m){ return /Ask the owner to set them/.test(m); }), 'staff rates toast: ' + s.said.join('|'));
   var c = r26App('staff'); var er; c.dbCloseDay(c.dbToday(), 0, function(e){ er = e; });
   assert(er && c.said.some(function(m){ return /owner or a manager can close/.test(m); }), 'staff close: toast, not silence');
 });
@@ -8026,6 +8029,190 @@ test('R29 policy (Tanish, 14 Nov): staff and manager cannot add a bill on a clos
   var saves = 0; st.saveToCloud = function(){ saves++; };
   st.reverseSalePayment('s1', 'p1');
   assert(saves === 0 && st.S.sales[0].extraPayments.length === 1 && said2.some(function(m){ return /Staff cannot reverse/.test(m); }), 'staff reversal refused, nothing saved');
+});
+
+function r30El(a, id){ return a.document.getElementById(id); }
+// ── R30: fixes from the staff, manager and new-shop reviews ──
+test('R30 A1: staff cannot save a product edit (price fields), and the Stock menu hides Edit, Adjust and Delete from staff only', function(){
+  var a = r26App('staff'); a.S.products = [{ id:'p1', name:'Ring', weight:5, unitWeight:5, qty:1, mcRate:100, status:'available' }];
+  var before = JSON.stringify(a.S.products);
+  r30El(a,'ep-id').value = 'p1'; r30El(a,'ep-name').value = 'Ring'; r30El(a,'ep-wt').value = '1'; r30El(a,'ep-mcrate').value = '0';
+  a.saveEditProd();
+  assert(JSON.stringify(a.S.products) === before, 'staff edit changed the product');
+  assert(a.said.some(function(m){ return /Staff accounts cannot edit products/.test(m); }), 'staff must be told why: ' + a.said.join('|'));
+  a.openProdActionMenu('p1');
+  ['edit', 'adjust', 'delete'].forEach(function(k){ assert(a._els['pam-' + k].style.display === 'none', 'staff menu must hide ' + k); });
+  var m = r26App('manager'); m.openProdActionMenu('p1');
+  ['edit', 'adjust', 'delete'].forEach(function(k){ assert(m._els['pam-' + k].style.display === '', 'manager keeps ' + k); });
+  m.saveEditProd();
+  assert(!m.said.some(function(x){ return /Staff accounts cannot/.test(x); }), 'manager must not be stopped by the staff guard');
+});
+test('R30 A2: staff cannot adjust stock, set the opening balance or add a Day Book entry (functions refuse, with a reason); manager and owner can', function(){
+  var a = r26App('staff'); a.S.products = [{ id:'p1', name:'Ring', weight:5, unitWeight:5, qty:2, status:'available' }];
+  a.openAdjustStockModal('p1'); r30El(a,'as-new-qty').value = '9'; a._asProductId = 'p1'; a.submitAdjustStock();
+  assert(a.S.products[0].qty === 2, 'staff adjusted stock');
+  assert(a.said.filter(function(m){ return /Staff accounts cannot adjust stock/.test(m); }).length >= 2, 'both entry points explain: ' + a.said.join('|'));
+  var errs = [], entriesBefore = a.S.dayBook.entries.length;
+  a.dbAddEntry(a.dbToday(), 'out', 100, 'bankDeposit', 'x', function(e){ errs.push(e && e.message); });
+  a.S.dayBook.opening = null; a.S.dayBook.closes = [];
+  a.dbSetOpening(a.dbToday(), 500, function(e){ errs.push(e && e.message); });
+  assert(errs.join() === 'staff-blocked,staff-blocked', 'got ' + errs.join());
+  assert(a.S.dayBook.entries.length === entriesBefore && !a.S.dayBook.opening, 'staff wrote to the Day Book');
+  assert(/staff cannot add or change Day Book entries/.test(a.dbErrText(new Error('staff-blocked'))), 'plain words');
+  ['manager', 'owner'].forEach(function(role){
+    var b = r26App(role); var r = [];
+    b.dbAddEntry(b.dbToday(), 'out', 100, 'bankDeposit', 'x', function(e){ r.push(e); });
+    assert(r.length === 1 && !r[0] && b.S.dayBook.entries.length === 1, role + ' must be able to add an entry: ' + JSON.stringify(r.map(function(x){ return x && x.message; })) + ' entries=' + b.S.dayBook.entries.length);
+  });
+});
+test('R30 A3: staff Day Book folds karigar cash lines into "Other cash movements"; owner sees them; totals are identical', function(){
+  function go(role){
+    var a = r26App(role); var d = a.dbToday();
+    a.S.karigars = [{ id:'k1', name:'Ramesh Soni' }];
+    a.S.karigarPayments = [{ id:'kp1', karigarId:'k1', type:'cash', dbPost:true, amount:5000, mode:'cash', advance:true, date:d }];
+    a.S.girvi = [];
+    return a.dbDayView(d);
+  }
+  var st = go('staff'), ow = go('owner');
+  assert(!st.lines.some(function(l){ return l.src === 'karigar'; }), 'staff sees a karigar line');
+  assert(!JSON.stringify(st.lines).match(/Ramesh|Karigar/), 'staff view names the karigar: ' + JSON.stringify(st.lines));
+  var other = st.lines.filter(function(l){ return l.label === 'Other cash movements'; });
+  assert(other.length === 1 && other[0].amount === 5000 && other[0].dir === 'out', 'one folded line, out 5000: ' + JSON.stringify(st.lines));
+  assert(ow.lines.some(function(l){ return l.src === 'karigar'; }), 'owner still sees the karigar line');
+  assert(st.totalIn === ow.totalIn && st.totalOut === ow.totalOut && st.closing === ow.closing, 'staff totals must equal the owner\'s');
+  var m = go('manager');
+  assert(m.totalOut === ow.totalOut, 'manager totals unchanged');
+});
+test('R30 B1: the Team tab is owner-only (hidden, and showSettingsTab refuses for manager and staff); "You" shows only on your own row', function(){
+  ['manager', 'staff'].forEach(function(role){
+    var a = r26App(role);
+    var tabBtn = { style:{} }; a.document.querySelector = function(sel){ return /data-tab="team"/.test(sel) ? tabBtn : null; };
+    a.applyBackupButtonRole();
+    assert(tabBtn.style.display === 'none', role + ': Team tab button must be hidden');
+    a.said = []; a.showSettingsTab('team');
+    assert(a.said.some(function(m){ return /Only the owner/.test(m); }), role + ': refused with a reason');
+  });
+  var o = r26App('owner'); var tb = { style:{} }; o.document.querySelector = function(sel){ return /data-tab="team"/.test(sel) ? tb : null; };
+  o.applyBackupButtonRole(); assert(tb.style.display === '', 'owner keeps the Team tab');
+});
+test('R30 B2: the cost side (purchases screen, purchase tile, cost field) is for the owner only; manager and staff lose it', function(){
+  ['manager', 'staff'].forEach(function(role){
+    var a = r26App(role); var tab = { style:{}, classList:{ toggle:function(){}, add:function(){}, remove:function(){} } }, fg = { style:{} };
+    a._els['invsub-tab-purchases'] = tab; a._els['f-costrate'] = { closest: function(){ return fg; }, style:{} };
+    a.applyFeatureGates();
+    assert(tab.style.display === 'none', role + ': Purchases sub-tab hidden');
+    assert(fg.style.display === 'none', role + ': purchase-rate (cost price) field hidden');
+    a.switchInvSub('purchases'); assert(r30El(a,'inv-sub-purchases').style.display === 'none', role + ': cannot open the Purchases sub-tab');
+  });
+  var o = r26App('owner'); var t2 = { style:{}, classList:{ toggle:function(){}, add:function(){}, remove:function(){} } }, f2 = { style:{} };
+  o._els['invsub-tab-purchases'] = t2; o._els['f-costrate'] = { closest: function(){ return f2; }, style:{} };
+  o.applyFeatureGates(); assert(t2.style.display === '' && f2.style.display === '', 'owner keeps both');
+});
+test('R30 B3: only the owner changes rates; a manager is refused (rates untouched) and sees a read-only line', function(){
+  var els = { 'rate-g24':'8000', 'rate-g22':'7600', 'rate-g18':'6000', 'rate-g14':'4500', 'rate-sil':'95' };
+  ['manager', 'staff'].forEach(function(role){
+    var a = r26App(role); var rates = JSON.stringify(a.S.rates);
+    var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in els) return { value: els[id] }; return _o(id); };
+    a.saveRates();
+    assert(JSON.stringify(a.S.rates) === rates, role + ' changed rates');
+    assert(a.said.some(function(m){ return /Only the owner can change rates/.test(m); }), role + ': reason shown');
+    var b = r26App(role); b.loadRates();
+    assert(!/Edit/.test(r30El(b,'rate-summary-line').textContent), role + ': no "Edit" wording: ' + r30El(b,'rate-summary-line').textContent);
+    assert(r30El(b,'rate-g22').readOnly === true, role + ': rate boxes read-only');
+  });
+  var o = r26App('owner'); o.loadRates(); assert(/Edit/.test(r30El(o,'rate-summary-line').textContent), 'owner keeps Edit');
+});
+test('R30 C2: a fresh sale shows a payment row (Cash, follows the amount due); recording with nothing paid asks "Record as unpaid?"', function(){
+  var a = r26App('staff');
+  a.initSplitPayments();
+  assert(a.splitRows.length === 1 && a.splitRows[0].mode === 'Cash' && a.splitRows[0].auto === true, 'first row exists, Cash, auto');
+  a.document.querySelector = function(){ return null; };
+  // typing in the box stops the auto-fill
+  var made = []; a.document.createElement = function(){ var e = { style:{}, appendChild:function(c){}, setAttribute:function(){}, className:'', innerHTML:'', value:'' }; made.push(e); return e; };
+  a.renderSplitRows();
+  var amountInput = made.filter(function(e){ return typeof e.oninput === 'function'; })[0];
+  assert(amountInput, 'amount box rendered'); assert(/min-width:110px/.test(amountInput.style.cssText), 'C3: amount box at least 110px');
+  amountInput.value = '5000'; amountInput.oninput(); assert(a.splitRows[0].auto === false && a.splitRows[0].amount === 5000, 'typing switches auto off');
+  // nothing paid: confirm first; paid: no confirm
+  function run(paid){
+    var b = r26App('staff'); b.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', unitWeight:10, qty:1, weight:10, netWeight:10, mcRate:0, status:'available', sku:'GLD-1', huid:'' }];
+    b.UI.saleMode = 'stock'; b.UI.saleItems = [{ pid:'p1', qty:1 }]; b._saleFormBillType = 'memo';
+    b.upsertCustomer = function(){}; b.addPaymentRecord = function(){}; b.clearSale = function(){}; b.renderDash = function(){}; b.switchTab = function(){}; b.isDuplicateSale = function(){ return false; };
+    var asked = [], committed = 0; b.safeConfirm = function(t, m, ok){ asked.push(t); b._okLater = ok; };
+    b._commitSaleTransaction = function(){ committed++; };
+    var _o = b.document.getElementById; b.document.getElementById = function(id){ if(id === 's-cust') return { style:{}, value:'Cust' }; if(id === 's-invno') return { value:'INV-0100' }; return _o(id); };
+    b.splitRows = [{ amount: paid, mode:'Cash' }];
+    b.recordSale();
+    return { b:b, asked:asked, committed:function(){ return committed; } };
+  }
+  var unpaid = run(0);
+  assert(unpaid.asked.indexOf('Record as unpaid?') > -1 && unpaid.committed() === 0, 'nothing paid: asks first, saves nothing yet: ' + unpaid.asked.join('|'));
+  unpaid.b._okLater(); assert(unpaid.committed() === 1, 'after yes, it records');
+  var paidRun = run(72000);
+  assert(paidRun.asked.indexOf('Record as unpaid?') === -1 && paidRun.committed() === 1, 'a paid bill records straight away');
+});
+test('R30 D1: typing over the SKU of an attached item detaches it, so the bill cannot record the old item', function(){
+  var a = r26App('staff'); a.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', unitWeight:10, qty:1, weight:10, sku:'R-001', status:'available' }];
+  a.UI.saleItems = [{ pid:'p1', qty:1 }];
+  assert(a.detachSaleItemIfSkuChanged(0, 'R-001') === false && a.UI.saleItems[0].pid === 'p1', 'same SKU (any case): still attached');
+  assert(a.detachSaleItemIfSkuChanged(0, 'r-001 ') === false && a.UI.saleItems[0].pid === 'p1', 'case and spaces ignored');
+  assert(a.detachSaleItemIfSkuChanged(0, 'ZZZ') === true && !a.UI.saleItems[0].pid, 'overwritten with ZZZ: detached');
+});
+test('R30 D2: a customer phone must be a real 10-digit mobile (+91 and spaces fine, stored as 10 digits); the same number never makes a second customer', function(){
+  var a = r26App('owner'); a.renderCustomers = function(){};
+  function add(name, phone){
+    a.showAddCustomerModal();   // it clears the boxes first, so fill them after opening
+    r30El(a,'ce-name').value = name; r30El(a,'ce-phone').value = phone; r30El(a,'ce-addr').value = ''; r30El(a,'ce-email').value = ''; r30El(a,'ce-notes').value = '';
+    r30El(a,'ce-save-btn').onclick();
+  }
+  add('Vikram Rao', '123');
+  assert(a.S.customers.length === 0 && a.said.some(function(m){ return /valid 10-digit mobile/.test(m); }), 'phone 123 refused: ' + a.said.join('|'));
+  add('Vikram Rao', '+91 98200 22222');
+  assert(a.S.customers.length === 1 && a.S.customers[0].phone === '9820022222', 'stored normalised: ' + JSON.stringify(a.S.customers));
+  a.upsertCustomer('Vikram Rao', '9820022222');   // what billing does
+  add('Vikram R', '098200 22222');
+  assert(a.S.customers.length === 1, 'same person by normalised phone is one customer, got ' + a.S.customers.length);
+  add('Nobody', '');
+  assert(a.S.customers.length === 2, 'a blank phone is still allowed');
+  // an older record stored with +91 formatting is still matched by billing
+  a.S.customers = [{ id:'old', name:'Meena', phone:'+91 98765 43210' }];
+  a.upsertCustomer('Meena', '9876543210');
+  assert(a.S.customers.length === 1, 'legacy formatted phone matched');
+});
+
+test('R30 B4/B5: Edit / Refund / Void buttons are hidden (not refused) for a manager on a closed-day bill and always for staff; the manager button says Void', function(){
+  var closedSale = r26Sale();
+  function app(role, closed){
+    var a = r26App(role); a.S.sales = [closedSale];
+    if(closed) a.S.dayBook = { opening:null, entries:[], closes:[{ date:a.dbDayKey(closedSale.date), opening:0, closing:0, counted:0, diff:0, ts:new Date().toISOString() }] };
+    return a;
+  }
+  assert(app('manager', false).canChangeBill(closedSale) === true, 'manager, open day: allowed');
+  assert(app('manager', true).canChangeBill(closedSale) === false, 'manager, closed day: hidden');
+  assert(app('owner', true).canChangeBill(closedSale) === true, 'owner, closed day: allowed');
+  assert(app('staff', false).canChangeBill(closedSale) === false, 'staff: never');
+  var m = app('manager', false); m.CURRENT_SALE_FOR_PDF = closedSale; m.openInvoiceModal('<p>x</p>', 'gst');
+  assert(/Void/.test(m.document.getElementById('inv-del-btn').innerHTML) && !/Delete/.test(m.document.getElementById('inv-del-btn').innerHTML), 'manager preview button reads Void');
+  var o = app('owner', false); o.CURRENT_SALE_FOR_PDF = closedSale; o.openInvoiceModal('<p>x</p>', 'gst');
+  assert(/Delete/.test(o.document.getElementById('inv-del-btn').innerHTML), 'owner preview button reads Delete');
+  var c = app('manager', true); c.CURRENT_SALE_FOR_PDF = closedSale; c.openInvoiceModal('<p>x</p>', 'gst');
+  assert(c.document.getElementById('inv-actions-row').style.display === 'none', 'closed-day bill: the action row is hidden for a manager');
+});
+test('R30 B6: a manager editing a bill is asked for the reason in the askReason box (no inline field); the owner is not asked', function(){
+  var a = r26App('manager'); a.S.sales = [r26Sale()]; a._editBillId = 's1';
+  var asked = 0; a.askReason = function(t, h, ok, cb){ asked++; a._reasonCb = cb; };
+  var vals = { 'eb-disc':'0', 'eb-gst':'0' };
+  var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
+  a.closeEditBillModal = function(){}; a.showCustHistory = function(){}; a.renderCustomers = function(){};
+  var saved = 0; a.saveToCloud = function(cb){ saved++; if(cb) cb(null); };
+  a.saveEditBill();
+  assert(asked === 1 && saved === 0, 'manager: box opens, nothing saved yet');
+  a._reasonCb('weight fix');
+  assert(saved === 1 && a.S.sales[0].editHistory[0].reason === 'weight fix', 'after the reason: saved, reason kept in the bill history');
+  var o = r26App('owner'); o.S.sales = [r26Sale()]; o._editBillId = 's1'; var oAsked = 0; o.askReason = function(){ oAsked++; };
+  var _o2 = o.document.getElementById; o.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o2(id); };
+  o.closeEditBillModal = function(){}; o.showCustHistory = function(){}; o.renderCustomers = function(){};
+  o.saveEditBill(); assert(oAsked === 0, 'owner is not asked');
 });
 
 Promise.all(asyncTests).then(function(){
