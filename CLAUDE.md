@@ -74,6 +74,8 @@ Minimum: after a `js/` change run `jewelos-bug-pattern-reviewer` then `jewelos-t
 a deploy run `jewelos-deploy-verifier` before saying it is live; at session end run
 `jewelos-handoff-writer`. Before a destructive step (migration, deploy, DB) run `/careful`.
 
+Installed plugins (claude-security, Security Guidance, 42Crunch, PostHog, Cloudflare connector, sales and copy skills) run automatically per `docs/PLUGIN-ROUTING.md`. Tanish's yes is still needed for the items it lists.
+
 ## graphify (code map, Claude Code only)
 
 Call/dependency graph for "what breaks if I change X". **Never run it inside this folder**
