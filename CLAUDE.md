@@ -89,3 +89,18 @@ mkdir <scratch>/jewelos-copy && cp -r index.html js <scratch>/jewelos-copy/ && c
 
 Rebuild the copy first; it goes stale when `js/` changes. It is a map, not proof: it misses
 `onclick="fn('...')"` string calls, so still grep before deleting. Does not replace `check.bat`.
+
+## WAT: Workflows, Agents, Tools
+
+JewelOS runs on three layers. Keep them separate, so each step stays reliable.
+
+- **Workflows** = markdown SOPs in `workflows/`: ship a batch, a review round, the role walk, the server role check, the read-only database check, the phone check, the HANDOFF entry. Each has Objective, Inputs, Steps with exact commands, Expected output, Edge cases, a **Learned** section and Stop conditions.
+- **Agent** = you. Read the workflow, run the tools in order, recover from failures, ask Tanish where a workflow says to stop. Do not do by hand what a tool does.
+- **Tools** = deterministic scripts and commands. Here they are the existing Node and bat scripts (`check.bat`, `tests/`, `checks/`, `build-cf-deploy-stage.js`, `npx wrangler`, `tools/backup-store.js`), not new Python. **Look in `tools/README.md` first** before writing anything. A step with no tool is listed there as a gap; build nothing without Tanish's yes.
+- `.tmp/` is disposable scratch (gitignored). Secrets live only in the env files outside git, never in a workflow, report or HANDOFF.
+
+**Self-improvement loop.** When something breaks: read the real error, fix the tool or the code, run it again to prove the fix, then write what you learned into that workflow's **Learned** section (one dated line).
+
+**Rules for workflows.** Update a workflow's Learned section after any failure. Edit the existing steps of a workflow only with Tanish's word. A new workflow needs his word. Do not overwrite a workflow.
+
+**If a WAT rule conflicts with a rule above, the JewelOS rule wins.** Examples: deliverables go to the repo, `HANDOFF.md` and `TO-CLAUDE-CODE-R*.md`, not to Google Sheets or Slides; tools are the existing Node and bat scripts, not new Python; deploy, migration and key rotation still need his explicit word.
