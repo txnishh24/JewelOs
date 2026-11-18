@@ -315,7 +315,7 @@ function dbAutoLines(dateKey){
     var base = (e.type === 'reversal') ? _kpById[e.reversesId] : e;
     if(!base || base.type !== 'cash' || base.dbPost !== true || !(parseFloat(base.amount) > 0)) return;
     if(dbDayKey(e.date || e.ts) !== dateKey) return;
-    var krev = (e.type === 'reversal'), kn = ((base.advance && !dbSeesKarigarNames()) ? '' : (findKarigar(base.karigarId) || {}).name) || '';   // order-work payments keep the name; an advance does not for a manager or staff member
+    var krev = (e.type === 'reversal'), kn = (dbSeesKarigarNames() ? (findKarigar(base.karigarId) || {}).name : '') || '';   // order-work payments keep the name; an advance does not for a manager or staff member
     var kmode2 = base.mode || 'cash', kamt = dbRound(parseFloat(base.amount));
     var kl = (base.advance ? 'Karigar advance' : 'Karigar payment') + (kn ? ' - ' + kn : '') + (krev ? ' (reversed)' : '') + (!dbIsCash(kmode2) ? ' (' + kmode2 + ')' : '');
     var kline = {dir:(krev ? 'in' : 'out'), amount:kamt, cat:(krev ? 'karigar-payment-reversal' : 'karigar-payment'), label:kl, src:'karigar', srcId:base.karigarId, ref:e.id};
@@ -329,10 +329,14 @@ function dbAutoLines(dateKey){
 // Staff must not see loan names, karigar names or their rupee amounts. Every girvi and karigar line folds into ONE 'Other cash movements' line
 // (cash net, plus one non-cash and one unknown line when they exist) so Opening + In - Out = Closing still holds.
 function dbStaffMaskGirvi(lines){
-  if(!(SAAS && SAAS.user && SAAS.user.role === 'staff')) return lines;
+  if(!(SAAS && SAAS.user) || isOwner()) return lines;   // owner (and engine tests with no session) see every line
+  // R32 4: staff and read-only fold girvi + karigar + purchase lines; a manager folds PURCHASE lines only (cost side is the owner's;
+  // the manager keeps karigar amounts but not names, see dbSeesKarigarNames). Totals still reconcile: only display lines are folded.
+  var _lim = isStaff();
   var out = [], cash = 0, nc = 0, unk = 0, ncN = 0, unkN = 0;
   lines.forEach(function(l){
-    if(l.src !== 'girvi' && l.src !== 'karigar'){ out.push(l); return; }   // R30 A3: karigar salary, advance and order-payment lines fold in too
+    var _fold = (l.src === 'purchase') || (_lim && (l.src === 'girvi' || l.src === 'karigar'));
+    if(!_fold){ out.push(l); return; }   // R30 A3: karigar salary, advance and order-payment lines fold in too
     if(l.unknown){ unk = dbRound(unk + l.amount); unkN++; }
     else if(l.nonCash){ nc = dbRound(nc + l.amount); ncN++; }
     else cash = dbRound(cash + (l.dir === 'in' ? l.amount : -l.amount));
@@ -1056,7 +1060,7 @@ function _dbPaintDay(){
     // ponytail: a flat count-only banner, not a per-line [Add manual entry]
     // prefill action — add the one-tap version if a real shop hits this often.
     html += '<div class="card" style="border:1px solid var(--danger);">'+
-      '<div style="font-size:12px;color:var(--danger);font-weight:600;">⚠ '+v.unknownCount+' cash movement(s) today have no recorded payment mode and are NOT counted above. Check the lines below and Girvi/Sales for the source.</div>'+
+      '<div style="font-size:12px;color:var(--danger);font-weight:600;">⚠ '+v.unknownCount+' cash movement(s) today have no recorded payment mode and are NOT counted above. Check the lines below and '+(isOwner() ? 'Girvi/Sales' : 'Sales')+' for the source.</div>'+
     '</div>';
   }
 

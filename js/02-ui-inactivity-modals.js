@@ -143,10 +143,11 @@ function switchTab(tab){
   // staff: can only access dashboard, sales, inventory
   // manager/owner: full access
   var staffBlocked = ['reports','customers','girvi','settings','karigars'];
+  if(isReadOnly()) staffBlocked = ['sales','daybook','orders','girvi','settings','karigars'];   // R32 1: read-only keeps Home, Stock, Customers, Reports
   var managerBlocked = []; // managers can access everything
   if(isStaff() && staffBlocked.indexOf(tab) !== -1){
     toast('\u26a0 Ask the owner for access to ' + tab);
-    tab = 'sales'; // redirect to sales
+    tab = isReadOnly() ? 'dashboard' : 'sales'; // redirect to sales (read-only has no Sale tab: Home)
   }
   // Plan-based tab gating removed. Every shop gets every module; whether it
   // can write is decided by paidUntil (subGuard), not by tier.
@@ -210,7 +211,7 @@ var _prodActionId=null;
 function openProdActionMenu(id){
   _prodActionId=id;
   // R30 A1/A2/B4: staff never see Edit, Adjust Stock or Delete (hidden, not show-then-refuse).
-  ['edit','adjust','delete'].forEach(function(a){ var b=document.getElementById('pam-'+a); if(b) b.style.display = isStaff() ? 'none' : ''; });
+  ['edit','adjust','delete'].forEach(function(a){ var b=document.getElementById('pam-'+a); if(b) b.style.display = (isStaff() || (a==='delete' && !isOwner())) ? 'none' : ''; });   // R32 6: Delete is owner only
   var m=document.getElementById('prod-action-modal');
   if(m) m.classList.add('open');
 }
@@ -249,7 +250,7 @@ function loadRates(){
   document.getElementById('rate-sil').value=_unset?'':(S.rates.sil||'');
   // R26: staff can read today's rate to bill, but not change it.
   var _ro = !isOwner();   // R30 B3: rates are owner-only; a manager reads the line, read-only
-  ['g24','g22','g18','g14','sil'].forEach(function(k){ var e=document.getElementById('rate-'+k); if(e) e.readOnly=_ro; });
+  ['g24','g22','g18','g14','sil'].forEach(function(k){ var e=document.getElementById('rate-'+k); if(e){ e.readOnly=_ro; e.tabIndex=_ro?-1:0; e.classList.toggle('rate-ro',_ro); } });   // R32 6: a read-only rate looks like text, not a box
   var _sb = document.querySelector ? document.querySelector('.rate-save') : null; if(_sb) _sb.style.display = _ro ? 'none' : '';
   // One-line summary for the collapsed rate editor (UI/UX audit, 15 Oct).
   var sumEl=document.getElementById('rate-summary-line');
@@ -367,6 +368,7 @@ function renderInv(entrance){
   if(sf==='available') prods=prods.filter(function(p){return p.status!=='sold'&&p.status!=='returned';});
   if(sf==='sold') prods=prods.filter(function(p){return p.status==='sold';});
   if(sf==='returned') prods=prods.filter(function(p){return p.status==='returned';});
+  if(sf==='nocost' && canSeeProfit()) prods=prods.filter(function(p){return !(p.costRate>0);});   // R32 3c
   if(q) prods=prods.filter(function(p){return p.name.toLowerCase().indexOf(q)>-1||p.sku.toLowerCase().indexOf(q)>-1||(p.huid&&p.huid.toLowerCase().indexOf(q)>-1);});
   var isG=m==='gold';
   // Pagination
@@ -596,6 +598,7 @@ function markReturnedSellable(id){
 }
 
 function toggleAdd(){
+  if(isReadOnly()){ guardWrite('add products'); return; }   // R32 1
   var f=document.getElementById('add-form'),b=document.getElementById('add-btn');
   var show=f.style.display==='none';
   f.style.display=show?'block':'none';
@@ -611,6 +614,7 @@ function toggleAdd(){
 }
 
 function addProduct(){
+  if(isReadOnly()){ guardWrite('add products'); return; }   // R32 1
   var name=document.getElementById('f-name').value.trim();
   if(!name){toast('Enter a product name');return;}
   var wt=parseFloat(document.getElementById('f-wt').value)||0;
@@ -719,7 +723,7 @@ function openItemHistoryModal(productId){
 }
 
 function delProd(id){
-  if(!isManager()){ toast('\u26a0 Only owners and managers can delete products'); return; }
+  if(!isOwner()){ toast('\u26a0 Only the owner can delete products'); return; }   // R32 6: manager no longer deletes stock
   var p=S.products.find(function(x){return x.id===id;});
   if(!p) return;
   safeConfirm('Delete product?','This will remove it from all devices and cannot be undone.',function(){
@@ -1328,8 +1332,8 @@ function updateSum(){
   // Show/hide balance due row
   var balDueRow = document.getElementById('balance-due-row');
   var balDisp   = document.getElementById('s-bal-due-display');
-  if(balDueRow) balDueRow.style.display = grand>0 ? 'block' : 'none';
-  if(balDisp)   balDisp.textContent = fmt(grand);
+  if(balDueRow) balDueRow.style.display = (grand>0 && balance>0) ? 'block' : 'none';   // R32 6: never beside the green "Fully Settled" row
+  if(balDisp)   balDisp.textContent = fmt(balance);
 
   // Show still-pending or fully-cleared
   var stillRow    = document.getElementById('still-pending-row');
@@ -1512,7 +1516,8 @@ function buildSaleObj(){
         making:productMakingAmount(p, netWt, unitGrossWt),
         diamond:0,
         huid:p.huid||'',
-        lockedRate:lockedRate
+        lockedRate:lockedRate,
+        costRate:(p.costRate>0?p.costRate:0), costSnap:true   // R33: cost copied at sale time, later cost edits or a deleted product never change this sale's profit
       };
     });
   }
@@ -1646,6 +1651,7 @@ function saleOverpaidBy(sale){
 }
 
 function recordSale(){
+  if(isReadOnly()){ guardWrite('record sales'); return; }   // R32 1: staff may sell (their own limits apply); read-only never
   if(!subGuard('recording a sale')) return;
   if(_saleSubmitLock){ toast('Sale already being recorded — please wait'); return; }
   if(!document.getElementById('s-cust').value.trim()){toast('Enter customer name');return;}

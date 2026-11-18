@@ -639,6 +639,8 @@ function applyFeatureGates(){
   if(isStaff()){
     // Hide tabs staff cannot access
     var staffHide = ['customers','reports','girvi','settings','karigars'];
+    // R32 1: read-only sees only what is safe to read: Home, Stock list, Customers list, Reports (no profit). No Sale, Day Book, Orders, Girvi, Karigars, Settings.
+    if(isReadOnly()) staffHide = ['sales','daybook','orders','girvi','settings','karigars'];
     staffHide.forEach(function(t){
       var btn = document.getElementById('bn-'+t);
       if(btn) btn.style.display = 'none';
@@ -656,7 +658,7 @@ function applyFeatureGates(){
       staffBadge = document.createElement('div');
       staffBadge.id = 'staff-role-badge';
       staffBadge.style.cssText = 'font-size:var(--text-xs);padding:3px 10px;border-radius:var(--radius-pill);background:var(--warning-soft);color:var(--warning);font-weight:700;letter-spacing:.06em;';
-      staffBadge.textContent = 'STAFF';
+      staffBadge.textContent = isReadOnly() ? 'VIEW ONLY' : 'STAFF';
       var topbar = document.querySelector('header.topbar');
       if(topbar) topbar.appendChild(staffBadge);
     }
@@ -664,7 +666,12 @@ function applyFeatureGates(){
   // R30 B2: the cost side (Purchases tab, the "Purchase rate" cost field on Add product) is the owner's. Staff and manager both lose it.
   var _own = !!canSeeProfit();
   var _gear = document.getElementById('hdr-settings-btn'); if(_gear) _gear.style.display = isStaff() ? 'none' : '';   // R30 B4: staff cannot open Settings; the gear led nowhere
+  var _ncO = document.getElementById('inv-opt-nocost'); if(_ncO){ _ncO.hidden = !_own; _ncO.disabled = !_own; }   // R32 3c: owner only
+  var _caB = document.getElementById('cust-add-btn'); if(_caB) _caB.style.display = isReadOnly() ? 'none' : '';   // R32 1
+  var _aft = document.getElementById('add-form-title'); if(_aft) _aft.style.display = isReadOnly() ? 'none' : '';
+  var _addB = document.getElementById('add-btn'); if(_addB) _addB.style.display = isReadOnly() ? 'none' : '';   // R32 1: read-only cannot add products
   var _pTab = document.getElementById('invsub-tab-purchases'); if(_pTab) _pTab.style.display = _own ? '' : 'none';
+  var _stRow = document.querySelector('#panel-inventory > .metal-tabs'); if(_stRow) _stRow.style.display = _own ? '' : 'none';   // R32 6: with Purchases hidden, a lone full-width "Stock" button is left: hide the row
   var _cr = document.getElementById('f-costrate'); var _crFg = _cr && _cr.closest ? _cr.closest('.fg') : null; if(_crFg) _crFg.style.display = _own ? '' : 'none';
 }
 
@@ -708,7 +715,12 @@ function saasActivityLog(type, note){
 // ── ROLE-BASED ACCESS ────────────────────────────────────────────────
 function isOwner(){  return SAAS.user && SAAS.user.role === 'owner';   }
 function isManager(){ return SAAS.user && (SAAS.user.role==='owner'||SAAS.user.role==='manager'); }
-function isStaff(){  return SAAS.user && SAAS.user.role === 'staff';   }
+// R32 1: isStaff() means "limited user": staff AND read-only. Every existing staff gate (folded Day Book, no girvi/profit/cost,
+// no edit/adjust/delete, guardWrite) therefore also applies to read-only. A role test written as === 'staff' misses read-only.
+function isStaff(){  return !!(SAAS.user && (SAAS.user.role === 'staff' || SAAS.user.role === 'readonly')); }
+function isReadOnly(){ return !!(SAAS.user && SAAS.user.role === 'readonly'); }
+// R32 1: who may change data at all: owner, manager, staff (staff still limited by their own gates). Read-only: never.
+function canWrite(){ return !!(SAAS.user && (SAAS.user.role === 'owner' || SAAS.user.role === 'manager' || SAAS.user.role === 'staff')); }
 
 // R26: owner-only gate. Call it as the FIRST line INSIDE a function body, so a stale
 // button, a console call or a deep link cannot get round it by the button being hidden.
@@ -780,6 +792,10 @@ function fillDiscountCaps(){
 
 // Staff guard: blocks delete/edit operations for staff-only users
 function guardWrite(action){
+  if(isReadOnly()){
+    toast('\u26a0 This is a view-only account: it cannot '+action+'. Ask the owner.');
+    return false;
+  }
   if(isStaff()){
     toast('\u26a0 Staff accounts cannot '+action+'. Ask the owner or manager.');
     return false;
@@ -1734,7 +1750,7 @@ function runInsightEngine(){
   }
 
   // ── RULE 2: Profit margin health ─────────────────────────────────
-  if(thisM.revenue > 0 && canSeeProfit()){
+  if(thisM.revenue > 0 && canSeeProfit() && !shopHasNoCosts()){
     var margin = thisM.margin;
     if(margin < 5){
       insights.push({type:'negative',icon:'⚠️',

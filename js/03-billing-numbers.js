@@ -49,8 +49,9 @@ function openInvoiceModal(html, initialBillType){
   // this frame; a sandboxed frame still renders and prints normally, it just
   // can't execute script or reach the parent's origin (this matters because
   // the session token now lives in localStorage -- see F1, 29 Sep).
-  document.getElementById('invoice-content').innerHTML = '<iframe id="inv-frame" sandbox="" style="width:100%;height:500px;border:none;border-radius:8px;" srcdoc=""></iframe>';
+  document.getElementById('invoice-content').innerHTML = '<div id="inv-frame-wrap"><iframe id="inv-frame" sandbox="" style="width:100%;height:500px;border:none;border-radius:8px;" srcdoc=""></iframe></div>';
   document.getElementById('invoice-modal').classList.add('open');
+  fitInvoiceFrame();   // R32 2
   // R28: staff cannot edit, refund or delete (the functions refuse anyway); do not show the buttons.
   // R30 B4: a bill on a closed day cannot be changed by a manager either, so hide the buttons rather than show-then-refuse.
   var _ar = document.getElementById('inv-actions-row'); if(_ar) _ar.style.display = canChangeBill(CURRENT_SALE_FOR_PDF) ? 'flex' : 'none';
@@ -59,8 +60,22 @@ function openInvoiceModal(html, initialBillType){
     var f = document.getElementById('inv-frame');
     if(f) f.srcdoc = html;
     setBillType(bt);
+    fitInvoiceFrame();
   }, 80);
 }
+// R32 2: the invoice is a fixed-width page (up to ~710px). On a phone the preview frame is ~310px wide, so the right columns
+// (GST, Amount, Rate, Making) were cut off. Under 520px wide we lay the frame out at 720px and scale it down to fit (CSS in index.html,
+// screen only: printing and the PDF never see the scale). The page inside is a sandboxed srcdoc, so the scaling has to happen outside it.
+var INV_NATURAL_W = 720;
+function fitInvoiceFrame(){
+  var w = document.getElementById('inv-frame-wrap'); if(!w || !w.style || typeof w.style.setProperty !== 'function') return;
+  var avail = w.clientWidth || 0;
+  var narrow = !!(window.matchMedia && window.matchMedia('(max-width:520px)').matches);
+  var sc = (narrow && avail > 0 && avail < INV_NATURAL_W) ? avail / INV_NATURAL_W : 1;
+  w.style.setProperty('--inv-scale', String(sc));
+  w.style.setProperty('--inv-h', Math.round(520 / sc) + 'px');
+}
+window.addEventListener('resize', fitInvoiceFrame);
 // Edit / Refund / Delete from the bill preview: close the preview first so the
 // next modal is not stacked under it, then act on the bill that was showing.
 function invoiceBillAction(fn){
@@ -250,8 +265,7 @@ function upsertCustomer(name, phone, extraFields){
       : c.name.toLowerCase().trim() === key;
   });
   if(existing){
-    // Update name to latest (in case of typo correction)
-    existing.name = name;
+    // R32 5: the saved name is never overwritten by a later sale or Add Customer (a mistyped name on one bill used to rename the customer). Rename only via Edit customer.
     if(phone) existing.phone = phone;
     if(extraFields){
       if(extraFields.addr  && !existing.addr)  existing.addr  = extraFields.addr;
@@ -277,6 +291,7 @@ function upsertCustomer(name, phone, extraFields){
 
 // Edit a customer record directly
 function saveCustomerEdit(custId){
+  if(isReadOnly()){ guardWrite('edit customers'); return; }   // R32 1
   var c = (S.customers||[]).find(function(x){ return x.id===custId; });
   if(!c){ toast('Customer not found'); return; }
   var nameEl  = document.getElementById('ce-name');
@@ -293,6 +308,10 @@ function saveCustomerEdit(custId){
     if(!_p10e){ toast('\u26a0 Enter a valid 10-digit mobile number (starting 6 to 9), or leave it blank'); return; }
     _newPhone = _p10e;
   }
+  if(_newPhone && _newPhone !== c.phone){   // R32 5: moving to a number another customer already has would merge two people
+    var _dupE = (S.customers||[]).find(function(x){ return x.id!==c.id && custPhoneKey(x.phone)===custPhoneKey(_newPhone); });
+    if(_dupE){ toast('⚠ That number is already saved as '+_dupE.name); return; }
+  }
   c.name  = newName;
   c.phone = _newPhone;
   c.addr  = addrEl  ? addrEl.value.trim()  : c.addr;
@@ -308,6 +327,7 @@ function saveCustomerEdit(custId){
 }
 
 function showCustomerEditModal(custId){
+  if(isReadOnly()){ guardWrite('edit customers'); return; }   // R32 1
   var c = (S.customers||[]).find(function(x){ return x.id===custId; });
   if(!c){ toast('Customer not found'); return; }
   var modal = document.getElementById('cust-edit-modal');
@@ -322,6 +342,7 @@ function showCustomerEditModal(custId){
 }
 
 function showAddCustomerModal(){
+  if(isReadOnly()){ guardWrite('add customers'); return; }   // R32 1
   var modal = document.getElementById('cust-edit-modal');
   if(!modal) return;
   document.getElementById('ce-name').value  = '';
@@ -339,16 +360,17 @@ function showAddCustomerModal(){
       if(!_p10){ toast('\u26a0 Enter a valid 10-digit mobile number (starting 6 to 9), or leave it blank'); return; }
       phone = _p10;
     }
-    var _wasThere = !!(phone && (S.customers||[]).some(function(c){ return custPhoneKey(c.phone) === custPhoneKey(phone); }));
+    var _there = phone ? (S.customers||[]).find(function(c){ return custPhoneKey(c.phone) === custPhoneKey(phone); }) : null;   // R32 5
+    var _wasThere = !!_there;
     upsertCustomer(name, phone, {
       addr:  (document.getElementById('ce-addr').value||'').trim(),
       email: (document.getElementById('ce-email').value||'').trim()
     });
     // Set notes separately since upsertCustomer doesn't handle it
     var nc = (S.customers||[]).find(function(c){ return phone ? custPhoneKey(c.phone)===custPhoneKey(phone) : (c.name===name&&!c.phone); });   // R30 D2: same match upsertCustomer used
-    if(nc) nc.notes = (document.getElementById('ce-notes').value||'').trim();
+    if(nc && !_wasThere) nc.notes = (document.getElementById('ce-notes').value||'').trim();   // R32 5: an existing customer keeps its notes
     saveToCloud(function(err){
-      if(!err){ toast(_wasThere ? '\u2705 This number was already saved. Details updated' : '\u2705 Customer added'); document.getElementById('cust-edit-modal').style.display='none'; renderCustomers(); }
+      if(!err){ toast(_wasThere ? '\u2705 Already saved as '+_there.name+'. Nothing changed' : '\u2705 Customer added'); document.getElementById('cust-edit-modal').style.display='none'; renderCustomers(); }
     });
   };
   modal.style.display = 'flex';
@@ -473,7 +495,7 @@ function renderCustomers(entrance){
           (f.totalExposure>0?'<div style="font-size:11px;color:'+riskColor+';font-weight:600;">Total exposure: \u20b9'+Math.round(f.totalExposure).toLocaleString('en-IN')+'</div>':'')+
         '</div>'+
       '</div>'+
-      (_custId?'<div style="text-align:right;margin-top:6px;"><button onclick="event.stopPropagation();showCustomerEditModal(\''+ jsAttrEsc(_custId) +'\')" style="font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border2);background:var(--card2);color:var(--text2);cursor:pointer;font-family:inherit;">✏️ Edit</button></div>':'')+
+      (_custId && !isReadOnly()?'<div style="text-align:right;margin-top:6px;"><button onclick="event.stopPropagation();showCustomerEditModal(\''+ jsAttrEsc(_custId) +'\')" style="font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border2);background:var(--card2);color:var(--text2);cursor:pointer;font-family:inherit;">✏️ Edit</button></div>':'')+
       '';
     listEl.appendChild(div);
   });
@@ -816,6 +838,7 @@ function _deleteSaleGo(sale, saleId, isVoid, voidReason){
 
 // ─── EDIT PRODUCT ────────────────────────────────────────────────────────
 function editProd(id){
+  if(!guardWrite('edit products')) return;   // R32 6: the console or a stale button cannot open the form for staff / read-only
   var p=S.products.find(function(x){return x.id===id;});
   if(!p) return;
   document.getElementById('ep-id').value=p.id;
@@ -840,6 +863,8 @@ function editProd(id){
   document.getElementById('ep-stonewt').value=p.stoneWt||'';
   document.getElementById('ep-wastage').value=p.wastagePct||'';
   document.getElementById('ep-hallmark').value=p.hallmarkCentre||'';
+  var _crFg=document.getElementById('ep-costrate-fg');   // R32 3d: the owner can repair a missing cost; a manager never sees the field
+  if(_crFg){ _crFg.style.display = canSeeProfit() ? '' : 'none'; document.getElementById('ep-costrate').value = p.costRate>0 ? p.costRate : ''; }
   document.getElementById('ep-photo').value=p.photo||'';
   document.getElementById('ep-notes').value=p.notes||'';
   var purList=p.metal==='gold'?['24K','22K','18K','14K','Gold Plated']:['999 Pure','925 Sterling','800','Silver Plated'];
@@ -907,6 +932,7 @@ function saveEditProd(){
   p.weight = Math.round(wt*qtyNow*1000)/1000;
   p.netWeight=parseFloat(document.getElementById('ep-netwt').value)||0;
   p.mcRate=epMcRate;
+  if(canSeeProfit()){ var _ecr=document.getElementById('ep-costrate'); if(_ecr){ var _cv=parseFloat(_ecr.value); p.costRate = (_cv>0) ? _cv : 0; } }   // R32 3d: owner only
   p.stoneWt=_epStone; p.wastagePct=_epWast;
   p.hallmarkCentre=((document.getElementById('ep-hallmark')||{value:''}).value||'').trim();
   if(!p.netWeight && _epStone>0) p.netWeight=Math.round((wt-_epStone)*qtyNow*1000)/1000; // net = gross - stones when not typed
@@ -1162,11 +1188,12 @@ function renderReports(entrance){
   var girviTotal   = (S.girvi||[]).filter(function(g){return !g._deleted && g.status!=='closed';}).reduce(function(s,g){return s+girviOutstanding(g);},0);
 
   var _showP = canSeeProfit();   // R26: profit, cost, margin and P&L are the owner's only
+  var _noCosts = _showP && shopHasNoCosts();   // R33: no product has a cost: no profit figure anywhere
   // ── Key metrics row ──
   var rm=document.getElementById('rep-metrics');
   if(rm) rm.innerHTML=
     '<div class="metric"><div class="metric-label">Revenue</div><div class="metric-value" style="color:var(--gold-dark)">'+fmt(mProfit.revenue)+'</div><div class="metric-sub">'+plural(monthSales.length,'bill')+' + girvi interest'+(mProfit.refunds>0?' − '+fmt(mProfit.refunds)+' refunds':'')+'</div></div>'+
-    (_showP ? '<div class="metric"><div class="metric-label">Profit</div><div class="metric-value" style="color:'+(mProfit.netProfit>=0?'var(--success)':'var(--danger)')+'">'+fmt(mProfit.netProfit)+'</div><div class="metric-sub">net of expenses</div></div>' : '')+
+    (_noCosts ? '<div class="metric"><div class="metric-label">Profit</div><div class="metric-value" style="font-size:14px;color:var(--warning);">'+NO_COST_MSG+'</div><div class="metric-sub"><a href="#" onclick="showNoCostProducts();return false;">'+(S.products||[]).length+' products have no cost</a></div></div>' : _showP ? '<div class="metric"><div class="metric-label">Profit</div><div class="metric-value" style="color:'+(mProfit.netProfit>=0?'var(--success)':'var(--danger)')+'">'+fmt(mProfit.netProfit)+'</div><div class="metric-sub">net of expenses'+(mProfit.noCostCount ? '<br><span style="color:var(--warning);">'+mProfit.noCostCount+' sale'+(mProfit.noCostCount===1?'':'s')+' with cost missing left out</span>' : '')+'</div></div>' : '')+
     '<div class="metric"><div class="metric-label">GST Collected</div><div class="metric-value">'+fmt(mProfit.gst)+'</div><div class="metric-sub">govt portion'+(mProfit.refundGst>0?'<br>Net of '+fmt(mProfit.refundGst)+' GST on refunds. Not in the GSTR-1 export — issue credit notes separately.':'')+'</div></div>'+
     '<div class="metric"><div class="metric-label">Total Collected</div><div class="metric-value" style="color:var(--success)">'+fmt(cf.cashIn)+'</div><div class="metric-sub">cash + UPI + card — not the same as Day Book’s cash-only "Cash In"</div></div>'+
     '<div class="metric"><div class="metric-label">Credit Given</div><div class="metric-value" style="color:var(--danger)">'+fmt(cf.credit)+'</div><div class="metric-sub">pending this month</div></div>'+
@@ -1185,12 +1212,12 @@ function renderReports(entrance){
   var le=document.getElementById('rep-chart-labels');
   if(ce) ce.innerHTML=chartData.map(function(d){
     var hRev   =Math.max(4,Math.round(d.rev/mx*80));
-    var hProfit=_showP ? Math.max(2,Math.round(Math.max(0,d.profit)/mx*80)) : 0;
+    var hProfit=(_showP && !_noCosts) ? Math.max(2,Math.round(Math.max(0,d.profit)/mx*80)) : 0;
     return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">'+
       '<div style="font-size:var(--text-xs);color:var(--text3);">'+(d.rev>0?fmt(d.rev).replace('\u20b9',''):'')+'</div>'+
       '<div style="width:100%;position:relative;height:80px;display:flex;align-items:flex-end;gap:1px;">'+
         '<div style="flex:1;height:'+hRev+'px;background:'+(d.active?'var(--gold)':'var(--bg3)')+';border-radius:3px 3px 0 0;"></div>'+
-        (_showP ? '<div style="flex:1;height:'+hProfit+'px;background:'+(d.profit>=0?'var(--success)':'var(--danger)')+';border-radius:3px 3px 0 0;opacity:0.8;"></div>' : '')+
+        ((_showP && !_noCosts) ? '<div style="flex:1;height:'+hProfit+'px;background:'+(d.profit>=0?'var(--success)':'var(--danger)')+';border-radius:3px 3px 0 0;opacity:0.8;"></div>' : '')+
       '</div></div>';
   }).join('');
   if(le) le.innerHTML=chartData.map(function(d){
@@ -1219,7 +1246,8 @@ function renderReports(entrance){
     var silverSold=monthSales.reduce(function(s,x){return s+x.items.filter(function(i){return i.metal==='silver';}).reduce(function(a,i){return a+i.weight*i.qty;},0);},0);
     var expByCat=Object.keys(mProfit.expenses.byCat);
     var expBreakdownHtml=dbExpenseBreakdownHtml(mProfit.expenses.byCat);
-    plEl.innerHTML=
+    if(_noCosts) plEl.innerHTML='<div style="padding:12px;font-size:13px;color:var(--warning);"><b>'+NO_COST_MSG+'</b><br><span style="color:var(--text3);">No product has a cost price yet, so profit and margin cannot be worked out.</span> <a href="#" onclick="showNoCostProducts();return false;">Add costs</a></div>';
+    else plEl.innerHTML=
       '<div style="display:grid;gap:0;">'+
       plRow('(+) Total Revenue',     fmt(mProfit.revenue),  'var(--gold-dark)', true)+
       plRow('(-) Metal Cost',        fmt(mProfit.cost),     'var(--danger)',    false)+

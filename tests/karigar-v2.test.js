@@ -3339,7 +3339,7 @@ test('R21 A2: the Day Book keeps the amount but a manager or staff does not see 
     a.SAAS.user = {name:'X', email:'x@example.com', role:role}; var l = labels();
     var sal = l.filter(function(x){ return x.cat === 'karigar-salary'; })[0], adv = l.filter(function(x){ return /advance/i.test(x.label); });
     eq(sal.label, 'Karigar salary', role); eq(sal.amount, 100, 'the amount stays for the cash tally'); ok(adv.length >= 1 && adv.every(function(x){ return !/Leaky/.test(x.label) && x.amount > 0; }), role + ' advance lines have no name');
-    var pay = l.filter(function(x){ return x.cat === 'karigar-payment' && !/advance/i.test(x.label); }); ok(pay.length === 1 && /Karigar payment - Leaky/.test(pay[0].label), role + ': order payment lines keep today\'s text');
+    var pay = l.filter(function(x){ return x.cat === 'karigar-payment' && !/advance/i.test(x.label); }); ok(pay.length === 1 && /^Karigar payment$/.test(pay[0].label) && pay[0].amount > 0, role + ': R32 4: order payment lines keep the amount, not the name; (was: keep today\'s text');
   });
 });
 test('R21 A3: the legacy closed-job page hides the labour rupees from a manager', function(){

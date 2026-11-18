@@ -236,6 +236,8 @@ function _readUnsynced(){ try{ return JSON.parse(localStorage.getItem(_unsyncedK
 function _clearUnsynced(){ try{ localStorage.removeItem(_unsyncedKey()); }catch(e){} }
 
 function saveToCloud(callback){
+  // R32 1: read-only never writes. The server refuses it too; this stops the phone keeping a change it cannot save.
+  if(typeof isReadOnly === 'function' && isReadOnly()){ toast('\u26a0 View-only account: nothing was saved. Ask the owner.'); if(callback) callback(new Error('readonly')); return; }
   if(isSaving){ setTimeout(function(){ saveToCloud(callback); }, 400); return; }
   if(saasReauthPending()){
     saveCache();
@@ -2128,7 +2130,32 @@ function recordKarigarPayment(karigarId, type, amount, note, done, opId){
   kg3PayOrderSave(karigarId, type, String(amount), note || '', opId || ('kp' + Date.now() + Math.floor(Math.random() * 100000)), cb, {legacy:true});
 }
 
+// R32 3: a STOCK item whose product has no cost rate (a manager added it: the cost field is the owner's; or the owner left it blank)
+// has an UNKNOWN cost. It used to be costed at the sale rate, which made profit = making charge only and hid the gap.
+// Unknown cost is never zero profit and never sale rate: the sale is flagged "cost missing" and left out of profit totals.
+// Custom items (no stock product) keep their old rule, see getItemCostRate.
+function saleItemCostMissing(i){
+  if(!i || i.isCustom || i.pid == null || i.pid === '') return false;
+  if(i.costRate > 0) return false;
+  if(i.costSnap) return true;   // R33: snapshot taken at sale time and it was empty: stays unknown
+  var p = (S.products||[]).find(function(x){ return x.id===i.pid; });
+  return !!(p && !(p.costRate > 0));
+}
+// R33: a shop where NO product has a cost price can show no honest profit at all: say so instead of Rs 0.
+var NO_COST_MSG = 'Add product costs to see profit';
+function shopHasNoCosts(){
+  var ps = S.products||[];
+  return ps.length>0 && ps.every(function(x){ return !(x.costRate>0); });
+}
+function saleCostMissing(sale){
+  return (sale && sale.items || []).some(saleItemCostMissing);
+}
 function calcItemProfit(item){
+  if(saleItemCostMissing(item)){
+    var _sr = getItemRate(item), _w = parseFloat(item.weight)||0, _q = parseInt(item.qty)||1;
+    var _sell = _sr*_w*_q + itemMakingAmount(item) + (parseFloat(item.diamond)||0)*_q;
+    return { goldSell:_sr*_w*_q, goldCost:0, mcCharged:itemMakingAmount(item), mcCost:0, stoneSell:(parseFloat(item.diamond)||0)*_q, stoneCost:0, totalSell:_sell, totalCost:0, profit:0, costMissing:true };
+  }
   var sellRate  = getItemRate(item);
   var costRate  = getItemCostRate(item);
   var netWt     = parseFloat(item.weight) || 0;
@@ -2170,7 +2197,7 @@ function calcItemProfit(item){
 // reversal always matches what it was originally charged as.
 function saleItemCost(i){
   var p = S.products.find(function(x){ return x.id===i.pid; });
-  var costRate = (p && p.costRate > 0) ? p.costRate : getItemRate(i);
+  var costRate = (i.costSnap && i.costRate > 0) ? i.costRate : (p && p.costRate > 0) ? p.costRate : getItemRate(i);   // R33: snapshot first
   var stoneCost= (parseFloat(i.stoneCost)||0) * (i.qty||1);
   // karigarCostOf (Opus review, 27 Oct): calcItemProfit alone only feeds the
   // Category Intelligence table -- calcSaleProfit/calcRefundAdj go through
@@ -2181,6 +2208,9 @@ function saleItemCost(i){
 
 function calcSaleProfit(sale){
   var t         = calcSaleTotals(sale);
+  if(saleCostMissing(sale)){   // R32 3: revenue is real, profit is unknown: 0 here, so every profit total skips it; callers read costMissing
+    return { revenue:t.grand, cost:0, gstPaid:t.gstAmt||0, profit:0, margin:0, costMissing:true };
+  }
   var itemsCost = 0;
   (sale.items||[]).forEach(function(i){ itemsCost += saleItemCost(i); });
   // Revenue = grand total (locked)
@@ -2201,6 +2231,7 @@ function calcSaleProfit(sale){
 // cost is the cost of whichever items actually came back with those refunds.
 function calcRefundAdj(sale, from, to){
   var amount=0, cost=0, g=parseFloat(sale.gst)||0, items=sale.items||[];
+  var _miss = saleCostMissing(sale);   // R32 3: a refund on a cost-unknown sale reverses no cost and no profit (the sale added none)
   var tagged=[]; (sale.refunds||[]).forEach(function(r){ (r.items||[]).forEach(function(i){ tagged.push(i); }); });
   // Refunds issued before this fix never recorded which items came back --
   // only the sale-level returnedItemIdx did. Attribute those to the first
@@ -2212,10 +2243,10 @@ function calcRefundAdj(sale, from, to){
     if((from && d<from) || (to && d>to)) return;
     amount += parseFloat(r.amount)||0;
     var idx = r.items || (n===0 ? legacy : []);
-    idx.forEach(function(i){ if(items[i]) cost += saleItemCost(items[i]); });
+    if(!_miss) idx.forEach(function(i){ if(items[i]) cost += saleItemCost(items[i]); });
   });
   var gst = amount*g/(100+g);
-  return {amount:amount, gst:gst, cost:cost, profit:-(amount-gst)+cost};
+  return {amount:amount, gst:gst, cost:cost, profit:_miss ? 0 : -(amount-gst)+cost, costMissing:_miss};
 }
 
 // ── CASH FLOW ENGINE ─────────────────────────────────────────────────
@@ -2872,9 +2903,10 @@ function calcMonthProfit(year, month){
   var sales = S.sales.filter(function(s){
     var d=new Date(s.date); return d.getFullYear()===year && d.getMonth()===month;
   });
-  var totalRevenue=0, totalCost=0, totalProfit=0, totalGST=0;
+  var totalRevenue=0, totalCost=0, totalProfit=0, totalGST=0, noCostCount=0, noCostRev=0;
   sales.forEach(function(s){
     var p = calcSaleProfit(s);
+    if(p.costMissing){ noCostCount++; noCostRev += p.revenue; }   // R32 3: kept in revenue, left out of profit and margin
     totalRevenue += p.revenue;
     totalCost    += p.cost;
     totalProfit  += p.profit;
@@ -2887,6 +2919,7 @@ function calcMonthProfit(year, month){
   S.sales.forEach(function(s){
     if(!s.refunds || !s.refunds.length) return;
     var adj = calcRefundAdj(s, monthStart, monthEnd);
+    if(adj.costMissing) noCostRev -= adj.amount;
     totalRevenue   -= adj.amount;
     totalCost      -= adj.cost;
     totalGST       -= adj.gst;
@@ -2909,15 +2942,17 @@ function calcMonthProfit(year, month){
       }
     });
   });
-  var margin = totalRevenue>0 ? (totalProfit/totalRevenue*100) : 0;
+  var _mRev = totalRevenue - noCostRev;   // R32 3: margin only over sales whose cost is known (plus girvi interest)
+  var margin = _mRev>0 ? (totalProfit/_mRev*100) : 0;
   var expenses = calcDayBookExpenses(year, month);
-  return { revenue:totalRevenue, cost:totalCost, profit:totalProfit, gst:totalGST, margin:margin, count:sales.length, expenses:expenses, netProfit: totalProfit-expenses.total, refunds:totalRefunds, refundGst:totalRefundGst };
+  return { revenue:totalRevenue, cost:totalCost, profit:totalProfit, gst:totalGST, margin:margin, count:sales.length, noCostCount:noCostCount, noCostRev:noCostRev, expenses:expenses, netProfit: totalProfit-expenses.total, refunds:totalRefunds, refundGst:totalRefundGst };
 }
 
 function calcAllTimeProfit(){
-  var totalRevenue=0, totalProfit=0;
+  var totalRevenue=0, totalProfit=0, noCostCount=0, noCostRev=0;
   S.sales.forEach(function(s){
     var p=calcSaleProfit(s);
+    if(p.costMissing){ noCostCount++; noCostRev += p.revenue; }   // R32 3
     totalRevenue += p.revenue;
     totalProfit  += p.profit;
   });
@@ -2925,6 +2960,7 @@ function calcAllTimeProfit(){
   S.sales.forEach(function(s){
     if(!s.refunds || !s.refunds.length) return;
     var adj = calcRefundAdj(s);
+    if(adj.costMissing) noCostRev -= adj.amount;
     totalRevenue -= adj.amount;
     totalProfit  += adj.profit;
   });
@@ -2938,7 +2974,7 @@ function calcAllTimeProfit(){
     });
   });
   var expenses = calcDayBookExpenses();
-  return { revenue:totalRevenue, profit:totalProfit, margin: totalRevenue>0?(totalProfit/totalRevenue*100):0, expenses:expenses, netProfit: totalProfit-expenses.total };
+  return { revenue:totalRevenue, profit:totalProfit, noCostCount:noCostCount, noCostRev:noCostRev, margin: (totalRevenue-noCostRev)>0?(totalProfit/(totalRevenue-noCostRev)*100):0, expenses:expenses, netProfit: totalProfit-expenses.total };
 }
 
 // ── CUSTOMER FINANCIAL PROFILE ───────────────────────────────────────

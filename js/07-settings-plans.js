@@ -11,6 +11,7 @@ function showPdfReport(){
   var mName = ['January','February','March','April','May','June','July','August','September','October','November','December'][month];
   var thisM = calcMonthProfit(year,month);
   var allT  = calcAllTimeProfit();
+  var _pv = function(v){ return shopHasNoCosts() ? NO_COST_MSG : v; };   // R33: no product has a cost: say so, not Rs 0
   var shopName = escHtml(SAAS.shop?SAAS.shop.name:'My Shop'); // HTML-only in this report
   var pending  = S.sales.reduce(function(s,x){return s+calcSaleTotals(x).bal;},0);
   var girviTot = (S.girvi||[]).filter(function(g){return g.status!=='closed';}).reduce(function(s,g){return s+girviOutstanding(g);},0);
@@ -27,14 +28,14 @@ function showPdfReport(){
     '<div style="margin-bottom:20px;">'+
       '<h3 style="font-size:14px;font-weight:700;color:#333;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:10px;">P&L Summary — '+mName+'</h3>'+
       pdfRow('Total Revenue',      fmt(thisM.revenue),'var(--gold)',true)+
-      pdfRow('Metal Cost',         fmt(thisM.cost),   'var(--danger)',false)+
+      pdfRow('Metal Cost',         _pv(fmt(thisM.cost)),   'var(--danger)',false)+
       pdfRow('GST Collected',      fmt(thisM.gst),    '#666',  false)+
       '<div style="border-top:2px solid #eee;margin:8px 0;"></div>'+
-      pdfRow('Gross Profit',       fmt(thisM.profit), 'var(--gold)',true)+
+      pdfRow('Gross Profit',       _pv(fmt(thisM.profit)), 'var(--gold)',true)+
       pdfRow('Operating Expenses', '(−) '+fmt(thisM.expenses.total), 'var(--danger)',false)+
       '<div style="border-top:2px solid #eee;margin:8px 0;"></div>'+
-      pdfRow('Net Profit',         fmt(thisM.netProfit), thisM.netProfit>=0?'var(--success)':'var(--danger)',true)+
-      pdfRow('Gross margin',       thisM.margin.toFixed(1)+'%', 'var(--success)',false)+
+      pdfRow('Net Profit',         _pv(fmt(thisM.netProfit)), thisM.netProfit>=0?'var(--success)':'var(--danger)',true)+
+      pdfRow('Gross margin',       _pv(thisM.margin.toFixed(1)+'%'), 'var(--success)',false)+
       pdfRow('Bills This Month',   thisM.count+' invoices','#666',false)+
     '</div>'+
     // Capital
@@ -50,10 +51,10 @@ function showPdfReport(){
     '<div style="margin-bottom:20px;">'+
       '<h3 style="font-size:14px;font-weight:700;color:#333;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:10px;">All-Time Summary</h3>'+
       pdfRow('Total Revenue',  fmt(allT.revenue), 'var(--gold)',false)+
-      pdfRow('Gross Profit',   fmt(allT.profit),  'var(--gold)',false)+
+      pdfRow('Gross Profit',   _pv(fmt(allT.profit)),  'var(--gold)',false)+
       pdfRow('Operating Expenses', '(−) '+fmt(allT.expenses.total), 'var(--danger)',false)+
-      pdfRow('Net Profit',     fmt(allT.netProfit), allT.netProfit>=0?'var(--success)':'var(--danger)',true)+
-      pdfRow('Gross margin',   allT.margin.toFixed(1)+'%','var(--success)',false)+
+      pdfRow('Net Profit',     _pv(fmt(allT.netProfit)), allT.netProfit>=0?'var(--success)':'var(--danger)',true)+
+      pdfRow('Gross margin',   _pv(allT.margin.toFixed(1)+'%'),'var(--success)',false)+
       pdfRow('Total Sales',    S.sales.length+' invoices','#666',false)+
     '</div>'+
     // Top customers
@@ -113,7 +114,7 @@ function exportCSV(){
       (s.items||[]).map(function(i){return i.name;}).join('; '),
       wt.toFixed(2), Math.round(t.grand), Math.round(t.adv),
       Math.round(t.bal), Math.round(t.gstAmt)
-    ].concat(_showP ? [Math.round(p.profit)] : []));
+    ].concat(_showP ? [p.costMissing ? 'cost missing' : Math.round(p.profit)] : []));
   });
   var csv = rows.map(function(r){return r.map(csvCell).join(',');}).join('\n');
   var blob = new Blob([csv],{type:'text/csv'});

@@ -22,7 +22,7 @@ re-open it immediately before you write and confirm your entry is still there af
 
 ## NOW — who is working, on what
 
-> **Nobody (R30 done on branch `claude/r30-role-fixes`, see 240th entry; merged into local main 18 Nov, NOT deployed).** Previous: **Nobody. batch75 LIVE on the Cloudflare worker since 15 Nov (Version ID `37cdfcaf-44aa-4480-97cc-5d29bd37d58a`, commit `c1a9d7e`, tag `batch75-live`, rollback tag `batch74-live` if present else commit `972033d`); see the 237th entry. `store-proxy` v19 in `ROLE_CHECK_MODE=log`, migration 015 applied.** Older note: (R29 code + tests on branch `claude/r29-role-check`, see 230th entry; NOT deployed. batch74 LIVE since 14 Nov, see 229th entry; R28 done, see 227th entry; previous: R27 done, see 226th entry; previous: e2e run of 14 Nov finished, see 224th entry.) batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
+> **Nobody (R33 done on branch `claude/r30-role-fixes`, committed, NOT merged, NOT deployed; see 242nd entry).** Previous: **Nobody (R32, see 241st entry).** Previous: **Nobody (R30 done on branch `claude/r30-role-fixes`, see 240th entry; merged into local main 18 Nov, NOT deployed).** Previous: **Nobody. batch75 LIVE on the Cloudflare worker since 15 Nov (Version ID `37cdfcaf-44aa-4480-97cc-5d29bd37d58a`, commit `c1a9d7e`, tag `batch75-live`, rollback tag `batch74-live` if present else commit `972033d`); see the 237th entry. `store-proxy` v19 in `ROLE_CHECK_MODE=log`, migration 015 applied.** Older note: (R29 code + tests on branch `claude/r29-role-check`, see 230th entry; NOT deployed. batch74 LIVE since 14 Nov, see 229th entry; R28 done, see 227th entry; previous: R27 done, see 226th entry; previous: e2e run of 14 Nov finished, see 224th entry.) batch72 LIVE on the Cloudflare worker since 13 Nov 14:00 IST (Version ID `0560efd4-58b2-4cee-8627-95950dbc39d6`, tag `batch72-live` on `e489ea9`). `main` = `kg-always-on` + the batch72 bump; NOT pushed to GitHub. The new Karigar module is ON for every shop (no switch). No migration, ledger flag `kgLedgerOn` still OFF everywhere. WAITING on Tanish: phone check on shop `3720af09` (see the 218th entry), e2e (needs the test env file).
 ---
 
 ## WAITING ON TANISH
@@ -76,6 +76,49 @@ or re-add tier UI.
 ---
 
 ## LOG — newest first
+
+### 2026-11-18 (two-hundred-and-forty-second entry) - Claude Code (Sonnet) - R33 on branch `claude/r30-role-fixes`. NOT merged, deployed, pushed or migrated; `ROLE_CHECK_MODE` untouched. Client only
+**Housekeeping:** the 241st entry says R32 was "committed". It was NOT: R32 sat staged in the working tree. R32 and R33 are committed together now (see git log).
+**1. e2e ran.** Through the login file in the main checkout (values never printed): `npm run test:e2e` equivalent = 23 passed, 0 failed (4.4 min), shop `77c4aefe`.
+**2a. Cost snapshot (done).** A sale item now carries `costRate` and `costSnap:true`, copied from the product at sale time (`js/02` near the stock item builder). `saleItemCost` uses the snapshot first; `saleItemCostMissing` keeps a sale "cost unknown" if the snapshot was empty. So entering a cost later, or deleting the product, does not change a snapshotted sale. Old sales (no `costSnap`) keep today's lookup, not rewritten. Consequence: a sale made while the cost was blank stays "cost missing" even after the owner adds the cost.
+**3. No-cost shops (done).** `shopHasNoCosts()` (products exist, none has `costRate>0`) and `NO_COST_MSG` ("Add product costs to see profit") in `js/01`. Replaced the profit figure on: Dashboard Today's Profit tile, Reports Profit tile (with a link to the nocost filter), Reports P&L card, Reports 6-month chart (profit bars hidden), Analytics trend (note, no margin %), Category tables (profit column), Home digest and WhatsApp summary, PDF business report (`_pv`), the margin insight. The Dashboard "N products have no cost" note already links to the nocost filter (R32). Order "Est. profit" is quote-based, left alone.
+**4. R32 items, each:**
+- Day Book purchase lines folded for staff and manager (screen, Print, WhatsApp): DONE. `dbStaffMaskGirvi` folds `src:'purchase'`; print and WhatsApp read `dbDayView`. Test "R32 4" checks totals reconcile.
+- Manager karigar line has no name: DONE (`dbSeesKarigarNames`, owner only; amount stays).
+- Day Book footer names Girvi only for owner: DONE (`js/10` ~1063).
+- Read-only sees Home, Stock, Customers, Reports; no action buttons; refusal message: DONE. `saveToCloud` toasts "View-only account: nothing was saved" (`js/01` line 240); `guardWrite` says "view-only account" for the others. Known issue (e) confirmed in code, not seen on a screen.
+- Lone full-width Stock button: DONE in R32 (`js/05` ~675 hides the whole sub-tab row for non-owner; selector is positional `#panel-inventory > .metal-tabs`, fragile if panel order changes). I briefly added a duplicate id-based hide and removed it again.
+- Read-only rate boxes plain text: DONE (`rate-ro` class, `js/02` ~253). Code only, not screenshotted.
+- `editProd()` refused for staff and read-only: DONE (`guardWrite` first line, `js/03` 841).
+- Four globals in `checks/globals.json`: DONE (R32) plus my two new ones `shopHasNoCosts`, `NO_COST_MSG`. The file already had large unrelated churn from another session; I added only my two lines.
+- Invoice in the preview at 360 and 390: DONE, browser-measured: no page overflow, invoice table right edge 679 of 720 (all columns inside), "INV-5912" on one line, scale 0.43 and 0.475. Printed output not touched. Text in the preview is small on a 360 phone (that is the scaling).
+**Tests (this tree, just run):** regression 553/0 (+2 R33), karigar-v2 344/0, karigar-ledger-client 91/0, role-check 39/0, edge-functions 94/0, SQL tests all pass, e2e 23/0. AST checks (run with NODE_PATH to the main checkout's modules): scope shows only the old html2canvas/TextEncoder/Razorpay and implicit-global entries, nothing of mine; handlers, css, ids, loadorder (none), unescaped-ids (none), making-basis PASS, unquoted-args same sites; backup-check OK; roundtrip PASS 32 of 32.
+**NOT verified:** no real phone; no screenshot of the no-cost Dashboard/Reports views (logic and source wiring tested, not clicked through; the e2e shop is a no-cost shop, so it is the right place for Cowork to look); a read-only login not clicked through; `invoice` print not checked on paper; `jewelos-invariant-tester` not run.
+→ FOR COWORK: walk the e2e shop `77c4aefe` (it has no costs): Dashboard, Reports (tile, P&L, chart), Analytics, digest should all say "Add product costs to see profit"; then add one cost and see the normal view return.
+→ FOR TANISH: say "go" to merge `claude/r30-role-fixes`.
+
+### 2026-11-18 (two-hundred-and-forty-first entry) - Claude Code (Sonnet) - R32 on branch `claude/r30-role-fixes` (committed). NOT merged, deployed or migrated
+**What changed (client only, `js/` and `index.html`):**
+- **Read-only role.** A read-only user is now refused on every write path: `saveToCloud`, `recordSale`, `addProduct`, `toggleAdd`, customer add and edit. Tabs are limited to Home, Stock, Customers, Reports. `isStaff()` now includes read-only, so the staff hiding rules apply to them too.
+- **Phone bill preview.** At 520px wide or less the bill preview is scaled down to fit the screen (`fitInvoiceFrame`).
+- **Cost missing.** A stock item whose product has no `costRate` is now "cost unknown". It is never costed at the sale rate. It is flagged, and left out of profit and margin totals (`calcSaleProfit`, `calcMonthProfit`, `calcAllTimeProfit`, `calcRefundAdj`). Inventory has a new filter, "nocost". The cost field on Edit product is owner-only.
+- **Day Book.** The fold (staff-style masking) now also applies to manager and staff.
+- **Customers.** `upsertCustomer` never renames an existing customer. Editing a customer to a phone number that another customer has is refused.
+- **Layout and smaller fixes.** 360px layout fixes. Delete product is owner-only. The balance-due row is hidden when the bill is settled.
+
+**Live consequence:** none yet, nothing is deployed. Once live, owner profit and margin figures will drop for sales of items with no cost, because those items stop being counted at the sale rate. Tanish will see this on his own numbers.
+
+**Tests (this tree):** `check.bat` printed "Tests and syntax passed". regression 551/0, edge-functions 94/0, karigar-v2 344/0, karigar-ledger-client 91/0, SQL tests pass. backup-check and roundtrip PASS.
+**NOT verified:** no UI or phone check, no `npm run test:e2e`, not deployed.
+
+**Known issues, for Tanish:**
+- (a) **Needs Tanish's decision.** `saleItemCostMissing` reads the product's CURRENT `costRate`, not a copy saved at sale time. So entering a cost later, or deleting the product, changes the profit of old sales (a deleted product falls back to the sale rate). Fix: save `costRate` onto the sale item when the sale is made.
+- (b) `js/05-auth-login.js` `patchRoleGuards` wraps `window.deleteProduct`, which does not exist. Dead code, was already there. The real guard is the owner check in `delProd`.
+- (c) `tests/cowork-live-check.js` fails on HEAD too (GST % validation, stale setup). `check.bat` does not run it.
+- (d) This worktree's `checks/` has no `node_modules`, so the check scripts needed `NODE_PATH` pointed at the main checkout.
+- (e) Not confirmed whether a read-only login triggers a "View-only" toast from `saveToCloud`.
+
+→ FOR COWORK: nothing — FYI only; Tanish to decide issue (a) (snapshot `costRate` onto the sale item, yes or no).
 
 ### 2026-11-18 (two-hundred-and-fortieth entry) - Claude Code (Sonnet) - R30 role fixes on branch `claude/r30-role-fixes` (off `main` cd59c2f, build 75). NOT deployed, pushed, merged or migrated; `ROLE_CHECK_MODE` untouched
 **Changed per item (client only, in `js/` and `index.html`):**

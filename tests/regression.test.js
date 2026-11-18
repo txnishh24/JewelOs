@@ -3356,10 +3356,11 @@ test('a sale with a making charge is a profit, not a loss, when no purchase rate
   // The reported case: a first-time signup who never filled "Purchase Rate".
   var a = makingScenario();
   var sale = a.buildSaleObj();
-  var profit = a.calcSaleProfit(sale).profit;
-  assert(profit > 0, 'profit should be positive, got ' + profit);
-  assert(approxEqual(profit, 4250, 1),
-    'with no purchase rate the making charge IS the profit: expected +4250, got ' + profit);
+  // R32 3: a missing purchase rate is "cost unknown", NOT "cost = sale rate". The old answer (profit = making charge only, +4250) hid the gap.
+  var r = a.calcSaleProfit(sale);
+  assert(r.costMissing === true, 'a sale of a product with no purchase rate must be flagged cost missing');
+  assert(r.profit === 0 && r.cost === 0, 'cost-unknown profit is left out (0), got profit ' + r.profit + ' cost ' + r.cost);
+  assert(approxEqual(r.revenue, 61200 + 4250, 1), 'revenue is still counted, got ' + r.revenue);
 });
 
 test('the making charge is not also subtracted as a cost', function(){
@@ -6386,6 +6387,7 @@ test('QA 3 Oct H4: a failed sale save leaves no audit log line behind', function
 test('QA 3 Oct H4: deleting a product is logged in the central audit trail', function(){
   var a = loadApp();
   a.isManager = function(){ return true; };
+  a.isOwner = function(){ return true; };   // R32 6: deleting stock is owner only
   a.safeConfirm = function(t,m,ok){ ok(); };
   a.renderInv = function(){};
   a.S.products = [{ id:'p1', name:'Ring', sku:'GLD-1', qty:1, status:'available' }];
@@ -6398,6 +6400,7 @@ test('QA 3 Oct H4: deleting a product is logged in the central audit trail', fun
 test('QA 3 Oct H4: a failed product delete leaves no audit log line behind', function(){
   var a = loadApp();
   a.isManager = function(){ return true; };
+  a.isOwner = function(){ return true; };   // R32 6: deleting stock is owner only
   a.safeConfirm = function(t,m,ok){ ok(); };
   a.renderInv = function(){};
   a.S.products = [{ id:'p1', name:'Ring', sku:'GLD-1', qty:1, status:'available' }];
@@ -6484,6 +6487,7 @@ test('QA 3 Oct H4: deleting a bill is logged in the central audit trail', functi
   var a = loadApp();
   a.SAAS.user = { id:'u1', name:'Owner', role:'owner' };   // R26: bill edit/void/rates need a signed-in owner or manager
   a.isManager = function(){ return true; };
+  a.isOwner = function(){ return true; };   // R32 6: deleting stock is owner only
   a.safeConfirm = function(t,m,ok){ ok(); };
   a.saveToCloud = function(cb){ cb(null); };
   a.showCustHistory = function(){}; a.closeCustModal = function(){}; a.renderCustomers = function(){};
@@ -8043,7 +8047,9 @@ test('R30 A1: staff cannot save a product edit (price fields), and the Stock men
   a.openProdActionMenu('p1');
   ['edit', 'adjust', 'delete'].forEach(function(k){ assert(a._els['pam-' + k].style.display === 'none', 'staff menu must hide ' + k); });
   var m = r26App('manager'); m.openProdActionMenu('p1');
-  ['edit', 'adjust', 'delete'].forEach(function(k){ assert(m._els['pam-' + k].style.display === '', 'manager keeps ' + k); });
+  ['edit', 'adjust'].forEach(function(k){ assert(m._els['pam-' + k].style.display === '', 'manager keeps ' + k); });
+  assert(m._els['pam-delete'].style.display === 'none', 'R32 6: Delete is owner only, a manager does not see it');
+  var ow = r26App('owner'); ow.openProdActionMenu('p1'); assert(ow._els['pam-delete'].style.display === '', 'owner keeps Delete');
   m.saveEditProd();
   assert(!m.said.some(function(x){ return /Staff accounts cannot/.test(x); }), 'manager must not be stopped by the staff guard');
 });
@@ -8214,6 +8220,154 @@ test('R30 B6: a manager editing a bill is asked for the reason in the askReason 
   o.closeEditBillModal = function(){}; o.showCustHistory = function(){}; o.renderCustomers = function(){};
   o.saveEditBill(); assert(oAsked === 0, 'owner is not asked');
 });
+
+// ───────── R32 ─────────
+test('R32 1: read-only is refused on every write path (product, sale, customer, stock, Day Book, save) and sees the masked Day Book', function(){
+  var a = r26App('readonly');
+  assert(a.isReadOnly() === true && a.canWrite() === false, 'readonly: canWrite must be false');
+  ['owner', 'manager', 'staff'].forEach(function(r){ var x = r26App(r); assert(x.canWrite() === true && x.isReadOnly() === false, r + ' can write'); });
+  a.S.products = [{ id:'p1', name:'Ring', weight:5, unitWeight:5, qty:2, status:'available' }];
+  a.S.customers = []; a.S.sales = [];
+  var before = JSON.stringify(a.S);
+  a.addProduct(); a.recordSale(); a.showAddCustomerModal(); a.showCustomerEditModal('c1'); a.saveCustomerEdit('c1'); a.editProd('p1'); a.saveEditProd(); a.delProd('p1');
+  a.openAdjustStockModal('p1'); a._asProductId = 'p1'; a.submitAdjustStock();
+  assert(JSON.stringify(a.S) === before, 'read-only changed shop data');
+  assert(a.said.some(function(m){ return /view-only account/.test(m); }), 'told in plain words: ' + a.said.join('|'));
+  var errs = [];
+  a.dbAddEntry(a.dbToday(), 'out', 100, 'bankDeposit', 'x', function(e){ errs.push(e && e.message); });
+  a.dbSetOpening(a.dbToday(), 500, function(e){ errs.push(e && e.message); });
+  assert(errs.join() === 'staff-blocked,staff-blocked', 'Day Book writes refused, got ' + errs.join());
+  // the real saveToCloud is the last backstop
+  var b = require('./harness.js').loadApp(); b.SAAS.user = { id:'u', role:'readonly', email:'r@x.in' }; b.SAAS.shop = { id:'s1' }; b.toast = function(){};
+  var got = 'none'; b.saveToCloud(function(e){ got = e && e.message; });
+  assert(got === 'readonly', 'saveToCloud must refuse read-only, got ' + got);
+  // masking: karigar cash line is folded and nameless
+  var d = a.dbToday(); a.S.karigars = [{ id:'k1', name:'Ramesh Soni' }];
+  a.S.karigarPayments = [{ id:'kp1', karigarId:'k1', type:'cash', dbPost:true, amount:5000, mode:'cash', advance:false, date:d }];
+  var v = a.dbDayView(d);
+  assert(!JSON.stringify(v.lines).match(/Ramesh|Karigar/), 'read-only view names a karigar: ' + JSON.stringify(v.lines));
+  assert(v.lines.some(function(l){ return l.label === 'Other cash movements'; }), 'folded line present');
+  // tabs: only Home, Stock, Customers, Reports; the rest bounce to Home
+  var tabs = []; a.renderTab = function(t){ tabs.push(t); }; a.loadFromCloud = function(){};
+  ['daybook', 'sales', 'girvi', 'karigars', 'settings', 'orders', 'reports', 'customers'].forEach(function(t){ a.switchTab(t); });
+  assert(tabs.join() === 'dashboard,dashboard,dashboard,dashboard,dashboard,dashboard,reports,customers', 'tab routing: ' + tabs.join());
+  a.openProdActionMenu('p1');
+  ['edit', 'adjust', 'delete'].forEach(function(k){ assert(a._els['pam-' + k].style.display === 'none', 'read-only menu hides ' + k); });
+});
+
+test('R32 3: a product with no cost is "cost unknown": never costed at the sale rate, flagged, left out of profit totals', function(){
+  var a = makingScenario();                       // product p1 has no costRate
+  var sale = a.buildSaleObj(); sale.date = new Date().toISOString(); sale.id = 's9';
+  a.S.sales = [sale];
+  assert(a.saleCostMissing(sale) === true, 'sale of a cost-less product is cost missing');
+  var p = a.calcSaleProfit(sale);
+  assert(p.costMissing === true && p.profit === 0, 'profit left out, not making-charge-only: ' + JSON.stringify(p));
+  var now = new Date(), mp = a.calcMonthProfit(now.getFullYear(), now.getMonth());
+  assert(mp.noCostCount === 1 && mp.profit === 0, 'month total skips it: ' + JSON.stringify({ n: mp.noCostCount, p: mp.profit }));
+  assert(mp.revenue > 0, 'revenue is still counted');
+  assert(a.calcAllTimeProfit().noCostCount === 1, 'all-time total flags it');
+  assert(a.calcItemProfit(sale.items[0]).costMissing === true && a.calcItemProfit(sale.items[0]).profit === 0, 'item profit (category table) skips it too');
+  sale.refunds = [{ id:'r1', date:new Date().toISOString(), amount:1000, items:[0] }];
+  var adj = a.calcRefundAdj(sale); assert(adj.costMissing === true && adj.profit === 0 && adj.cost === 0, 'refund of cost-unknown sale: no profit swing');
+  var b = makingScenario({ costRate: 6000 }); var s2 = b.buildSaleObj();
+  assert(b.saleCostMissing(s2) === false && approxEqual(b.calcSaleProfit(s2).profit, 14450, 1), 'known cost is unchanged');
+  // owner edit form: the owner can repair the cost; a manager cannot touch it
+  function edit(role){
+    var x = r26App(role); x.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', weight:5, unitWeight:5, qty:1, mcRate:100, status:'available', sku:'R1', costRate:0 }];
+    r30El(x, 'ep-cat').options = [];
+    x.editProd('p1');
+    var fg = r30El(x, 'ep-costrate-fg'); var shown = fg && fg.style.display !== 'none';
+    r30El(x, 'ep-costrate').value = '6100';
+    x.renderInv = function(){}; x.closeEditModal = function(){};
+    try{ x.saveEditProd(); }catch(e){}
+    return { shown: shown, cost: x.S.products[0].costRate };
+  }
+  var o = edit('owner'), m = edit('manager');
+  assert(o.shown === true && o.cost === 6100, 'owner sees the cost field and can save it: ' + JSON.stringify(o));
+  assert(m.shown === false && m.cost === 0, 'manager never sees or changes cost: ' + JSON.stringify(m));
+});
+
+test('R32 4: Day Book folds purchase cash lines for manager and staff (screen, print, WhatsApp); karigar names owner-only; totals reconcile', function(){
+  function go(role){
+    var a = r26App(role); var d = a.dbToday();
+    a.S.purchases = [{ id:'b1', billNo:'PB-7', date:d, amountPaid:987654, paymentMethod:'Cash', totalAmount:987654 }];
+    a.S.karigars = [{ id:'k1', name:'Ramesh Soni' }];
+    a.S.karigarPayments = [{ id:'kp1', karigarId:'k1', type:'cash', dbPost:true, amount:5000, mode:'cash', advance:false, date:d }];
+    a.S.girvi = [];
+    return { a:a, v:a.dbDayView(d), d:d };
+  }
+  var ow = go('owner'), mg = go('manager'), st = go('staff');
+  assert(JSON.stringify(ow.v.lines).indexOf('PB-7') > -1 && JSON.stringify(ow.v.lines).indexOf('Ramesh') > -1, 'owner sees purchase and karigar name');
+  [mg, st].forEach(function(x, i){
+    var who = i ? 'staff' : 'manager', txt = JSON.stringify(x.v.lines);
+    assert(txt.indexOf('PB-7') === -1 && txt.indexOf('Purchase') === -1, who + ' view shows a purchase line: ' + txt);
+    assert(txt.indexOf('Ramesh') === -1, who + ' view shows a karigar name: ' + txt);
+    assert(x.v.totalIn === ow.v.totalIn && x.v.totalOut === ow.v.totalOut && x.v.closing === ow.v.closing, who + ' totals must equal the owner\'s');
+    var wa = x.a.dbBuildDaySummary(x.d);
+    assert(wa.indexOf('PB-7') === -1 && wa.indexOf('Purchase') === -1 && wa.indexOf('Ramesh') === -1, who + ' WhatsApp text leaks: ' + wa);
+    assert(wa.indexOf('Other cash movements') > -1, who + ' WhatsApp text has the folded line');
+    var html = ''; x.a.open = function(){ return { document:{ write:function(h){ html += h; }, close:function(){} } }; };
+    x.a.dbPrintDay();
+    assert(html.length > 0 && html.indexOf('PB-7') === -1 && html.indexOf('Ramesh') === -1 && html.indexOf('Other cash movements') > -1, who + ' print text leaks or lacks the folded line');
+  });
+  assert(mg.v.lines.some(function(l){ return l.src === 'karigar' && l.amount === 5000 && !/Ramesh/.test(l.label); }), 'manager keeps the karigar amount, without the name');
+});
+
+test('R32 5: adding a number that is already saved keeps the existing name and says so (sale or Add Customer)', function(){
+  var a = r26App('owner');
+  a.S.customers = [{ id:'c1', name:'Sunita Devi', phone:'9820022222', notes:'old notes', addr:'' }];
+  a.upsertCustomer('Sunita D', '+91 98200 22222', {});
+  assert(a.S.customers.length === 1 && a.S.customers[0].name === 'Sunita Devi', 'a later sale renamed the customer: ' + JSON.stringify(a.S.customers));
+  a.showAddCustomerModal();
+  r30El(a, 'ce-name').value = 'Someone Else'; r30El(a, 'ce-phone').value = '9820022222'; r30El(a, 'ce-addr').value = ''; r30El(a, 'ce-email').value = ''; r30El(a, 'ce-notes').value = 'new notes';
+  a.renderCustomers = function(){}; a.said = [];
+  r30El(a, 'ce-save-btn').onclick();
+  assert(a.S.customers.length === 1 && a.S.customers[0].name === 'Sunita Devi' && a.S.customers[0].notes === 'old notes', 'Add Customer overwrote: ' + JSON.stringify(a.S.customers));
+  assert(a.said.some(function(m){ return /Already saved as Sunita Devi/.test(m); }), 'must say who: ' + a.said.join('|'));
+});
+
+
+// ───────── R33 ─────────
+test('R33 2a: the sale item keeps the cost at sale time; later cost edits and a deleted product never change that sale', function(){
+  var a = makingScenario({ costRate: 6000 });
+  var sale = a.buildSaleObj(); sale.date = new Date().toISOString(); sale.id = 's1';
+  assert(sale.items[0].costRate === 6000 && sale.items[0].costSnap === true, 'cost copied onto the item: ' + JSON.stringify(sale.items[0]));
+  a.S.sales = [sale];
+  var before = a.calcSaleProfit(sale).profit;
+  a.S.products[0].costRate = 7000;                         // owner changes the product cost later
+  assert(a.calcSaleProfit(sale).profit === before, 'profit unchanged after the product cost changed');
+  a.S.products = [];                                       // product deleted
+  var after = a.calcSaleProfit(sale);
+  assert(after.profit === before && !after.costMissing, 'deleted product: still the snapshot, not the sale rate: ' + JSON.stringify(after));
+  // sale made while cost was unknown stays unknown even if a cost is entered later
+  var b = makingScenario();                                 // no costRate
+  var s2 = b.buildSaleObj(); s2.date = new Date().toISOString(); b.S.sales = [s2];
+  assert(s2.items[0].costSnap === true && !(s2.items[0].costRate > 0), 'snapshot records "no cost"');
+  b.S.products[0].costRate = 6000;
+  assert(b.calcSaleProfit(s2).costMissing === true && b.calcSaleProfit(s2).profit === 0, 'cost entered later does not rewrite a snapshotted sale');
+  // OLD sale with no snapshot keeps today's lookup
+  var c = makingScenario({ costRate: 6000 });
+  var s3 = c.buildSaleObj(); delete s3.items[0].costRate; delete s3.items[0].costSnap; c.S.sales = [s3];
+  var p1 = c.calcSaleProfit(s3).profit; c.S.products[0].costRate = 6500;
+  assert(c.calcSaleProfit(s3).profit !== p1, 'old sale (no snapshot) still follows the product cost');
+});
+
+test('R33 3: a shop where no product has a cost shows "Add product costs to see profit", not Rs 0', function(){
+  var a = makingScenario();                                 // one product, no cost
+  assert(a.shopHasNoCosts() === true, 'no product has a cost');
+  assert(a.NO_COST_MSG === 'Add product costs to see profit', 'message text');
+  a.S.products.push({ id:'p2', name:'Chain', metal:'gold', purity:'22K', weight:5, qty:1, status:'available', costRate:6000, sku:'C1' });
+  assert(a.shopHasNoCosts() === false, 'one product with a cost: normal profit view');
+  a.S.products = [];
+  assert(a.shopHasNoCosts() === false, 'no products at all is not the "no costs" case');
+  var fs = require('fs'), path = require('path'), JS_DIR = path.join(__dirname, '..', 'js');
+  // every owner profit surface checks it (source wiring: dashboard tile, digest, WhatsApp, reports tile + P&L, analytics, PDF)
+  function has(file, n){ var t = fs.readFileSync(path.join(JS_DIR, file), 'utf-8'); return (t.match(/shopHasNoCosts\(\)/g) || []).length >= n; }
+  assert(has('06-inventory-stock.js', 6), 'dashboard, digest, WhatsApp, category and trend views check shopHasNoCosts');
+  assert(has('03-billing-numbers.js', 1) && has('07-settings-plans.js', 1) && has('05-auth-login.js', 1), 'reports, PDF report and insights check it');
+  assert(/showNoCostProducts/.test(fs.readFileSync(path.join(JS_DIR, '03-billing-numbers.js'), 'utf-8')), 'Reports links to the nocost filter');
+});
+
 
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));

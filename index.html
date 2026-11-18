@@ -424,6 +424,7 @@ body{
   font-size:13px;font-weight:600;color:#e8d49a;font-family:inherit;text-align:right;
   transition:border-color var(--t1);
 }
+.rate-iw input.rate-ro{background:transparent;border-color:transparent;box-shadow:none;pointer-events:none;padding-left:0;}
 .rate-iw input:focus{outline:none;border-color:rgba(179,146,87,.6);background:rgba(255,255,255,.12);}
 .rate-unit{font-size:11px;color:var(--gold);}
 .rate-save{
@@ -533,7 +534,9 @@ body{
    (so Safari doesn't auto-zoom on focus); 44px / 14px from the tablet
    breakpoint up. Focus is ink, not gold — gold stays for the sparse moments
    (primary actions, totals), not every field a shop owner taps. */
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.form-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;}   /* R32 6: minmax(0,..) + min-width:0 so a date or phone box cannot push past the card at 360px */
+.form-grid .fg{min-width:0;}
+input,select,textarea{min-width:0;}
 /* Add Product only -- single column under 420px (UI/UX audit, 15 Oct).
    Scoped to this one form, not the global .form-grid every other form uses. */
 @media(max-width:420px){.add-product-form .form-grid{grid-template-columns:1fr;}}
@@ -1668,6 +1671,17 @@ iframe.nl-badge-frame{display:none !important;}
 .hdr-btn:hover{color:var(--on-ink);background:rgba(255,255,255,.06);}
 .dtab:hover{color:var(--on-ink);background:rgba(255,255,255,.05);}
 .more-menu-item:hover{background:var(--bg2);}
+/* R32 6: 360px phones: Day Book bottom-nav label and the big money tiles were cut ("DAY BO...", "54,88,94") */
+@media screen and (max-width:380px){
+  .bnav-label{letter-spacing:.01em;font-size:10px;}
+  .metric{padding:.9rem .75rem;}
+  .metric-value{font-size:clamp(16px,5.4vw,var(--text-2xl));overflow-wrap:anywhere;}
+}
+/* R32 2: phone bill preview: invoice laid out at 720px, scaled to the frame width (screen only; print is untouched) */
+@media screen and (max-width:520px){
+  #inv-frame-wrap{height:520px;overflow:hidden;width:100%;}
+  #inv-frame{width:720px !important;max-width:none !important;height:var(--inv-h,520px) !important;transform:scale(var(--inv-scale,1));transform-origin:0 0;}
+}
 .metric:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px);}
 .rate-save:hover{background:linear-gradient(135deg,var(--gold),var(--gold-light));box-shadow:var(--shadow-gold);}
 .mtab:hover{background:var(--silver-bg);color:var(--silver-dark);border-color:rgba(74,96,112,.3);}
@@ -2353,7 +2367,7 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
     <div class="search-row">
       <input id="inv-search" placeholder="Search name, SKU or HUID..." oninput="debouncedRenderInv()"/>
       <select id="inv-status-filter" onchange="renderInv()" style="width:auto;padding:9px 28px 9px 10px;font-size:13px;">
-        <option value="all">All</option><option value="available">Available</option><option value="sold">Sold</option><option value="returned">Returned (needs inspection)</option>
+        <option value="all">All</option><option value="available">Available</option><option value="sold">Sold</option><option value="returned">Returned (needs inspection)</option><option value="nocost" id="inv-opt-nocost">No cost price</option>
       </select>
     </div>
     <div class="pills" id="cat-pills"></div>
@@ -2387,10 +2401,10 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
     </div>
 
     <div class="form-grid" style="margin-bottom:12px">
-      <div class="fg"><label>Invoice No.</label><input id="s-invno" placeholder="Assigned on save"/></div>
+      <div class="fg"><label>Invoice No.</label><input id="s-invno" placeholder="Auto on save"/></div>
       <div class="fg"><label>Date</label><input id="s-date" type="date"/></div>
-      <div class="fg"><label>Customer name *</label><input id="s-cust" placeholder="Customer name" oninput="custAutocomplete()"/></div>
-      <div class="fg"><label>Customer phone</label><input id="s-phone" type="tel" inputmode="tel" placeholder="Mobile number"/></div>
+      <div class="fg"><label>Customer name *</label><input id="s-cust" placeholder="Name" oninput="custAutocomplete()"/></div>
+      <div class="fg"><label>Customer phone</label><input id="s-phone" type="tel" inputmode="tel" placeholder="Mobile"/></div>
       <div class="fg"><label>Customer address</label><input id="s-addr" placeholder="Optional"/></div>
       <!-- payment mode moved to Paying Now section -->
     </div>
@@ -2738,7 +2752,7 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
   <div class="card">
     <div class="card-title"><span><span data-icon="users"></span> Customer Records</span></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-      <button onclick="showAddCustomerModal()" class="btn btn-gold" style="min-height:44px;flex:1 1 auto;">+ Add Customer</button>
+      <button id="cust-add-btn" onclick="showAddCustomerModal()" class="btn btn-gold" style="min-height:44px;flex:1 1 auto;">+ Add Customer</button>
       <select id="cust-sort" onchange="renderCustomers()" style="flex:1 1 150px;min-width:150px;min-height:44px;padding:9px 28px 9px 10px;font-size:12px;">
         <option value="purchases">Most purchases</option>
         <option value="amount">Highest spent</option>
@@ -3751,6 +3765,7 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
         <div class="fg"><label>Wastage / VA % <span style="font-size:var(--text-xs);color:var(--text3)">(optional)</span></label>
           <div class="isuf"><input id="ep-wastage" type="number" inputmode="decimal" placeholder="0" step="0.1"/><span class="suf">%</span></div>
         </div>
+        <div class="fg" id="ep-costrate-fg" style="display:none;"><label>Purchase Rate &#8377;/g <span style="font-size:var(--text-xs);color:var(--text3)">(cost price, owner only)</span></label><div class="isuf"><input id="ep-costrate" type="number" inputmode="decimal" placeholder="0" min="0"/><span class="suf">&#8377;/g</span></div></div>
         <div class="fg"><label>Hallmark Centre <span style="font-size:var(--text-xs);color:var(--text3)">(optional)</span></label><input id="ep-hallmark" placeholder="e.g. BIS centre name / code"/></div>
         <div class="fg"><label>Photo / Product URL</label><input id="ep-photo" type="url" placeholder="Paste image link"/></div>
         <div class="fg"><label>Notes</label><input id="ep-notes" placeholder="Optional"/></div>

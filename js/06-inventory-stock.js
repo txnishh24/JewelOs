@@ -86,6 +86,17 @@ function calcWeekRevenue(weeksAgo){
   }).reduce(function(s,x){return s+calcSaleTotals(x).grand;},0);
 }
 
+// R32 3c: the dashboard note's link: Stock tab, filtered to products with no cost price (owner only).
+function showNoCostProducts(){
+  if(!canSeeProfit()) return;
+  var first = (S.products||[]).filter(function(p){ return !(p.costRate > 0); })[0];
+  if(first && first.metal && typeof setMetal === 'function') setMetal(first.metal);
+  switchTab('inventory');
+  var f = document.getElementById('inv-status-filter'); if(f){ f.value = 'nocost'; }
+  var q = document.getElementById('inv-search'); if(q) q.value = '';
+  renderInv();
+}
+
 function calcWeekProfit(weeksAgo){
   var end   = new Date(Date.now() - weeksAgo*7*86400000);
   var start = new Date(end.getTime() - 7*86400000);
@@ -260,7 +271,18 @@ function renderDash(){
       // Colour by sign, like the Net Cash line below — a loss shown in the
       // same green as a profit is the one number on this strip a jeweller
       // cannot afford to misread.
-      (canSeeProfit() ? fsnCard("Today's Profit", fmt(todayProfitTotal), '', null, '', todayProfitTotal>=0?'var(--success)':'var(--danger)') : '');   // R26: owner only
+      (canSeeProfit() ? (shopHasNoCosts() ? fsnCard("Today's Profit", NO_COST_MSG, '', null, '', 'var(--warning)') : fsnCard("Today's Profit", fmt(todayProfitTotal), '', null, '', todayProfitTotal>=0?'var(--success)':'var(--danger)')) : '');   // R26: owner only
+  }
+
+  // R32 3c: owner-only note when stock has no cost price. Those sales are left out of profit, never costed at the sale rate.
+  if(todayEl && todayEl.parentNode){
+    var _ncEl = document.getElementById('dash-nocost-note');
+    if(!_ncEl){ _ncEl = document.createElement('div'); _ncEl.id = 'dash-nocost-note'; todayEl.parentNode.insertBefore(_ncEl, todayEl.nextSibling); }
+    var _ncN = canSeeProfit() ? (S.products||[]).filter(function(p){ return !(p.costRate > 0); }).length : 0;
+    var _ncS = _ncN ? (S.sales||[]).filter(saleCostMissing).length : 0;
+    _ncEl.innerHTML = _ncN ? '<div class="card" style="border:1px solid var(--warning);margin:8px 0;"><div style="font-size:13px;color:var(--text2);">'+
+      '<b>'+_ncN+' product'+(_ncN===1?' has':'s have')+' no cost price.</b> '+(_ncS ? _ncS+' sale'+(_ncS===1?' is':'s are')+' marked "cost missing" and left out of profit. ' : 'Profit on sales of '+(_ncN===1?'it':'them')+' will be left out until you add the cost. ')+
+      '<button class="btn btn-sm" onclick="showNoCostProducts()">Show them</button></div></div>' : '';
   }
 
   // ── 3. BUSINESS SNAPSHOT (the 4 numbers before any decision) ────
@@ -376,7 +398,7 @@ function renderDash(){
           '<div style="font-size:11px;color:var(--text3);">'+(s.items||[]).map(function(i){return escHtml(i.name);}).join(', ')+' &bull; '+fmtW(wt)+'</div></div>'+
           '<div style="text-align:right;">'+
             '<div style="font-weight:700;color:var(--gold-dark);">'+fmt(t.grand)+'</div>'+
-            (canSeeProfit() ? '<div style="font-size:11px;color:var(--success);">\u2191 '+fmt(Math.round(p.profit))+'</div>' : '')+
+            (canSeeProfit() ? (p.costMissing ? '<div style="font-size:11px;color:var(--warning);">cost missing</div>' : '<div style="font-size:11px;color:var(--success);">\u2191 '+fmt(Math.round(p.profit))+'</div>') : '')+
             (t.bal>0?'<div style="font-size:11px;color:var(--danger);">Due: '+fmt(t.bal)+'</div>':'')+
           '</div>'+
         '</div></div>';
@@ -453,7 +475,7 @@ function renderDash(){
           '<div style="background:var(--bg3);border-radius:4px;height:5px;overflow:hidden;">'+
             '<div style="height:100%;width:'+Math.round(c.rev/maxRev*100)+'%;background:var(--gold);border-radius:4px;"></div>'+
           '</div>'+
-          '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">'+c.units+' sold'+(canSeeProfit()?' &bull; profit: '+fmt(Math.round(c.profit)):'')+'</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">'+c.units+' sold'+((canSeeProfit() && !shopHasNoCosts())?' &bull; profit: '+fmt(Math.round(c.profit)):'')+'</div>'+
         '</div>';
       }).join('');
     } else {
@@ -633,7 +655,7 @@ function renderReportsIntelligence(){
   var catPerf = calcCategoryPerf(repYear, repMonth); // QA 3 Oct M8: match the month this page is actually showing
   catCard.innerHTML='<div class="card-title"><span>'+svgIcon('tag')+' Category Intelligence — This Month</span></div>'+
     (catPerf.length?
-      '<div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Revenue</th><th>Units</th>'+(canSeeProfit()?'<th>Profit</th>':'')+'<th>Trend</th></tr></thead><tbody>'+
+      '<div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Revenue</th><th>Units</th>'+((canSeeProfit() && !shopHasNoCosts())?'<th>Profit</th>':'')+'<th>Trend</th></tr></thead><tbody>'+
       catPerf.map(function(c){
         var tIcon = c.prevRev>0?(c.trend>=0?'\u25B2 '+Math.round(c.trend)+'%':'\u25BC '+Math.abs(Math.round(c.trend))+'%'):'—';
         var tColor= c.prevRev>0?(c.trend>=0?'var(--success)':'var(--danger)'):'var(--text3)';
@@ -641,7 +663,7 @@ function renderReportsIntelligence(){
           '<td style="font-weight:600;">'+escHtml(c.cat)+'</td>'+
           '<td style="font-weight:700;color:var(--gold-dark);">'+fmt(Math.round(c.rev))+'</td>'+
           '<td>'+c.units+'</td>'+
-          (canSeeProfit() ? '<td style="color:var(--success);">'+fmt(Math.round(c.profit))+'</td>' : '')+
+          ((canSeeProfit() && !shopHasNoCosts()) ? '<td style="color:var(--success);">'+fmt(Math.round(c.profit))+'</td>' : '')+
           '<td style="color:'+tColor+';font-weight:600;font-size:11px;">'+tIcon+'</td>'+
         '</tr>';
       }).join('')+'</tbody></table></div>'
@@ -1360,7 +1382,7 @@ function showDailyDigest(){
     '</div>'+
     digestSection('\ud83d\udcb0 This Month So Far',[
       ['Revenue', fmt(thisMonth.revenue)]
-    ].concat(canSeeProfit() ? [['Profit',  fmt(thisMonth.netProfit)]] : []).concat([['Cash In', fmt(cf.cashIn)]]).concat(canSeeProfit() ? [['Margin',  thisMonth.margin.toFixed(1)+'%']] : []))+
+    ].concat(canSeeProfit() ? (shopHasNoCosts() ? [['Profit', NO_COST_MSG]] : [['Profit',  fmt(thisMonth.netProfit)]]) : []).concat([['Cash In', fmt(cf.cashIn)]]).concat((canSeeProfit() && !shopHasNoCosts()) ? [['Margin',  thisMonth.margin.toFixed(1)+'%']] : []))+
     digestSection('\u26a0\ufe0f Action Needed',[
       ['Overdue girvi', overdueG.length ? overdueG.length+' loans' : '\u2705 Clear'],
       ['Pending dues',  pendingBal > 0  ? fmt(pendingBal)          : '\u2705 Clear'],
@@ -1403,7 +1425,7 @@ function shareDigestWhatsApp(){
     dayName+'\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n'+
     '\ud83d\udcb0 *This Month*\n'+
     'Revenue: '+fmt(thisMonth.revenue)+'\n'+
-    (canSeeProfit() ? 'Profit: '+fmt(thisMonth.netProfit)+' ('+netMargin.toFixed(1)+'%)\n' : '')+'\n'+
+    (canSeeProfit() ? shopHasNoCosts() ? 'Profit: '+NO_COST_MSG+'\n' : 'Profit: '+fmt(thisMonth.netProfit)+' ('+netMargin.toFixed(1)+'%)\n' : '')+'\n'+
     '\u26a0\ufe0f *Action Items*\n'+
     'Pending dues: '+fmt(pendingBal)+'\n'+
     'Girvi outstanding: '+fmt(Math.round(girviOut))+'\n\n'+
@@ -1511,13 +1533,14 @@ function renderSettingsAnalytics(){
       });
     }
     var maxR=Math.max.apply(null,months.map(function(m){return m.revenue;}))||1;
-    ptEl.innerHTML=
+    var _ncP = shopHasNoCosts();   // R33
+    ptEl.innerHTML=(_ncP ? '<div style="font-size:13px;color:var(--warning);margin-bottom:8px;"><b>'+NO_COST_MSG+'</b></div>' : '')+
       '<div style="display:flex;align-items:flex-end;gap:4px;height:70px;margin-bottom:4px;">'+
       months.map(function(m){
         var hR=Math.max(4,Math.round(m.revenue/maxR*70));
-        var hP=m.revenue>0?Math.max(2,Math.round(Math.max(0,m.profit)/maxR*70)):0;
+        var hP=(m.revenue>0 && !_ncP)?Math.max(2,Math.round(Math.max(0,m.profit)/maxR*70)):0;
         return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">'+
-          '<div style="font-size:var(--text-xs);color:var(--text3);">'+(m.revenue>0?Math.round(m.margin)+'%':'')+'</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);">'+((m.revenue>0 && !_ncP)?Math.round(m.margin)+'%':'')+'</div>'+
           '<div style="width:100%;position:relative;height:56px;display:flex;align-items:flex-end;gap:1px;">'+
             '<div style="flex:1;height:'+hR+'px;background:var(--bg3);border-radius:2px 2px 0 0;"></div>'+
             '<div style="flex:1;height:'+hP+'px;background:var(--success);border-radius:2px 2px 0 0;opacity:.85;"></div>'+
