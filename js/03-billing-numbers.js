@@ -1336,7 +1336,7 @@ function renderReports(entrance){
           '</div>'+
           '<div style="text-align:right;">'+
             '<div style="font-weight:700;color:var(--gold-dark);">'+fmt(cu.rev)+'</div>'+
-            (_showP ? '<div style="font-size:11px;color:var(--success);">Profit: '+fmt(Math.round(cu.profit))+'</div>' : '')+
+            (_showP && !shopHasNoCosts() ? '<div style="font-size:11px;color:var(--success);">Profit: '+fmt(Math.round(cu.profit))+'</div>' : '')+
             (cu.pending>0?'<div style="font-size:11px;color:var(--danger);">Due: '+fmt(cu.pending)+'</div>':'<div style="font-size:11px;color:var(--success);">\u2713 Cleared</div>')+
           '</div></div>';
       }).join('');

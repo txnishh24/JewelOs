@@ -8382,6 +8382,32 @@ test('R33 4: a month with one known-cost sale and one cost-unknown sale: profit 
   assert(a.shopHasNoCosts() === false, 'one product has a cost, so the normal view shows');
 });
 
+// Found by clicking the no-cost demo shop (19 Nov): Top Customers printed "Profit: Rs 0" and the Week-over-Week
+// table showed a made-up weekly profit row. Both must follow the same no-cost rule as the Profit tile.
+test('R33 5: no-cost shop: Reports Top Customers and Week-over-Week show no profit figure; with a cost the owner sees them again', function(){
+  function render(withCost){
+    var a = r26App('owner'); var today = new Date().toISOString();
+    a.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', weight:10, qty:1, status:'available', cat:'Rings' }];
+    if(withCost) a.S.products[0].costRate = 5000;
+    a.S.sales = [r26Sale({ date:today, byId:'u_owner', items:[{ pid:'p1', name:'Ring', metal:'gold', purity:'22K', weight:1, grossWeight:1, qty:1, making:0, diamond:0, lockedRate:7200 }], lockedGrand:7200 })];
+    a.repYear = new Date().getFullYear(); a.repMonth = new Date().getMonth();
+    var made = {}; var cr = a.document.createElement;
+    a.document.createElement = function(t){ var e = cr(t); made.last = made.last || []; made.last.push(e); return e; };
+    try{ a.renderReports(); }catch(e){}
+    try{ a.renderReportsIntelligence(); }catch(e){}
+    var top = a._els['rep-top-custs'] ? a._els['rep-top-custs'].innerHTML : '';
+    var wow = (made.last || []).filter(function(e){ return e.id === 'rep-intel-wow'; })[0];
+    return { top: top, wow: wow ? wow.innerHTML : '' };
+  }
+  var no = render(false), yes = render(true);
+  assert(/Ring|Walk-in|₹|Rs/.test(no.top) && no.top.length > 20, 'Top Customers rendered (so the check below means something): ' + no.top.slice(0, 80));
+  assert(!/Profit:/.test(no.top), 'no costs: no per-customer profit line');
+  assert(/Profit:/.test(yes.top), 'with a cost: the per-customer profit line is back');
+  assert(no.wow.length > 50, 'Week-over-Week rendered');
+  assert((no.wow.match(/<tr>/g) || []).length === 2, 'no costs: header row + revenue row only, no profit row: ' + (no.wow.match(/<tr>/g) || []).length);
+  assert((yes.wow.match(/<tr>/g) || []).length === 3, 'with a cost: header + revenue + profit rows');
+});
+
 test('R32 4b: Day Book girvi lines: owner and manager see them, staff and read-only see them folded; totals identical', function(){
   function go(role){
     var a = r26App(role); var d = a.dbToday();

@@ -639,7 +639,7 @@ function renderReportsIntelligence(){
     weekLabels.map(function(l,i){return '<th style="padding:6px 4px;color:var(--text3);font-weight:600;text-align:right;'+(i===6?'color:var(--gold-dark);':'')+'">'+l+'</th>';}).join('')+
     '</tr></thead><tbody>'+
     '<tr>'+weekRevs.map(function(v,i){return '<td style="padding:6px 4px;text-align:right;font-weight:'+(i===6?'700':'400')+';color:'+(i===6?'var(--gold-dark)':'var(--text2)')+';">'+fmt(v)+'</td>';}).join('')+'</tr>'+
-    '<tr>'+weekProfs.map(function(v,i){return '<td style="padding:4px;text-align:right;font-size:11px;color:'+(v>=0?'var(--success)':'var(--danger)')+';font-weight:'+(i===6?'700':'400')+';">'+fmt(Math.round(v))+'</td>';}).join('')+'</tr>'+
+    (!canSeeProfit() || shopHasNoCosts() ? '' : '<tr>'+weekProfs.map(function(v,i){return '<td style="padding:4px;text-align:right;font-size:11px;color:'+(v>=0?'var(--success)':'var(--danger)')+';font-weight:'+(i===6?'700':'400')+';">'+fmt(Math.round(v))+'</td>';}).join('')+'</tr>')+
     '</tbody></table></div>'+
     '<div style="display:flex;align-items:flex-end;gap:3px;height:50px;margin-top:10px;padding:0 4px;">'+
     weekRevs.map(function(v,i){
