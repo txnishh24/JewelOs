@@ -28,6 +28,7 @@ const before = {
   nextKgJobNo: 2,
   rates: { g24: 7800, g22: 7200 },
   purchaseCfg: { showWastage: false },
+  girviCfg: { extraAfterYear: true, extraPoints: 1 },
   waRules: { reminder: true },
   dayBook: {
     opening: { date: '2026-09-01', amount: 5000, ts: '2026-09-01T04:00:00.000Z' },

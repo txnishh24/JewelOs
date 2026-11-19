@@ -751,7 +751,7 @@ function saveCache(){
     localStorage.setItem('ssj_cache',JSON.stringify({
       shopId:ownerShopId,
       products:S.products,sales:S.sales,orders:S.orders||[],girvi:S.girvi||[],customers:S.customers||[],
-      purchases:S.purchases||[],suppliers:S.suppliers||[],purchaseAuditLog:S.purchaseAuditLog||[],purchaseCfg:S.purchaseCfg||{},rates:S.rates,
+      purchases:S.purchases||[],suppliers:S.suppliers||[],purchaseAuditLog:S.purchaseAuditLog||[],purchaseCfg:S.purchaseCfg||{},girviCfg:S.girviCfg||{},rates:S.rates,
       karigars:S.karigars||[],karigarPayments:S.karigarPayments||[],
       kgJobs:S.kgJobs||[],kgLedger:S.kgLedger||[],kgSalary:S.kgSalary||[],kgPurities:S.kgPurities||[],kgAgreements:S.kgAgreements||[],kgRoutes:S.kgRoutes||[],kgParked:S.kgParked||[],nextKgJobNo:S.nextKgJobNo||1,
       auditLog:S.auditLog||[],activityLog:S.activityLog||[],waRules:S.waRules||[],dayBook:S.dayBook||null,
@@ -990,6 +990,7 @@ function loadCache(){
     if(Array.isArray(r.stockMovements)) S.stockMovements=r.stockMovements; // F2
     if(Array.isArray(r.voidedInvNos)) S.voidedInvNos=r.voidedInvNos;
     if(r.purchaseCfg && typeof r.purchaseCfg==='object') S.purchaseCfg=Object.assign({}, S.purchaseCfg, r.purchaseCfg);
+    if(r.girviCfg && typeof r.girviCfg==='object') S.girviCfg=Object.assign({}, S.girviCfg, r.girviCfg);
     if(r.dayBook && typeof r.dayBook==='object') S.dayBook=r.dayBook;
     if(r.nextPurchaseId&&r.nextPurchaseId>1) S.nextPurchaseId=r.nextPurchaseId;
     if(r.nextPurchaseBillNo&&r.nextPurchaseBillNo>1) S.nextPurchaseBillNo=r.nextPurchaseBillNo;
@@ -1665,10 +1666,57 @@ function girviExactDuration(startDateStr, endDateStr){
 // 'interest' type payments are pinned to interest only (never reduce
 // principal), matching existing UI intent even if overpaid (the
 // surplus becomes a negative pendingInterest / prepaid credit).
+// Optional shop switch (S.girviCfg, off by default): once a loan is more than
+// 365 days old, the WHOLE loan is repriced from day 1 at the loan's rate plus
+// extraPoints (default 1) percentage points per month. Returns g unchanged
+// when the switch is off or the loan is within its first year; otherwise a
+// copy with a higher interestRate (g itself is never mutated).
+function girviEffectiveLoan(g, asOf){
+  var cfg = (typeof S !== 'undefined' && S.girviCfg) || {};
+  if(!cfg.extraAfterYear || !g) return g;
+  var end = asOf;
+  if(g.status === 'closed'){ // a closed loan is judged at its closing date, so its replay matches what was charged
+    end = new Date(g.closedAt);
+    if(isNaN(end.getTime())) return g;
+  }
+  var start = new Date(g.startDate);
+  if(isNaN(start.getTime()) || Math.floor((end.getTime()-start.getTime())/86400000) <= 365) return g;
+  var pts = parseFloat(cfg.extraPoints);
+  if(!isFinite(pts) || pts <= 0) return g;
+  var bump = g.rateType === 'yearly' ? pts * 12 : pts; // keep "points per month" in the loan's own unit
+  return Object.assign({}, g, {interestRate: (parseFloat(g.interestRate) || 0) + bump});
+}
+function girviCfgRender(){
+  var el = document.getElementById('girvi-cfg-card');
+  if(!el) return;
+  if(typeof isOwner === 'function' && !isOwner()){ el.innerHTML = ''; return; }
+  var cfg = S.girviCfg || {};
+  var pts = parseFloat(cfg.extraPoints); if(!isFinite(pts) || pts <= 0) pts = 1;
+  el.innerHTML = '<div class="card" style="padding:.6rem 1rem;margin-bottom:.6rem;">'+
+    '<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">'+
+    '<input type="checkbox" '+(cfg.extraAfterYear?'checked':'')+' style="width:16px;height:16px;flex:0 0 auto;accent-color:var(--gold);" onchange="girviSetCfg(\'extraAfterYear\',this.checked)"/> '+
+    'Extra interest after 1 year</label>'+
+    '<div style="font-size:11px;color:var(--text3);margin-top:4px;">When ON, a loan older than 365 days is charged '+escHtml(String(pts))+'% per month more, on the whole loan from day 1. Applies to existing loans too. Off = no change.</div>'+
+    (cfg.extraAfterYear?'<div style="margin-top:6px;font-size:12px;">Extra % per month: <input type="number" min="0.1" max="5" step="0.1" value="'+escHtml(String(pts))+'" style="width:64px;" onchange="girviSetCfg(\'extraPoints\',this.value)"/></div>':'')+
+    '</div>';
+}
+function girviSetCfg(key, val){
+  if(typeof isOwner === 'function' && !isOwner()) return;
+  S.girviCfg = S.girviCfg || {extraAfterYear:false, extraPoints:1};
+  if(key === 'extraAfterYear') S.girviCfg.extraAfterYear = !!val;
+  else if(key === 'extraPoints'){
+    var n = parseFloat(val);
+    if(!isFinite(n) || n < 0.1 || n > 5){ toast('Enter a number between 0.1 and 5'); girviCfgRender(); return; }
+    S.girviCfg.extraPoints = n;
+  }
+  saveToCloud();
+  renderGirvi();
+}
 function girviLedgerState(g, asOfDate){
   var p = parseFloat(g && g.principal) || 0;
   if(!g || p <= 0) return {principal:0, interestAccrued:0, outstanding:0, totalInterestPaid:0, totalPrincipalPaid:0, payments:[]};
   var asOf = asOfDate ? new Date(asOfDate) : new Date();
+  g = girviEffectiveLoan(g, asOf);
   var cursor = new Date(g.startDate);
   if(isNaN(cursor.getTime())) cursor = new Date();
   var remainingPrincipal = p;
@@ -1799,7 +1847,7 @@ function girviTotalPaid(g){
 // Monthly interest shown on card (for display only — actual accrual is day-based)
 function girviMonthlyInterest(g){
   var p = parseFloat(g.principal) || 0;
-  return p * girviDailyRate(g) * 30;
+  return p * girviDailyRate(girviEffectiveLoan(g, new Date())) * 30;
 }
 function girviComputeStatus(g){
   if(g.status==='closed'||g.status==='defaulted') return g.status;

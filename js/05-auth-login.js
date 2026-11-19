@@ -1336,6 +1336,7 @@ function buildBackupPayload(){
       nextKgJobNo:S.nextKgJobNo||1,
       rates:      S.rates,
       purchaseCfg:S.purchaseCfg||null,
+      girviCfg:   S.girviCfg||null,
       waRules:    S.waRules||null,
       dayBook:    S.dayBook||null,
       stockMovements:   S.stockMovements||[],
@@ -1410,6 +1411,7 @@ function processBackupFile(input){
         if(d.nextKgJobNo) S.nextKgJobNo = d.nextKgJobNo;
         if(d.rates)      S.rates       = d.rates;
         if(d.purchaseCfg)S.purchaseCfg = d.purchaseCfg;
+        if(d.girviCfg)   S.girviCfg    = Object.assign({}, S.girviCfg, d.girviCfg);
         if(d.waRules)    S.waRules     = d.waRules;
         if(d.dayBook)    S.dayBook     = d.dayBook;
         if(d.stockMovements)   S.stockMovements   = d.stockMovements;

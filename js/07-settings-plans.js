@@ -912,6 +912,7 @@ function renderGirvi(){
   });
 
   renderGirviCP();
+  girviCfgRender();
   renderGirviTodayActions();
 
   var list = girvi.filter(function(g){

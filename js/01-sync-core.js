@@ -168,6 +168,7 @@ function loadFromCloud(callback, skipPush, opts){
     if(Array.isArray(record.stockMovements)) S.stockMovements = record.stockMovements;
     if(Array.isArray(record.voidedInvNos))   S.voidedInvNos   = record.voidedInvNos;
     if(record.purchaseCfg && typeof record.purchaseCfg === 'object') S.purchaseCfg = Object.assign({}, S.purchaseCfg, record.purchaseCfg);
+    if(record.girviCfg && typeof record.girviCfg === 'object') S.girviCfg = Object.assign({}, S.girviCfg, record.girviCfg);
     if(record.dayBook && typeof record.dayBook === 'object') S.dayBook = record.dayBook;
     if(record.rates && typeof record.rates === 'object') S.rates = record.rates;
     if(record.nextId     > 0) S.nextId     = record.nextId;
@@ -351,6 +352,7 @@ function saveToCloud(callback){
     // Invoice numbers of deleted bills: never issued or accepted again (GST).
     voidedInvNos: S.voidedInvNos || [],
     purchaseCfg: S.purchaseCfg || {},
+    girviCfg:    S.girviCfg    || {},
     dayBook:     S.dayBook     || null,
     rates:       S.rates,
     nextId:      S.nextId      || 1,

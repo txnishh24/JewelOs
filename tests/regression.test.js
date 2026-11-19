@@ -88,6 +88,88 @@ test('manually recorded penalty increases outstanding balance', function(){
   assert(after.outstanding > before.outstanding + 2900, 'a 3000 penalty should meaningfully increase outstanding, before=' + before.outstanding + ' after=' + after.outstanding);
 });
 
+test('Girvi extra-interest-after-1-year switch: off by default, whole loan repriced when on and >365 days', function(){
+  var start = '2025-01-01';
+  function loan(){ return { principal:10000, interestRate:2, rateType:'monthly', compound:false, startDate:start, payments:[] }; }
+  function asOf(days){ return new Date(new Date(start).getTime() + days*86400000).toISOString(); }
+  var saved = app.S.girviCfg;
+  try{
+    app.S.girviCfg = { extraAfterYear:false, extraPoints:1 };
+    assert(approxEqual(app.girviLedgerState(loan(), asOf(400)).interestAccrued, 2666.67, 0.01), 'switch off: 400 days at 2% must stay 2666.67');
+    app.S.girviCfg = { extraAfterYear:true, extraPoints:1 };
+    assert(approxEqual(app.girviLedgerState(loan(), asOf(300)).interestAccrued, 2000, 0.01), 'switch on, 300 days: unchanged at 2%');
+    assert(approxEqual(app.girviLedgerState(loan(), asOf(365)).interestAccrued, 2433.33, 0.01), 'switch on, exactly 365 days: not over a year yet');
+    assert(approxEqual(app.girviLedgerState(loan(), asOf(400)).interestAccrued, 4000, 0.01), 'switch on, 400 days: whole loan at 3% = 4000');
+    var closed = loan(); closed.status = 'closed';
+    assert(approxEqual(app.girviLedgerState(closed, asOf(400)).interestAccrued, 2666.67, 0.01), 'closed loan with no closedAt is not repriced');
+    closed.closedAt = asOf(300);
+    assert(approxEqual(app.girviLedgerState(closed, asOf(400)).interestAccrued, 2666.67, 0.01), 'closed before day 365: never repriced');
+    closed.closedAt = asOf(380);
+    assert(approxEqual(app.girviLedgerState(closed, asOf(400)).interestAccrued, 4000, 0.01), 'closed after day 365: keeps the higher rate');
+    var l = loan(); app.girviLedgerState(l, asOf(400));
+    assert(l.interestRate === 2, 'the loan object must never be mutated');
+  } finally { app.S.girviCfg = saved; }
+});
+
+test('Girvi extra-interest switch: waterfall, interest-only, penalty/refund, compound, yearly and mid-loan payments still reconcile', function(){
+  var start = '2025-01-01';
+  function day(n){ return new Date(new Date(start).getTime() + n*86400000).toISOString(); }
+  function mk(extra){ return Object.assign({ principal:10000, interestRate:2, rateType:'monthly', compound:false, startDate:start, payments:[] }, extra||{}); }
+  var saved = app.S.girviCfg;
+  try{
+    // Payment on day 100 (before the 365-day mark), viewed at day 400: ON reprices the whole loan, payment too.
+    var pays = [{ amount:3000, type:'partial', date:day(100) }];
+    app.S.girviCfg = { extraAfterYear:false, extraPoints:1 };
+    var off = app.girviLedgerState(mk({payments:pays}), day(400));
+    app.S.girviCfg = { extraAfterYear:true, extraPoints:1 };
+    var on = app.girviLedgerState(mk({payments:pays}), day(400));
+    var early = app.girviLedgerState(mk({payments:pays}), day(300));
+    app.S.girviCfg = { extraAfterYear:false, extraPoints:1 };
+    var offEarly = app.girviLedgerState(mk({payments:pays}), day(300));
+    assert(approxEqual(early.outstanding, offEarly.outstanding, 0.01), 'ON but under a year must equal OFF');
+    assert(on.outstanding > off.outstanding, 'ON after a year must cost more than OFF');
+    // interest-first at day 100: 10000*0.02/30*100 = 666.67 interest at 2%, 1000 at 3%
+    assert(approxEqual(off.payments[0].interestPortion, 666.67, 0.01), 'OFF: first 666.67 of the payment is interest');
+    assert(approxEqual(on.payments[0].interestPortion, 1000, 0.01), 'ON: payment re-split with 3% rate, interest first = 1000');
+    assert(approxEqual(on.totalPrincipalPaid, 2000, 0.01), 'ON: remaining 2000 reduces principal');
+    assert(approxEqual(on.payments[0].interestPortion + on.payments[0].principalPortion, 3000, 0.01), 'payment is fully allocated');
+
+    // Interest-only never reduces principal, ON, even when it overpays.
+    app.S.girviCfg = { extraAfterYear:true, extraPoints:1 };
+    var io = app.girviLedgerState(mk({payments:[{ amount:9000, type:'interest', date:day(400) }]}), day(401));
+    assert(approxEqual(io.principal, 10000, 0.01), 'ON: interest-only payment leaves principal untouched');
+    assert(io.totalPrincipalPaid === 0, 'ON: interest-only pays no principal');
+
+    // Penalty and refund still add to what is owed, ON.
+    var base = app.girviLedgerState(mk(), day(400));
+    var pen = app.girviLedgerState(mk({payments:[{ amount:500, type:'penalty', date:day(200) }]}), day(400));
+    var ref = app.girviLedgerState(mk({payments:[{ amount:500, type:'refund', date:day(200) }]}), day(400));
+    assert(pen.outstanding > base.outstanding + 500, 'ON: penalty adds at least its amount (plus interest on it)');
+    assert(ref.outstanding > base.outstanding + 500, 'ON: refund adds at least its amount (plus interest on it)');
+    assert(approxEqual(pen.principal, 10500, 0.01), 'ON: penalty is added to principal');
+
+    // Compound loan with a payment: waterfall conserves money and bump applies.
+    var cOn = app.girviLedgerState(mk({compound:true, payments:[{ amount:2000, type:'partial', date:day(150) }]}), day(500));
+    app.S.girviCfg = { extraAfterYear:false, extraPoints:1 };
+    var cOff = app.girviLedgerState(mk({compound:true, payments:[{ amount:2000, type:'partial', date:day(150) }]}), day(500));
+    assert(cOn.outstanding > cOff.outstanding, 'compound ON costs more than OFF after a year');
+    assert(isFinite(cOn.outstanding) && cOn.principal >= 0 && cOn.interestAccrued >= 0, 'compound ON stays finite and non-negative');
+    assert(approxEqual(cOn.totalInterestPaid + cOn.totalPrincipalPaid, 2000, 0.01), 'compound ON: payment fully allocated');
+    assert(approxEqual(cOn.principal, 10000 - cOn.totalPrincipalPaid, 0.01), 'compound ON: principal = original - principal paid');
+
+    // Yearly-rate loan: 24%/yr (2%/mo) bumps by 12 points/yr, same as +1%/mo.
+    app.S.girviCfg = { extraAfterYear:true, extraPoints:1 };
+    var yr = app.girviLedgerState(mk({interestRate:24, rateType:'yearly'}), day(400));
+    assert(approxEqual(yr.interestAccrued, 3945.21, 0.01), 'ON yearly 24%+12 = 36%/yr on a 365-day year = 3945.21, got ' + yr.interestAccrued);
+
+    // Bad config values never change the result.
+    app.S.girviCfg = { extraAfterYear:true, extraPoints:'abc' };
+    assert(approxEqual(app.girviLedgerState(mk(), day(400)).interestAccrued, 2666.67, 0.01), 'garbage extraPoints must fall back to no change');
+    app.S.girviCfg = undefined;
+    assert(approxEqual(app.girviLedgerState(mk(), day(400)).interestAccrued, 2666.67, 0.01), 'missing girviCfg must mean OFF');
+  } finally { app.S.girviCfg = saved; }
+});
+
 test('refund increases outstanding balance (money given back means more is owed)', function(){
   var startDate = new Date(Date.now() - 50*86400000).toISOString().slice(0,10);
   var before = app.girviLedgerState({ principal:20000, interestRate:24, rateType:'yearly', compound:false, startDate:startDate, payments:[] });
