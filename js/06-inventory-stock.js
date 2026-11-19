@@ -135,16 +135,17 @@ function calcCategoryPerf(year, month){
     var isLast = d >= lastMonthStart && d <= lastMonthEnd;
     (s.items||[]).forEach(function(i){
       var cat = saleItemCat(i);
-      if(!cats[cat]) cats[cat]={rev:0,units:0,prevRev:0,profit:0};
+      if(!cats[cat]) cats[cat]={rev:0,units:0,prevRev:0,profit:0,n:0,unk:0};
       var itemRev = getItemRate(i)*(parseFloat(i.weight)||0)*(i.qty||1);
       var itemProfit = calcItemProfit(i).profit;
-      if(isThis){cats[cat].rev+=itemRev;cats[cat].units+=(parseFloat(i.qty)||1);cats[cat].profit+=itemProfit;}
+      if(isThis){cats[cat].rev+=itemRev;cats[cat].units+=(parseFloat(i.qty)||1);cats[cat].profit+=itemProfit;cats[cat].n++;if(saleItemCostMissing(i)) cats[cat].unk++;}   // R34: unk = every item sold has no cost
+
       if(isLast){cats[cat].prevRev+=itemRev;}
     });
   });
   return Object.entries(cats).map(function(e){
     var trend = e[1].prevRev>0 ? ((e[1].rev-e[1].prevRev)/e[1].prevRev*100) : 0;
-    return {cat:e[0],rev:e[1].rev,units:e[1].units,prevRev:e[1].prevRev,profit:e[1].profit,trend:trend};
+    return {cat:e[0],rev:e[1].rev,units:e[1].units,prevRev:e[1].prevRev,profit:e[1].profit,profitUnknown:(e[1].n>0&&e[1].unk===e[1].n),trend:trend};
   }).sort(function(a,b){return b.rev-a.rev;});
 }
 
@@ -483,7 +484,7 @@ function renderDash(){
           '<div style="background:var(--bg3);border-radius:4px;height:5px;overflow:hidden;">'+
             '<div style="height:100%;width:'+Math.round(c.rev/maxRev*100)+'%;background:var(--gold);border-radius:4px;"></div>'+
           '</div>'+
-          '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">'+c.units+' sold'+((canSeeProfit() && !shopHasNoCosts())?' &bull; profit: '+fmt(Math.round(c.profit)):'')+'</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);margin-top:2px;">'+c.units+' sold'+((canSeeProfit() && !shopHasNoCosts())?' &bull; profit: '+(c.profitUnknown?'—':fmt(Math.round(c.profit))):'')+'</div>'+
         '</div>';
       }).join('');
     } else {
@@ -671,7 +672,7 @@ function renderReportsIntelligence(){
           '<td style="font-weight:600;">'+escHtml(c.cat)+'</td>'+
           '<td style="font-weight:700;color:var(--gold-dark);">'+fmt(Math.round(c.rev))+'</td>'+
           '<td>'+c.units+'</td>'+
-          ((canSeeProfit() && !shopHasNoCosts()) ? '<td style="color:var(--success);">'+fmt(Math.round(c.profit))+'</td>' : '')+
+          ((canSeeProfit() && !shopHasNoCosts()) ? '<td style="color:var(--success);">'+(c.profitUnknown?'—':fmt(Math.round(c.profit)))+'</td>' : '')+
           '<td style="color:'+tColor+';font-weight:600;font-size:11px;">'+tIcon+'</td>'+
         '</tr>';
       }).join('')+'</tbody></table></div>'

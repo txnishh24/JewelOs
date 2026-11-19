@@ -8598,6 +8598,14 @@ test('R34 C: a refund of a cost-missing sale in a mixed shop keeps the P&L lines
 });
 
 
+test('R34 D: Category table: a category whose sales are all cost-missing has profitUnknown (shown as a dash); a costed one does not', function(){
+  var a = r34Mixed(); var rows = a.calcCategoryPerf();
+  var chains = rows.filter(function(r){ return r.cat === 'Chains' || r.cat === 'Other' || r.profitUnknown; });
+  var unk = rows.filter(function(r){ return r.profitUnknown; }), known = rows.filter(function(r){ return !r.profitUnknown; });
+  assert(unk.length === 1 && known.length >= 1, 'one unknown category, one known: ' + JSON.stringify(rows.map(function(r){ return [r.cat, r.profitUnknown]; })));
+});
+
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');
