@@ -8368,6 +8368,44 @@ test('R33 3: a shop where no product has a cost shows "Add product costs to see 
   assert(/showNoCostProducts/.test(fs.readFileSync(path.join(JS_DIR, '03-billing-numbers.js'), 'utf-8')), 'Reports links to the nocost filter');
 });
 
+// Invariant tester gap-fill for R32/R33 (profit mix, girvi masking per role, manager cannot delete stock)
+test('R33 4: a month with one known-cost sale and one cost-unknown sale: profit counts only the known one, revenue counts both', function(){
+  var a = makingScenario({ costRate: 6000 });
+  var k = a.buildSaleObj(); k.date = new Date().toISOString(); k.id = 'sk';
+  var b = makingScenario(); var u = b.buildSaleObj(); u.date = new Date().toISOString(); u.id = 'su';
+  a.S.sales = [k, u];
+  var now = new Date(), mp = a.calcMonthProfit(now.getFullYear(), now.getMonth());
+  var known = a.calcSaleProfit(k);
+  assert(mp.noCostCount === 1, 'one sale flagged: ' + mp.noCostCount);
+  assert(approxEqual(mp.profit, known.profit, 1), 'profit equals the known sale only: ' + mp.profit + ' vs ' + known.profit);
+  assert(approxEqual(mp.revenue, known.revenue + a.calcSaleProfit(u).revenue, 1), 'revenue counts both sales');
+  assert(a.shopHasNoCosts() === false, 'one product has a cost, so the normal view shows');
+});
+
+test('R32 4b: Day Book girvi lines: owner and manager see them, staff and read-only see them folded; totals identical', function(){
+  function go(role){
+    var a = r26App(role); var d = a.dbToday();
+    a.S.purchases = []; a.S.karigars = []; a.S.karigarPayments = [];
+    a.S.girvi = [{ id:'g1', grvNo:'GRV-77', custName:'Mohan', principal:20000, disburseMode:'cash', startDate:d, payments:[] }];
+    return a.dbDayView(d);
+  }
+  var ow = go('owner'), mg = go('manager'), st = go('staff'), ro = go('readonly');
+  assert(JSON.stringify(ow.lines).indexOf('GRV-77') > -1, 'owner sees the loan line');
+  assert(JSON.stringify(mg.lines).indexOf('GRV-77') > -1, 'manager keeps girvi lines (only purchase and karigar names are masked)');
+  [st, ro].forEach(function(v, i){
+    assert(JSON.stringify(v.lines).indexOf('GRV-77') === -1, (i ? 'readonly' : 'staff') + ' sees a girvi loan line');
+  });
+  [mg, st, ro].forEach(function(v){ assert(v.totalOut === ow.totalOut && v.totalIn === ow.totalIn && v.closing === ow.closing, 'masked totals must equal the owner totals'); });
+});
+
+test('R32 6: a manager cannot delete a product; the stock list is unchanged', function(){
+  var a = r26App('manager');
+  a.S.products = [{ id:'p1', name:'Ring', weight:5, unitWeight:5, qty:2, status:'available' }];
+  var before = JSON.stringify(a.S.products);
+  a.delProd('p1');
+  assert(JSON.stringify(a.S.products) === before, 'manager removed stock');
+});
+
 
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
