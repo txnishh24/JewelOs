@@ -490,7 +490,7 @@ function renderCustomers(entrance){
           '<div style="font-weight:700;color:var(--gold-dark);font-size:15px;">\u20b9'+Math.round(f.totalPurchased).toLocaleString('en-IN')+'</div>'+
           (f.totalCredit>0
             ?'<div style="font-size:12px;font-weight:700;color:var(--danger);">\u23f1 \u20b9'+Math.round(f.totalCredit).toLocaleString('en-IN')+' due</div>'+
-             '<button onclick="event.stopPropagation();custBalanceWA(\''+jsAttrEsc(c.name)+'\',\''+jsAttrEsc(c.phone)+'\','+Math.round(f.totalCredit)+')" style="margin-top:5px;padding:4px 10px;border-radius:100px;border:1px solid #25d36640;background:#25d36622;color:#25d366;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">\ud83d\udcf2 Remind</button>'
+             (isReadOnly() ? '' : '<button onclick="event.stopPropagation();custBalanceWA(\''+jsAttrEsc(c.name)+'\',\''+jsAttrEsc(c.phone)+'\','+Math.round(f.totalCredit)+')" style="margin-top:5px;padding:4px 10px;border-radius:100px;border:1px solid #25d36640;background:#25d36622;color:#25d366;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">\ud83d\udcf2 Remind</button>')
             :'<div style="font-size:12px;color:var(--success);font-weight:600;">\u2713 All paid</div>')+
           (f.totalExposure>0?'<div style="font-size:11px;color:'+riskColor+';font-weight:600;">Total exposure: \u20b9'+Math.round(f.totalExposure).toLocaleString('en-IN')+'</div>':'')+
         '</div>'+
@@ -503,6 +503,7 @@ function renderCustomers(entrance){
 
 
 function markSalePaid(saleId){
+  if(isReadOnly()){ guardWrite('mark bills as paid'); return; }   // R34 G: say view-only, not 'only owners and managers'
   if(!isManager()){ toast('\u26a0 Only owners and managers can mark bills as paid'); return; }
   var sale=S.sales.find(function(x){return x.id===saleId;});
   if(!sale)return;
@@ -696,7 +697,7 @@ function showCustHistory(encKey){
     if(canChangeBill(s)) btnRow.appendChild(btnEdit);
 
     // Mark as Paid button (only if balance due)
-    if(!isPaid){
+    if(!isPaid && !isReadOnly()){   // R34 G: a view-only account sees no payment buttons
       var btnPay=document.createElement('button');
       btnPay.className='btn btn-sm';
       btnPay.style.cssText='background:var(--success);color:#fff;font-size:11px;';
@@ -864,7 +865,7 @@ function editProd(id){
   document.getElementById('ep-wastage').value=p.wastagePct||'';
   document.getElementById('ep-hallmark').value=p.hallmarkCentre||'';
   var _crFg=document.getElementById('ep-costrate-fg');   // R32 3d: the owner can repair a missing cost; a manager never sees the field
-  if(_crFg){ _crFg.style.display = canSeeProfit() ? '' : 'none'; document.getElementById('ep-costrate').value = p.costRate>0 ? p.costRate : ''; }
+  if(_crFg){ _crFg.style.display = canSeeProfit() ? '' : 'none'; document.getElementById('ep-costrate').value = (canSeeProfit() && p.costRate>0) ? p.costRate : ''; }   // R34 H: a manager's DOM never holds the real cost
   document.getElementById('ep-photo').value=p.photo||'';
   document.getElementById('ep-notes').value=p.notes||'';
   var purList=p.metal==='gold'?['24K','22K','18K','14K','Gold Plated']:['999 Pure','925 Sterling','800','Silver Plated'];
@@ -890,7 +891,12 @@ function saveEditProd(){
   // check left the in-memory product half-edited with nothing saved.
   var epHuidRaw = document.getElementById('ep-huid').value.trim().toUpperCase();
   var epHuidCheck = validateHUID(epHuidRaw);
-  if(!epHuidCheck.ok){ toast('\u26a0 '+epHuidCheck.msg); document.getElementById('ep-huid').focus(); return; }
+  // R34 I: a legacy HUID already on the product and invalid must not stop the owner adding its cost. Warn, keep it, save.
+  // A HUID the user just typed or changed is still blocked.
+  if(!epHuidCheck.ok){
+    if(epHuidRaw && epHuidRaw === String(p.huid||'').trim().toUpperCase()){ toast('\u26a0 This product\'s HUID "'+epHuidRaw+'" is not a valid HUID. Saved as it is; please correct it when you can.'); }
+    else { toast('\u26a0 '+epHuidCheck.msg); document.getElementById('ep-huid').focus(); return; }
+  }
   var epSku = document.getElementById('ep-sku').value.trim()||(p.metal==='gold'?'GLD':'SLV')+'-'+String(p.id).padStart(3,'0');
   // Foundation audit §6: block a duplicate SKU/HUID, excluding this
   // product's own id so editing without changing SKU/HUID doesn't trip
@@ -1205,19 +1211,19 @@ function renderReports(entrance){
     var cm=repMonth-ci, cy=repYear;
     if(cm<0){cm+=12;cy--;}
     var mp=calcMonthProfit(cy,cm);
-    chartData.push({label:MS[cm],rev:mp.revenue,profit:mp.netProfit,active:(cm===repMonth&&cy===repYear)});
+    chartData.push({label:MS[cm],rev:mp.revenue,profit:mp.netProfit,unk:monthCostUnknown(mp),active:(cm===repMonth&&cy===repYear)});
   }
   var mx=Math.max.apply(null,chartData.map(function(d){return d.rev;}))||1;
   var ce=document.getElementById('rep-chart');
   var le=document.getElementById('rep-chart-labels');
   if(ce) ce.innerHTML=chartData.map(function(d){
     var hRev   =Math.max(4,Math.round(d.rev/mx*80));
-    var hProfit=(_showP && !_noCosts) ? Math.max(2,Math.round(Math.max(0,d.profit)/mx*80)) : 0;
+    var hProfit=(_showP && !_noCosts && !d.unk) ? Math.max(2,Math.round(Math.max(0,d.profit)/mx*80)) : 0;
     return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">'+
       '<div style="font-size:var(--text-xs);color:var(--text3);">'+(d.rev>0?fmt(d.rev).replace('\u20b9',''):'')+'</div>'+
       '<div style="width:100%;position:relative;height:80px;display:flex;align-items:flex-end;gap:1px;">'+
         '<div style="flex:1;height:'+hRev+'px;background:'+(d.active?'var(--gold)':'var(--bg3)')+';border-radius:3px 3px 0 0;"></div>'+
-        ((_showP && !_noCosts) ? '<div style="flex:1;height:'+hProfit+'px;background:'+(d.profit>=0?'var(--success)':'var(--danger)')+';border-radius:3px 3px 0 0;opacity:0.8;"></div>' : '')+
+        ((_showP && !_noCosts && !d.unk) ? '<div style="flex:1;height:'+hProfit+'px;background:'+(d.profit>=0?'var(--success)':'var(--danger)')+';border-radius:3px 3px 0 0;opacity:0.8;"></div>' : '')+
       '</div></div>';
   }).join('');
   if(le) le.innerHTML=chartData.map(function(d){
@@ -1250,8 +1256,9 @@ function renderReports(entrance){
     else plEl.innerHTML=
       '<div style="display:grid;gap:0;">'+
       plRow('(+) Total Revenue',     fmt(mProfit.revenue),  'var(--gold-dark)', true)+
+      (mixedCostNote(mProfit) ? plRow('(-) '+mixedCostNote(mProfit), fmt(Math.round(mProfit.noCostRev)), 'var(--warning)', false) : '')+   // R34 C: lines reconcile
       plRow('(-) Metal Cost',        fmt(mProfit.cost),     'var(--danger)',    false)+
-      plRow('(-) GST (Govt portion)',fmt(mProfit.gst),      'var(--text3)',     false)+
+      plRow('(-) GST (Govt portion'+(mixedCostNote(mProfit) ? ', costed sales' : '')+')', fmt(mProfit.gst-(mProfit.noCostGst||0)), 'var(--text3)', false)+
       '<div style="border-top:2px solid var(--border);padding-top:8px;margin-top:4px;">'+
       plRow('= Gross Profit',        fmt(mProfit.profit),   mProfit.profit>=0?'var(--success)':'var(--danger)', true)+
       '</div>'+
@@ -1321,9 +1328,9 @@ function renderReports(entrance){
   var custMap3={};
   monthSales.forEach(function(s){
     var k=(s.customer||'Walk-in')+(s.phone?'_'+s.phone:'');
-    if(!custMap3[k]) custMap3[k]={name:s.customer||'Walk-in',phone:s.phone||'',count:0,rev:0,profit:0,pending:0};
+    if(!custMap3[k]) custMap3[k]={name:s.customer||'Walk-in',phone:s.phone||'',count:0,rev:0,profit:0,pending:0,unk:0};
     var t2=calcSaleTotals(s); var p2=calcSaleProfit(s);
-    custMap3[k].count++; custMap3[k].rev+=t2.grand; custMap3[k].profit+=p2.profit; custMap3[k].pending+=t2.bal;
+    custMap3[k].count++; custMap3[k].rev+=t2.grand; custMap3[k].profit+=p2.profit; if(p2.costMissing) custMap3[k].unk++; custMap3[k].pending+=t2.bal;
   });
   var topC=Object.values(custMap3).sort(function(a,b){return b.rev-a.rev;}).slice(0,5);
   var tcEl=document.getElementById('rep-top-custs');
@@ -1336,7 +1343,7 @@ function renderReports(entrance){
           '</div>'+
           '<div style="text-align:right;">'+
             '<div style="font-weight:700;color:var(--gold-dark);">'+fmt(cu.rev)+'</div>'+
-            (_showP && !shopHasNoCosts() ? '<div style="font-size:11px;color:var(--success);">Profit: '+fmt(Math.round(cu.profit))+'</div>' : '')+
+            (_showP && !shopHasNoCosts() ? (cu.unk>=cu.count ? '<div style="font-size:11px;color:var(--warning);">Profit: cost missing</div>' : '<div style="font-size:11px;color:var(--success);">Profit: '+fmt(Math.round(cu.profit))+(cu.unk>0?' <span style="color:var(--warning);">('+plural(cu.unk,'sale')+' cost missing)</span>':'')+'</div>') : '')+
             (cu.pending>0?'<div style="font-size:11px;color:var(--danger);">Due: '+fmt(cu.pending)+'</div>':'<div style="font-size:11px;color:var(--success);">\u2713 Cleared</div>')+
           '</div></div>';
       }).join('');

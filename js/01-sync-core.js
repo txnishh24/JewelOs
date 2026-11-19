@@ -2147,6 +2147,17 @@ function shopHasNoCosts(){
   var ps = S.products||[];
   return ps.length>0 && ps.every(function(x){ return !(x.costRate>0); });
 }
+// R34 C: a MIXED shop (some products costed, some not): revenue includes the cost-unknown sales but cost, GST-in-profit and profit leave
+// them out, so the lines did not add up. mixedCostNote(m) is that gap as one line, or '' when there is none (or no product has a cost at all:
+// that case shows NO_COST_MSG instead). m is a calcMonthProfit / calcAllTimeProfit result.
+function mixedCostNote(m){
+  if(!m || !(m.noCostCount>0) || shopHasNoCosts()) return '';
+  return 'Sales with cost missing (not in profit): '+fmt(Math.round(m.noCostRev))+' ('+plural(m.noCostCount,'sale')+')';
+}
+// Margin is always profit over the revenue of sales whose cost is known (what calcMonthProfit.margin does). Net-of-expenses version for the digest.
+// R34 D: a month whose every sale has no cost: its profit is unknown, not Rs 0 (no profit bar, no 0% label).
+function monthCostUnknown(m){ return !!(m && m.count>0 && m.noCostCount===m.count); }
+function costedRevenue(m){ return (m.revenue||0) - (m.noCostRev||0); }
 function saleCostMissing(sale){
   return (sale && sale.items || []).some(saleItemCostMissing);
 }
@@ -2471,6 +2482,7 @@ function renderPaginator(total, page, pageSize, setPageFn) {
 var _salePaymentSubmitLock = {}; // keyed by sale id
 
 function openSalePaymentModal(saleId){
+  if(isReadOnly()){ guardWrite('record payments'); return; }   // R34 G: was silent
   var sale=(S.sales||[]).find(function(x){return x.id===saleId;});
   if(!sale){toast('Sale not found');return;}
   var t=calcSaleTotals(sale);
@@ -2510,6 +2522,7 @@ function refreshOpenCustHistory(sale){
 }
 
 function submitSalePayment(saleId){
+  if(isReadOnly()){ guardWrite('record payments'); return; }   // R34 G: was 'rolled back, check your connection'
   var sale=(S.sales||[]).find(function(x){return x.id===saleId;});
   if(!sale) return;
   if(_salePaymentSubmitLock[saleId]){ toast('Payment already being recorded — please wait'); return; }
@@ -2729,6 +2742,11 @@ function _submitRefund(saleId) {
         fromSaleId:sale.id,
         fromSaleItemIndex:idx
       };
+      // R34 E: the returned piece keeps its cost, so a costed shop does not grow a "no cost" product after its first return.
+      // Sale-item snapshot first (R33); an old sale without one falls back to the source product if it still exists.
+      var _srcP = (S.products||[]).find(function(x){ return x.id===item.pid; });
+      var _rc = (item.costRate > 0) ? item.costRate : (_srcP && _srcP.costRate > 0) ? _srcP.costRate : 0;
+      if(_rc > 0) product.costRate = _rc;
       S.products=S.products||[];
       S.products.push(product);
       sale.returnedItemIdx.push(idx);
@@ -2903,10 +2921,10 @@ function calcMonthProfit(year, month){
   var sales = S.sales.filter(function(s){
     var d=new Date(s.date); return d.getFullYear()===year && d.getMonth()===month;
   });
-  var totalRevenue=0, totalCost=0, totalProfit=0, totalGST=0, noCostCount=0, noCostRev=0;
+  var totalRevenue=0, totalCost=0, totalProfit=0, totalGST=0, noCostCount=0, noCostRev=0, noCostGst=0;
   sales.forEach(function(s){
     var p = calcSaleProfit(s);
-    if(p.costMissing){ noCostCount++; noCostRev += p.revenue; }   // R32 3: kept in revenue, left out of profit and margin
+    if(p.costMissing){ noCostCount++; noCostRev += p.revenue; noCostGst += p.gstPaid; }   // R32 3: kept in revenue, left out of profit and margin; R34 C: its GST too, so P&L lines reconcile
     totalRevenue += p.revenue;
     totalCost    += p.cost;
     totalProfit  += p.profit;
@@ -2919,7 +2937,7 @@ function calcMonthProfit(year, month){
   S.sales.forEach(function(s){
     if(!s.refunds || !s.refunds.length) return;
     var adj = calcRefundAdj(s, monthStart, monthEnd);
-    if(adj.costMissing) noCostRev -= adj.amount;
+    if(adj.costMissing){ noCostRev -= adj.amount; noCostGst -= adj.gst; }
     totalRevenue   -= adj.amount;
     totalCost      -= adj.cost;
     totalGST       -= adj.gst;
@@ -2945,14 +2963,14 @@ function calcMonthProfit(year, month){
   var _mRev = totalRevenue - noCostRev;   // R32 3: margin only over sales whose cost is known (plus girvi interest)
   var margin = _mRev>0 ? (totalProfit/_mRev*100) : 0;
   var expenses = calcDayBookExpenses(year, month);
-  return { revenue:totalRevenue, cost:totalCost, profit:totalProfit, gst:totalGST, margin:margin, count:sales.length, noCostCount:noCostCount, noCostRev:noCostRev, expenses:expenses, netProfit: totalProfit-expenses.total, refunds:totalRefunds, refundGst:totalRefundGst };
+  return { revenue:totalRevenue, cost:totalCost, profit:totalProfit, gst:totalGST, margin:margin, count:sales.length, noCostCount:noCostCount, noCostRev:noCostRev, noCostGst:noCostGst, expenses:expenses, netProfit: totalProfit-expenses.total, refunds:totalRefunds, refundGst:totalRefundGst };
 }
 
 function calcAllTimeProfit(){
-  var totalRevenue=0, totalProfit=0, noCostCount=0, noCostRev=0;
+  var totalRevenue=0, totalProfit=0, noCostCount=0, noCostRev=0, noCostGst=0;
   S.sales.forEach(function(s){
     var p=calcSaleProfit(s);
-    if(p.costMissing){ noCostCount++; noCostRev += p.revenue; }   // R32 3
+    if(p.costMissing){ noCostCount++; noCostRev += p.revenue; noCostGst += p.gstPaid; }   // R32 3
     totalRevenue += p.revenue;
     totalProfit  += p.profit;
   });
@@ -2960,7 +2978,7 @@ function calcAllTimeProfit(){
   S.sales.forEach(function(s){
     if(!s.refunds || !s.refunds.length) return;
     var adj = calcRefundAdj(s);
-    if(adj.costMissing) noCostRev -= adj.amount;
+    if(adj.costMissing){ noCostRev -= adj.amount; noCostGst -= adj.gst; }
     totalRevenue -= adj.amount;
     totalProfit  += adj.profit;
   });
@@ -2974,7 +2992,7 @@ function calcAllTimeProfit(){
     });
   });
   var expenses = calcDayBookExpenses();
-  return { revenue:totalRevenue, profit:totalProfit, noCostCount:noCostCount, noCostRev:noCostRev, margin: (totalRevenue-noCostRev)>0?(totalProfit/(totalRevenue-noCostRev)*100):0, expenses:expenses, netProfit: totalProfit-expenses.total };
+  return { revenue:totalRevenue, profit:totalProfit, noCostCount:noCostCount, noCostRev:noCostRev, noCostGst:noCostGst, margin: (totalRevenue-noCostRev)>0?(totalProfit/(totalRevenue-noCostRev)*100):0, expenses:expenses, netProfit: totalProfit-expenses.total };
 }
 
 // ── CUSTOMER FINANCIAL PROFILE ───────────────────────────────────────

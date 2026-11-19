@@ -363,7 +363,8 @@ function renderInv(entrance){
   var m=UI.metal;
   var sf=document.getElementById('inv-status-filter').value;
   document.getElementById('cat-pills').innerHTML=CATS.map(function(c){return '<button class="pill'+(UI.selCat===c?' active':'')+'" onclick="setCat(\''+jsAttrEsc(c)+'\')">'+c+'</button>';}).join('');
-  var prods=S.products.filter(function(p){return p.metal===m;});
+  var _ncAll = (sf==='nocost' && canSeeProfit());   // R34 F: the no-cost list spans every metal, not only the open tab
+  var prods=S.products.filter(function(p){return _ncAll || p.metal===m;});
   if(UI.selCat!=='All') prods=prods.filter(function(p){return p.cat===UI.selCat;});
   if(sf==='available') prods=prods.filter(function(p){return p.status!=='sold'&&p.status!=='returned';});
   if(sf==='sold') prods=prods.filter(function(p){return p.status==='sold';});
@@ -380,7 +381,13 @@ function renderInv(entrance){
   // Pagination controls
   var pgHtml = totalPages > 1 ? renderPaginator(totalProds, _invPage, INV_PAGE_SIZE, 'function(p){_invPage=p;renderInv();}') : '';
   var pgEl = document.getElementById('inv-pagination');
-  if(pgEl) pgEl.innerHTML = pgHtml;
+  var _ncNote = '';
+  if(_ncAll){
+    var _ncG = S.products.filter(function(p){return p.metal==='gold' && !(p.costRate>0);}).length;
+    var _ncS = S.products.filter(function(p){return p.metal==='silver' && !(p.costRate>0);}).length;
+    _ncNote = '<div style="font-size:12px;color:var(--warning);padding:4px 0;">Products with no cost, all metals: Gold '+_ncG+', Silver '+_ncS+'</div>';
+  }
+  if(pgEl) pgEl.innerHTML = _ncNote + pgHtml;
 
   var invEmptyHtml='<span class="empty-icon">'+(isG?'&#127775;':'&#11088;')+'</span>No products found';
   if(!pagedProds.length){
@@ -396,6 +403,7 @@ function renderInv(entrance){
       var sold=p.status==='sold';
       var returned=p.status==='returned';
       var mv=mktVal(p);
+      var isG=p.metal==='gold';   // R34 F: per product, the list can mix metals
       var pbg=isG?'background:#fef9ec;color:var(--gold-dark);border:1px solid rgba(179,146,87,0.3)':'background:#eef2f6;color:var(--silver-dark);border:1px solid rgba(168,180,192,0.35)';
       var safePhoto=(p.photo&&(p.photo.startsWith('http://')||p.photo.startsWith('https://')))?p.photo:'';
       var photoHtml=safePhoto?'<a href="'+escHtml(safePhoto)+'" target="_blank" class="photo-link">&#128247; View</a>':'<span style="color:var(--text3);font-size:11px">&#8212;</span>';
@@ -408,7 +416,7 @@ function renderInv(entrance){
       // single-quoted onclick="...('ID')" -- jsAttrEsc handles both the
       // JS-string-breakout and the attribute-quote cases in one pass.
       var safeId=jsAttrEsc(p.id);
-      var actionsHtml=(returned
+      var actionsHtml=(isReadOnly() ? '' : returned
             ?'<button class="btn btn-sm btn-success" onclick="markReturnedSellable(\''+safeId+'\')" title="Inspected — move to sellable stock" style="font-size:11px;">&#10003; Mark Sellable</button>'
             :'<button class="btn btn-sm '+(sold?'btn-success':'btn-danger')+'" onclick="toggleStatus(\''+safeId+'\')" style="font-size:11px;">'+(sold?'&#9850; Restore':'&#10005; Sold')+'</button>'
           )+
@@ -540,6 +548,7 @@ function submitAdjustStock(){
 }
 
 function toggleStatus(id){
+  if(isReadOnly()){ guardWrite('change stock status'); return; }   // R34 G
   var p=S.products.find(function(x){return x.id===id;});
   if(!p)return;
   var prevStatus=p.status, prevQty=p.qty;

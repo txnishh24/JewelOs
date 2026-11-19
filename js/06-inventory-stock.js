@@ -97,6 +97,13 @@ function showNoCostProducts(){
   renderInv();
 }
 
+// R34 D: true when the week has sales and every one of them has no cost (profit unknown, shown as a dash, not Rs 0).
+function weekCostUnknown(weeksAgo){
+  var end   = new Date(Date.now() - weeksAgo*7*86400000);
+  var start = new Date(end.getTime() - 7*86400000);
+  var sales = S.sales.filter(function(s){var d=new Date(s.date);return d>=start&&d<=end;});
+  return sales.length>0 && sales.every(saleCostMissing);
+}
 function calcWeekProfit(weeksAgo){
   var end   = new Date(Date.now() - weeksAgo*7*86400000);
   var start = new Date(end.getTime() - 7*86400000);
@@ -259,6 +266,7 @@ function renderDash(){
   var todaySales = S.sales.filter(function(s){ return s.date && dbDayKey(s.date)===todayStr; });
   var todaySalesTotal = todaySales.reduce(function(sum,s){ return sum+calcSaleTotals(s).grand; },0);
   var todayProfitTotal = todaySales.reduce(function(sum,s){ return sum+calcSaleProfit(s).profit; },0);
+  var todayUnk = todaySales.filter(saleCostMissing).length;   // R34 D: sales today with no cost: profit unknown, not Rs 0
   var todayPurchases = (S.purchases||[]).filter(function(b){ return !b._deleted && b.date && dbDayKey(b.date)===todayStr; });
   var todayPurchaseTotal = todayPurchases.reduce(function(sum,b){ return sum+(b.totalAmount||0); },0);
 
@@ -271,7 +279,7 @@ function renderDash(){
       // Colour by sign, like the Net Cash line below — a loss shown in the
       // same green as a profit is the one number on this strip a jeweller
       // cannot afford to misread.
-      (canSeeProfit() ? (shopHasNoCosts() ? fsnCard("Today's Profit", NO_COST_MSG, '', null, '', 'var(--warning)') : fsnCard("Today's Profit", fmt(todayProfitTotal), '', null, '', todayProfitTotal>=0?'var(--success)':'var(--danger)')) : '');   // R26: owner only
+      (canSeeProfit() ? (shopHasNoCosts() ? fsnCard("Today's Profit", NO_COST_MSG, '', null, '', 'var(--warning)') : (todaySales.length>0 && todayUnk===todaySales.length) ? fsnCard("Today's Profit", 'Cost missing', 'no cost on the items sold today', null, '', 'var(--warning)') : fsnCard("Today's Profit", fmt(todayProfitTotal), todayUnk>0 ? todayUnk+' sale(s) cost missing, not counted' : '', null, '', todayProfitTotal>=0?'var(--success)':'var(--danger)')) : '');   // R26: owner only
   }
 
   // R32 3c: owner-only note when stock has no cost price. Those sales are left out of profit, never costed at the sale rate.
@@ -639,7 +647,7 @@ function renderReportsIntelligence(){
     weekLabels.map(function(l,i){return '<th style="padding:6px 4px;color:var(--text3);font-weight:600;text-align:right;'+(i===6?'color:var(--gold-dark);':'')+'">'+l+'</th>';}).join('')+
     '</tr></thead><tbody>'+
     '<tr>'+weekRevs.map(function(v,i){return '<td style="padding:6px 4px;text-align:right;font-weight:'+(i===6?'700':'400')+';color:'+(i===6?'var(--gold-dark)':'var(--text2)')+';">'+fmt(v)+'</td>';}).join('')+'</tr>'+
-    (!canSeeProfit() || shopHasNoCosts() ? '' : '<tr>'+weekProfs.map(function(v,i){return '<td style="padding:4px;text-align:right;font-size:11px;color:'+(v>=0?'var(--success)':'var(--danger)')+';font-weight:'+(i===6?'700':'400')+';">'+fmt(Math.round(v))+'</td>';}).join('')+'</tr>')+
+    (!canSeeProfit() || shopHasNoCosts() ? '' : '<tr>'+weekProfs.map(function(v,i){var _u=weekCostUnknown(6-i); return '<td style="padding:4px;text-align:right;font-size:11px;color:'+(_u?'var(--text3)':v>=0?'var(--success)':'var(--danger)')+';font-weight:'+(i===6?'700':'400')+';">'+(_u?'—':fmt(Math.round(v)))+'</td>';}).join('')+'</tr>')+
     '</tbody></table></div>'+
     '<div style="display:flex;align-items:flex-end;gap:3px;height:50px;margin-top:10px;padding:0 4px;">'+
     weekRevs.map(function(v,i){
@@ -1382,7 +1390,7 @@ function showDailyDigest(){
     '</div>'+
     digestSection('\ud83d\udcb0 This Month So Far',[
       ['Revenue', fmt(thisMonth.revenue)]
-    ].concat(canSeeProfit() ? (shopHasNoCosts() ? [['Profit', NO_COST_MSG]] : [['Profit',  fmt(thisMonth.netProfit)]]) : []).concat([['Cash In', fmt(cf.cashIn)]]).concat((canSeeProfit() && !shopHasNoCosts()) ? [['Margin',  thisMonth.margin.toFixed(1)+'%']] : []))+
+    ].concat((canSeeProfit() && mixedCostNote(thisMonth)) ? [['Sales with cost missing (not in profit)', fmt(Math.round(thisMonth.noCostRev))+' ('+plural(thisMonth.noCostCount,'sale')+')']] : []).concat(canSeeProfit() ? (shopHasNoCosts() ? [['Profit', NO_COST_MSG]] : [['Profit',  fmt(thisMonth.netProfit)]]) : []).concat([['Cash In', fmt(cf.cashIn)]]).concat((canSeeProfit() && !shopHasNoCosts()) ? [['Margin',  thisMonth.margin.toFixed(1)+'%']] : []))+
     digestSection('\u26a0\ufe0f Action Needed',[
       ['Overdue girvi', overdueG.length ? overdueG.length+' loans' : '\u2705 Clear'],
       ['Pending dues',  pendingBal > 0  ? fmt(pendingBal)          : '\u2705 Clear'],
@@ -1420,11 +1428,13 @@ function shareDigestWhatsApp(){
   // Net profit paired with its own net margin, not the gross margin
   // calcMonthProfit returns as .margin (batch28 review, 23 Sep 2026
   // HANDOFF entry: the two numbers didn't agree with each other).
-  var netMargin = thisMonth.revenue>0 ? (thisMonth.netProfit/thisMonth.revenue*100) : 0;
+  var _cr = costedRevenue(thisMonth);   // R34 C: same denominator as everywhere else (revenue of sales whose cost is known)
+  var netMargin = _cr>0 ? (thisMonth.netProfit/_cr*100) : 0;
   var msg = '\ud83d\udcca *'+shopName+' — Daily Summary*\n'+
     dayName+'\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n'+
     '\ud83d\udcb0 *This Month*\n'+
     'Revenue: '+fmt(thisMonth.revenue)+'\n'+
+    ((canSeeProfit() && mixedCostNote(thisMonth)) ? mixedCostNote(thisMonth)+'\n' : '')+
     (canSeeProfit() ? shopHasNoCosts() ? 'Profit: '+NO_COST_MSG+'\n' : 'Profit: '+fmt(thisMonth.netProfit)+' ('+netMargin.toFixed(1)+'%)\n' : '')+'\n'+
     '\u26a0\ufe0f *Action Items*\n'+
     'Pending dues: '+fmt(pendingBal)+'\n'+
@@ -1529,7 +1539,7 @@ function renderSettingsAnalytics(){
       var mp=calcMonthProfit(cy,cm2);
       months.push({
         label:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][cm2],
-        revenue:mp.revenue,profit:mp.profit,margin:mp.margin,count:mp.count
+        revenue:mp.revenue,profit:mp.profit,margin:mp.margin,count:mp.count,unk:monthCostUnknown(mp)
       });
     }
     var maxR=Math.max.apply(null,months.map(function(m){return m.revenue;}))||1;
@@ -1538,9 +1548,9 @@ function renderSettingsAnalytics(){
       '<div style="display:flex;align-items:flex-end;gap:4px;height:70px;margin-bottom:4px;">'+
       months.map(function(m){
         var hR=Math.max(4,Math.round(m.revenue/maxR*70));
-        var hP=(m.revenue>0 && !_ncP)?Math.max(2,Math.round(Math.max(0,m.profit)/maxR*70)):0;
+        var hP=(m.revenue>0 && !_ncP && !m.unk)?Math.max(2,Math.round(Math.max(0,m.profit)/maxR*70)):0;
         return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">'+
-          '<div style="font-size:var(--text-xs);color:var(--text3);">'+((m.revenue>0 && !_ncP)?Math.round(m.margin)+'%':'')+'</div>'+
+          '<div style="font-size:var(--text-xs);color:var(--text3);">'+((m.revenue>0 && !_ncP && !m.unk)?Math.round(m.margin)+'%':'')+'</div>'+
           '<div style="width:100%;position:relative;height:56px;display:flex;align-items:flex-end;gap:1px;">'+
             '<div style="flex:1;height:'+hR+'px;background:var(--bg3);border-radius:2px 2px 0 0;"></div>'+
             '<div style="flex:1;height:'+hP+'px;background:var(--success);border-radius:2px 2px 0 0;opacity:.85;"></div>'+

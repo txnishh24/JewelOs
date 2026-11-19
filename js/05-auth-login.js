@@ -672,7 +672,7 @@ function applyFeatureGates(){
   var _addB = document.getElementById('add-btn'); if(_addB) _addB.style.display = isReadOnly() ? 'none' : '';   // R32 1: read-only cannot add products
   var _pTab = document.getElementById('invsub-tab-purchases'); if(_pTab) _pTab.style.display = _own ? '' : 'none';
   var _stRow = document.querySelector('#panel-inventory > .metal-tabs'); if(_stRow) _stRow.style.display = _own ? '' : 'none';   // R32 6: with Purchases hidden, a lone full-width "Stock" button is left: hide the row
-  var _cr = document.getElementById('f-costrate'); var _crFg = _cr && _cr.closest ? _cr.closest('.fg') : null; if(_crFg) _crFg.style.display = _own ? '' : 'none';
+  var _cr = document.getElementById('f-costrate'); var _crFg = _cr && _cr.closest ? _cr.closest('.fg') : null; if(_crFg) _crFg.style.display = _own ? '' : 'none'; if(!_own && _cr) _cr.value = '';   // R34 H
 }
 
 // addGateOverlay() removed with the pricing modal. It painted a padlock over a

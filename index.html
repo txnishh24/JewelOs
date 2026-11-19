@@ -1665,12 +1665,6 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
    bottom nav and the PIN screen's Forgot PIN on phones. */
 iframe.nl-badge-frame{display:none !important;}
 
-/* Hover-only feedback, gated so touch devices (coarse pointer / no hover) never
-   get a hover style stuck after a tap -- see mobile-native guidance. */
-@media (hover:hover) and (pointer:fine){
-.hdr-btn:hover{color:var(--on-ink);background:rgba(255,255,255,.06);}
-.dtab:hover{color:var(--on-ink);background:rgba(255,255,255,.05);}
-.more-menu-item:hover{background:var(--bg2);}
 /* R32 6: 360px phones: Day Book bottom-nav label and the big money tiles were cut ("DAY BO...", "54,88,94") */
 @media screen and (max-width:380px){
   .bnav-label{letter-spacing:.01em;font-size:10px;}
@@ -1682,6 +1676,12 @@ iframe.nl-badge-frame{display:none !important;}
   #inv-frame-wrap{height:520px;overflow:hidden;width:100%;}
   #inv-frame{width:720px !important;max-width:none !important;height:var(--inv-h,520px) !important;transform:scale(var(--inv-scale,1));transform-origin:0 0;}
 }
+/* Hover-only feedback, gated so touch devices (coarse pointer / no hover) never
+   get a hover style stuck after a tap -- see mobile-native guidance. */
+@media (hover:hover) and (pointer:fine){
+.hdr-btn:hover{color:var(--on-ink);background:rgba(255,255,255,.06);}
+.dtab:hover{color:var(--on-ink);background:rgba(255,255,255,.05);}
+.more-menu-item:hover{background:var(--bg2);}
 .metric:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px);}
 .rate-save:hover{background:linear-gradient(135deg,var(--gold),var(--gold-light));box-shadow:var(--shadow-gold);}
 .mtab:hover{background:var(--silver-bg);color:var(--silver-dark);border-color:rgba(74,96,112,.3);}

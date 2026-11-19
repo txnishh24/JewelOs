@@ -28,8 +28,9 @@ function showPdfReport(){
     '<div style="margin-bottom:20px;">'+
       '<h3 style="font-size:14px;font-weight:700;color:#333;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:10px;">P&L Summary — '+mName+'</h3>'+
       pdfRow('Total Revenue',      fmt(thisM.revenue),'var(--gold)',true)+
+      (mixedCostNote(thisM) ? pdfRow(mixedCostNote(thisM), '(−) '+fmt(Math.round(thisM.noCostRev)), 'var(--warning)', false) : '')+   // R34 C
       pdfRow('Metal Cost',         _pv(fmt(thisM.cost)),   'var(--danger)',false)+
-      pdfRow('GST Collected',      fmt(thisM.gst),    '#666',  false)+
+      pdfRow(mixedCostNote(thisM) ? 'GST (costed sales)' : 'GST Collected', fmt(thisM.gst-(thisM.noCostGst||0)), '#666', false)+
       '<div style="border-top:2px solid #eee;margin:8px 0;"></div>'+
       pdfRow('Gross Profit',       _pv(fmt(thisM.profit)), 'var(--gold)',true)+
       pdfRow('Operating Expenses', '(−) '+fmt(thisM.expenses.total), 'var(--danger)',false)+
@@ -51,6 +52,7 @@ function showPdfReport(){
     '<div style="margin-bottom:20px;">'+
       '<h3 style="font-size:14px;font-weight:700;color:#333;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:10px;">All-Time Summary</h3>'+
       pdfRow('Total Revenue',  fmt(allT.revenue), 'var(--gold)',false)+
+      (mixedCostNote(allT) ? pdfRow(mixedCostNote(allT), '(−) '+fmt(Math.round(allT.noCostRev)), 'var(--warning)', false) : '')+   // R34 C
       pdfRow('Gross Profit',   _pv(fmt(allT.profit)),  'var(--gold)',false)+
       pdfRow('Operating Expenses', '(−) '+fmt(allT.expenses.total), 'var(--danger)',false)+
       pdfRow('Net Profit',     _pv(fmt(allT.netProfit)), allT.netProfit>=0?'var(--success)':'var(--danger)',true)+

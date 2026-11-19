@@ -8433,6 +8433,171 @@ test('R32 6: a manager cannot delete a product; the stock list is unchanged', fu
 });
 
 
+// ───────── R34 ─────────
+// Mixed shop: product pc has a cost, pn has none. One sale of each, this month.
+function r34Mixed(role){
+  var a = r26App(role || 'owner'); var today = new Date().toISOString();
+  a.S.products = [
+    { id:'pc', name:'Ring', metal:'gold', purity:'22K', weight:10, qty:5, status:'available', cat:'Rings', costRate:5000, sku:'R1' },
+    { id:'pn', name:'Chain', metal:'gold', purity:'22K', weight:10, qty:5, status:'available', cat:'Chains', sku:'C1' }
+  ];
+  a.S.sales = [
+    r26Sale({ id:'sc', invNo:'INV-001', customer:'Costed', date:today, items:[{ pid:'pc', name:'Ring', metal:'gold', purity:'22K', weight:1, grossWeight:1, qty:1, making:0, diamond:0, lockedRate:7200, costRate:5000, costSnap:true }], lockedGrand:7200, advance:7200 }),
+    r26Sale({ id:'sn', invNo:'INV-002', customer:'Unknown', date:today, items:[{ pid:'pn', name:'Chain', metal:'gold', purity:'22K', weight:2, grossWeight:2, qty:1, making:0, diamond:0, lockedRate:7200, costSnap:true }], lockedGrand:14400, advance:14400 })
+  ];
+  return a;
+}
+
+test('R34 C: mixed shop: P&L lines reconcile (revenue - cost-missing sales - cost - GST of costed sales = profit), note names amount and count', function(){
+  var a = r34Mixed(); var now = new Date(), mp = a.calcMonthProfit(now.getFullYear(), now.getMonth());
+  assert(mp.noCostCount === 1 && approxEqual(mp.noCostRev, 14400, 1), 'one cost-missing sale of 14,400: ' + mp.noCostCount + ' / ' + mp.noCostRev);
+  assert(approxEqual(mp.revenue - mp.noCostRev - mp.cost - (mp.gst - mp.noCostGst), mp.profit, 1), 'lines reconcile: ' + JSON.stringify(mp));
+  var note = a.mixedCostNote(mp);
+  assert(/Sales with cost missing \(not in profit\)/.test(note) && /14,400/.test(note) && /1 sale\b/.test(note), 'note: ' + note);
+  assert(a.mixedCostNote(a.calcAllTimeProfit()) !== '', 'all-time note too');
+  var none = r34Mixed(); none.S.products[1].costRate = 5000; none.S.sales[1].items[0].costRate = 5000;
+  assert(none.mixedCostNote(none.calcMonthProfit(now.getFullYear(), now.getMonth())) === '', 'no cost-missing sales: no note');
+  var nc = makingScenario(); nc.S.sales = [nc.buildSaleObj()]; nc.S.sales[0].date = new Date().toISOString();
+  assert(nc.mixedCostNote(nc.calcMonthProfit(now.getFullYear(), now.getMonth())) === '', 'a shop with no costs at all shows NO_COST_MSG, not this note');
+});
+
+test('R34 C: P&L card, PDF report, digest and WhatsApp summary carry the cost-missing line; digest margin uses revenue of costed sales', function(){
+  var a = r34Mixed(); a.repYear = new Date().getFullYear(); a.repMonth = new Date().getMonth();
+  try{ a.renderReports(); }catch(e){}
+  var pl = a._els['rep-pl'] ? a._els['rep-pl'].innerHTML : '';
+  assert(/Sales with cost missing/.test(pl), 'P&L card has the line: ' + pl.slice(0, 120));
+  var fs = require('fs'), path = require('path'), src = fs.readFileSync(path.join(__dirname, '..', 'js', '07-settings-plans.js'), 'utf-8');
+  assert((src.match(/mixedCostNote\(/g) || []).length >= 4, 'PDF source wires the note for month and all-time');
+  var sent = ''; a.sendWhatsApp = function(ph, m){ sent = m; };
+  a.shareDigestWhatsApp();
+  assert(/Sales with cost missing/.test(sent), 'WhatsApp has the line: ' + sent);
+  var now = new Date(), mp = a.calcMonthProfit(now.getFullYear(), now.getMonth());
+  var want = (mp.netProfit / (mp.revenue - mp.noCostRev) * 100).toFixed(1);
+  assert(sent.indexOf('(' + want + '%)') > -1, 'margin ' + want + '% over costed revenue: ' + sent);
+});
+
+test('R34 D: cost-unknown shows a dash or "cost missing", never Rs 0: Top Customers, Week-over-Week, Dashboard tile, 6-month charts', function(){
+  var a = r34Mixed(); a.repYear = new Date().getFullYear(); a.repMonth = new Date().getMonth();
+  var made = []; var cr = a.document.createElement;
+  a.document.createElement = function(t){ var e = cr(t); made.push(e); return e; };
+  try{ a.renderReports(); }catch(e){}
+  try{ a.renderReportsIntelligence(); }catch(e){}
+  var top = a._els['rep-top-custs'].innerHTML;
+  assert(/Unknown[\s\S]*Profit: cost missing/.test(top), 'cost-unknown customer says cost missing: ' + top.slice(0, 300));
+  assert(!/Profit: (₹|Rs )?0\b/.test(top), 'no Rs 0 profit line');
+  var wow = made.filter(function(e){ return e.id === 'rep-intel-wow'; })[0];
+  assert(wow, 'WoW rendered');
+  assert(a.weekCostUnknown(0) === false, 'this week has a costed sale, so a number');
+  a.S.sales = [a.S.sales[1]];   // only the cost-unknown sale
+  assert(a.weekCostUnknown(0) === true, 'week with only cost-unknown sales is unknown');
+  assert(a.weekCostUnknown(3) === false, 'a week with no sales is a real zero, not unknown');
+  a.renderDash();
+  var strip = a._els['dash-today-strip'].innerHTML;
+  assert(/Cost missing/.test(strip), 'Dashboard tile says cost missing: ' + strip.replace(/<[^>]+>/g, ' ').slice(-200));
+  var now = new Date(), mp = a.calcMonthProfit(now.getFullYear(), now.getMonth());
+  assert(a.monthCostUnknown(mp) === true, 'month where every sale is cost-unknown');
+  var mixed = r34Mixed(), mm = mixed.calcMonthProfit(now.getFullYear(), now.getMonth());
+  assert(mixed.monthCostUnknown(mm) === false, 'mixed month is not "unknown"');
+  var empty = a.calcMonthProfit(2000, 0); assert(a.monthCostUnknown(empty) === false, 'a month with no sales is a normal zero');
+});
+
+test('R34 E: a refund that returns an item keeps its cost on the RET- product (snapshot first, source product as fallback)', function(){
+  function refundIt(mutate){
+    var a = r34Mixed(); a.renderTab = function(){}; a.S.stockMovements = [];
+    if(mutate) mutate(a);
+    var vals = { 'rfnd-amount':'7200', 'rfnd-mode':'Cash', 'rfnd-reason':'Customer Return', 'rfnd-note':'' };
+    var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
+    a.document.querySelectorAll = function(){ return [{ value:'0' }]; };
+    a._submitRefund('sc');
+    return a.S.products.filter(function(p){ return /^RET-/.test(p.sku); })[0];
+  }
+  var r1 = refundIt();
+  assert(r1 && r1.costRate === 5000, 'snapshot cost copied: ' + JSON.stringify(r1));
+  var r2 = refundIt(function(a){ delete a.S.sales[0].items[0].costRate; delete a.S.sales[0].items[0].costSnap; });
+  assert(r2 && r2.costRate === 5000, 'old sale without a snapshot falls back to the source product: ' + JSON.stringify(r2));
+  var r3 = refundIt(function(a){ delete a.S.sales[0].items[0].costRate; delete a.S.sales[0].items[0].costSnap; a.S.products = a.S.products.filter(function(p){ return p.id !== 'pc'; }); });
+  assert(r3 && !(r3.costRate > 0), 'no cost anywhere: stays without a cost, not invented');
+});
+
+test('R34 F: the nocost filter lists products of every metal, with a count per metal', function(){
+  var a = r26App('owner');
+  a.S.products = [
+    { id:'g1', name:'Ring', metal:'gold', purity:'22K', weight:5, qty:1, status:'available', cat:'Rings', sku:'G1', huid:'' },
+    { id:'g2', name:'Chain', metal:'gold', purity:'22K', weight:5, qty:1, status:'available', cat:'Chains', sku:'G2', costRate:5000 },
+    { id:'s1', name:'Anklet', metal:'silver', purity:'925 Sterling', weight:20, qty:1, status:'available', cat:'Anklets', sku:'S1' }
+  ];
+  a.UI.metal = 'gold'; a.UI.selCat = 'All';
+  var vals = { 'inv-status-filter':'nocost', 'inv-search':'' };
+  var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
+  a.renderInv();
+  var html = (a._els['inv-body'] ? a._els['inv-body'].innerHTML : '') + (a._els['inv-cards'] ? a._els['inv-cards'].innerHTML : '');
+  assert(/Anklet/.test(html) && /Ring/.test(html) && !/Chain/.test(html), 'silver and gold no-cost shown, costed gold not: ' + html.replace(/<[^>]+>/g, ' ').slice(0, 200));
+  var note = a._els['inv-pagination'] ? a._els['inv-pagination'].innerHTML : '';
+  assert(/Gold 1/.test(note) && /Silver 1/.test(note), 'count per metal: ' + note);
+});
+
+test('R34 G: a read-only account sees no Sold toggle, Add Payment, Mark as Paid or Remind; payment paths say view-only', function(){
+  var a = r26App('readonly'); a.S.products = r34Mixed().S.products; a.S.sales = [r34Mixed().S.sales[0]]; a.S.sales[0].advance = 100; a.S.sales[0].payStatus = 'partial';
+  var before = JSON.stringify(a.S.sales);
+  a.openSalePaymentModal('sc');
+  assert(a.said.some(function(x){ return /view-only/.test(x); }), 'opening the payment modal says view-only: ' + a.said.join('|'));
+  a.said.length = 0; a.markSalePaid('sc');
+  assert(a.said.some(function(x){ return /view-only/.test(x); }), 'mark as paid says view-only: ' + a.said.join('|'));
+  a.said.length = 0;
+  var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id === 'spay-amount') return { value:'50' }; if(id === 'spay-mode') return { value:'Cash' }; if(id === 'spay-ref') return { value:'' }; return _o(id); };
+  a.submitSalePayment('sc');
+  assert(a.said.some(function(x){ return /view-only/.test(x) && !/rolled back/.test(x); }), 'payment submit says view-only, not rolled back: ' + a.said.join('|'));
+  a.said.length = 0; a.toggleStatus('pc'); assert(a.said.some(function(x){ return /view-only/.test(x); }), 'Sold toggle refused: ' + a.said.join('|'));
+  assert(JSON.stringify(a.S.sales) === before, 'nothing changed');
+  var fs = require('fs'), path = require('path'), t = fs.readFileSync(path.join(__dirname, '..', 'js', '03-billing-numbers.js'), 'utf-8');
+  assert(/!isPaid && !isReadOnly\(\)/.test(t) && /isReadOnly\(\) \? '' : '<button onclick="event.stopPropagation\(\);custBalanceWA/.test(t), 'buttons not rendered for read-only');
+  var inv = fs.readFileSync(path.join(__dirname, '..', 'js', '02-ui-inactivity-modals.js'), 'utf-8');
+  assert(/actionsHtml=\(isReadOnly\(\) \? ''/.test(inv), 'stock Sold button not rendered for read-only');
+});
+
+test('R34 H: a manager opening Edit product never gets the real cost into the page; the owner does', function(){
+  function open(role){
+    var a = r26App(role); a.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', weight:5, unitWeight:5, qty:1, status:'available', cat:'Rings', sku:'R1', costRate:6900 }];
+    var els = {};
+    a.document.getElementById = function(id){ if(!els[id]) els[id] = { value:'', style:{}, classList:{ add:function(){}, remove:function(){} }, options:[], textContent:'', innerHTML:'' }; return els[id]; };
+    els['ep-costrate'] = { value:'6900', style:{} };   // the owner's value left in the form from an earlier open
+    a.editProd('p1'); return els['ep-costrate'].value;
+  }
+  assert(String(open('manager')) === '', 'manager: cost field empty');
+  assert(String(open('owner')) === '6900', 'owner: cost shown');
+});
+
+test('R34 I: an invalid legacy HUID already on the product does not block saving the owner\'s cost; a newly typed bad HUID still does', function(){
+  function save(oldHuid, typedHuid){
+    var a = r26App('owner'); a.S.products = [{ id:'p1', name:'Ring', metal:'gold', purity:'22K', weight:5, unitWeight:5, qty:1, status:'available', cat:'Rings', sku:'R1', huid:oldHuid }];
+    var vals = { 'ep-id':'p1', 'ep-name':'Ring', 'ep-wt':'5', 'ep-huid':typedHuid, 'ep-sku':'R1', 'ep-photo':'', 'ep-mcrate':'0', 'ep-netwt':'', 'ep-stonewt':'', 'ep-wastage':'', 'ep-hallmark':'', 'ep-notes':'', 'ep-cat':'Rings', 'ep-purity':'22K', 'ep-costrate':'6500' };
+    var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { value: vals[id], focus:function(){} }; return _o(id); };
+    a.renderInv = function(){}; a.closeEditModal = function(){}; a.renderTab = function(){};
+    a.saveEditProd(); return a;
+  }
+  var ok = save('HU1001AB', 'HU1001AB');
+  assert(ok.S.products[0].costRate === 6500, 'cost saved despite the old invalid HUID: ' + ok.S.products[0].costRate);
+  assert(ok.said.some(function(x){ return /not a valid HUID/.test(x); }), 'owner is warned: ' + ok.said.join('|'));
+  var bad = save('AB1234', 'ZZ');
+  assert(bad.S.products[0].costRate === undefined && bad.said.some(function(x){ return /HUID must be/.test(x); }), 'a newly typed bad HUID is still refused');
+});
+
+test('R34 C: a refund of a cost-missing sale in a mixed shop keeps the P&L lines reconciling, month and all-time, and returns the item to stock once', function(){
+  var a = r34Mixed(); a.renderTab = function(){}; a.S.stockMovements = [];
+  var qtyBefore = a.S.products.filter(function(p){ return p.id === 'pn'; })[0].qty;
+  var vals = { 'rfnd-amount':'7200', 'rfnd-mode':'Cash', 'rfnd-reason':'Customer Return', 'rfnd-note':'' };
+  var _o = a.document.getElementById; a.document.getElementById = function(id){ if(id in vals) return { value: vals[id] }; return _o(id); };
+  a.document.querySelectorAll = function(){ return [{ value:'0' }]; };
+  a._submitRefund('sn');
+  var now = new Date(), mp = a.calcMonthProfit(now.getFullYear(), now.getMonth());
+  assert(approxEqual(mp.revenue - mp.noCostRev - mp.cost - (mp.gst - mp.noCostGst), mp.profit, 1), 'month lines reconcile after refund: ' + JSON.stringify(mp));
+  var at = a.calcAllTimeProfit();
+  assert(at.noCostGst !== undefined && at.noCostRev < 14400, 'all-time carries noCostGst and nets the refund: ' + JSON.stringify(at));
+  assert(a.S.products.filter(function(p){ return p.id === 'pn'; })[0].qty === qtyBefore, 'source product qty untouched; item came back as exactly one RET- product');
+  assert(a.S.products.filter(function(p){ return /^RET-/.test(p.sku); }).length <= 1, 'at most one RET- product per refund');
+});
+
+
 Promise.all(asyncTests).then(function(){
   console.log('\n' + '='.repeat(50));
   console.log(passed + ' passed, ' + failed + ' failed');
