@@ -338,6 +338,233 @@ function girviStatementHtml(g){
     '<tbody>'+rows+'</tbody></table></div></details>';
 }
 
+// ── FINANCIERS (owner only) ───────────────────────────────────────────────
+// A financier is someone the shop borrows from, at a lower rate, against a customer's pledged item.
+// The list lives in S.girviCfg.financiers (saved and backed up with the Girvi settings). A loan points at
+// its financier with g.financerId; the old g.financerName / financerRate / financerRateType fields stay
+// and still drive girviMargin(). The profile below is a live view of those loans, never a copy, so it
+// cannot drift when the customer pays.
+function finUid(){ return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2); }
+function finList(){
+  if(!S.girviCfg) S.girviCfg = {};
+  if(!Array.isArray(S.girviCfg.financiers)) S.girviCfg.financiers = [];
+  return S.girviCfg.financiers;
+}
+function finById(id){ return finList().filter(function(f){ return f.id === id; })[0] || null; }
+// Finds a financier by name (any case) or creates one. Returns its id, or null for a blank name.
+function finEnsure(name, rate, rateType){
+  name = String(name || '').trim();
+  if(!name) return null;
+  var low = name.toLowerCase();
+  var f = finList().filter(function(x){ return String(x.name).toLowerCase() === low; })[0];
+  if(!f){
+    f = { id:finUid(), name:name, phone:'', rate:parseFloat(rate) || 0, rateType:rateType === 'yearly' ? 'yearly' : 'monthly', payments:[], created:new Date().toISOString() };
+    finList().push(f);
+  }
+  return f.id;
+}
+function girviFinancierId(g){
+  if(g.financerId) return g.financerId;
+  var n = String(g.financerName || '').trim().toLowerCase();
+  if(!n) return null;
+  var f = finList().filter(function(x){ return String(x.name).toLowerCase() === n; })[0];
+  return f ? f.id : null;
+}
+function finLoans(f){
+  return (S.girvi || []).filter(function(g){ return !g._deleted && girviHasFinancer(g) && girviFinancierId(g) === f.id; });
+}
+function finRateText(rate, rateType){ return (parseFloat(rate) || 0) + '% ' + (rateType === 'yearly' ? 'per year' : 'per month'); }
+// Everything the profile shows, worked out from the loans each time.
+function finStats(f){
+  var s = { active:0, closed:0, principalOut:0, monthly:0, accrued:0, earned:0, margin:0, paid:0, due:0 };
+  finLoans(f).forEach(function(g){
+    var ls = girviLedgerState(g);
+    var earned = ls.totalInterestPaid + ls.interestAccrued;   // what the customer has paid plus still owes in interest
+    var fin = girviFinancerInterestAccrued(g);
+    var p = parseFloat(g.principal) || 0;
+    if(g.status === 'closed') s.closed++;
+    else { s.active++; s.principalOut += p; s.monthly += p * girviFinancerDailyRate(g) * 30; }
+    s.accrued += fin; s.earned += earned; s.margin += earned - fin;
+  });
+  // A payment whose Day Book entry was voided no longer counts as paid.
+  s.paid = (f.payments || []).reduce(function(a, x){
+    var en = x.entryId ? (S.dayBook.entries || []).filter(function(e){ return e.id === x.entryId; })[0] : null;
+    return (en && en.voided) ? a : a + (parseFloat(x.amount) || 0);
+  }, 0);
+  s.due = s.accrued - s.paid;
+  return s;
+}
+function finOverlay(){
+  var ov = document.getElementById('fin-modal');
+  if(!ov){ ov = document.createElement('div'); ov.id = 'fin-modal'; ov.className = 'modal-overlay'; document.body.appendChild(ov); }
+  return ov;
+}
+function closeFinModal(){ var ov = document.getElementById('fin-modal'); if(ov) ov.classList.remove('open'); }
+function finShell(title, body){
+  var ov = finOverlay();
+  ov.innerHTML = '<div class="gl-wrap"><div class="gl-header"><h2>' + escHtml(title) + '</h2>' +
+    '<button class="ge-close" onclick="closeFinModal()">&#10005;</button></div><div class="gl-body">' + body + '</div></div>';
+  ov.classList.add('open');
+}
+function finTile(label, val, color){
+  return '<div style="flex:1;min-width:110px;background:var(--card2);border-radius:10px;padding:8px 10px;"><div style="font-size:11px;color:var(--text3);">' + label +
+    '</div><div style="font-weight:800;color:' + (color || 'var(--ink)') + ';">' + val + '</div></div>';
+}
+
+function openFinanciersModal(){
+  if(!isOwner()){ toast('Only the owner can open Financiers'); return; }
+  var rows = finList().map(function(f){
+    var s = finStats(f);
+    return '<div class="card" style="cursor:pointer;margin-bottom:8px;" data-id="' + escHtml(f.id) + '" onclick="openFinancierProfile(this.dataset.id)">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;"><b>' + escHtml(f.name) + '</b><span style="font-size:12px;color:var(--text3);">' + s.active + ' active loan(s)</span></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;font-size:12px;">' +
+        '<span>With them: <b>' + fmt(s.principalOut) + '</b></span><span>Monthly interest: <b>' + fmt(s.monthly) + '</b></span><span>Still to pay: <b>' + fmt(s.due) + '</b></span></div></div>';
+  }).join('');
+  finShell('Financiers',
+    (rows || '<div style="color:var(--text3);font-size:13px;margin-bottom:12px;">No financiers yet. Add one here, or choose one when you create a loan.</div>') +
+    '<div class="card-title" style="margin-top:12px;">Add a financier</div>' +
+    '<div class="ge-fg" style="margin-bottom:8px;"><label>Name</label><input id="fin-new-name" placeholder="e.g. DM Saab"/></div>' +
+    '<div class="ge-fg" style="margin-bottom:8px;"><label>Phone (optional)</label><input id="fin-new-phone" inputmode="tel"/></div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:12px;"><div class="ge-fg" style="flex:1;"><label>Usual rate (%)</label><input id="fin-new-rate" type="number" step="0.1" inputmode="decimal"/></div>' +
+    '<div class="ge-fg" style="flex:1;"><label>Per</label><select id="fin-new-rt"><option value="monthly">month</option><option value="yearly">year</option></select></div></div>' +
+    '<button class="btn btn-gold" style="width:100%;" onclick="submitNewFinancier()">Add financier</button>');
+}
+function submitNewFinancier(){
+  if(!isOwner()) return;
+  var name = (document.getElementById('fin-new-name').value || '').trim();
+  if(!name){ toast('Enter the financier name'); return; }
+  if(finList().some(function(f){ return String(f.name).toLowerCase() === name.toLowerCase(); })){ toast('That financier already exists'); return; }
+  var id = finEnsure(name, document.getElementById('fin-new-rate').value, document.getElementById('fin-new-rt').value);
+  finById(id).phone = (document.getElementById('fin-new-phone').value || '').trim();
+  saveToCloud(function(err){ if(err){ toast('Could not save, try again'); return; } toast('Financier added'); openFinancierProfile(id); });
+}
+
+function openFinancierProfile(id){
+  if(!isOwner()) return;
+  var f = finById(id); if(!f){ toast('Financier not found'); return; }
+  var s = finStats(f), loans = finLoans(f);
+  var loanRows = loans.map(function(g){
+    var ls = girviLedgerState(g), fin = girviFinancerInterestAccrued(g), earned = ls.totalInterestPaid + ls.interestAccrued;
+    var days = (g.status === 'closed' && g.closedDate) ? girviDaysSince(g.startDate, g.closedDate) : girviDaysSince(g.startDate);
+    var item = g.item ? ([g.item.type, g.item.purity, (parseFloat(g.item.weight) || 0) ? (g.item.weight + 'g') : ''].filter(function(x){ return x; }).join(' ')) : '';
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;' + (g.status === 'closed' ? 'opacity:.65;' : '') + '">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;"><b>' + escHtml(g.grvNo || '') + ' &bull; ' + escHtml(g.customer || '') + '</b><span>' + (g.status === 'closed' ? 'Closed' : 'Active') + '</span></div>' +
+      (item ? '<div style="color:var(--text3);">' + escHtml(item) + '</div>' : '') +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">' +
+        '<span>Loan <b>' + fmt(g.principal) + '</b></span><span>Customer rate <b>' + escHtml(String(g.interestRate)) + '%</b></span>' +
+        '<span>Financier rate <b>' + escHtml(finRateText(g.financerRate, g.financerRateType)) + '</b></span><span>' + days + ' days since ' + escHtml(fmtDate(g.startDate)) + '</span></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2px;"><span>We owe <b>' + fmt(fin) + '</b></span><span>Customer interest <b>' + fmt(earned) + '</b></span>' +
+        '<span style="color:' + (earned - fin >= 0 ? 'var(--success)' : 'var(--danger)') + ';">Margin <b>' + fmt(earned - fin) + '</b></span></div></div>';
+  }).join('');
+  var payRows = (f.payments || []).slice().reverse().map(function(p){
+    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);"><span>' + escHtml(fmtDate(p.date)) + (p.note ? ' &bull; ' + escHtml(p.note) : '') + '</span><b>' + fmt(p.amount) + '</b></div>';
+  }).join('');
+  finShell(f.name,
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">' + (f.phone ? escHtml(f.phone) + ' &bull; ' : '') + 'Usual rate ' + escHtml(finRateText(f.rate, f.rateType)) + '. Figures are worked out from the loans each time. Top-ups after a loan was placed are not counted here.</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">' +
+      finTile('Girvi with them', s.active + ' loan(s)') + finTile('Principal with them', fmt(s.principalOut)) +
+      finTile('Interest we pay each month', fmt(s.monthly), 'var(--danger)') + finTile('Interest owed so far', fmt(s.accrued)) +
+      finTile('Paid to them', fmt(s.paid), 'var(--success)') + finTile('Still to pay', fmt(s.due), s.due > 0 ? 'var(--danger)' : 'var(--success)') +
+      finTile('Our margin so far', fmt(s.margin), s.margin >= 0 ? 'var(--success)' : 'var(--danger)') + '</div>' +
+    '<div class="card-title">Loans placed (' + loans.length + ')</div>' + (loanRows || '<div style="font-size:12px;color:var(--text3);">No loans placed with this financier yet.</div>') +
+    '<div class="card-title" style="margin-top:14px;">Payments to ' + escHtml(f.name) + '</div>' + (payRows || '<div style="font-size:12px;color:var(--text3);">None recorded.</div>') +
+    '<div style="display:flex;gap:8px;margin-top:10px;"><input id="fin-pay-amt" type="number" inputmode="decimal" placeholder="Amount" style="flex:1;min-width:0;"/>' +
+      '<input id="fin-pay-note" placeholder="Note (optional)" style="flex:1;min-width:0;"/></div>' +
+    '<button class="btn btn-gold" style="width:100%;margin-top:8px;" data-id="' + escHtml(f.id) + '" onclick="finAddPayment(this.dataset.id)">Record payment (also goes to Day Book as a debit)</button>' +
+    '<button class="btn" style="width:100%;margin-top:8px;" onclick="openFinanciersModal()">All financiers</button>');
+}
+
+// Money paid to the financier: posted to the Day Book as a debit first (so a closed day refuses it), then noted on the profile.
+var _finPayBusy = false;
+function finAddPayment(id){
+  if(!isOwner() || _finPayBusy) return;
+  var f = finById(id); if(!f) return;
+  var amt = parseFloat(document.getElementById('fin-pay-amt').value);
+  var note = (document.getElementById('fin-pay-note').value || '').trim();
+  if(!(amt > 0)){ toast('Enter an amount'); return; }
+  var day = dbDayKey(new Date());
+  _finPayBusy = true;   // one tap = one Day Book debit
+  dbAddEntry(day, 'out', amt, 'otherOut', 'Paid to financier ' + f.name + (note ? ': ' + note : ''), function(err, entry){
+    if(err){ _finPayBusy = false; toast('Could not save: ' + dbErrText(err)); return; }
+    f.payments = f.payments || [];
+    f.payments.push({ id:finUid(), date:day, amount:amt, note:note, entryId:entry ? entry.id : '', ts:new Date().toISOString() });
+    saveToCloud(function(err2){
+      _finPayBusy = false;
+      // The Day Book debit is already in. Keep the payment on the profile and do NOT ask to enter it again (that would debit twice).
+      if(err2){ toast('Payment is in the Day Book and will finish saving with your next save. Do not enter it again.'); openFinancierProfile(id); return; }
+      toast('Payment recorded');
+      openFinancierProfile(id);
+    });
+  });
+}
+
+// Form on "create loan": pick an existing financier (rate filled in) or type a new name.
+function gfFinPopulate(){
+  var sel = document.getElementById('gf-financer-pick'), block = document.getElementById('gf-financer-block');
+  if(block) block.style.display = (GF_EDIT_ID || !isOwner()) ? 'none' : '';
+  if(!sel) return;
+  sel.innerHTML = '<option value="">None</option>' + finList().map(function(f){ return '<option value="' + escHtml(f.id) + '">' + escHtml(f.name) + '</option>'; }).join('') + '<option value="__new">+ New financier</option>';
+  sel.value = '';
+  gfFinPick();
+}
+function gfFinPick(){
+  var sel = document.getElementById('gf-financer-pick'), nameEl = document.getElementById('gf-financer-name');
+  if(!sel || !nameEl) return;
+  var f = finById(sel.value);
+  if(f){
+    nameEl.value = f.name; nameEl.style.display = 'none';
+    document.getElementById('gf-financer-rate').value = f.rate || '';
+    document.getElementById('gf-financer-ratetype').value = f.rateType === 'yearly' ? 'yearly' : 'monthly';
+  } else {
+    nameEl.style.display = (sel.value === '__new') ? '' : 'none';
+    if(sel.value === '') nameEl.value = '';
+  }
+}
+
+// Card button: has a financier already -> open that profile; none yet -> place this loan with one.
+function girviFinancierBtn(gid){
+  if(!isOwner()){ toast('Only the owner can use Financiers'); return; }
+  var g = (S.girvi || []).filter(function(x){ return x.id === gid; })[0]; if(!g) return;
+  var fid = girviHasFinancer(g) ? girviFinancierId(g) : null;
+  if(fid) { openFinancierProfile(fid); return; }
+  if(girviHasFinancer(g)){ var nid = finEnsure(g.financerName, g.financerRate, g.financerRateType); saveToCloud(function(){}); openFinancierProfile(nid); return; }
+  var opts = finList().map(function(f){ return '<option value="' + escHtml(f.id) + '">' + escHtml(f.name) + '</option>'; }).join('');
+  finShell('Place ' + (g.grvNo || 'loan') + ' with a financier',
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:10px;">Use this when you need cash: ' + escHtml(g.customer || '') + '\'s item goes to a financier at a lower rate. Once placed it cannot be changed here.</div>' +
+    '<div class="ge-fg" style="margin-bottom:8px;"><label>Financier</label><select id="pf-pick" onchange="pfPick()"><option value="">Choose...</option>' + opts + '<option value="__new">+ New financier</option></select></div>' +
+    '<div class="ge-fg" id="pf-name-wrap" style="margin-bottom:8px;display:none;"><label>New financier name</label><input id="pf-name"/></div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:12px;"><div class="ge-fg" style="flex:1;"><label>Rate for this loan (%)</label><input id="pf-rate" type="number" step="0.1" inputmode="decimal"/></div>' +
+    '<div class="ge-fg" style="flex:1;"><label>Per</label><select id="pf-rt"><option value="monthly">month</option><option value="yearly">year</option></select></div></div>' +
+    '<button class="btn btn-gold" style="width:100%;" data-id="' + escHtml(g.id) + '" onclick="submitPlaceFinancier(this.dataset.id)">Place with financier</button>');
+}
+function pfPick(){
+  var v = document.getElementById('pf-pick').value, f = finById(v);
+  document.getElementById('pf-name-wrap').style.display = (v === '__new') ? '' : 'none';
+  if(f){ document.getElementById('pf-rate').value = f.rate || ''; document.getElementById('pf-rt').value = f.rateType === 'yearly' ? 'yearly' : 'monthly'; }
+}
+function submitPlaceFinancier(gid){
+  if(!isOwner()) return;
+  var g = (S.girvi || []).filter(function(x){ return x.id === gid; })[0]; if(!g) return;
+  if(g.status === 'closed'){ toast('This loan is closed'); return; }
+  if(girviHasFinancer(g)){ toast('This loan already has a financier'); return; }
+  var pick = document.getElementById('pf-pick').value;
+  var rate = parseFloat(document.getElementById('pf-rate').value), rt = document.getElementById('pf-rt').value;
+  var name = pick === '__new' ? (document.getElementById('pf-name').value || '').trim() : (finById(pick) ? finById(pick).name : '');
+  if(!name){ toast('Choose a financier'); return; }
+  if(!(rate > 0)){ toast('Enter the financier rate'); return; }
+  if(_girviLocked(g.id)){ toast('Already saving, please wait'); return; }
+  var snap = _girviSnapshot(g.id), cfgSnap = JSON.stringify(S.girviCfg || {});
+  _girviLock(g.id);
+  g.financerId = finEnsure(name, rate, rt);
+  g.financerName = name; g.financerRate = rate; g.financerRateType = rt === 'yearly' ? 'yearly' : 'monthly';
+  if(typeof auditLog === 'function') auditLog('update', 'girvi', g.id, 'Placed with financier ' + name + ' at ' + finRateText(rate, rt));
+  _girviCommit(g.id, { snapshot:snap, restore:function(){ S.girviCfg = JSON.parse(cfgSnap); } }, function(err){
+    if(err) return;
+    renderGirvi(); toast('Placed with ' + name); openFinancierProfile(g.financerId);
+  });
+}
+
+
 // ── FULL-SCREEN PHOTO VIEWER (zoom: buttons, mouse wheel, double-tap, two-finger pinch) ──
 var _pvList = [], _pvIdx = 0, _pvZoom = 1, _pvPinch = 0;
 function openPhotoViewer(i){
@@ -492,6 +719,7 @@ function openGirviForm(editId, prefill){
   var rt=document.getElementById('gf-ratetype'); if(rt) rt.value='monthly';
   var cp=document.getElementById('gf-compound'); if(cp) cp.checked=false;
   var frt=document.getElementById('gf-financer-ratetype'); if(frt) frt.value='monthly';
+  gfFinPopulate();   // financer list; hidden when editing (a financer is chosen when the loan is made)
   var risk=document.getElementById('gf-risk'); if(risk) risk.value='medium';
   // gf-metal / gf-purity removed — now managed per-item in GF_ITEMS array
   document.getElementById('gf-start').value = dbDayKey(new Date());
@@ -817,6 +1045,7 @@ function saveGirviEntry(_ltvConfirmed){
       return {type:fi.type,metal:fi.metal,purity:fi.purity,weight:parseFloat(fi.grossWt)||0,netWt:parseFloat(fi.netWt)||0,qty:parseInt(fi.qty)||1,desc:fi.desc}; })(),
     principal:principal,interestRate:rate,rateType:document.getElementById('gf-ratetype').value,
     compound:document.getElementById('gf-compound').checked,
+    financerId:finEnsure(document.getElementById('gf-financer-name').value, document.getElementById('gf-financer-rate').value, document.getElementById('gf-financer-ratetype').value),
     financerName:(document.getElementById('gf-financer-name').value||'').trim(),
     financerRate:parseFloat(document.getElementById('gf-financer-rate').value)||0,
     financerRateType:document.getElementById('gf-financer-ratetype').value,

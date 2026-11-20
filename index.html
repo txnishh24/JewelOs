@@ -2856,6 +2856,8 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
   <!-- OVERDUE BANNER (v20) -->
   <div id="girvi-overdue-banner"></div>
 
+  <div style="margin-bottom:10px;"><button type="button" class="btn" onclick="openFinanciersModal()">Financiers</button></div>
+
   <!-- "Girvi Portfolio" card (id was girvi-cp) removed (UI/UX audit, 15 Oct)
        — it duplicated the Executive Dashboard KPI tiles above (same
        Outstanding/Interest/Overdue numbers, see 08-girvi-viewmode.js's
@@ -3037,12 +3039,13 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
         Compound interest (advanced)
       </label>
       <!-- Financer margin tracking — optional, additive (see girviMargin() in 04-orders-detail.js) -->
-      <details style="margin-bottom:10px;">
+      <details id="gf-financer-block" style="margin-bottom:10px;">
         <summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;"><span data-icon="cash"></span> Funded by a Financer? (optional)</summary>
         <div style="margin-top:8px;font-size:11px;color:var(--text3);margin-bottom:8px;">If this loan is funded by a financer, track their rate here to see your margin automatically.</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;">
           <div>
-            <div style="font-size:11px;color:var(--ink);margin-bottom:5px;font-weight:600;">Financer Name</div>
+            <div style="font-size:11px;color:var(--ink);margin-bottom:5px;font-weight:600;">Financer</div>
+            <select id="gf-financer-pick" onchange="gfFinPick()" style="width:100%;box-sizing:border-box;padding:9px;margin-bottom:6px;border-radius:10px;border:1px solid var(--border2);background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;"></select>
             <input id="gf-financer-name" type="text" placeholder="e.g. XYZ Finance"
               style="width:100%;box-sizing:border-box;padding:9px;border-radius:10px;border:1px solid var(--border2);background:var(--card1);color:var(--ink);font-size:13px;font-family:inherit;outline:none;">
           </div>

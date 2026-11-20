@@ -68,6 +68,30 @@ test('Girvi statement: each payment records principal/interest before and after;
   assert(/Loan given/.test(html) && /Still owed/.test(html) && /Top-up/.test(html), 'statement shows start, each event and today');
 });
 
+test('Financiers: one profile per name, loans linked live, stats from the loans, a payment posts a Day Book debit and cuts what is still owed', function(){
+  var a = loadApp(); a.dbInit(); a.SAAS.user = { id:'u1', name:'o', role:'owner' }; a.SAAS.shop = { id:'s1', name:'T' };
+  a.saveToCloud = function(cb){ if(cb) cb(null); }; a.toast = function(){}; a.openFinancierProfile = function(){};
+  var day = function(n){ return new Date(Date.now() - n*86400000).toISOString().slice(0,10); };
+  var id1 = a.finEnsure('DM Saab', 1, 'monthly'), id2 = a.finEnsure('  dm saab ', 5, 'yearly');
+  assert(id1 && id1 === id2 && a.finList().length === 1, 'same name in any case is one financier');
+  a.S.girvi = [
+    { id:'g1', grvNo:'G1', customer:'A', principal:50000, interestRate:2, rateType:'monthly', compound:false, startDate:day(60), status:'active', financerId:id1, financerName:'DM Saab', financerRate:1, financerRateType:'monthly', payments:[] },
+    { id:'g2', grvNo:'G2', customer:'B', principal:30000, interestRate:2, rateType:'monthly', compound:false, startDate:day(30), status:'active', financerName:'dm saab', financerRate:1, financerRateType:'monthly', payments:[] },
+    { id:'g3', grvNo:'G3', customer:'C', principal:10000, interestRate:2, rateType:'monthly', compound:false, startDate:day(30), status:'active', payments:[] } ];
+  var f = a.finList()[0], loans = a.finLoans(f);
+  assert(loans.length === 2 && a.girviFinancierId(a.S.girvi[1]) === id1, 'a loan with the old name-only fields is still found; a loan with no financer is not');
+  var st = a.finStats(f);
+  assert(st.active === 2 && st.principalOut === 80000 && Math.round(st.monthly) === 800, 'principal and monthly interest: ' + JSON.stringify(st));
+  var owe = Math.round(50000*0.01/30*60 + 30000*0.01/30*30);
+  assert(Math.abs(st.accrued - owe) < 2 && Math.abs(st.due - owe) < 2, 'interest owed from the loans: ' + st.accrued + ' vs ' + owe);
+  a._els = a._els || {}; a._els['fin-pay-amt'] = { value:'500' }; a._els['fin-pay-note'] = { value:'Nov' };
+  a.finAddPayment(id1);
+  assert(f.payments.length === 1 && f.payments[0].amount === 500, 'payment noted on the profile');
+  var line = a.S.dayBook.entries.filter(function(e){ return !e.voided && e.dir === 'out' && e.amount === 500; })[0];
+  assert(line && /DM Saab/.test(line.note), 'and posted to the Day Book as a debit');
+  assert(Math.abs(a.finStats(f).due - (owe - 500)) < 2, 'still-to-pay drops by what was paid');
+});
+
 test('Girvi top-up: more money on the same pledge adds to principal from its date, is not a receipt, and is a Day Book cash OUT', function(){
   var day = function(n){ return new Date(Date.now() - n*86400000).toISOString().slice(0,10); };
   var g = { id:'g1', grvNo:'G1', customer:'A', principal:50000, interestRate:2, rateType:'monthly', compound:false, startDate:day(100),

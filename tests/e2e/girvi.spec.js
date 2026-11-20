@@ -66,7 +66,9 @@ test.describe('girvi', () => {
 
     // Open its Ledger and record a payment dated before the loan started
     // (see file header — this is deliberate, not a mistake).
-    await card.getByRole('button', { name: /ledger/i }).click();
+    // The card's Ledger button became Financier; Top-up opens the same entry form, so pick the Payment type.
+    await card.getByRole('button', { name: /top-up/i }).click();
+    await page.locator('#girvi-ledger-modal .gl-type-btn').first().click();
     await expect(page.getByText('LOAN BALANCE', { exact: false })).toBeVisible({ timeout: 10000 });
 
     const backdate = new Date();
