@@ -820,6 +820,7 @@ function glRenderEntries(g){
 }
 
 function submitLedgerEntry(){
+  if(!guardWrite('record a girvi entry')) return;
   var g=_glGirviId?(S.girvi||[]).find(function(x){return x.id===_glGirviId;}):null;
   if(!g){toast('No girvi selected');return;}
   if(_girviLocked(g.id)){ toast('Entry already being recorded — please wait'); return; }
@@ -1185,8 +1186,9 @@ function _loadHtml2Canvas(cb){
   _h2cLoading=[cb];
   var s=document.createElement('script');
   s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  s.integrity='sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H'; s.crossOrigin='anonymous';
   s.onload=function(){ var cbs=_h2cLoading; _h2cLoading=null; cbs.forEach(function(f){f();}); };
-  s.onerror=function(){ toast('\u26a0 Could not load image generator — check your internet connection'); _h2cLoading=null; };
+  s.onerror=function(){ var cbs=_h2cLoading||[]; _h2cLoading=null; cbs.forEach(function(f){ try{ f(); }catch(e){} }); toast('\u26a0 Could not load image generator — check your internet connection'); _h2cLoading=null; };
   document.head.appendChild(s);
 }
 

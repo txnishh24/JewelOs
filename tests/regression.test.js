@@ -7472,6 +7472,7 @@ test('29 Oct issue UI: a negative correction needs a warn confirm; a positive to
 
 function _assignApp(items, answers){
   var a = loadApp(), saved = 0, toasts = [], q = answers.slice(), asked = 0;
+  a.SAAS.user = { id:'u1', name:'o', role:'owner' };
   a.saveToCloud = function(cb){ saved++; cb && cb(null); };
   a.toast = function(m){ toasts.push(m); };
   a.showOrderDetail = function(){};

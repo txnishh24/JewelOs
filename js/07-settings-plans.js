@@ -1225,6 +1225,7 @@ function saveGirviEntry(_ltvConfirmed){
   _girviLock('__new');
 
   // ── CREATE PATH: build a brand-new record and push it. ──────────────────
+  var _finIdsBefore = finList().map(function(f){ return f.id; });   // a financier typed into this form is only kept if the loan is saved
   var _grvFormData = {
     id:(typeof crypto.randomUUID==='function')?crypto.randomUUID():(Date.now().toString(36)+Math.random().toString(36).slice(2)),
     createdAt:new Date().toISOString(),
@@ -1281,7 +1282,7 @@ function saveGirviEntry(_ltvConfirmed){
     // loan and the customer changes, keeps the wizard (and GF_PHOTOS) as
     // typed, and asks for a retry. A retry gets a fresh GRV number (a gap).
     _girviCommit('__new', {snapshot:null, newIds:[_grvFormData.id], failMsg:SAVE_RETRY_MSG,
-      restore:function(){ S.customers=JSON.parse(_custSnap); }}, function(err){
+      restore:function(){ S.customers=JSON.parse(_custSnap); S.girviCfg.financiers = finList().filter(function(f){ return _finIdsBefore.indexOf(f.id) !== -1; }); }}, function(err){
       renderGirvi();renderDash();
       if(err) return;
       GF_PHOTOS = [];

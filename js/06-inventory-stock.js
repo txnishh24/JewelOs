@@ -526,6 +526,7 @@ function _scanLoadLib(cb){
   _scanLibLoading = [cb];
   var sc = document.createElement('script');
   sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js';
+  sc.integrity = 'sha384-c9d8RFSL+u3exBOJ4Yp3HUJXS4znl9f+z66d1y54ig+ea249SpqR+w1wyvXz/lk+'; sc.crossOrigin = 'anonymous';
   sc.onload = function(){ var q = _scanLibLoading; _scanLibLoading = null; q.forEach(function(f){ f(true); }); };
   sc.onerror = function(){ var q = _scanLibLoading; _scanLibLoading = null; q.forEach(function(f){ f(false); }); };
   document.head.appendChild(sc);

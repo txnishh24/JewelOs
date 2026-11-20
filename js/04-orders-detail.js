@@ -470,6 +470,7 @@ function _stageLinesHtml(ordId, item, n){
 // The Assign to Karigar form (replaces the browser pop-up questions). It only gathers the answers;
 // assignOrderToKarigar() still does every check and the save, so the rules live in one place.
 function openAssignKarigarModal(ordId){
+  if(!isManager()){ toast('Only the owner or a manager can assign a karigar'); return; }
   var o = (S.orders||[]).find(function(x){ return x.id===ordId; });
   if(!o || !o.items || !o.items.length){ toast('Order not found'); return; }
   var targets = o.items.filter(function(it){ return !(it.karigarStages||[]).some(function(s){ return s.status !== 'submitted'; }); });
@@ -510,6 +511,7 @@ function submitAssignKarigar(ordId, n){
 }
 // ans (optional): answers already typed into the Assign Karigar form (openAssignKarigarModal). Without it the old step-by-step prompts run (kept for the regression tests).
 function assignOrderToKarigar(ordId, ans){
+  if(!isManager()){ toast('Only the owner or a manager can assign a karigar'); return false; }
   var o = (S.orders||[]).find(function(x){ return x.id===ordId; });
   if(!o || !o.items || !o.items.length){ toast('Order not found'); return false; }
   var targets = o.items.filter(function(it){

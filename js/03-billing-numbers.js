@@ -99,6 +99,7 @@ function _loadJsPdf(cb){
   _jspdfLoading = [cb];
   var sc = document.createElement('script');
   sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  sc.integrity = 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk'; sc.crossOrigin = 'anonymous';   // the browser refuses the file if it is not byte-for-byte the one we checked
   sc.onload = function(){ var q = _jspdfLoading; _jspdfLoading = null; q.forEach(function(f){ f(true); }); };
   sc.onerror = function(){ var q = _jspdfLoading; _jspdfLoading = null; q.forEach(function(f){ f(false); }); };
   document.head.appendChild(sc);
@@ -112,6 +113,7 @@ function buildBillPdfBlob(sale, billType, cb){
       if(!ok || typeof html2canvas === 'undefined'){ finish(null); return; }
       try{
         frame = document.createElement('iframe');
+        frame.setAttribute('sandbox', 'allow-same-origin');   // no scripts may run inside the bill page (same protection as the preview frame); we only need to read it
         frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:720px;height:1200px;border:0;background:#fff;';
         frame.onload = function(){
           setTimeout(function(){

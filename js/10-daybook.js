@@ -1049,7 +1049,7 @@ function _dbPaint(){
 // Money accounts card: one row per account with its live balance. Owner adds accounts; entries pick one in Add Entry.
 function _dbAccountsCardHtml(){
   var accts = S.dayBook.accounts || [];
-  if(isStaff()) return '';
+  if(!isOwner()) return '';   // balances of the shop's own bank / GPay accounts: owner only, same as the Excel export
   var rows = accts.map(function(a){
     return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>'+escHtml(a.name)+'</span><b>'+fmt(dbAccountBalance(a.id))+'</b></div>';
   }).join('');
@@ -1322,7 +1322,7 @@ function dbOpenEntryModal(){
     }).join('');
   }
   var acctEl = document.getElementById('db-entry-acct');
-  if(acctEl) acctEl.innerHTML = '<option value="">Cash (drawer)</option>'+(S.dayBook.accounts||[]).map(function(a){ return '<option value="'+escHtml(a.id)+'">'+escHtml(a.name)+'</option>'; }).join('');
+  if(acctEl) acctEl.innerHTML = '<option value="">Cash (drawer)</option>'+(!isOwner() ? [] : (S.dayBook.accounts||[])).map(function(a){ return '<option value="'+escHtml(a.id)+'">'+escHtml(a.name)+'</option>'; }).join('');
   var amtEl = document.getElementById('db-entry-amt'); if(amtEl) amtEl.value = '';
   var noteEl = document.getElementById('db-entry-note'); if(noteEl) noteEl.value = '';
   var partyEl = document.getElementById('db-entry-party'); if(partyEl) partyEl.value = '';
