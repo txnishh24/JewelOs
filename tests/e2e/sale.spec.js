@@ -75,7 +75,8 @@ test.describe('sale', () => {
     // this shop and add to the same day's total, and Day Book lines show the
     // invoice number, not the item description) — but an auto-posted "Sale"
     // line must be there, which is the thing this bug family breaks.
-    await expect(page.locator('.gl-entry', { hasText: 'Sale' }).first()).toBeVisible();
+    // Day Book now lists lines in Credit (left) and Debit (right) columns, not .gl-entry rows
+    await expect(page.locator('#db-body').getByText('CREDIT').locator('xpath=ancestor::div[contains(@class,"card")][1]')).toContainText('Sale');
   });
 
   test('records a UPI sale and Day Book shows the non-cash banner, not a silent gap', async ({ page }) => {
