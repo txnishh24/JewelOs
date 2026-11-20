@@ -14,6 +14,7 @@ Built in worktree `claude/yoo-7f546b` (commits 72adb58 to 4303f63 plus the build
 - Bill: real PDF for Download and for WhatsApp share (phone share sheet); text bill kept as fallback.
 - Settings: Export everything (Excel), 13 sheets, no library, owner only. Sample-data loader shows progress and now fills customers, supplier bills and a financier; Clear data removes them.
 - New CDN scripts, loaded only on first use from cdnjs: jsPDF 2.5.1, html5-qrcode 2.3.8 (html2canvas 1.4.1 was already used). Tanish to sign off.
-- NOT done: the "estimate shows negative" fix (needs a screenshot); karigar data in the Excel export.
+- Estimates: the order pipeline total and the purchase wastage card show a shortfall as red words ("Est. loss", no minus sign) and zero/unknown as a dash. Display only: how `orderProfitEst` is calculated is unchanged (it still treats the making charge as cost when no karigar cost is recorded), so a real fix may still need Tanish's screenshot.
+- NOT done: karigar data in the Excel export.
 - `APP_BUILD` 77, `sw.js` cache `jewelos-v32`. No migration. `ROLE_CHECK_MODE` untouched.
 - Rollback: redeploy batch76 (see CHANGES-batch76.md).

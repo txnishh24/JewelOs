@@ -395,7 +395,7 @@ function pbWastageReportHtml(){
       fsnCard('Avg Supplier Wastage', avgSupplier!==null?avgSupplier.toFixed(2)+'%':'—', supplierRows.length+' bill(s)', null, '', 'var(--gold-dark)')+
       fsnCard('Avg Selling Wastage', avgCustomer!==null?avgCustomer.toFixed(2)+'%':'—', customerRows.length+' item(s)', null, '', '#22c55e')+
       fsnCard('Difference', diff!==null?(diff>=0?'+':'')+diff.toFixed(2)+'%':'—', '', null, '', diff!==null&&diff<0?'#ef4444':'#22c55e')+
-      fsnCard('Est. Profit from Wastage', estProfit!==null?fmt(Math.round(estProfit)):'—', 'rough estimate, not bill-linked', null, '', '#f59e0b')+
+      (function(){ var v = estProfitView(estProfit); return fsnCard(estProfit !== null && v.label === 'Est. loss' ? 'Est. Loss from Wastage' : 'Est. Profit from Wastage', estProfit !== null ? v.text : '—', estProfit !== null && v.label === 'Est. loss' ? 'customers are charged less wastage than suppliers charge you' : 'rough estimate, not bill-linked', null, '', estProfit !== null && v.label === 'Est. loss' ? 'var(--danger)' : '#f59e0b'); }())+
     '</div>'+
     (topSuppliers.length?'<div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;">Top suppliers by lowest wastage</div>'+top:'')+
     '</div>';

@@ -245,6 +245,14 @@ test('Clear data also removes the sample customers, supplier bills and financier
   assert(a.S.purchases.length === 0 && (a.S.suppliers || []).length === 0 && a.finList().length === 0, 'sample bills, supplier and financier are gone');
 });
 
+test('Estimated profit view: a loss is red words with no minus sign, a gain is green, zero or unknown is a dash', function(){
+  var a = loadApp();
+  var g = a.estProfitView(1234.6), l = a.estProfitView(-5000), z = a.estProfitView(0), u = a.estProfitView(null);
+  assert(g.label === 'Est. profit' && /1,235/.test(g.text) && g.color === 'var(--success)', 'gain: ' + JSON.stringify(g));
+  assert(l.label === 'Est. loss' && /5,000/.test(l.text) && l.text.indexOf('-') === -1 && l.color === 'var(--danger)', 'loss: ' + JSON.stringify(l));
+  assert(z.text.length === 1 && u.text.length === 1 && z.color === 'var(--text3)', 'zero and unknown show a dash');
+});
+
 test('Girvi top-up: more money on the same pledge adds to principal from its date, is not a receipt, and is a Day Book cash OUT', function(){
   var day = function(n){ return new Date(Date.now() - n*86400000).toISOString().slice(0,10); };
   var g = { id:'g1', grvNo:'G1', customer:'A', principal:50000, interestRate:2, rateType:'monthly', compound:false, startDate:day(100),

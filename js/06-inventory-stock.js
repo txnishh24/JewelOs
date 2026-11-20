@@ -49,6 +49,13 @@ function orderDelayRisk(o){
   return              {level:'ok',      color:'var(--success)', label:'In '+dl+'d'};
 }
 
+// How an ESTIMATED profit is shown: a gain in green, a shortfall in red and in words ("loss"), never a bare minus sign; zero or unknown is a dash.
+function estProfitView(n){
+  n = Math.round(parseFloat(n) || 0);
+  if(n > 0) return { label:'Est. profit', text:fmt(n), color:'var(--success)' };
+  if(n < 0) return { label:'Est. loss', text:fmt(-n), color:'var(--danger)' };
+  return { label:'Est. profit', text:'—', color:'var(--text3)' };
+}
 function orderProfitEst(o){
   // Estimated profit = quote - metal cost estimate
   // Metal cost = weight * rate for each item
@@ -866,7 +873,7 @@ function renderOrdersPipeline(){
       var totalBal=active.reduce(function(s,o){return s+Math.max(0,(o.quote||0)-ordAdvance(o));},0);
       return '<div style="display:flex;gap:16px;font-size:12px;padding-top:6px;border-top:0.5px solid var(--border);flex-wrap:wrap;">'+
         '<span>Active: <strong>'+active.length+'</strong></span>'+
-        (canSeeProfit()?'<span>Est. profit: <strong style="color:var(--success);">'+fmt(Math.round(totalProfit))+'</strong></span>':'')+
+        (canSeeProfit()?(function(){ var v = estProfitView(totalProfit); return '<span>'+v.label+': <strong style="color:'+v.color+';">'+v.text+'</strong></span>'; }()):'')+
         '<span>Balance due: <strong style="color:var(--danger);">'+fmt(Math.round(totalBal))+'</strong></span>'+
       '</div>';
     }());
