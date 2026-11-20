@@ -36,7 +36,7 @@ Full previous version (all history): `docs/CLAUDE-MD-FULL-2026-11-05.md`.
    or `checks/` are dirty and you did not change them, another session is mid-change: stop
    and ask. If only docs/config files are dirty, you may proceed, but do not touch those files.
    Commit before you hand back a build.
-5. Read `checks/README.md` (nine AST scripts that find references to things never created).
+5. Read `checks/README.md` (ten AST scripts that find references to things never created).
    If a check references a function that does not exist here, a newer working copy exists
    somewhere: stop and ask.
 
