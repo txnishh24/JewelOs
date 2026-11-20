@@ -32,7 +32,7 @@ function showOrderDetail(ordId){
     itemsDiv.style.cssText='margin-bottom:1rem;';
     itemsDiv.innerHTML='<div class="ord-section-label" style="display:flex;justify-content:space-between;align-items:center;">'+
       '<span>Order Items ('+o.items.length+')</span>'+
-      (o.status!=='cancelled'&&o.status!=='delivered'&&!o.billedSaleId&&isManager()?'<button class="btn btn-sm" onclick="assignOrderToKarigar(\''+jsAttrEsc(o.id)+'\');">Assign to Karigar</button>':'')+
+      (o.status!=='cancelled'&&o.status!=='delivered'&&!o.billedSaleId&&isManager()?'<button class="btn btn-sm" onclick="openAssignKarigarModal(\''+jsAttrEsc(o.id)+'\');">Assign to Karigar</button>':'')+
     '</div>';
     var itemsInner=document.createElement('div');
     itemsInner.style.cssText='background:var(--surface);border:0.5px solid var(--border2);border-radius:var(--radius);overflow:hidden;';
@@ -467,28 +467,71 @@ function _stageLinesHtml(ordId, item, n){
 // loss): one prompt chain assigns the same karigar/task/pay to every item that
 // has no active (non-submitted) stage -- items already in progress are skipped,
 // never stacked. All-or-nothing: nothing is pushed until every prompt passes.
-function assignOrderToKarigar(ordId){
+// The Assign to Karigar form (replaces the browser pop-up questions). It only gathers the answers;
+// assignOrderToKarigar() still does every check and the save, so the rules live in one place.
+function openAssignKarigarModal(ordId){
+  var o = (S.orders||[]).find(function(x){ return x.id===ordId; });
+  if(!o || !o.items || !o.items.length){ toast('Order not found'); return; }
+  var targets = o.items.filter(function(it){ return !(it.karigarStages||[]).some(function(s){ return s.status !== 'submitted'; }); });
+  if(!targets.length){ toast('Every item already has a karigar working on it'); return; }
+  var ov = document.getElementById('assign-kg-modal');
+  if(!ov){ ov = document.createElement('div'); ov.id = 'assign-kg-modal'; ov.className = 'modal-overlay'; document.body.appendChild(ov); }
+  var names = (S.karigars||[]).map(function(k){ return '<option value="'+escHtml(k.name)+'">'; }).join('');
+  var items = targets.map(function(it, i){
+    var q = parseInt(it.qty) || 1;
+    return '<div class="ge-fg" style="margin-bottom:8px;"><label>Metal handed over: '+escHtml(it.desc||'Item')+' (grams'+(q>1?', total for all '+q+' pieces':'')+', blank = not yet)</label>'+
+      '<input id="ak-wt-'+i+'" type="number" step="0.001" min="0" inputmode="decimal"/></div>';
+  }).join('');
+  ov.innerHTML = '<div class="gl-wrap"><div class="gl-header"><h2>Assign to Karigar</h2>'+
+    '<button class="ge-close" onclick="closeAssignKarigarModal()">✕</button></div><div class="gl-body">'+
+    '<div class="ge-fg" style="margin-bottom:10px;"><label>Karigar name</label><input id="ak-name" list="ak-names" autocomplete="off"/><datalist id="ak-names">'+names+'</datalist></div>'+
+    '<div class="ge-fg" style="margin-bottom:10px;"><label>Task (e.g. Gold work, Polish, Setting)</label><input id="ak-task"/></div>'+
+    '<div class="ge-fg" style="margin-bottom:10px;"><label>How is this karigar paid?</label><select id="ak-mode" onchange="akModeChanged()">'+
+      '<option value="cash">Cash per piece</option><option value="wastage">Wastage: he keeps it out of the metal</option><option value="wastage-paid">Wastage: I pay it separately</option></select></div>'+
+    '<div class="ge-fg" id="ak-cost-wrap" style="margin-bottom:10px;"><label>Cash to pay per piece (₹)</label><input id="ak-cost" type="number" min="0" inputmode="decimal"/></div>'+
+    '<div class="ge-fg" id="ak-pct-wrap" style="margin-bottom:10px;display:none;"><label>Wastage allowed (% of item weight)</label><input id="ak-pct" type="number" min="0" max="99.99" step="0.01" inputmode="decimal"/></div>'+
+    items+
+    '<div class="ge-fg" style="margin-bottom:14px;"><label>Purity of the metal handed over (blank = each item\'s own purity)</label><input id="ak-purity" placeholder="e.g. 24K, 22K, 925 Sterling"/></div>'+
+    '<button class="btn btn-gold" style="width:100%;" onclick="submitAssignKarigar(\''+jsAttrEsc(ordId)+'\','+targets.length+')">Assign</button></div></div>';
+  ov.classList.add('open');
+}
+function closeAssignKarigarModal(){ var ov = document.getElementById('assign-kg-modal'); if(ov) ov.classList.remove('open'); }
+function akModeChanged(){
+  var cash = document.getElementById('ak-mode').value === 'cash';
+  document.getElementById('ak-cost-wrap').style.display = cash ? '' : 'none';
+  document.getElementById('ak-pct-wrap').style.display  = cash ? 'none' : '';
+}
+function submitAssignKarigar(ordId, n){
+  function v(id){ var e = document.getElementById(id); return e ? e.value : ''; }
+  var wts = [];
+  for(var i=0; i<n; i++) wts.push(v('ak-wt-'+i));
+  var ok = assignOrderToKarigar(ordId, { name:v('ak-name'), task:v('ak-task'), mode:v('ak-mode'), cost:v('ak-cost'), pct:v('ak-pct'), wts:wts, purity:v('ak-purity') });
+  if(ok) closeAssignKarigarModal();   // on a refusal the form stays open with the reason in the toast
+}
+// ans (optional): answers already typed into the Assign Karigar form (openAssignKarigarModal). Without it the old step-by-step prompts run (kept for the regression tests).
+function assignOrderToKarigar(ordId, ans){
   var o = (S.orders||[]).find(function(x){ return x.id===ordId; });
   if(!o || !o.items || !o.items.length){ toast('Order not found'); return false; }
   var targets = o.items.filter(function(it){
     return !(it.karigarStages||[]).some(function(s){ return s.status !== 'submitted'; });
   });
   if(!targets.length){ toast('Every item already has a karigar working on it'); return false; }
-  var name = String(prompt('Karigar name?', '') || '').trim();
+  function _ask(key, idx, text, def){ if(ans){ var v = (key==='wts') ? ans.wts[idx] : ans[key]; return (v===undefined || v===null) ? '' : v; } return prompt(text, def); }
+  var name = String(_ask('name', 0, 'Karigar name?', '') || '').trim();
   if(!name){ toast('Cancelled'); return false; }
-  var task = String(prompt('Task (e.g. Gold work, Polish, Setting)?', '') || '').trim();
+  var task = String(_ask('task', 0, 'Task (e.g. Gold work, Polish, Setting)?', '') || '').trim();
   if(!task){ toast('Cancelled'); return false; }
-  var mode = String(prompt('How is this karigar paid: cash, wastage (he keeps it out of the metal), or wastage-paid (you pay wastage separately)?', 'cash') || '').trim().toLowerCase();
+  var mode = String(_ask('mode', 0, 'How is this karigar paid: cash, wastage (he keeps it out of the metal), or wastage-paid (you pay wastage separately)?', 'cash') || '').trim().toLowerCase();
   // 30 Oct: wastage = karigar keeps it (nothing owed); wastage-paid = old behaviour
   var wastageKept = (mode === 'wastage');
   if(mode === 'wastage-paid') mode = 'wastage';
   if(mode !== 'cash' && mode !== 'wastage'){ toast('Cancelled — type cash, wastage or wastage-paid'); return false; }
   var cost = 0, pct = 0;
   if(mode === 'cash'){
-    cost = karigarCost2(prompt('Cash to pay per piece (₹)?', ''));
+    cost = karigarCost2(_ask('cost', 0, 'Cash to pay per piece (₹)?', ''));
     if(cost === null){ toast('Cancelled — enter an amount above zero with at most 2 decimals'); return false; }
   } else {
-    pct = parseFloat(prompt('Wastage allowed (% of item weight)?', ''));
+    pct = parseFloat(_ask('pct', 0, 'Wastage allowed (% of item weight)?', ''));
     if(!(pct > 0) || !(pct < 100) || !isFinite(pct)){ toast('Cancelled — enter a wastage % between 0 and 100'); return false; }
   }
   // Karigar provenance (29 Oct): metal handed over, one weight per item
@@ -497,7 +540,7 @@ function assignOrderToKarigar(ordId){
   var issueWts = [], issuePur = [], anyIssue = false;
   for(var ti=0; ti<targets.length; ti++){
     var tq = parseInt(targets[ti].qty) || 1;
-    var wRaw = prompt('Metal handed over for item ' + (ti+1) + ' of ' + targets.length + ' — "' + (targets[ti].desc||'Item') + '" (grams' + (tq>1 ? ', total for all ' + tq + ' pieces' : '') + '). Leave blank if not handing metal over yet.', '');
+    var wRaw = _ask('wts', ti, 'Metal handed over for item ' + (ti+1) + ' of ' + targets.length + ' — "' + (targets[ti].desc||'Item') + '" (grams' + (tq>1 ? ', total for all ' + tq + ' pieces' : '') + '). Leave blank if not handing metal over yet.', '');
     if(wRaw === null){ toast('Cancelled'); return false; }
     if(String(wRaw).trim() === ''){ issueWts.push(0); continue; }
     var w = parseFloat(wRaw);
@@ -505,7 +548,7 @@ function assignOrderToKarigar(ordId){
     issueWts.push(w); anyIssue = true;
   }
   if(anyIssue){
-    var pRaw = prompt('Purity of the metal handed over (e.g. 24K, 22K, 925 Sterling)? Leave blank to use each item\'s own purity.', '');
+    var pRaw = _ask('purity', 0, 'Purity of the metal handed over (e.g. 24K, 22K, 925 Sterling)? Leave blank to use each item\'s own purity.', '');
     if(pRaw === null){ toast('Cancelled'); return false; }
     var typed = String(pRaw).trim();
     for(var pi=0; pi<targets.length; pi++){

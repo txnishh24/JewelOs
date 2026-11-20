@@ -629,6 +629,14 @@ tr:last-child td{border-bottom:none;}
 .inv-card-rows{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:13px;color:var(--ink);margin-bottom:10px;}
 .inv-card-rows .lbl{display:block;font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:2px;}
 .inv-card-actions{display:flex;gap:5px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border);}
+/* Phones: smaller stock cards (3 info columns, tighter padding). Desktop table untouched. */
+@media(max-width:639px){
+  .inv-card{padding:8px 10px;margin-bottom:6px;}
+  .inv-card-top{margin-bottom:6px;}
+  .inv-card-name{font-size:13px;}
+  .inv-card-rows{grid-template-columns:repeat(3,1fr);gap:6px 8px;font-size:12px;margin-bottom:6px;}
+  .inv-card-actions{padding-top:6px;gap:4px;}
+}
 
 .sold-row td{opacity:.5;}
 .status-avail{
@@ -2549,6 +2557,7 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
         <div id="balance-due-row" style="display:none;margin-bottom:8px;padding:8px 10px;background:rgba(192,57,43,0.08);border-radius:6px;border-left:3px solid var(--danger);">
           <span style="font-size:12px;color:var(--danger);font-weight:700;">Balance Due: </span>
           <span id="s-bal-due-display" style="font-size:14px;font-weight:900;color:var(--danger);">&#8377;0</span>
+          <button type="button" id="s-adjust-btn" class="btn btn-sm" style="display:none;margin-top:6px;" onclick="adjustBalanceToDiscount()">Adjust balance as discount</button>
         </div>
         <div id="split-payments-wrap"></div>
         <button class="split-add-btn" onclick="addSplitRow()">+ Add another payment mode</button>
@@ -2716,9 +2725,9 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
         <select id="ord-filter" onchange="renderOrders()" style="width:auto;padding:6px 26px 6px 10px;font-size:12px;">
           <option value="all">All Status</option>
           <option value="new">New</option>
-          <option value="progress">In Progress</option>
+          <option value="progress">Making</option>
           <option value="ready">Ready</option>
-          <option value="delivered">Delivered</option>
+          <option value="delivered">Done (delivered)</option>
           <option value="cancelled">Cancelled</option>
         </select>
       </div>

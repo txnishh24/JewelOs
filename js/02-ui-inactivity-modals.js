@@ -1231,6 +1231,17 @@ function zeroFieldBlur(el){
   if(el.value==='') el.value='0';
 }
 
+var SALE_ADJUST_MAX = 2000;  // the button only shows for a balance this small
+var _saleAdjBal = 0, _saleAdjGst = 0;
+// Turns the whole small balance into discount. GST is charged on the discounted amount, so the discount is balance / (1 + GST%), then checked.
+function adjustBalanceToDiscount(){
+  var d = document.getElementById('s-disc'); if(!d || !(_saleAdjBal > 0) || _saleAdjBal > SALE_ADJUST_MAX) return;
+  var applied = _saleAdjBal;
+  d.value = Math.round(((parseFloat(d.value)||0) + _saleAdjBal / (1 + _saleAdjGst/100)) * 100) / 100;
+  updateSum();
+  for(var i=0; i<3 && _saleAdjBal > 0; i++){ d.value = Math.round(((parseFloat(d.value)||0) + _saleAdjBal / (1 + _saleAdjGst/100)) * 100) / 100; updateSum(); }
+  toast(fmt(applied)+' adjusted as discount');
+}
 function updateSum(){
   var gv=0,mc=0,dc=0;
   if(UI.saleMode==='custom'){
@@ -1343,6 +1354,10 @@ function updateSum(){
   var balDisp   = document.getElementById('s-bal-due-display');
   if(balDueRow) balDueRow.style.display = (grand>0 && balance>0) ? 'block' : 'none';   // R32 6: never beside the green "Fully Settled" row
   if(balDisp)   balDisp.textContent = fmt(balance);
+  // Small leftover (up to Rs 2,000): offer to write it off as discount. Goes through #s-disc so the role discount cap still applies at save.
+  _saleAdjBal = balance; _saleAdjGst = gstPct;
+  var adjBtn = document.getElementById('s-adjust-btn');
+  if(adjBtn){ adjBtn.style.display = (balance>0 && balance<=SALE_ADJUST_MAX) ? '' : 'none'; adjBtn.textContent = 'Adjust '+fmt(balance)+' as discount'; }
 
   // Show still-pending or fully-cleared
   var stillRow    = document.getElementById('still-pending-row');

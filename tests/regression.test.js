@@ -3434,6 +3434,40 @@ test('the displayed breakdown and the locked total agree on the making charge', 
     'breakdown grand (' + t.grand + ') must match the locked total (' + sale.lockedGrand + ')');
 });
 
+test('Adjust small balance as discount: GST 3% sale ends with balance 0 on the form and on the saved sale; the role discount cap still refuses an oversize adjusted discount', function(){
+  function setup(prodOv, role){
+    var a = makingScenario(prodOv);
+    a.SAAS.user = { id:'u1', name:role, role:role };
+    a._saleFormBillType = 'gst';
+    a.document.getElementById('s-gst').value = '3';
+    a.document.getElementById('s-disc').value = '0';
+    a.document.getElementById('s-cust').value = 'Asha';
+    a.splitRows[0].auto = false;
+    return a;
+  }
+  var a = setup({}, 'owner');            // 65450 + 3% GST = 67413.5, shown as 67414
+  a.splitRows[0].amount = 66000;
+  a.updateSum();
+  assert(a.buildSaleObj().lockedGrand === 67414 && a.calcSaleTotals(a.buildSaleObj()).bal === 1414, 'setup: Rs 1,414 should be left unpaid before adjusting');
+  a.adjustBalanceToDiscount();
+  var sale = a.buildSaleObj(), t = a.calcSaleTotals(sale);
+  assert(sale.discount > 1300 && sale.discount < 1414, 'discount is the balance before GST (about 1373), got ' + sale.discount);
+  assert(t.bal === 0 && sale.advance === sale.lockedGrand, 'saved sale must end with balance 0, got bal ' + t.bal + ' advance ' + sale.advance + ' grand ' + sale.lockedGrand);
+  // Over the limit: a Rs 7,700 bill, Rs 1,931 left. Almost 25% discount, staff cap is 5%.
+  var b = setup({ weight:1, netWeight:1, mcRate:500 }, 'staff');
+  b.splitRows[0].amount = 6000;
+  b.updateSum();
+  b.adjustBalanceToDiscount();
+  assert(parseFloat(b.document.getElementById('s-disc').value) > 1800, 'the button did write a big discount into the box');
+  assert(/Needs owner approval/.test(b.discountProblem(b.buildSaleObj())), 'staff cap must still refuse it');
+  var toasts = []; b.toast = function(m){ toasts.push(String(m)); };
+  var before = b.S.sales.length; b.recordSale();
+  assert(b.S.sales.length === before && toasts.some(function(m){ return /Needs owner approval/.test(m); }), 'recordSale must refuse and save nothing: ' + toasts.join(' | '));
+  // Balance above the Rs 2,000 limit: the button does nothing.
+  var c = setup({}, 'owner'); c.splitRows[0].amount = 60000; c.updateSum(); c.adjustBalanceToDiscount();
+  assert(c.document.getElementById('s-disc').value === '0', 'balance over SALE_ADJUST_MAX must not be adjusted');
+});
+
 test('a sale with a making charge is a profit, not a loss, when no purchase rate was entered', function(){
   // The reported case: a first-time signup who never filled "Purchase Rate".
   var a = makingScenario();
@@ -7183,6 +7217,16 @@ test('29 Oct assign: all weights blank -> no purity prompt, stages pushed withou
   assert(t.a.assignOrderToKarigar('o1') === true && t.asked() === 6, 'expected exactly 6 prompts, got ' + t.asked());
   var s = t.a.S.orders[0].items[0].karigarStages[0];
   assert(s.karigarCost === 500 && !s.issued, 'no issued field when nothing handed over: ' + JSON.stringify(s));
+});
+
+test('Assign Karigar form: answers passed in -> same checks and result, and no pop-up is ever asked', function(){
+  var t = _assignApp([_gItem('Ring'), _gItem('Chain')], []);
+  var ok = t.a.assignOrderToKarigar('o1', { name:'Ramesh', task:'Gold work', mode:'cash', cost:'500', pct:'', wts:['10',''], purity:'24k' });
+  assert(ok === true && t.asked() === 0, 'form path must not prompt, asked ' + t.asked());
+  var s0 = t.a.S.orders[0].items[0].karigarStages[0], s1 = t.a.S.orders[0].items[1].karigarStages[0];
+  assert(s0.karigarCost === 500 && s0.issued[0].wt === 10 && s0.issued[0].purity === '24K' && !s1.issued, JSON.stringify(s0));
+  var bad = _assignApp([_gItem('Ring')], []);
+  assert(bad.a.assignOrderToKarigar('o1', { name:'Ramesh', task:'Work', mode:'cash', cost:'0', wts:[''], purity:'' }) === false && bad.saved() === 0, 'a zero cash rate is still refused');
 });
 
 test('29 Oct assign: per-item weights + one explicit purity; blank weight item stays unissued', function(){

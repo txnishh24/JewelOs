@@ -231,6 +231,9 @@ function dismissOnboarding(){
   if(el) el.style.display='none';
 }
 
+// Stock value is hidden by default (a customer can see the screen); resets on reload, never saved.
+var _dashStockShown = false;
+function toggleDashStockValue(){ _dashStockShown = !_dashStockShown; renderDash(); }
 function renderDash(){
   renderOnboarding();
   var now   = new Date();
@@ -308,7 +311,7 @@ function renderDash(){
   var snapEl2 = document.getElementById('dash-business-snapshot');
   if(snapEl2){
     snapEl2.innerHTML =
-      (canSeeProfit() ? fsnCard('Stock Value', fmt(tgv+tsv), 'gold + silver stock', null, '', 'var(--gold-dark)') : '')+
+      (canSeeProfit() ? fsnCard('Stock Value <button type="button" onclick="toggleDashStockValue()" aria-label="Show or hide stock value" style="float:right;background:none;border:none;cursor:pointer;padding:0 2px;">'+svgIcon('eye')+'</button>', _dashStockShown ? fmt(tgv+tsv) : '••••••', 'gold + silver stock', null, '', 'var(--gold-dark)') : '')+
       (!isStaff() ? fsnCard('Outstanding Payments', fmt(totalPendingBal), getSalesDueSoon(30).length+' overdue 30d+', null, '', totalPendingBal>0?'var(--danger)':'var(--success)') : '')+   // R27: staff see no receivables
       (!isStaff() ? fsnCard('Pending Girvi', fmt(activeGirviTotal), activeGirviList.length+' active loan(s)', null, '', 'var(--warning)') : '')+   // R26: staff see no girvi totals
       fsnCard('Pieces in Stock', stockPieces, stockCatCount+' categor'+(stockCatCount===1?'y':'ies'), null, '', 'var(--gold-dark)');
@@ -720,8 +723,9 @@ function renderOrdersPipeline(){
   if(existing) existing.remove();
 
   var orders = S.orders||[];
-  var stages = ['new','design','making','polishing','quality','ready','delivered'];
-  var stageLabels = {new:'New',design:'Design',making:'Making',polishing:'Polish',quality:'QC',ready:'Ready',delivered:'Done'};
+  // Four real stages only. 'progress' is the stored key for Making (the old list used keys no order ever had, so Making always showed 0).
+  var stages = ['new','progress','ready','delivered'];
+  var stageLabels = {new:'New',progress:'Making',ready:'Ready',delivered:'Done'};
   var counts = {};
   stages.forEach(function(s){counts[s]=0;});
   orders.forEach(function(o){if(o.status&&counts[o.status]!==undefined)counts[o.status]++;});

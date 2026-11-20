@@ -312,6 +312,48 @@ function gfUseSuggestedLoan(){
   }
 }
 
+// ── FULL-SCREEN PHOTO VIEWER (zoom: buttons, mouse wheel, double-tap, two-finger pinch) ──
+var _pvList = [], _pvIdx = 0, _pvZoom = 1, _pvPinch = 0;
+function openPhotoViewer(i){
+  if(!_pvList.length) return;
+  _pvIdx = i; _pvZoom = 1;
+  var ov = document.getElementById('photo-viewer');
+  if(!ov){
+    ov = document.createElement('div'); ov.id = 'photo-viewer';
+    ov.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:3000;background:#000;display:flex;flex-direction:column;';
+    ov.innerHTML = '<div style="display:flex;gap:8px;justify-content:space-between;align-items:center;padding:10px 12px;color:#fff;">'+
+        '<span id="pv-count" style="font-size:13px;"></span>'+
+        '<span><button type="button" class="btn btn-sm" onclick="pvStep(-1)">‹</button> <button type="button" class="btn btn-sm" onclick="pvStep(1)">›</button> '+
+        '<button type="button" class="btn btn-sm" onclick="pvSetZoom(_pvZoom-0.5)">−</button> <button type="button" class="btn btn-sm" onclick="pvSetZoom(_pvZoom+0.5)">+</button> '+
+        '<button type="button" class="btn btn-sm" onclick="closePhotoViewer()">✕ Close</button></span></div>'+
+      '<div id="pv-scroll" style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;text-align:center;"><img id="pv-img" alt="Ornament photo" style="max-width:none;display:block;margin:0 auto;"></div>';
+    document.body.appendChild(ov);
+    var sc = document.getElementById('pv-scroll');
+    sc.addEventListener('wheel', function(e){ e.preventDefault(); pvSetZoom(_pvZoom + (e.deltaY < 0 ? 0.25 : -0.25)); }, {passive:false});
+    sc.addEventListener('dblclick', function(){ pvSetZoom(_pvZoom > 1 ? 1 : 2.5); });
+    sc.addEventListener('touchstart', function(e){ if(e.touches.length === 2) _pvPinch = pvDist(e); });
+    sc.addEventListener('touchmove', function(e){
+      if(e.touches.length === 2 && _pvPinch){ e.preventDefault(); var d = pvDist(e); pvSetZoom(_pvZoom * d / _pvPinch); _pvPinch = d; }
+    }, {passive:false});
+    sc.addEventListener('touchend', function(){ _pvPinch = 0; });
+  }
+  ov.style.display = 'flex';
+  pvShow();
+}
+function pvDist(e){ var dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY; return Math.sqrt(dx*dx + dy*dy); }
+function pvShow(){
+  var img = document.getElementById('pv-img'); if(!img) return;
+  img.src = _pvList[_pvIdx] || '';
+  document.getElementById('pv-count').textContent = (_pvIdx+1)+' / '+_pvList.length;
+  pvSetZoom(1);
+}
+function pvSetZoom(z){
+  _pvZoom = Math.max(1, Math.min(6, z));
+  var img = document.getElementById('pv-img'); if(img) img.style.width = (_pvZoom * 100) + '%';
+}
+function pvStep(d){ if(!_pvList.length) return; _pvIdx = (_pvIdx + d + _pvList.length) % _pvList.length; pvShow(); }
+function closePhotoViewer(){ var ov = document.getElementById('photo-viewer'); if(ov) ov.style.display = 'none'; }
+
 // ── ORNAMENT PHOTOS (wizard step 3) ──────────────────────────────────
 // Photographed as the pledge is taken in, then stored on the customer's
 // profile so the shop has a record of exactly what came through the door.
@@ -1379,9 +1421,11 @@ function openGirviDetail(gid){
       var c = (S.customers||[]).find(function(x){ return x.id===g.customerId; });
       var pics = (c && c.ornamentPhotos || []).filter(function(p){ return p.girviId===g.id; });
       if(!pics.length) return '';
-      return '<div style="margin-bottom:14px;">'+
-        '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">'+svgIcon('camera')+' Ornament Photos</div>'+
-        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">'+
+      // Photos stay hidden until asked for ("View photos of the ornament"); tapping one opens the zoomable full-screen viewer.
+      _pvList = [];
+      return '<details style="margin-bottom:14px;">'+
+        '<summary style="font-size:12px;font-weight:700;color:var(--gold-dark);cursor:pointer;padding:6px 0;">'+svgIcon('camera')+' View photos of the ornament ('+pics.length+')</summary>'+
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;">'+
           pics.map(function(p){
             // store-proxy accepts arbitrary JSON, so dataUrl can't be trusted
             // verbatim in href -- a real ornament photo is always a data:image/
@@ -1392,12 +1436,13 @@ function openGirviDetail(gid){
             // consistent with the href it sits inside the same <a> as.
             var safeDataUrl=(p.dataUrl&&p.dataUrl.indexOf('data:image/')===0)?p.dataUrl:'';
             if(!safeDataUrl) return '';
-            return '<a href="'+escHtml(safeDataUrl)+'" target="_blank" rel="noopener" style="display:block;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--border2);">'+
+            _pvList.push(safeDataUrl);
+            return '<button type="button" onclick="openPhotoViewer('+(_pvList.length-1)+')" style="display:block;padding:0;cursor:zoom-in;background:none;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--border2);">'+
               '<img src="'+escHtml(safeDataUrl)+'" style="width:100%;height:100%;object-fit:cover;display:block;">'+
-            '</a>';
+            '</button>';
           }).join('')+
         '</div>'+
-      '</div>';
+      '</details>';
     }())+
     '<div style="margin-bottom:14px;">'+
       '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">'+svgIcon('clipboard')+' Audit Trail</div>'+

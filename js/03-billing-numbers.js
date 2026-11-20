@@ -1842,6 +1842,8 @@ function renderOrders(){
     '</div>':'';
   var filtered=S.orders.filter(function(o){
     if(filt!=='all'&&o.status!==filt)return false;
+    // Delivered AND billed orders leave the main list (the bill lives in the customer's profile). Pick "Delivered" in the filter to see them.
+    if(filt==='all'&&!q&&o.status==='delivered'&&o.billedSaleId)return false;
     if(!q)return true;
     return (o.ordNo||'').toLowerCase().indexOf(q)>-1||
            (o.customer||'').toLowerCase().indexOf(q)>-1||
