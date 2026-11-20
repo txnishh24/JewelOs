@@ -2817,12 +2817,15 @@ function openBarcodeLabels(prodIds) {
     var _lg=parseFloat(p.weight)||0, _ln=parseFloat(p.netWeight)||0;
     var price= Math.round(mktVal(p) + productMakingAmount(p, _ln>0&&_ln<_lg?_ln:_lg));
     var bars = _barcodeSVG(sku);
+    var _net = parseFloat(p.netWeight)||0, _stone = parseFloat(p.stoneWt)||0;
     return '<div class="lbl">' +
       '<div class="ls">'+ escHtml((SAAS&&SAAS.shop&&SAAS.shop.name)||'Sri Sai Jewellers') +'</div>'+
-      '<div class="ln">'+escHtml(p.name||p.category||'Item')+'</div>'+
+      '<div class="ln">'+escHtml(p.name||p.category||'Item')+(p.cat?' <span class="lcat">'+escHtml(p.cat)+'</span>':'')+'</div>'+
       '<div class="lm">'+
         '<span class="lpur">'+escHtml(p.purity||'')+'</span>'+
-        '<span class="lwt">'+parseFloat(p.weight||0).toFixed(2)+'g</span>'+
+        '<span class="lwt">Gr '+parseFloat(p.weight||0).toFixed(2)+'g</span>'+
+        (_net>0&&_net<_lg?'<span class="lwt">Net '+_net.toFixed(2)+'g</span>':'')+
+        (_stone>0?'<span class="lstone">Stone '+_stone.toFixed(2)+'g</span>':'')+
         (huid?'<span class="lhuid">'+escHtml(huid)+'</span>':'')+
       '</div>'+
       '<div class="lbar">'+bars+'</div>'+
@@ -2833,8 +2836,8 @@ function openBarcodeLabels(prodIds) {
 
   var w=window.open('','_blank','width=900,height=700');
   if(!w){toast('Allow popups to print labels');return;}
-  w.document.write('<!DOCTYPE html><html><head><title>Labels</title><style>'+
-    '@page{size:A4;margin:8mm}body{margin:0;padding:6px;font-family:sans-serif}'+
+  w.document.write('<!DOCTYPE html><html><head><title>Labels</title><style id="pg">@page{size:A4;margin:8mm}</style><style>'+
+    'body{margin:0;padding:6px;font-family:sans-serif}'+
     '.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}'+
     '.lbl{border:1px solid #bbb;border-radius:5px;padding:7px;text-align:center;page-break-inside:avoid}'+
     '.ls{font-size:6.5px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.1em}'+
@@ -2843,13 +2846,17 @@ function openBarcodeLabels(prodIds) {
     '.lpur{font-size:7px;background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:3px;font-weight:700}'+
     '.lwt{font-size:7px;background:#ede9fe;color:#4c1d95;padding:1px 4px;border-radius:3px;font-weight:700}'+
     '.lhuid{font-size:6.5px;background:#d1fae5;color:#065f46;padding:1px 4px;border-radius:3px;font-weight:600}'+
-    '.lbar svg{width:100%;height:26px}'+
+    '.lbar svg{width:100%;height:30px}'+
+    '.lcat{font-weight:400;color:#666;font-size:7px}.lstone{font-size:7px;background:#e0f2fe;color:#075985;padding:1px 4px;border-radius:3px;font-weight:700}'+
+    'body.tag .grid{display:block}body.tag .lbl{width:48mm;height:23mm;overflow:hidden;page-break-after:always;border:none;padding:1mm 1.5mm}'+
+    'body.tag .ls{display:none}body.tag .ln{min-height:0;font-size:7px;margin:0}body.tag .lm{margin:1px 0}body.tag .lbar svg{height:9mm}body.tag .lprice{margin-top:0}'+
     '.lsku{font-size:6.5px;color:#888;margin-top:1px;font-weight:600}'+
-    '.lprice{font-size:var(--text-xs);font-weight:800;color:#7c3aed;margin-top:2px}'+
+    '.lprice{font-size:10px;font-weight:800;color:#7c3aed;margin-top:2px}'+
     '@media print{.noprint{display:none}}'+
   '</style></head><body>'+
   '<div class="noprint" style="padding:10px;background:#f1f5f9;margin-bottom:8px;display:flex;gap:10px;align-items:center;">'+
     '<span style="font-size:13px;font-weight:600">'+prods.length+' labels</span>'+
+    "<select onchange=\"document.body.className=this.value;document.getElementById('pg').textContent=this.value==='tag'?'@page{size:50mm 25mm;margin:0}':'@page{size:A4;margin:8mm}'\" style=\"padding:6px;border-radius:7px;\"><option value=\"\">A4 sheet (4 across)</option><option value=\"tag\">Tag printer 50 x 25 mm</option></select>"+
     '<button onclick="window.print()" style="padding:7px 18px;background:#7c3aed;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer">Print</button>'+
     '<button onclick="window.close()" style="padding:7px 14px;background:#e2e8f0;border:none;border-radius:7px;font-size:13px;cursor:pointer">Close</button>'+
   '</div>'+
@@ -2859,14 +2866,30 @@ function openBarcodeLabels(prodIds) {
   auditLog('print','product','batch','Printed '+prods.length+' barcode labels');
 }
 
-function _barcodeSVG(text) {
-  // Pseudo-barcode visual for label printing
-  var s=0; for(var j=0;j<(text||'X').length;j++) s=(s*31+(text||'X').charCodeAt(j))&0xffff;
-  var pat=[2]; for(var i=0;i<28;i++){s=(s*1103515245+12345)&0xffff;pat.push(1+(s%3));}pat.push(2);
-  var tot=pat.reduce(function(a,v){return a+v;},0), uw=140/tot;
-  var svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 26">',x=0;
-  pat.forEach(function(w,i){var bw=w*uw;if(i%2===1)svg+='<rect x="'+x.toFixed(1)+'" y="0" width="'+bw.toFixed(1)+'" height="20" fill="#111"/>';x+=bw;});
-  return svg+'</svg>';
+// Real Code 128 (set B) barcode, drawn as SVG. Any phone camera or USB scanner reads it. Encodes the product SKU.
+var CODE128_PATTERNS = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213','221312','231212','112232','122132','122231','113222','123122','123221','223211','221132','221231','213212','223112','312131','311222','321122','321221','312212','322112','322211','212123','212321','232121','111323','131123','131321','112313','132113','132311','211313','231113','231311','112133','112331','132131','113123','113321','133121','313121','211331','231131','213113','213311','213131','311123','311321','331121','312113','312311','332111','314111','221411','431111','111224','111422','121124','121421','141122','141221','112214','112412','122114','122411','142112','142211','241211','221114','413111','241112','134111','111242','121142','121241','114212','124112','124211','411212','421112','421211','212141','214121','412121','111143','111341','131141','114113','114311','411113','411311','113141','114131','311141','411131','211412','211214','211232','2331112'];
+// The list of bar/space widths (in modules) for a text, including start, checksum and stop. Characters outside printable ASCII become '-'.
+function code128Widths(text){
+  var vals = [104], sum = 104, i, c;
+  text = String(text == null ? '' : text);
+  for(i = 0; i < text.length; i++){
+    c = text.charCodeAt(i); if(c < 32 || c > 126) c = 45;
+    vals.push(c - 32); sum += (c - 32) * (i + 1);
+  }
+  vals.push(sum % 103); vals.push(106);
+  var out = [];
+  vals.forEach(function(v){ CODE128_PATTERNS[v].split('').forEach(function(d){ out.push(parseInt(d, 10)); }); });
+  return out;
+}
+function _barcodeSVG(text){
+  var w = code128Widths(text), quiet = 10, total = quiet * 2, x = quiet, i;
+  w.forEach(function(n){ total += n; });
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + total + ' 30" preserveAspectRatio="none" shape-rendering="crispEdges"><rect width="' + total + '" height="30" fill="#fff"/>';
+  for(i = 0; i < w.length; i++){
+    if(i % 2 === 0) svg += '<rect x="' + x + '" y="0" width="' + w[i] + '" height="30" fill="#000"/>';
+    x += w[i];
+  }
+  return svg + '</svg>';
 }
 
 function girviOutstandingWithPenalty(g){

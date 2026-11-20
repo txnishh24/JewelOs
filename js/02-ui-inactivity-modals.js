@@ -675,7 +675,7 @@ function addProduct(){
   });
   logStockMovement(newProdId, 'opening_stock', {newStatus:'available', qtyChange:1, reason:'Manually added to inventory'});
   saveToCloud(function(err){
-    if(!err){ toggleAdd(); renderInv(); toast('Product added & synced!'); }
+    if(!err){ toggleAdd(); renderInv(); toast('Product added & synced!'); safeConfirm('Print the tag?', 'Print the barcode label for "'+name+'" now?', function(){ openBarcodeLabels([newProdId]); }); }
     else{
       // Foundation audit §6/§4: was a bare success/nothing callback — a
       // failed save left the product AND its movement-ledger entry

@@ -515,6 +515,120 @@ function renderDash(){
     '</div></div>';
 }
 
+// ── SCAN A TAG ───────────────────────────────────────────────────────────
+// Camera scan of the barcode on a tag (its SKU). Chrome on Android reads it with the phone's own BarcodeDetector;
+// iPhone Safari and everything else use html5-qrcode, loaded from cdnjs the first time. A USB scanner or typing
+// the SKU works too (the box on the screen). A scan only SHOWS the item; it changes nothing.
+var _scanStream = null, _scanTimer = null, _scanLib = null, _scanBusy = false, _scanLibLoading = null, _scanGen = 0;
+function _scanLoadLib(cb){
+  if(window.Html5Qrcode){ cb(true); return; }
+  if(_scanLibLoading){ _scanLibLoading.push(cb); return; }
+  _scanLibLoading = [cb];
+  var sc = document.createElement('script');
+  sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js';
+  sc.onload = function(){ var q = _scanLibLoading; _scanLibLoading = null; q.forEach(function(f){ f(true); }); };
+  sc.onerror = function(){ var q = _scanLibLoading; _scanLibLoading = null; q.forEach(function(f){ f(false); }); };
+  document.head.appendChild(sc);
+}
+function scanSay(msg){ var e = document.getElementById('scan-status'); if(e) e.textContent = msg; }
+function openScanModal(){
+  var ov = document.getElementById('scan-modal');
+  if(!ov){ ov = document.createElement('div'); ov.id = 'scan-modal'; ov.className = 'modal-overlay'; document.body.appendChild(ov); }
+  ov.innerHTML = '<div class="gl-wrap"><div class="gl-header"><h2>Scan a tag</h2><button class="ge-close" onclick="closeScanModal()">&#10005;</button></div><div class="gl-body">' +
+    '<div id="scan-reader" style="width:100%;min-height:220px;background:#000;border-radius:12px;overflow:hidden;"></div>' +
+    '<div id="scan-status" style="font-size:12px;color:var(--text3);margin:8px 0;"></div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:12px;"><input id="scan-code" placeholder="Or type / scan the SKU here" style="flex:1;min-width:0;" autocomplete="off" onkeydown="if(event.key===\'Enter\'){scanTyped();}"/>' +
+    '<button class="btn" onclick="scanTyped()">Find</button></div><div id="scan-result"></div></div></div>';
+  ov.classList.add('open');
+  scanStart();
+}
+function closeScanModal(){ scanStop(); var ov = document.getElementById('scan-modal'); if(ov) ov.classList.remove('open'); }
+function scanTyped(){ var v = (document.getElementById('scan-code').value || '').trim(); if(v){ scanStop(); scanShow(v); } }
+function scanStop(){
+  _scanGen++;   // anything still starting up (camera permission, library download) sees this and stands down
+  if(_scanTimer){ clearInterval(_scanTimer); _scanTimer = null; }
+  if(_scanStream){ _scanStream.getTracks().forEach(function(t){ t.stop(); }); _scanStream = null; }
+  if(_scanLib){ var l = _scanLib; _scanLib = null; try{ l.stop().then(function(){ l.clear(); }).catch(function(){}); }catch(e){} }
+  var r = document.getElementById('scan-reader'); if(r && !window.Html5Qrcode) r.innerHTML = '';
+}
+function scanStart(){
+  scanStop();
+  var gen = _scanGen;
+  _scanBusy = false;
+  var res = document.getElementById('scan-result'); if(res) res.innerHTML = '';
+  var reader = document.getElementById('scan-reader'); if(reader){ reader.innerHTML = ''; reader.style.display = ''; }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ scanSay('Camera not available here. Type the SKU below, or use a USB scanner.'); return; }
+  scanSay('Point the camera at the barcode...');
+  if('BarcodeDetector' in window){
+    try{
+      var det = new BarcodeDetector({ formats:['code_128', 'qr_code', 'ean_13'] });
+      navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } }).then(function(stream){
+        if(gen !== _scanGen){ stream.getTracks().forEach(function(t){ t.stop(); }); return; }   // closed while the camera was opening
+        _scanStream = stream;
+        var v = document.createElement('video'); v.setAttribute('playsinline', ''); v.muted = true; v.autoplay = true; v.style.width = '100%';
+        v.srcObject = stream; reader.appendChild(v);
+        _scanTimer = setInterval(function(){
+          if(_scanBusy || v.readyState < 2) return;
+          det.detect(v).then(function(codes){ if(codes && codes.length) scanFound(codes[0].rawValue); }).catch(function(){});
+        }, 300);
+      }).catch(function(){ scanSay('Camera blocked. Allow the camera, or type the SKU below.'); });
+      return;
+    }catch(e){ /* fall through to the library */ }
+  }
+  scanSay('Loading the scanner...');
+  _scanLoadLib(function(ok){
+    if(gen !== _scanGen) return;
+    if(!ok || !window.Html5Qrcode){ scanSay('Could not load the scanner (check internet). Type the SKU below.'); return; }
+    try{
+      var lib = new Html5Qrcode('scan-reader', { formatsToSupport:[Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.EAN_13], verbose:false });
+      _scanLib = lib;
+      lib.start({ facingMode:'environment' }, { fps:10, qrbox:{ width:260, height:120 } }, function(text){ scanFound(text); }, function(){})
+        .then(function(){ if(gen !== _scanGen){ try{ lib.stop().then(function(){ lib.clear(); }).catch(function(){}); }catch(e){} return; } scanSay('Point the camera at the barcode...'); })
+        .catch(function(){ _scanLib = null; scanSay('Camera blocked. Allow the camera, or type the SKU below.'); });
+    }catch(e){ scanSay('Scanner could not start. Type the SKU below.'); }
+  });
+}
+function scanFound(code){
+  if(_scanBusy) return;
+  _scanBusy = true;
+  scanStop();
+  scanShow(String(code || '').trim());
+}
+// buttons carry the id as text; give back the product's real id (older shops may have numbers)
+function scanProdId(txt){ var p = (S.products || []).filter(function(x){ return String(x.id) === String(txt); })[0]; return p ? p.id : txt; }
+function scanFindProduct(code){
+  var q = String(code || '').trim().toLowerCase();
+  if(!q) return null;
+  var all = (S.products || []).filter(function(p){
+    return (p.sku && String(p.sku).toLowerCase() === q) || (p.huid && String(p.huid).toLowerCase() === q) || String(p.id) === code;
+  });
+  return all.filter(function(p){ return p.status !== 'sold' && p.status !== 'returned'; })[0] || all[0] || null;
+}
+function scanShow(code){
+  var res = document.getElementById('scan-result'), reader = document.getElementById('scan-reader');
+  if(!res) return;
+  if(reader) reader.style.display = 'none';
+  var p = scanFindProduct(code);
+  if(!p){
+    res.innerHTML = '<div class="card" style="border:1px solid var(--danger);"><b>No item found</b><div style="font-size:12px;color:var(--text3);">Code read: ' + escHtml(code) + '</div></div>' +
+      '<button class="btn btn-gold" style="width:100%;margin-top:8px;" onclick="scanStart()">Scan again</button>';
+    return;
+  }
+  var gross = parseFloat(p.weight) || 0, net = parseFloat(p.netWeight) || 0, stone = parseFloat(p.stoneWt) || 0;
+  var price = Math.round(mktVal(p) + productMakingAmount(p, net > 0 && net < gross ? net : gross));
+  function row(k, v){ return v ? '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;"><span style="color:var(--text3);">' + k + '</span><b>' + v + '</b></div>' : ''; }
+  var st = p.status === 'sold' ? 'Sold' : (p.status === 'returned' ? 'Returned' : 'In stock');
+  res.innerHTML = '<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;"><b style="font-size:15px;">' + escHtml(p.name || 'Item') + '</b>' +
+      '<span class="badge" style="' + (p.status === 'sold' ? 'background:var(--danger-bg);color:var(--danger);' : 'background:var(--success-bg);color:var(--success);') + '">' + st + '</span></div>' +
+    row('SKU', escHtml(p.sku || '')) + row('Category', escHtml(p.cat || '')) + row('Purity', escHtml(p.purity || '')) +
+    row('Gross weight', gross ? fmtW(gross) : '') + row('Net weight', net ? fmtW(net) : '') + row('Stone / diamond weight', stone ? fmtW(stone) : '') +
+    row('HUID', escHtml(p.huid || '')) + row('Hallmark centre', escHtml(p.hallmarkCentre || '')) + row('Price (before GST)', fmt(price)) +
+    (p.notes ? '<div style="font-size:12px;color:var(--text3);margin-top:6px;">' + escHtml(p.notes) + '</div>' : '') + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-gold" style="flex:1;" onclick="scanStart()">Scan another</button>' +
+    '<button class="btn" style="flex:1;" data-id="' + escHtml(String(p.id)) + '" onclick="openBarcodeLabels([scanProdId(this.dataset.id)])">Print label</button>' +
+    '<button class="btn" style="flex:1;" data-id="' + escHtml(String(p.id)) + '" onclick="closeScanModal();openItemHistoryModal(scanProdId(this.dataset.id))">History</button></div>';
+}
+
 // ── HELPER: Financial Snapshot Card ──────────────────────────────────
 function fsnCard(label, val, sub, trend, extra, valColor){
   var trendHtml = '';

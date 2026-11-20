@@ -92,6 +92,24 @@ test('Financiers: one profile per name, loans linked live, stats from the loans,
   assert(Math.abs(a.finStats(f).due - (owe - 500)) < 2, 'still-to-pay drops by what was paid');
 });
 
+test('Code 128 barcode: valid structure, known checksum, every symbol is 11 modules, SVG is real bars', function(){
+  var w = app.code128Widths('A');
+  // Start B (104) + 'A' (value 33) = checksum (104 + 33) % 103 = 34 -> pattern '131123'; then stop '2331112'
+  assert(w.slice(0, 6).join('') === '211214', 'starts with Start B');
+  assert(w.slice(12, 18).join('') === '131123', 'checksum symbol for "A" is value 34: ' + w.slice(12, 18).join(''));
+  assert(w.slice(18).join('') === '2331112', 'ends with the stop pattern');
+  var sku = app.code128Widths('GLD-001'), total = 0; sku.forEach(function(n){ total += n; });
+  assert(total === 11 * (('GLD-001'.length) + 3) + 2, 'total modules: ' + total);
+  app.CODE128_PATTERNS.forEach(function(pt, i){
+    var sum = 0; pt.split('').forEach(function(d){ sum += +d; });
+    assert(sum === (i === 106 ? 13 : 11), 'pattern ' + i + ' width ' + sum);
+  });
+  var uniq = {}; app.CODE128_PATTERNS.forEach(function(pt){ uniq[pt] = 1; });
+  assert(Object.keys(uniq).length === 107, 'all 107 patterns are different');
+  var svg = app._barcodeSVG('GLD-001');
+  assert(svg.indexOf('<svg') === 0 && (svg.match(/<rect/g) || []).length > 20, 'SVG has bars');
+});
+
 test('Girvi top-up: more money on the same pledge adds to principal from its date, is not a receipt, and is a Day Book cash OUT', function(){
   var day = function(n){ return new Date(Date.now() - n*86400000).toISOString().slice(0,10); };
   var g = { id:'g1', grvNo:'G1', customer:'A', principal:50000, interestRate:2, rateType:'monthly', compound:false, startDate:day(100),
