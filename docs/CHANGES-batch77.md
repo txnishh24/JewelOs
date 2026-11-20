@@ -1,6 +1,6 @@
 # batch77 - Tanish's 14-item list (20 Nov): dashboard, stock, sale, orders, Girvi, financiers, Day Book, supplier, barcode, PDF bill, Excel
 
-Built in worktree `claude/yoo-7f546b` (commits 72adb58 to 4303f63 plus the build bump). NOT deployed. Not tried on a real phone.
+Built in worktree `claude/yoo-7f546b` (commits 72adb58 to 4303f63 plus the build bump). DEPLOYED 21 Nov 2026 (Version ID a51b34a1-f2fb-4187-b5e7-f75dbe0c2fd4). Not tried on a real phone.
 
 - Dashboard: Stock Value is hidden (dots) with an eye button to show it; hides again on reload.
 - Stock on phones: smaller cards (3 info columns). Desktop table unchanged.
