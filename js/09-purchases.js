@@ -291,8 +291,8 @@ function pbOpenSupplierProfile(name){
     (st.pending > 0 ?
       '<div class="card-title">Pay ' + escHtml(name) + '</div>' +
       '<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">The payment goes to the oldest unpaid bill first, then the next, and is saved on each bill.</div>' +
-      '<div style="display:flex;gap:8px;margin-bottom:8px;"><input id="spf-amt" type="number" step="0.01" inputmode="decimal" placeholder="Amount" value="' + st.pending + '" style="flex:1;min-width:0;"/>' +
-      '<select id="spf-mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option><option>Card</option><option>Other</option></select></div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:8px;"><input id="spf-amt" type="number" step="0.01" inputmode="decimal" placeholder="Amount" value="' + st.pending + '" style="flex:1 1 55%;min-width:110px;"/>' +
+      '<select id="spf-mode" style="flex:0 0 40%;width:auto;"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option><option>Card</option><option>Other</option></select></div>' +
       '<input id="spf-ref" placeholder="Reference / cheque no (optional)" style="width:100%;margin-bottom:8px;box-sizing:border-box;"/>' +
       '<button class="btn btn-gold" style="width:100%;margin-bottom:14px;" data-name="' + escHtml(name) + '" onclick="pbPaySupplier(this.dataset.name)">Record payment</button>' : '') +
     '<div class="card-title">Bills (' + bills.length + ')</div>' + billRows +

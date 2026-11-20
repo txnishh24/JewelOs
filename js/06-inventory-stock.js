@@ -616,6 +616,7 @@ function scanShow(code){
   var res = document.getElementById('scan-result'), reader = document.getElementById('scan-reader');
   if(!res) return;
   if(reader) reader.style.display = 'none';
+  scanSay('');
   var p = scanFindProduct(code);
   if(!p){
     res.innerHTML = '<div class="card" style="border:1px solid var(--danger);"><b>No item found</b><div style="font-size:12px;color:var(--text3);">Code read: ' + escHtml(code) + '</div></div>' +
