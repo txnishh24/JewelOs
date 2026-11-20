@@ -977,6 +977,7 @@ function showSettingsTab(tab){
 // ── DEMO MODE ─────────────────────────────────────────────────────────
 var DEMO_ACTIVE = false;
 
+var DEMO_STEP_MS = 350;   // pause per step of the sample-data progress bar
 function loadDemoData(){
   if(!ownerGate()) return;
   // R27: demo records go in only while the shop holds nothing of its own, and the owner types DEMO first.
@@ -1055,17 +1056,64 @@ function loadDemoData(){
      ledger:[{type:'advance',amount:50000,mode:'cash',ref:'',note:'Initial advance',date:lastMonth}]},
   ];
 
-  // Push demo data
-  demoProducts.forEach(function(p){ if(!S.products.find(function(x){return x.id===p.id;})) S.products.push(p); });
-  demoSales.forEach(function(s){ if(!S.sales.find(function(x){return x.id===s.id;})) S.sales.push(s); });
-  demoGirvi.forEach(function(g){ if(!S.girvi.find(function(x){return x.id===g.id;})) S.girvi.push(g); });
-  demoOrders.forEach(function(o){ if(!S.orders.find(function(x){return x.id===o.id;})) S.orders.push(o); });
+  // Sample customers, a supplier with two bills (one part-paid) and a financier, so Customers, Purchases and Girvi > Financiers are not empty
+  var demoCustomers = [1, 2, 3, 4, 5, 6].map(function(n){
+    return {id:'demo-c'+n, name:'Demo Customer '+n, phone:'000000000'+n, addr:'Sample address', gstin:'', email:'', notes:'Sample customer', createdAt:twoMonth, lastSeen:today};
+  });
+  var demoSuppliers = [{id:'demo-sup1', name:'Demo Bullion Traders', phone:'0000000100'}];
+  var demoPurchases = [
+    {id:'demo-pb1', billNo:'PB-D001', date:twoMonth, supplier:'Demo Bullion Traders', supplierInvoiceNo:'DBT-101', totalItems:1, grossWt:100, netWt:99, totalAmount:700000, amountPaid:700000, supplierPayments:[], timeline:[]},
+    {id:'demo-pb2', billNo:'PB-D002', date:lastMonth, supplier:'Demo Bullion Traders', supplierInvoiceNo:'DBT-118', totalItems:1, grossWt:50, netWt:49.5, totalAmount:355000, amountPaid:100000, supplierPayments:[{id:'demo-sp1', amount:55000, mode:'UPI', ref:'DEMO', date:today+'T10:00:00.000Z', by:'Demo'}], timeline:[]}
+  ];
+  demoPurchases.forEach(function(b){ b.pendingAmount = 0; b.totalPaid = 0; });
+  if(!S.girviCfg) S.girviCfg = {};
+  if(!Array.isArray(S.girviCfg.financiers)) S.girviCfg.financiers = [];
+  var demoFin = {id:'demo-f1', name:'Demo Finance Co', phone:'0000000200', rate:1, rateType:'monthly', payments:[], created:twoMonth};
+  if(demoGirvi[0]){ demoGirvi[0].financerId = 'demo-f1'; demoGirvi[0].financerName = 'Demo Finance Co'; demoGirvi[0].financerRate = 1; demoGirvi[0].financerRateType = 'monthly'; }
 
-  normaliseData();
-  saveCache();
-  renderDash();
-  toast('\u2705 Demo data loaded! Explore the dashboard, reports, and girvi tab.');
-  switchTab('dashboard');
+  // Pushed one step at a time behind a progress bar, so it is clear something is happening and each area is really filled before the next
+  var steps = [
+    ['Adding stock...',            function(){ demoProducts.forEach(function(p){ if(!S.products.find(function(x){return x.id===p.id;})) S.products.push(p); }); }],
+    ['Adding customers...',        function(){ if(!S.customers) S.customers = []; demoCustomers.forEach(function(c){ if(!S.customers.find(function(x){return x.id===c.id;})) S.customers.push(c); }); }],
+    ['Adding sales and bills...',  function(){ demoSales.forEach(function(s){ if(!S.sales.find(function(x){return x.id===s.id;})) S.sales.push(s); }); }],
+    ['Adding supplier and purchase bills...', function(){
+      if(!S.suppliers) S.suppliers = []; demoSuppliers.forEach(function(x){ if(!S.suppliers.find(function(y){return y.id===x.id;})) S.suppliers.push(x); });
+      if(!S.purchases) S.purchases = []; demoPurchases.forEach(function(b){ if(!S.purchases.find(function(x){return x.id===b.id;})){ pbRecalc(b); S.purchases.push(b); } }); }],
+    ['Adding girvi loans and a financier...', function(){
+      if(!S.girviCfg.financiers.find(function(x){return x.id===demoFin.id;})) S.girviCfg.financiers.push(demoFin);
+      demoGirvi.forEach(function(g){ if(!S.girvi.find(function(x){return x.id===g.id;})) S.girvi.push(g); }); }],
+    ['Adding orders...',           function(){ demoOrders.forEach(function(o){ if(!S.orders.find(function(x){return x.id===o.id;})) S.orders.push(o); }); }]
+  ];
+  var ov = document.getElementById('demo-loading');
+  if(!ov){ ov = document.createElement('div'); ov.id = 'demo-loading'; ov.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:5000;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;padding:20px;'; document.body.appendChild(ov); }
+  ov.style.display = 'flex';
+  var i = 0;
+  function later(f, ms){ if(DEMO_STEP_MS <= 0) f(); else setTimeout(f, ms); }   // 0 = no pauses (tests)
+  function paint(msg){
+    ov.innerHTML = '<div style="background:var(--surface);border-radius:16px;padding:22px;max-width:340px;width:100%;text-align:center;">' +
+      '<div style="font-weight:700;margin-bottom:10px;">Loading sample data</div>' +
+      '<div style="height:8px;background:var(--card2);border-radius:6px;overflow:hidden;"><div style="height:100%;width:' + Math.round(i / steps.length * 100) + '%;background:var(--gold);transition:width .3s;"></div></div>' +
+      '<div style="font-size:12px;color:var(--text3);margin-top:10px;">' + msg + '</div></div>';
+  }
+  function next(){
+    if(i >= steps.length){
+      try{ normaliseData(); saveCache(); renderDash(); paint('Done'); }
+      catch(e){ ov.style.display = 'none'; toast('Sample data loaded, but the screen could not refresh. Reload the page.'); return; }
+      later(function(){
+        ov.style.display = 'none';
+        toast('✅ Demo data loaded! Explore the dashboard, customers, purchases, girvi and financiers.');
+        switchTab('dashboard');
+      }, 400);
+      return;
+    }
+    paint(steps[i][0]);
+    var st = steps[i]; i++;
+    later(function(){
+      try{ st[1](); }catch(e){ ov.style.display = 'none'; toast('Sample data stopped part-way. Reload the page to start clean.'); return; }
+      next();
+    }, DEMO_STEP_MS);
+  }
+  next();
   }());
   return;
 }
@@ -1092,8 +1140,13 @@ function clearDemoData(){
   safeConfirm('Clear ALL data?','The backup file has downloaded. This cannot be undone. All products, sales, orders and girvi records will be permanently deleted.',function(){
     if(!ownerGate()) return;
     var _keep = { products:S.products, sales:S.sales, orders:S.orders, girvi:S.girvi, stockMovements:S.stockMovements,
+      customers:S.customers, purchases:S.purchases, suppliers:S.suppliers, girviCfg:Object.assign({}, S.girviCfg),
       nextId:S.nextId, nextSaleId:S.nextSaleId, nextOrdId:S.nextOrdId, nextGirviId:S.nextGirviId };
     S.products=[]; S.sales=[]; S.orders=[]; S.girvi=[];
+    // the sample customers, supplier bills and financier go too (real ones, with other ids, stay)
+    var _notDemo = function(x){ return String((x && x.id) || '').indexOf('demo-') !== 0; };
+    S.customers = (S.customers || []).filter(_notDemo); S.purchases = (S.purchases || []).filter(_notDemo); S.suppliers = (S.suppliers || []).filter(_notDemo);
+    if(S.girviCfg && Array.isArray(S.girviCfg.financiers)) S.girviCfg.financiers = S.girviCfg.financiers.filter(_notDemo);
     S.stockMovements=[]; // F2: now synced -- demo stock history must not reach other phones
     // R27: invoice numbers (nextInvNo) and S.voidedInvNos are NOT reset: a number once used is never issued again.
     S.nextId=1; S.nextSaleId=1; S.nextOrdId=1; S.nextGirviId=1;

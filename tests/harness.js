@@ -114,6 +114,7 @@ function loadApp(){
   });
   // A shop that has saved its rates once; the first-run rate gate has its own tests.
   sandbox.S.rates.setAt = '2026-01-01T00:00:00.000Z';
+  sandbox.DEMO_STEP_MS = 0;   // the sample-data progress bar needs no pauses under test
   return sandbox;
 }
 

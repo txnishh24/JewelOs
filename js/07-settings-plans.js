@@ -130,6 +130,197 @@ function exportCSV(){
   toast('\u2713 CSV downloaded!');
 }
 
+// ── EXPORT EVERYTHING TO ONE EXCEL FILE (one sheet per topic) ───────────────
+// Built here with no library: an .xlsx is a zip of small XML files, and a zip with no compression is easy to write.
+// Works offline. Text cells are stored as plain text, so a name that starts with = or + can never run as a formula.
+var _crcTable = null;
+function xlCrc32(bytes){
+  if(!_crcTable){ _crcTable = []; for(var n = 0; n < 256; n++){ var c = n; for(var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); _crcTable[n] = c >>> 0; } }
+  var crc = 0xFFFFFFFF;
+  for(var i = 0; i < bytes.length; i++) crc = _crcTable[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+// files: [{name, text}]  ->  Uint8Array of a stored (uncompressed) zip
+function xlZip(files){
+  var enc = new TextEncoder(), parts = [], central = [], offset = 0;
+  function u16(v){ return [v & 255, (v >>> 8) & 255]; }
+  function u32(v){ return [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255]; }
+  files.forEach(function(f){
+    var name = enc.encode(f.name), data = enc.encode(f.text), crc = xlCrc32(data);
+    var local = [].concat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0));
+    parts.push(new Uint8Array(local), name, data);
+    central.push({ name:name, crc:crc, size:data.length, offset:offset });
+    offset += local.length + name.length + data.length;
+  });
+  var cdStart = offset, cdSize = 0;
+  central.forEach(function(c){
+    var h = [].concat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(c.crc), u32(c.size), u32(c.size), u16(c.name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(c.offset));
+    parts.push(new Uint8Array(h), c.name); cdSize += h.length + c.name.length;
+  });
+  parts.push(new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0), u16(central.length), u16(central.length), u32(cdSize), u32(cdStart), u16(0))));
+  var total = 0; parts.forEach(function(p){ total += p.length; });
+  var out = new Uint8Array(total), pos = 0;
+  parts.forEach(function(p){ out.set(p, pos); pos += p.length; });
+  return out;
+}
+function xlEsc(v){ return String(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function xlColName(i){ var s = ''; i++; while(i > 0){ var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+// rows[0] is the header. Numbers stay numbers (sortable, summable); everything else is text.
+function xlSheetXml(rows){
+  var widths = [], xml = '';
+  rows.forEach(function(r, ri){
+    xml += '<row r="' + (ri + 1) + '">';
+    r.forEach(function(v, ci){
+      var ref = xlColName(ci) + (ri + 1), len;
+      if(v === null || v === undefined || v === ''){ len = 0; }
+      else if(typeof v === 'number' && isFinite(v)){ xml += '<c r="' + ref + '"' + (ri === 0 ? ' s="1"' : '') + '><v>' + v + '</v></c>'; len = String(v).length; }
+      else { var t = xlEsc(v); xml += '<c r="' + ref + '" t="inlineStr"' + (ri === 0 ? ' s="1"' : '') + '><is><t xml:space="preserve">' + t + '</t></is></c>'; len = t.length; }
+      widths[ci] = Math.max(widths[ci] || 8, Math.min(len + 2, 42));
+    });
+    xml += '</row>';
+  });
+  var cols = '<cols>' + widths.map(function(w, i){ return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>'; }).join('') + '</cols>';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
+    cols + '<sheetData>' + xml + '</sheetData></worksheet>';
+}
+// sheets: [{name, rows}]  ->  Uint8Array (.xlsx)
+function xlWorkbookBytes(sheets){
+  var names = sheets.map(function(s){ return String(s.name).replace(/[\\\/\?\*\[\]:]/g, '-').slice(0, 31); });
+  var files = [
+    { name:'[Content_Types].xml', text:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+      sheets.map(function(s, i){ return '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; }).join('') + '</Types>' },
+    { name:'_rels/.rels', text:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+    { name:'xl/workbook.xml', text:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' +
+      names.map(function(n, i){ return '<sheet name="' + xlEsc(n) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>'; }).join('') + '</sheets></workbook>' },
+    { name:'xl/_rels/workbook.xml.rels', text:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      sheets.map(function(s, i){ return '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>'; }).join('') +
+      '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+    { name:'xl/styles.xml', text:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF3E7C9"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs></styleSheet>' }
+  ];
+  sheets.forEach(function(s, i){ files.push({ name:'xl/worksheets/sheet' + (i + 1) + '.xml', text:xlSheetXml(s.rows) }); });
+  return xlZip(files);
+}
+
+// What goes in the workbook. Owner only: it carries profit, cost, supplier and loan figures.
+function exportSheetsData(){
+  var money = function(n){ return Math.round((parseFloat(n) || 0) * 100) / 100; };
+  var day = function(v){ return v ? String(v).slice(0, 10) : ''; };
+  var sheets = [];
+  function failed(topic, e){ sheets.push({ name:topic + ' (failed)', rows:[['This part could not be exported'], [String(e && e.message || e)]] }); }
+  try{
+  // Sales + their lines
+  var sales = [['Invoice', 'Date', 'Customer', 'Phone', 'Bill type', 'Items', 'Weight (g)', 'Subtotal', 'Discount', 'GST', 'Total', 'Paid', 'Balance', 'Payment mode', 'Profit']];
+  var lines = [['Invoice', 'Date', 'Customer', 'Item', 'Metal', 'Purity', 'Qty', 'Weight (g)', 'Rate / g', 'Making', 'Stone', 'HUID']];
+  (S.sales || []).forEach(function(s){
+    var t = calcSaleTotals(s), p = calcSaleProfit(s);
+    var wt = (s.items || []).reduce(function(a, i){ return a + (parseFloat(i.weight) || 0) * (parseInt(i.qty) || 1); }, 0);
+    sales.push([s.invNo, day(s.date), s.customer, s.phone || '', s.billType || '', (s.items || []).map(function(i){ return i.name; }).join('; '), money(wt), money(t.sub), money(t.disc), money(t.gstAmt), money(t.grand), money(t.adv), money(t.bal), salePayModes(s), p.costMissing ? 'cost missing' : money(p.profit)]);
+    (s.items || []).forEach(function(i){ lines.push([s.invNo, day(s.date), s.customer, i.name, i.metal || '', i.purity || '', parseInt(i.qty) || 1, money(i.weight), money(getItemRate(i)), money(i.making), money(i.diamond || i.stoneCharges), i.huid || '']); });
+  });
+  sheets.push({ name:'Sales', rows:sales }, { name:'Sale items', rows:lines });
+  }catch(e){ failed('Sales', e); }
+  try{
+  // Customers
+  var cust = [['Name', 'Phone', 'Address', 'GSTIN', 'Email', 'Bills', 'Total bought', 'Paid', 'Balance due', 'Girvi loans', 'Girvi outstanding']];
+  (S.customers || []).forEach(function(c){
+    var f = calcCustomerFinancials(c.name, c.phone);
+    cust.push([c.name, c.phone || '', c.addr || '', c.gstin || '', c.email || '', f.salesCount, money(f.totalPurchased), money(f.totalPaid), money(f.totalCredit), f.girviCount, money(f.girviExposure)]);
+  });
+  sheets.push({ name:'Customers', rows:cust });
+  }catch(e){ failed('Customers', e); }
+  try{
+  // Stock
+  var stock = [['SKU', 'Name', 'Category', 'Metal', 'Purity', 'Gross (g)', 'Net (g)', 'Stone (g)', 'Qty', 'HUID', 'Status', 'Cost rate', 'Making rate', 'Market value']];
+  (S.products || []).forEach(function(p){
+    stock.push([p.sku || '', p.name || '', p.cat || '', p.metal || '', p.purity || '', money(p.weight), money(p.netWeight), money(p.stoneWt), p.qty == null ? 1 : p.qty, p.huid || '', p.status || '', money(p.costRate), money(p.mcRate), money(mktVal(p))]);
+  });
+  sheets.push({ name:'Stock', rows:stock });
+  }catch(e){ failed('Stock', e); }
+  try{
+  // Purchases, supplier payments, supplier totals
+  var pur = [['Bill no', 'Date', 'Supplier', 'Supplier invoice', 'Total', 'Paid', 'Pending', 'Status']];
+  var spay = [['Bill no', 'Supplier', 'Date', 'Type', 'Mode', 'Amount', 'Reference']];
+  var sup = {};
+  (S.purchases || []).forEach(function(b){
+    var b0 = b; b = Object.assign({}, b0); pbRecalc(b);   // worked out on a copy: an export must not change the shop's data
+    pur.push([b.billNo || '', day(b.date), b.supplier || '', b.supplierInvoiceNo || '', money(b.totalAmount), money(b.totalPaid), money(b.pendingAmount), b.paymentStatus || '']);
+    if((parseFloat(b.amountPaid) || 0) > 0) spay.push([b.billNo || '', b.supplier || '', day(b.date), 'At billing', '', money(b.amountPaid), '']);
+    (b.supplierPayments || []).forEach(function(p){ spay.push([b.billNo || '', b.supplier || '', day(p.date), p.type === 'reversal' ? 'Reversal' : 'Payment', p.mode || '', money(p.type === 'reversal' ? -p.amount : p.amount), p.ref || '']); });
+    var k = pbSupplierKey(b); sup[k] = sup[k] || { bills:0, total:0, paid:0, pending:0 };
+    sup[k].bills++; sup[k].total += b.totalAmount || 0; sup[k].paid += b.totalPaid || 0; sup[k].pending += b.pendingAmount || 0;
+  });
+  var supRows = [['Supplier', 'Bills', 'Total bought', 'Paid', 'Pending']];
+  Object.keys(sup).forEach(function(k){ supRows.push([k, sup[k].bills, money(sup[k].total), money(sup[k].paid), money(sup[k].pending)]); });
+  sheets.push({ name:'Purchases', rows:pur }, { name:'Supplier payments', rows:spay }, { name:'Suppliers', rows:supRows });
+  }catch(e){ failed('Purchases', e); }
+  try{
+  // Orders
+  var ord = [['Order no', 'Created', 'Customer', 'Phone', 'Status', 'Delivery', 'Quote', 'Advance', 'Balance', 'Items']];
+  (S.orders || []).forEach(function(o){
+    var adv = ordAdvance(o);
+    ord.push([o.ordNo || '', day(o.createdAt), o.customer || '', o.phone || '', o.status || '', day(o.delivery), money(o.quote), money(adv), money(Math.max(0, (parseFloat(o.quote) || 0) - adv)), (o.items || []).map(function(i){ return i.desc; }).join('; ')]);
+  });
+  sheets.push({ name:'Orders', rows:ord });
+  }catch(e){ failed('Orders', e); }
+  try{
+  // Girvi + its payments
+  var gv = [['Loan no', 'Customer', 'Phone', 'Start', 'Principal', 'Rate', 'Per', 'Status', 'Outstanding', 'Interest still due', 'Interest paid', 'Financier', 'Financier rate']];
+  var gp = [['Loan no', 'Customer', 'Date', 'Type', 'Mode', 'Amount', 'Interest part', 'Principal part']];
+  (S.girvi || []).forEach(function(g){
+    if(g._deleted) return;
+    var ls = girviLedgerState(g);
+    gv.push([g.grvNo || '', g.customer || '', g.phone || '', day(g.startDate), money(g.principal), parseFloat(g.interestRate) || 0, g.rateType || '', g.status || '', money(ls.outstanding), money(ls.interestAccrued), money(ls.totalInterestPaid), g.financerName || '', g.financerName ? (finRateText(g.financerRate, g.financerRateType)) : '']);
+    ls.payments.forEach(function(p){ gp.push([g.grvNo || '', g.customer || '', day(p.date || p.ts), p.type || 'payment', p.mode || '', money(p.amount), money(p.interestPortion), money(p.principalPortion)]); });
+  });
+  sheets.push({ name:'Girvi', rows:gv }, { name:'Girvi payments', rows:gp });
+  }catch(e){ failed('Girvi', e); }
+  try{
+  // Financiers
+  var fin = [['Financier', 'Phone', 'Usual rate', 'Active loans', 'Principal with them', 'Interest owed', 'Paid to them', 'Still to pay']];
+  finList().forEach(function(f){ var s = finStats(f); fin.push([f.name, f.phone || '', finRateText(f.rate, f.rateType), s.active, money(s.principalOut), money(s.accrued), money(s.paid), money(s.due)]); });
+  sheets.push({ name:'Financiers', rows:fin });
+  }catch(e){ failed('Financiers', e); }
+  try{
+  // Day Book (credits = money in, debits = money out) and money accounts
+  var db = [['Date', 'Credit / Debit', 'Amount', 'What for', 'Category', 'Account', 'Person', 'Entered by', 'Voided']];
+  var accName = function(id){ return id ? dbAccountName(id) : 'Cash'; };
+  ((S.dayBook && S.dayBook.entries) || []).slice().sort(function(a, b){ return String(a.date).localeCompare(String(b.date)); }).forEach(function(e){
+    db.push([e.date, e.dir === 'in' ? 'Credit' : 'Debit', money(e.amount), e.note || '', (DB_CATS[e.cat] ? DB_CATS[e.cat].label : e.cat) || '', accName(e.acct), e.party ? (e.party.name || e.party.phone || '') : '', e.by || '', e.voided ? 'Yes' : '']);
+  });
+  var acc = [['Account', 'Opening balance', 'Balance now']];
+  ((S.dayBook && S.dayBook.accounts) || []).forEach(function(a){ acc.push([a.name, money(a.opening), money(dbAccountBalance(a.id))]); });
+  sheets.push({ name:'Day Book', rows:db }, { name:'Money accounts', rows:acc });
+  }catch(e){ failed('Day Book', e); }
+  return sheets;
+}
+var _xlExportBusy = false;
+function exportAllExcel(){
+  if(!ownerGate()) return;
+  if(_xlExportBusy) return;
+  _xlExportBusy = true;
+  var btn = document.getElementById('xl-export-btn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Preparing your workbook...'; }
+  // a short pause so the button change paints before the (synchronous) build starts on a big shop
+  setTimeout(function(){
+    try{
+      var sheets = exportSheetsData(), bytes = xlWorkbookBytes(sheets);
+      var blob = new Blob([bytes], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      var a = document.createElement('a'), url = URL.createObjectURL(blob);
+      a.href = url; a.download = ((SAAS.shop ? SAAS.shop.name : 'JewelOS').replace(/\s+/g, '-')) + '-all-data-' + dbDayKey(new Date()) + '.xlsx';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 3000);
+      var rowsTotal = sheets.reduce(function(n, s){ return n + s.rows.length - 1; }, 0);
+      saasActivityLog('export', 'Excel export: ' + sheets.length + ' sheets, ' + rowsTotal + ' rows');
+      toast('Excel file ready: ' + sheets.length + ' sheets, ' + rowsTotal + ' rows');
+    }catch(e){
+      toast('Could not build the Excel file. Use Export CSV for sales.');
+    }
+    _xlExportBusy = false;
+    if(btn){ btn.disabled = false; btn.textContent = 'Export everything (Excel)'; }
+  }, 60);
+}
+
 // ── ONBOARDING WIZARD — REMOVED 17 Sep ────────────────────────────────
 // A modal wizard used to open over the dashboard 1.2s after a new shop's
 // first boot. It rendered empty and could not be closed: its only renderer
@@ -388,7 +579,7 @@ function finStats(f){
   });
   // A payment whose Day Book entry was voided no longer counts as paid.
   s.paid = (f.payments || []).reduce(function(a, x){
-    var en = x.entryId ? (S.dayBook.entries || []).filter(function(e){ return e.id === x.entryId; })[0] : null;
+    var en = x.entryId ? (((S.dayBook || {}).entries) || []).filter(function(e){ return e.id === x.entryId; })[0] : null;
     return (en && en.voided) ? a : a + (parseFloat(x.amount) || 0);
   }, 0);
   s.due = s.accrued - s.paid;

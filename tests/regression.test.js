@@ -173,6 +173,78 @@ test('Supplier profile: a failed save rolls back every bill touched; reversing o
   assert(t.out === 4000 && t.in === 3000, 'Day Book: payment out and reversal in: ' + JSON.stringify(t));
 });
 
+test('Excel export: a valid .xlsx zip (CRC matches), one sheet per topic, text stays text, XML special characters escaped', function(){
+  var a = loadApp(); a.SAAS.user = { id:'u', name:'o', role:'owner' };
+  a.S.customers = [{ id:'c1', name:'=EVIL() & Co <b>', phone:'99', addr:'x' }];
+  a.S.sales = [{ id:'s1', invNo:'INV-1', date:'2026-10-05T10:00:00.000Z', customer:'=EVIL() & Co <b>', phone:'99', gst:3, discount:0,
+    items:[{ name:'Ring', metal:'gold', purity:'22K', weight:5, qty:1, lockedRate:7200, making:500, diamond:0 }] }];
+  var sheets = a.exportSheetsData();
+  var names = sheets.map(function(x){ return x.name; });
+  ['Sales','Sale items','Customers','Stock','Purchases','Supplier payments','Suppliers','Orders','Girvi','Girvi payments','Financiers','Day Book','Money accounts'].forEach(function(n){ assert(names.indexOf(n) !== -1, 'missing sheet ' + n); });
+  assert(sheets[0].rows[1][0] === 'INV-1' && sheets[0].rows[1][10] > 7000, 'a sale row carries invoice and total: ' + JSON.stringify(sheets[0].rows[1]));
+  var bytes = a.xlWorkbookBytes(sheets);
+  var dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.length);
+  assert(dv.getUint32(bytes.length - 22, true) === 0x06054b50, 'zip end record at the end');
+  var count = dv.getUint16(bytes.length - 22 + 10, true), cdOff = dv.getUint32(bytes.length - 22 + 16, true);
+  assert(count === sheets.length + 5, 'entries = sheets + 5 fixed parts, got ' + count);
+  var pos = cdOff, found = {};
+  for(var i = 0; i < count; i++){
+    assert(dv.getUint32(pos, true) === 0x02014b50, 'central entry signature');
+    var crc = dv.getUint32(pos + 16, true), size = dv.getUint32(pos + 20, true), nlen = dv.getUint16(pos + 28, true), lho = dv.getUint32(pos + 42, true);
+    var name = ''; for(var k = 0; k < nlen; k++) name += String.fromCharCode(bytes[pos + 46 + k]);
+    var lnlen = dv.getUint16(lho + 26, true), start = lho + 30 + lnlen;
+    var data = bytes.subarray(start, start + size);
+    assert(a.xlCrc32(data) === crc, 'CRC matches for ' + name);
+    found[name] = Buffer.from(data).toString('utf8');
+    pos += 46 + nlen;
+  }
+  assert(found['xl/workbook.xml'] && found['[Content_Types].xml'] && found['xl/styles.xml'], 'core parts present');
+  var cust = found['xl/worksheets/sheet3.xml'];
+  assert(cust.indexOf('t="inlineStr"') !== -1 && cust.indexOf('=EVIL() &amp; Co &lt;b&gt;') !== -1, 'name stored as escaped TEXT, not a formula');
+  assert(cust.indexOf('<f>') === -1, 'no formulas anywhere');
+});
+
+test('Demo data fills every area: customers, a supplier with a part-paid bill, a financier with a placed loan, and the new screens read them', function(){
+  var a = loadApp(); a.SAAS.user = { id:'u', name:'o', role:'owner' }; a.SAAS.shop = { id:'s', name:'T' };
+  a.prompt = function(){ return 'DEMO'; }; a.toast = function(){};
+  a.loadDemoData();
+  assert((a.S.customers || []).length === 6 && a.S.customers.every(function(c){ return /^Demo Customer/.test(c.name); }), 'six demo customers, none twice');
+  var st = a.pbSupplierStats('Demo Bullion Traders');
+  assert(st.bills === 2 && st.total === 1055000 && st.paid === 855000 && st.pending === 200000, 'supplier totals: ' + JSON.stringify(st));
+  assert(a.pbSupplierLedgerHtml().indexOf('Demo Bullion Traders') !== -1, 'ledger lists the demo supplier');
+  var f = a.finList()[0];
+  assert(f && f.name === 'Demo Finance Co' && a.finLoans(f).length === 1, 'the demo financier has the placed demo loan');
+  assert(a.finStats(f).active === 1 && a.finStats(f).principalOut > 0, 'financier stats read the loan');
+  var sheets = a.exportSheetsData();
+  assert(sheets.filter(function(x){ return x.name === 'Customers'; })[0].rows.length === 7, 'the Excel export sees the demo customers');
+});
+
+test('Excel export: one broken topic becomes a "(failed)" sheet and every other sheet still comes out; the export changes no shop data', function(){
+  var a = loadApp(); a.SAAS.user = { id:'u', name:'o', role:'owner' };
+  a.S.purchases = [{ id:'p1', billNo:'PB-1', date:'2026-10-01', supplier:'X', totalAmount:1000, amountPaid:400, supplierPayments:[] }];
+  var before = JSON.stringify(a.S.purchases);
+  a.calcSaleTotals = function(){ throw new Error('boom'); };
+  a.S.sales = [{ id:'s1', invNo:'INV-1', items:[] }];
+  var names = a.exportSheetsData().map(function(x){ return x.name; });
+  assert(names.indexOf('Sales (failed)') !== -1 && names.indexOf('Sales') === -1, 'the broken topic is flagged: ' + names.join(','));
+  ['Customers','Stock','Purchases','Girvi','Day Book','Money accounts'].forEach(function(n){ assert(names.indexOf(n) !== -1, n + ' still exported'); });
+  assert(JSON.stringify(a.S.purchases) === before, 'exporting did not touch the purchase bills');
+});
+
+test('Clear data also removes the sample customers, supplier bills and financier, and a failed save puts them back; real ones stay', function(){
+  var a = loadApp(); a.SAAS.user = { id:'u', name:'o', role:'owner' }; a.SAAS.shop = { id:'s', name:'T' };
+  a.prompt = function(){ return 'DEMO'; }; a.toast = function(){}; a.loadDemoData();
+  a.S.customers.push({ id:'real-c', name:'Real Person', phone:'9' });
+  a.prompt = function(){ return 'DELETE'; }; a.downloadBackupFile = function(){}; a.safeConfirm = function(t, m, ok){ ok(); };
+  a.saveToCloud = function(cb){ cb(new Error('offline')); };
+  a.clearDemoData();
+  assert(a.S.customers.length === 7 && a.S.purchases.length === 2 && a.finList().length === 1, 'failed save restores everything');
+  a.saveToCloud = function(cb){ cb(null); };
+  a.clearDemoData();
+  assert(a.S.customers.length === 1 && a.S.customers[0].id === 'real-c', 'only the real customer is left');
+  assert(a.S.purchases.length === 0 && (a.S.suppliers || []).length === 0 && a.finList().length === 0, 'sample bills, supplier and financier are gone');
+});
+
 test('Girvi top-up: more money on the same pledge adds to principal from its date, is not a receipt, and is a Day Book cash OUT', function(){
   var day = function(n){ return new Date(Date.now() - n*86400000).toISOString().slice(0,10); };
   var g = { id:'g1', grvNo:'G1', customer:'A', principal:50000, interestRate:2, rateType:'monthly', compound:false, startDate:day(100),
