@@ -96,6 +96,9 @@
     "claude-code-setup@anthropic-plugin-directory": true,
     "supabase@anthropic-plugin-directory": true,
     "chrome-devtools-mcp@claude-plugins-official": true,
-    "agent-sdk-dev@anthropic-plugin-directory": true
+    "agent-sdk-dev@anthropic-plugin-directory": true,
+    "ponytail@ponytail": true,
+    "andrej-karpathy-skills@karpathy-skills": true,
+    "taste-skill@taste-skill": true
   }
 }
