@@ -110,6 +110,69 @@ test('Code 128 barcode: valid structure, known checksum, every symbol is 11 modu
   assert(svg.indexOf('<svg') === 0 && (svg.match(/<rect/g) || []).length > 20, 'SVG has bars');
 });
 
+test('Supplier profile: one payment is spread over the oldest unpaid bills first, saved on each bill, and cannot exceed what is owed', function(){
+  var a = loadApp(); a.SAAS.user = { id:'u1', name:'o', role:'owner' }; a.SAAS.shop = { id:'s1', name:'T' };
+  a.saveToCloud = function(cb){ if(cb) cb(null); }; a.toast = function(m){ a.said = (a.said||[]).concat(String(m)); };
+  a.renderPurchases = function(){}; a.pbOpenSupplierProfile = function(){};
+  a.S.purchases = [
+    { id:'b2', billNo:'PB-2', date:'2026-10-20', supplier:'Malabar ', totalAmount:5000, amountPaid:0, supplierPayments:[] },
+    { id:'b1', billNo:'PB-1', date:'2026-10-01', supplier:'Malabar', totalAmount:3000, amountPaid:1000, supplierPayments:[] },
+    { id:'b3', billNo:'PB-3', date:'2026-10-05', supplier:'Other', totalAmount:900, amountPaid:0, supplierPayments:[] } ];
+  var st = a.pbSupplierStats('Malabar');
+  assert(st.bills === 2 && st.total === 8000 && st.paid === 1000 && st.pending === 7000, 'profile totals: ' + JSON.stringify(st));
+  a._els = a._els || {};
+  a._els['spf-amt'] = { value:'3000' }; a._els['spf-mode'] = { value:'UPI' }; a._els['spf-ref'] = { value:'T1' };
+  a.pbPaySupplier('Malabar');
+  var b1 = a.S.purchases.filter(function(b){ return b.id === 'b1'; })[0], b2 = a.S.purchases.filter(function(b){ return b.id === 'b2'; })[0], b3 = a.S.purchases.filter(function(b){ return b.id === 'b3'; })[0];
+  assert(b1.pendingAmount === 0 && b1.supplierPayments.length === 1 && b1.supplierPayments[0].amount === 2000, 'oldest bill cleared first: ' + JSON.stringify(b1.supplierPayments));
+  assert(b2.pendingAmount === 4000 && b2.supplierPayments[0].amount === 1000, 'the rest goes to the next bill');
+  assert(b3.supplierPayments.length === 0 && a.pbSupplierStats('Other').pending === 900, 'another supplier is untouched');
+  a._els['spf-amt'] = { value:'4001' };
+  a.pbPaySupplier('Malabar');
+  assert(b2.supplierPayments.length === 1 && /more than/.test(a.said[a.said.length - 1]), 'more than owed is refused');
+});
+
+test('Supplier profile: each per-bill payment posts to the Day Book exactly once, by mode (UPI is non-cash, Cash is cash OUT)', function(){
+  var a = loadApp(); a.SAAS.user = { id:'u1', name:'o', role:'owner' }; a.SAAS.shop = { id:'s1', name:'T' };
+  a.saveToCloud = function(cb){ if(cb) cb(null); }; a.toast = function(){}; a.renderPurchases = function(){}; a.pbOpenSupplierProfile = function(){};
+  a.S.purchases = [
+    { id:'b1', billNo:'PB-1', date:'2026-10-01', supplier:'M', totalAmount:3000, amountPaid:0, paymentMethod:'Credit', supplierPayments:[] },
+    { id:'b2', billNo:'PB-2', date:'2026-10-20', supplier:'M', totalAmount:5000, amountPaid:0, paymentMethod:'Credit', supplierPayments:[] } ];
+  a._els = a._els || {};
+  a._els['spf-amt'] = { value:'4000' }; a._els['spf-mode'] = { value:'UPI' }; a._els['spf-ref'] = { value:'' };
+  a.pbPaySupplier('M');
+  var day = a.dbToday(), upi = a.dbAutoLines(day).filter(function(l){ return l.src === 'purchase'; });
+  assert(upi.length === 2 && upi.every(function(l){ return l.nonCash && l.dir === 'out'; }), 'two non-cash OUT lines, one per bill: ' + JSON.stringify(upi));
+  assert(upi[0].amount + upi[1].amount === 4000, 'lines add up to the one payment');
+  var t = a.dbAutoTotals(day);
+  assert(t.out === 0 && t.nonCashAmount === 4000, 'UPI is not cash out: ' + JSON.stringify(t));
+  a._els['spf-amt'] = { value:'1000' }; a._els['spf-mode'] = { value:'Cash' };
+  a.pbPaySupplier('M');
+  t = a.dbAutoTotals(day);
+  assert(t.out === 1000 && t.nonCashAmount === 4000, 'cash payment posts once as cash OUT: ' + JSON.stringify(t));
+});
+
+test('Supplier profile: a failed save rolls back every bill touched; reversing one payment makes the profile totals follow', function(){
+  var a = loadApp(); a.SAAS.user = { id:'u1', name:'o', role:'owner' }; a.SAAS.shop = { id:'s1', name:'T' };
+  a.toast = function(){}; a.renderPurchases = function(){}; a.pbOpenSupplierProfile = function(){}; a.pbOpenHistoryModal = function(){}; a.safeConfirm = function(t, m, ok){ ok(); };
+  a.S.purchases = [
+    { id:'b1', billNo:'PB-1', date:'2026-10-01', supplier:'M', totalAmount:3000, amountPaid:0, supplierPayments:[] },
+    { id:'b2', billNo:'PB-2', date:'2026-10-20', supplier:'M', totalAmount:5000, amountPaid:0, supplierPayments:[] } ];
+  a._els = a._els || {};
+  a._els['spf-amt'] = { value:'4000' }; a._els['spf-mode'] = { value:'Cash' }; a._els['spf-ref'] = { value:'' };
+  a.saveToCloud = function(cb){ if(cb) cb(new Error('network')); };
+  a.pbPaySupplier('M');
+  assert(a.S.purchases.every(function(b){ return b.supplierPayments.length === 0; }), 'no bill keeps the payment after a failed save');
+  assert(a.pbSupplierStats('M').pending === 8000 && a.dbAutoTotals(a.dbToday()).out === 0, 'owed and Day Book unchanged');
+  a.saveToCloud = function(cb){ if(cb) cb(null); };
+  a.pbPaySupplier('M');
+  assert(a.pbSupplierStats('M').pending === 4000, 'retry after the failure works (not stuck busy)');
+  a.pbReversePayment('b1', a.S.purchases[0].supplierPayments[0].id);
+  var st = a.pbSupplierStats('M'), t = a.dbAutoTotals(a.dbToday());
+  assert(st.pending === 7000 && st.paid === 1000, 'profile follows the reversal: ' + JSON.stringify(st));
+  assert(t.out === 4000 && t.in === 3000, 'Day Book: payment out and reversal in: ' + JSON.stringify(t));
+});
+
 test('Girvi top-up: more money on the same pledge adds to principal from its date, is not a receipt, and is a Day Book cash OUT', function(){
   var day = function(n){ return new Date(Date.now() - n*86400000).toISOString().slice(0,10); };
   var g = { id:'g1', grvNo:'G1', customer:'A', principal:50000, interestRate:2, rateType:'monthly', compound:false, startDate:day(100),

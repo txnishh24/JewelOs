@@ -180,7 +180,7 @@ function pbSupplierLedgerHtml(){
   if(!canSeeProfit()) return '';   // R27
   var byS = {};
   (S.purchases||[]).forEach(function(b){
-    var k = (b.supplier||'Unknown').trim();
+    var k = pbSupplierKey(b);
     if(!byS[k]) byS[k] = { name:k, bills:0, total:0, paid:0, pending:0 };
     // totalPaid includes post-entry supplier payments (Foundation audit
     // §5); falls back to amountPaid for bills saved before that existed.
@@ -190,8 +190,8 @@ function pbSupplierLedgerHtml(){
   var rows = Object.values(byS).sort(function(a,b){ return b.pending - a.pending; });
   if(!rows.length) return '';
   var body = rows.map(function(r){
-    return '<tr>'+
-      '<td>'+escHtml(r.name)+'</td>'+
+    return '<tr style="cursor:pointer;" data-name="'+escHtml(r.name)+'" onclick="pbOpenSupplierProfile(this.dataset.name)">'+
+      '<td><b style="color:var(--gold-dark);">'+escHtml(r.name)+'</b></td>'+
       '<td class="num">'+r.bills+'</td>'+
       '<td class="num">'+fmt(r.total)+'</td>'+
       '<td class="num">'+fmt(r.paid)+'</td>'+
@@ -205,7 +205,7 @@ function pbSupplierLedgerHtml(){
   // pair), so both the table and its card alternative are just two branches
   // of the same string built here.
   var cards = rows.map(function(r){
-    return '<div class="inv-card">'+
+    return '<div class="inv-card" style="cursor:pointer;" data-name="'+escHtml(r.name)+'" onclick="pbOpenSupplierProfile(this.dataset.name)">'+
       '<div class="inv-card-top">'+
         '<div class="inv-card-name">'+escHtml(r.name)+'</div>'+
       '</div>'+
@@ -218,11 +218,120 @@ function pbSupplierLedgerHtml(){
     '</div>';
   }).join('');
   return '<div class="card">'+
-    '<div class="card-title">Supplier Ledger <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">What you owe each supplier, across all their bills</span></div>'+
+    '<div class="card-title">Supplier Ledger <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">What you owe each supplier. Tap a supplier to open their profile</span></div>'+
     '<div class="tbl-wrap" id="pbsl-table-wrap"><table><thead><tr><th>Supplier</th><th style="text-align:right;">Bills</th><th style="text-align:right;">Total</th><th style="text-align:right;">Paid</th><th style="text-align:right;">Outstanding</th></tr></thead>'+
     '<tbody>'+body+'</tbody></table></div>'+
     '<div id="pbsl-cards">'+cards+'</div>'+
     '</div>';
+}
+
+// ── SUPPLIER PROFILE ─────────────────────────────────────────────────────
+// One screen per supplier: every bill, what is still owed, every payment made, and a single "Pay supplier" box that
+// spreads a payment over the oldest unpaid bills first. It is a live view of the purchase bills (the same data the
+// Supplier Ledger uses), so nothing is copied. Each payment is saved on its bill (bill.supplierPayments), which is
+// also what feeds the Day Book.
+var _pbSupplierPayBusy = false;
+// the one way a bill's supplier name is turned into a key (ledger and profile must agree)
+function pbSupplierKey(b){ return String(b.supplier || '').trim() || 'Unknown'; }
+function pbSupplierBills(name){
+  var key = String(name || '').trim() || 'Unknown';
+  return (S.purchases || []).filter(function(b){ return pbSupplierKey(b) === key; });
+}
+// bill-level pay / reverse just changed a bill: if this supplier's profile is open, redraw it
+function pbRefreshSupplierProfile(name){
+  var ov = document.getElementById('pbsup-modal');
+  if(ov && ov.classList.contains('open')) pbOpenSupplierProfile(String(name || '').trim() || 'Unknown');
+}
+function pbSupplierStats(name){
+  var s = { bills:0, total:0, paid:0, pending:0 };
+  pbSupplierBills(name).forEach(function(b){
+    pbRecalc(b);
+    s.bills++; s.total += b.totalAmount || 0; s.paid += b.totalPaid || 0; s.pending += b.pendingAmount || 0;
+  });
+  return s;
+}
+function pbOpenSupplierProfile(name){
+  if(!canSeeProfit()) return;   // same rule as the whole Purchases tab
+  var bills = pbSupplierBills(name);
+  if(!bills.length){ toast('No bills for this supplier'); return; }
+  var st = pbSupplierStats(name);
+  var sorted = bills.slice().sort(function(a, b){ return String(b.date || '').localeCompare(String(a.date || '')); });
+  var rec = (S.suppliers || []).filter(function(x){ return String(x.name || '').trim() === String(name).trim(); })[0];
+  var billRows = sorted.map(function(b){
+    var late = b.pendingAmount > 0;
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;"><b>' + escHtml(b.billNo || '') + '</b><span>' + escHtml(b.date || '') + '</span></div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:3px;"><span>Total <b>' + fmt(b.totalAmount) + '</b></span><span>Paid <b>' + fmt(b.totalPaid) + '</b></span>' +
+        '<span style="color:' + (late ? 'var(--danger)' : 'var(--success)') + ';">' + (late ? 'Pending <b>' + fmt(b.pendingAmount) + '</b>' : 'Paid in full') + '</span></div>' +
+      '<div style="display:flex;gap:6px;margin-top:5px;">' +
+        (late ? '<button class="btn btn-sm" data-id="' + escHtml(b.id) + '" onclick="pbOpenPaymentModal(this.dataset.id)">Pay this bill</button>' : '') +
+        '<button class="btn btn-sm" data-id="' + escHtml(b.id) + '" onclick="pbOpenHistoryModal(this.dataset.id)">History</button></div></div>';
+  }).join('');
+  var pays = [];
+  bills.forEach(function(b){
+    (b.supplierPayments || []).forEach(function(p){ pays.push({ p:p, bill:b }); });
+    if((parseFloat(b.amountPaid) || 0) > 0) pays.push({ p:{ amount:b.amountPaid, mode:b.paymentMode || 'At billing', date:b.date, type:'entry' }, bill:b });
+  });
+  pays.sort(function(a, b){ return String(b.p.date || '').localeCompare(String(a.p.date || '')); });
+  var payRows = pays.map(function(x){
+    var rev = x.p.type === 'reversal';
+    return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border);">' +
+      '<span>' + escHtml(String(x.p.date || '').slice(0, 10)) + ' &bull; ' + escHtml(x.bill.billNo || '') + ' &bull; ' + escHtml(x.p.mode || '') + (rev ? ' (reversed)' : '') + '</span>' +
+      '<b style="color:' + (rev ? 'var(--danger)' : 'var(--success)') + ';">' + (rev ? '-' : '') + fmt(x.p.amount) + '</b></div>';
+  }).join('');
+  var ov = document.getElementById('pbsup-modal');
+  if(!ov){ ov = document.createElement('div'); ov.id = 'pbsup-modal'; ov.className = 'modal-overlay'; document.body.appendChild(ov); }
+  ov.innerHTML = '<div class="gl-wrap"><div class="gl-header"><h2>' + escHtml(name) + '</h2><button class="ge-close" onclick="closeSupplierProfile()">&#10005;</button></div><div class="gl-body">' +
+    (rec && rec.phone ? '<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">' + escHtml(rec.phone) + '</div>' : '') +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      '<div style="flex:1;min-width:100px;background:var(--card2);border-radius:10px;padding:8px 10px;"><div style="font-size:11px;color:var(--text3);">Bills</div><b>' + st.bills + '</b></div>' +
+      '<div style="flex:1;min-width:100px;background:var(--card2);border-radius:10px;padding:8px 10px;"><div style="font-size:11px;color:var(--text3);">Total bought</div><b>' + fmt(st.total) + '</b></div>' +
+      '<div style="flex:1;min-width:100px;background:var(--card2);border-radius:10px;padding:8px 10px;"><div style="font-size:11px;color:var(--text3);">Paid</div><b style="color:var(--success);">' + fmt(st.paid) + '</b></div>' +
+      '<div style="flex:1;min-width:100px;background:var(--card2);border-radius:10px;padding:8px 10px;"><div style="font-size:11px;color:var(--text3);">Pending (you owe)</div><b style="color:' + (st.pending > 0 ? 'var(--danger)' : 'var(--success)') + ';">' + fmt(st.pending) + '</b></div></div>' +
+    (st.pending > 0 ?
+      '<div class="card-title">Pay ' + escHtml(name) + '</div>' +
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">The payment goes to the oldest unpaid bill first, then the next, and is saved on each bill.</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:8px;"><input id="spf-amt" type="number" step="0.01" inputmode="decimal" placeholder="Amount" value="' + st.pending + '" style="flex:1;min-width:0;"/>' +
+      '<select id="spf-mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option><option>Card</option><option>Other</option></select></div>' +
+      '<input id="spf-ref" placeholder="Reference / cheque no (optional)" style="width:100%;margin-bottom:8px;box-sizing:border-box;"/>' +
+      '<button class="btn btn-gold" style="width:100%;margin-bottom:14px;" data-name="' + escHtml(name) + '" onclick="pbPaySupplier(this.dataset.name)">Record payment</button>' : '') +
+    '<div class="card-title">Bills (' + bills.length + ')</div>' + billRows +
+    '<div class="card-title" style="margin-top:14px;">Payments made</div>' + (payRows || '<div style="font-size:12px;color:var(--text3);">None yet.</div>') +
+    '</div></div>';
+  ov.classList.add('open');
+}
+function closeSupplierProfile(){ var ov = document.getElementById('pbsup-modal'); if(ov) ov.classList.remove('open'); }
+
+// One payment, shared over the oldest unpaid bills first. All the bills change together or not at all.
+function pbPaySupplier(name){
+  if(!canSeeProfit() || _pbSupplierPayBusy) return;
+  if(_purchaseSubmitLock || Object.keys(_pbPaymentLock).some(function(k){ return _pbPaymentLock[k]; })){ toast('Another payment is being saved, please wait'); return; }
+  var amount = Math.round((parseFloat(document.getElementById('spf-amt').value) || 0) * 100) / 100;
+  var mode = document.getElementById('spf-mode').value, ref = (document.getElementById('spf-ref').value || '').trim();
+  if(!(amount > 0)){ toast('Enter a valid amount'); return; }
+  var owing = pbSupplierBills(name).filter(function(b){ pbRecalc(b); return b.pendingAmount > 0; })
+    .sort(function(a, b){ return String(a.date || '').localeCompare(String(b.date || '')); });
+  var totalOwed = owing.reduce(function(s, b){ return s + b.pendingAmount; }, 0);
+  if(amount > totalOwed + 0.005){ toast('That is more than the ' + fmt(totalOwed) + ' owed to ' + name); return; }
+  _pbSupplierPayBusy = true;
+  var snap = _purchaseSnapshot(), left = amount, now = new Date().toISOString(), who = (SAAS.user && SAAS.user.name) || 'Owner', parts = [];
+  owing.forEach(function(b){
+    if(left <= 0.004) return;
+    var pay = Math.min(left, b.pendingAmount);
+    pay = Math.round(pay * 100) / 100; left = Math.round((left - pay) * 100) / 100;
+    b.supplierPayments = b.supplierPayments || [];
+    b.supplierPayments.push({ id:(typeof crypto.randomUUID === 'function') ? crypto.randomUUID() : 'SPAY-' + Date.now() + '-' + parts.length, amount:pay, mode:mode, ref:ref, date:now, by:who });
+    pbRecalc(b);
+    pbLogEvent(b, 'Payment', fmt(pay) + ' via ' + mode + (ref ? ' (' + ref + ')' : '') + ' (supplier payment)');
+    parts.push(b.billNo);
+  });
+  _purchaseCommit(snap, function(err){
+    _pbSupplierPayBusy = false;
+    if(err) return;   // _purchaseCommit already shows the reason and restores the bills
+    toast(fmt(amount) + ' paid to ' + name + ' (' + parts.join(', ') + ')');
+    renderPurchases();
+    pbOpenSupplierProfile(name);
+  });
 }
 
 // ── WASTAGE REPORT ───────────────────────────────────────────────────
@@ -1198,7 +1307,7 @@ function pbSubmitPayment(billId){
     document.getElementById('pbpay-modal').style.display='none';
     _purchaseCommit(_snap, function(err){
       _pbPaymentLock[billId]=false;
-      if(!err){ renderPurchases(); toast('\u2713 '+fmt(amount)+' paid to '+b.supplier); }
+      if(!err){ renderPurchases(); pbRefreshSupplierProfile(b.supplier); toast('\u2713 '+fmt(amount)+' paid to '+b.supplier); }
     });
   }
 
@@ -1229,7 +1338,7 @@ function pbReversePayment(billId, payId){
     pbLogEvent(b,'Payment reversed', fmt(pay.amount));
     _purchaseCommit(_snap, function(err){
       _pbPaymentLock[billId]=false;
-      if(!err){ renderPurchases(); pbOpenHistoryModal(billId); toast('\u2718 Payment reversed'); }
+      if(!err){ renderPurchases(); pbRefreshSupplierProfile(b.supplier); pbOpenHistoryModal(billId); toast('\u2718 Payment reversed'); }
     });
   }, true);
 }
