@@ -1792,13 +1792,14 @@ function girviLedgerState(g, asOfDate){
     if(isNaN(payDate.getTime()) || payDate < cursor) payDate = cursor; // ignore malformed/backdated entries
     accrueTo(payDate);
     var amt = parseFloat(pay.amount) || 0;
+    var _before = {principalBefore:remainingPrincipal, interestBefore:Math.max(0,pendingInterest)};   // for the day-by-day statement; changes no maths
     if(pay.type === 'penalty' || pay.type === 'refund' || pay.type === 'topup'){  // topup: more money lent on the same pledge, adds to principal like a refund
       // These INCREASE what's owed, not reduce it — a manually-charged
       // penalty or an issued refund both add to the outstanding balance
       // going forward (and will themselves start accruing interest, same
       // as the rest of the principal).
       remainingPrincipal += amt;
-      annotated.push(Object.assign({}, pay, {interestPortion:0, principalPortion:-amt}));
+      annotated.push(Object.assign({}, pay, _before, {interestPortion:0, principalPortion:-amt, principalAfter:remainingPrincipal, interestAfter:Math.max(0,pendingInterest)}));
       return;
     }
     var toInterest, toPrincipal;
@@ -1813,7 +1814,7 @@ function girviLedgerState(g, asOfDate){
     remainingPrincipal  -= toPrincipal;
     totalInterestPaid   += toInterest;
     totalPrincipalPaid  += toPrincipal;
-    annotated.push(Object.assign({}, pay, {interestPortion:toInterest, principalPortion:toPrincipal}));
+    annotated.push(Object.assign({}, pay, _before, {interestPortion:toInterest, principalPortion:toPrincipal, principalAfter:remainingPrincipal, interestAfter:Math.max(0,pendingInterest)}));
   });
 
   accrueTo(asOf);

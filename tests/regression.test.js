@@ -54,6 +54,20 @@ console.log('\nJewelOS Regression Suite\n' + '='.repeat(50));
 
 // ── Bug: Girvi interest overcharge on partial payments ────────────────────
 console.log('\nGirvi ledger:');
+test('Girvi statement: each payment records principal/interest before and after; the numbers chain and the totals are unchanged', function(){
+  var day = function(n){ return new Date(Date.now() - n*86400000).toISOString().slice(0,10); };
+  var g = { id:'g9', grvNo:'G9', customer:'A', principal:50000, interestRate:2, rateType:'monthly', compound:false, startDate:day(100),
+            payments:[{ id:'p1', amount:10000, type:'payment', mode:'Cash', date:day(70) }, { id:'t1', amount:5000, type:'topup', mode:'Cash', date:day(40) }] };
+  var st = app.girviLedgerState(g), p1 = st.payments[0], t1 = st.payments[1];
+  var rate = 0.02/30;
+  assert(Math.abs(p1.interestBefore - 50000*rate*30) < 2 && p1.principalBefore === 50000, 'before 1st payment: ' + JSON.stringify(p1));
+  assert(Math.abs(p1.principalAfter - (p1.principalBefore - p1.principalPortion)) < 0.01 && Math.abs(p1.interestAfter - (p1.interestBefore - p1.interestPortion)) < 0.01, 'after = before minus what the payment cleared');
+  assert(t1.principalBefore === p1.principalAfter && t1.principalAfter === t1.principalBefore + 5000, 'top-up chains from the previous row and adds 5000');
+  assert(Math.abs(st.outstanding - (st.principal + st.interestAccrued)) < 0.01, 'engine totals unchanged');
+  var html = app.girviStatementHtml(g);
+  assert(/Loan given/.test(html) && /Still owed/.test(html) && /Top-up/.test(html), 'statement shows start, each event and today');
+});
+
 test('Girvi top-up: more money on the same pledge adds to principal from its date, is not a receipt, and is a Day Book cash OUT', function(){
   var day = function(n){ return new Date(Date.now() - n*86400000).toISOString().slice(0,10); };
   var g = { id:'g1', grvNo:'G1', customer:'A', principal:50000, interestRate:2, rateType:'monthly', compound:false, startDate:day(100),

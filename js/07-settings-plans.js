@@ -312,6 +312,32 @@ function gfUseSuggestedLoan(){
   }
 }
 
+// Optional day-by-day statement: at each payment, how much principal and interest stood due that day,
+// what the payment cleared, and what was left. Read-only view over girviLedgerState (the interest engine is untouched).
+function girviStatementHtml(g){
+  var st = girviLedgerState(g);
+  if(!st.payments.length) return '';
+  function m(n){ return '\u20b9'+Math.round(n||0).toLocaleString('en-IN'); }
+  function cell(t){ return '<td style="padding:5px 6px;text-align:right;white-space:nowrap;">'+t+'</td>'; }
+  var rows = '<tr style="background:var(--card2);"><td style="padding:5px 6px;">'+fmtDate(g.startDate)+'</td><td style="padding:5px 6px;">Loan given</td>'+
+    cell(m(g.principal))+cell('-')+cell('-')+cell('-')+cell('-')+cell(m(g.principal))+cell('-')+'</tr>';
+  st.payments.forEach(function(p){
+    var isUp = (p.type === 'topup' || p.type === 'refund' || p.type === 'penalty');
+    rows += '<tr style="border-top:1px solid var(--border);"><td style="padding:5px 6px;">'+fmtDate(p.date||p.ts)+'</td>'+
+      '<td style="padding:5px 6px;">'+escHtml(girviPayLabel(p))+'</td>'+
+      cell(m(p.principalBefore))+cell(m(p.interestBefore))+
+      cell((isUp?'+':'-')+m(p.amount))+
+      cell(isUp ? '-' : m(p.interestPortion))+cell(isUp ? '-' : m(p.principalPortion))+
+      cell('<b>'+m(p.principalAfter)+'</b>')+cell(m(p.interestAfter))+'</tr>';
+  });
+  rows += '<tr style="border-top:2px solid var(--border2);"><td style="padding:5px 6px;">Today</td><td style="padding:5px 6px;">Still owed</td>'+
+    cell('-')+cell('-')+cell('-')+cell('-')+cell('-')+cell('<b>'+m(st.principal)+'</b>')+cell('<b>'+m(st.interestAccrued)+'</b>')+'</tr>';
+  return '<details style="margin-bottom:14px;"><summary style="font-size:12px;font-weight:700;color:var(--gold-dark);cursor:pointer;padding:6px 0;">Day-by-day statement (principal and interest at each payment)</summary>'+
+    '<div style="overflow-x:auto;margin-top:8px;"><table style="border-collapse:collapse;font-size:11px;min-width:560px;width:100%;">'+
+    '<thead><tr style="text-align:right;color:var(--text3);"><th style="padding:5px 6px;text-align:left;">Date</th><th style="padding:5px 6px;text-align:left;">Event</th><th>Principal then</th><th>Interest then</th><th>Amount</th><th>Interest cleared</th><th>Principal cleared</th><th>Principal left</th><th>Interest left</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table></div></details>';
+}
+
 // ── FULL-SCREEN PHOTO VIEWER (zoom: buttons, mouse wheel, double-tap, two-finger pinch) ──
 var _pvList = [], _pvIdx = 0, _pvZoom = 1, _pvPinch = 0;
 function openPhotoViewer(i){
@@ -1412,6 +1438,7 @@ function openGirviDetail(gid){
         payRows+
       '</div>'
     :'<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">No payments yet.</div>')+
+    girviStatementHtml(g)+
     // ── Feature 7: Notes ──────────────────────────────────────────────
     notesHtml+
     // ── Feature 11: Audit trail ────────────────────────────────────────
