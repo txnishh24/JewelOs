@@ -5,7 +5,9 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = process.argv[2];
-const G = JSON.parse(fs.readFileSync(path.join(__dirname, 'globals.json'), 'utf8'));
+const GFILE = path.join(ROOT, '.tmp', 'globals.json');
+if (!fs.existsSync(GFILE)) { console.error('Missing ' + GFILE + ': run node checks/scope.js <root> first.'); process.exit(1); }
+const G = JSON.parse(fs.readFileSync(GFILE, 'utf8'));
 const known = new Set([...G.globals, ...G.implicit]); // inline handlers run in GLOBAL scope only
 
 const BUILTIN_CALLS = new Set(`

@@ -30,7 +30,7 @@ Run every check against an unpacked JewelOS build (the folder containing
 ```
 cd /path/to/jewelos          # this folder — the source of truth
 node checks/scope.js        .
-node checks/handlers.js     .   # needs scope.js run first — it reads globals.json
+node checks/handlers.js     .   # needs scope.js run first — it reads .tmp/globals.json
 node checks/css.js          .
 node checks/ids.js          .
 node checks/loadorder.js    .
@@ -50,7 +50,7 @@ eleven modules and the regression suite in `tests/`.
 
 | Script | Finds |
 |---|---|
-| `scope.js` | Variables and functions used but never declared anywhere. Writes `globals.json` for `handlers.js`. |
+| `scope.js` | Variables and functions used but never declared anywhere. Writes `.tmp/globals.json` (gitignored) for `handlers.js`. |
 | `handlers.js` | Buttons whose `onclick` calls a function that doesn't exist — dead buttons. |
 | `css.js` | CSS classes applied in markup but never styled. |
 | `ids.js` | Element ids the code looks up that no markup ever creates. |
