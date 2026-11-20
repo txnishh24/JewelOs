@@ -91,7 +91,7 @@ or re-add tier UI.
 - **Note:** `.claude/settings.json` had Tanish's uncommitted plugin-enable lines (ponytail, karpathy, taste-skill). I committed only my hunks; his lines are still uncommitted in the working copy.
 
 -> FOR COWORK: nothing - FYI only.
--> FOR TANISH: say if you want R35 merged into main; run `/context` and tell me the number to finish item 4; check the status line shows after a restart.
+-> FOR TANISH: R35 is merged into local main (`7acebcd`, not pushed); run `/context` and tell me the number to finish item 4; check the status line shows after a restart.
 
 ### 2026-11-19 (two-hundred-and-forty-fifth entry) - Claude Code (Sonnet) - batch76 DEPLOYED to the Cloudflare worker and verified live (Tanish said "deploy batch76"). `ROLE_CHECK_MODE` untouched; nothing pushed to GitHub; no migration
 **Deployed:** `node build-cf-deploy-stage.js batch76` (19 public files) then `npx wrangler deploy` from `E:\jewelos`. Version ID `7ccb9598-0692-48c6-839e-b82ac302bac1`, commit `80e8a35`. `APP_BUILD` 76, `sw.js` cache `jewelos-v31`, `docs/CHANGES-batch76.md`. Content: R30 to R34 (see 243rd entry).
