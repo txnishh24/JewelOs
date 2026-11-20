@@ -59,12 +59,14 @@ test('protected keys (plan, kgLedgerOn, gstin, paidUntil): changed = refused, sa
     });
   });
 });
-test('rates: staff cannot change a rate (fail), may leave them (pass); manager may change rates', function () {
+test('rates: staff and manager cannot change a rate (fail), may leave them (pass) [R36: manager now refused]', function () {
   const next = blob(); next.rates.g22 = 9999;
   assert(code('staff', blob(), next) === 'staff_rates');
-  assert(code('manager', blob(), next) === null);
+  assert(code('manager', blob(), next) === 'rates_owner_only');
+  assert(code('owner', blob(), next) === null);
+  assert(code('manager', blob(), blob()) === null);
   const added = blob(); added.rates.g14 = 4500;   // a key the client adds on load
-  assert(code('staff', blob(), added) === null, 'new default key tolerated');
+  assert(code('staff', blob(), added) === 'staff_rates', 'a new rate key is a rate change (audit 8): the client adds none on load');
 });
 test('discCaps: manager and staff cannot change (fail), unchanged passes', function () {
   const next = blob(); next.rates.discCaps = { staff: 50, manager: 50 };
@@ -200,9 +202,190 @@ test('mass delete: >20% of customers/products in one save refused for staff and 
   ['staff', 'manager'].forEach(function (r) { assert(code(r, cur, half) === 'mass_delete', r); assert(code(r, cur, one) === null, r + ' one'); });
   const cleared = clone(cur); cleared.customers = []; cleared.products = []; cleared.sales = [];
   assert(code('owner', cur, cleared) === null, 'owner');
-  const tiny = blob({ products: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] }); const t2 = clone(tiny); t2.products = [{ id: 'a' }];
-  assert(code('manager', tiny, t2) === null, 'tiny shop');
+  const tiny = blob({ customers: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] }); const t2 = clone(tiny); t2.customers = [{ id: 'a' }];
+  assert(code('manager', tiny, t2) === null, 'tiny shop');   // R36: products now owner-only to delete, so the exempt case uses customers
   assert(SHRINK_MAX_FRACTION === 0.2);
+});
+// ── R36 ──────────────────────────────────────────────────────────────
+console.log('\nR36 rules (rates, product delete, Day Book entries, costs):');
+const ent = (id, extra) => Object.assign({ id, date: TODAY, dir: 'out', amount: 100, cat: 'misc', note: '', kind: 'manual', voided: false, voidReason: '' }, extra || {});
+const withEntries = (list, closes) => blob({ dayBook: { opening: null, entries: list, closes: closes || [], reopens: [] } });
+const withProducts = (list) => blob({ products: list });
+
+test('R36 rates: an unset g22 filled from the old gold22 on load passes; a real change still fails; owner passes', function () {
+  const cur = blob(); cur.rates = { g22: 0, gold22: 7200, discCaps: { staff: 5, manager: 15 } };
+  const fill = clone(cur); fill.rates.g22 = 7200;
+  ['staff', 'manager'].forEach(function (r) { assert(code(r, cur, fill) === null, r + ' legacy fill'); });
+  const other = clone(cur); other.rates.g22 = 9999;
+  assert(code('manager', cur, other) === 'rates_owner_only' && code('staff', cur, other) === 'staff_rates', 'not the legacy value');
+  const added = blob(); added.rates.g14 = 4500;
+  assert(code('manager', blob(), added) === 'rates_owner_only', 'new key refused for manager (audit 8a)');
+  const old = blob(); old.rates = { gold22: 7200, discCaps: { staff: 5, manager: 15 } };
+  const forged = clone(old); forged.rates.g22 = 1;
+  assert(code('manager', old, forged) === 'rates_owner_only', 'g22 set on an old-name shop must equal gold22 (audit 8b)');
+  const fresh = blob(); fresh.rates = { discCaps: { staff: 5, manager: 15 } };
+  const setAll = clone(fresh); setAll.rates.g22 = 1; setAll.rates.setAt = 'x';
+  assert(code('staff', fresh, setAll) === 'staff_rates', 'a shop with no rates yet: staff cannot set them (audit 8c)');
+});
+test('R36 product delete: manager and staff refused even in a small shop; owner passes; adding or selling a product passes', function () {
+  const cur = withProducts([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
+  const gone = clone(cur); gone.products = [{ id: 'a' }, { id: 'b' }];
+  ['staff', 'manager'].forEach(function (r) { assert(code(r, cur, gone) === 'owner_only', r); });
+  assert(code('owner', cur, gone) === null, 'owner');
+  const added = clone(cur); added.products.push({ id: 'd' });
+  const sold = clone(cur); sold.products[0].status = 'sold'; sold.products[0].qty = 0;
+  ['staff', 'manager'].forEach(function (r) { assert(code(r, cur, added) === null && code(r, cur, sold) === null, r + ' add/sell'); });
+});
+test('R36 Day Book entries: nothing removed or edited in place; manager voids with a reason on an open day', function () {
+  const cur = withEntries([ent('e1'), ent('e2')]);
+  const gone = clone(cur); gone.dayBook.entries = [ent('e1')];
+  ['staff', 'manager'].forEach(function (r) { assert(code(r, cur, gone) === 'entry_removed', r + ' remove'); });
+  const edit = clone(cur); edit.dayBook.entries[0].amount = 1;
+  assert(code('staff', cur, edit) === 'staff_daybook', 'staff edit');
+  assert(code('manager', cur, edit) === 'daybook_edit', 'manager edit');
+  const voidOk = clone(cur); Object.assign(voidOk.dayBook.entries[0], { voided: true, voidReason: 'typo', voidTs: 't', voidBy: 'm' });
+  assert(code('manager', cur, voidOk) === null, 'manager void');
+  assert(code('staff', cur, voidOk) === 'staff_daybook', 'staff void');
+  const noReason = clone(voidOk); noReason.dayBook.entries[0].voidReason = ' ';
+  assert(code('manager', cur, noReason) === 'reason_required', 'void needs a reason');
+  assert(code('owner', cur, edit) === null, 'owner');
+});
+test('R36 Day Book entries: no un-void, no void of a correction entry, no void on a closed day', function () {
+  const voided = ent('e1', { voided: true, voidReason: 'x' });
+  const cur = withEntries([voided]); const back = clone(cur); back.dayBook.entries[0].voided = false;
+  assert(code('manager', cur, back) === 'daybook_edit', 'un-void');
+  const adj = withEntries([ent('a1', { kind: 'adjust', cat: 'adjust' })]); const vadj = clone(adj); Object.assign(vadj.dayBook.entries[0], { voided: true, voidReason: 'x' });
+  assert(code('manager', adj, vadj) === 'daybook_edit', 'void correction');
+  const closedCur = withEntries([ent('e1')], [{ date: TODAY, closing: 0 }]); const v = clone(closedCur); Object.assign(v.dayBook.entries[0], { voided: true, voidReason: 'x' });
+  assert(code('manager', closedCur, v) === 'closed_day', 'closed day');
+});
+test('R36 Day Book entries: new entry rules (staff none by hand, manager on an open day, amount above zero, correction by anyone)', function () {
+  const cur = withEntries([]);
+  const add = (e) => { const n = clone(cur); n.dayBook.entries.push(e); return n; };
+  assert(code('manager', cur, add(ent('n1'))) === null, 'manager adds');
+  assert(code('staff', cur, add(ent('n1'))) === 'staff_daybook', 'staff adds');
+  const adj = ent('n2', { kind: 'adjust', cat: 'adjust', srcDate: '2026-11-10' });
+  assert(code('staff', cur, add(adj)) === 'staff_daybook', 'staff cannot label an entry a correction (audit 1)');
+  assert(code('manager', cur, add(adj)) === 'daybook_edit', 'a correction with no record on its close');
+  const close0 = { date: '2026-11-10', closing: 0, autoIn: 100, autoOut: 50, restatements: [] };
+  const cur2 = withEntries([], [close0]);
+  const real = clone(cur2); real.dayBook.entries.push(ent('n2', { kind: 'adjust', cat: 'adjust', srcDate: '2026-11-10', dir: 'in', amount: 30 }));
+  real.dayBook.closes[0].autoIn = 130; real.dayBook.closes[0].restatements = [{ prevIn: 100, prevOut: 50, newIn: 130, newOut: 50, entryId: 'n2' }];
+  assert(code('manager', cur2, real) === null, 'a real correction (entry plus the close’s restatement row, figures match the sweep)');
+  const big = clone(real); big.dayBook.entries[0].amount = 500000;
+  assert(code('manager', cur2, big) === 'daybook_edit', 'forged amount does not match the restated change (audit 4)');
+  const wrongPrev = clone(real); wrongPrev.dayBook.closes[0].restatements[0].prevIn = 1;
+  assert(code('manager', cur2, wrongPrev) === 'daybook_edit', 'restatement must start from the stored close figures');
+  const invented = clone(real); invented.dayBook.entries[0].srcDate = '2026-11-09';
+  assert(code('manager', cur2, invented) === 'daybook_edit', 'no stored close for that date');
+  assert(code('manager', cur, add(ent('n3', { amount: 0 }))) === 'negative_amount', 'zero');
+  assert(code('manager', cur, add(ent('n4', { amount: -5 }))) === 'negative_amount', 'negative');
+  assert(code('manager', cur, add(ent('n5', { amount: '100' }))) === 'negative_amount', 'text amount');
+  assert(code('manager', cur, add(ent('n6', { dir: 'sideways' }))) === 'bad_amount', 'direction');
+  assert(code('manager', cur, add(ent('n7', { voided: true }))) === 'daybook_edit', 'starts voided');
+  const closedCur = withEntries([], [{ date: TODAY, closing: 0 }]); const n = clone(closedCur); n.dayBook.entries.push(ent('n8'));
+  assert(code('manager', closedCur, n) === 'closed_day', 'closed day');
+  const twice = clone(cur); twice.dayBook.entries.push(ent('d1'), ent('d1'));
+  assert(code('manager', cur, twice) === 'bad_ids', 'same id twice');
+});
+test('R36 costs: a non-owner cannot change a stored product cost or set one on a new product; owner can', function () {
+  const cur = withProducts([{ id: 'p1', costRate: 4000 }]);
+  const chg = clone(cur); chg.products[0].costRate = 1;
+  const clr = clone(cur); clr.products[0].costRate = 0;
+  ['staff', 'manager'].forEach(function (r) { assert(code(r, cur, chg) === 'owner_only' && code(r, cur, clr) === 'owner_only', r); });
+  assert(code('owner', cur, chg) === null, 'owner');
+  const same = clone(cur); same.products[0].qty = 3;
+  assert(code('manager', cur, same) === null, 'qty change keeps cost');
+  const fresh = clone(cur); fresh.products.push({ id: 'n1', costRate: 0 });
+  assert(code('manager', cur, fresh) === null, 'new product, no cost');
+  const made = clone(cur); made.products.push({ id: 'n2', costRate: 999 });
+  assert(code('manager', cur, made) === 'owner_only', 'invented cost on a new product');
+  const ret = clone(cur); ret.products.push({ id: 'n3', sku: 'RET-x', costRate: 4000 });
+  assert(code('manager', cur, ret) === 'owner_only', 'a cost on a new product with no bill behind it (audit 5)');
+});
+test('R36 costs: a new sale item may carry only its product’s cost (or none)', function () {
+  const cur = withProducts([{ id: 'p1', costRate: 4000 }]);
+  const item = (c) => ({ pid: 'p1', name: 'Ring', weight: 5, qty: 1, lockedRate: 10000, making: 0, diamond: 0, costRate: c, costSnap: true });
+  const mk = (it) => withSale(cur, sale({ id: 's2', invNo: 'INV-002', items: [it] }));
+  ['staff', 'manager'].forEach(function (r) {
+    assert(code(r, cur, mk(item(4000))) === null, r + ' own cost');
+    assert(code(r, cur, mk(item(0))) === null, r + ' no cost');
+    assert(code(r, cur, mk(item(1))) === 'owner_only', r + ' invented cost');
+  });
+  const noPid = Object.assign(item(4000), { pid: undefined });
+  assert(code('manager', cur, mk(noPid)) === 'owner_only', 'a cost on an item with no product');
+  assert(code('owner', cur, mk(item(1))) === null, 'owner');
+});
+test('R36 costs: a manager bill edit keeps the item’s earlier cost even if the product cost changed since', function () {
+  const base = withProducts([{ id: 'p1', costRate: 5000 }]);
+  base.sales = [sale({ items: [{ pid: 'p1', name: 'Ring', weight: 5, qty: 1, lockedRate: 10000, making: 0, diamond: 0, costRate: 4000, costSnap: true }] })];
+  const edit = clone(base); edit.sales[0].customer = 'Renamed'; edit.sales[0].editHistory = [{ reason: 'fix name', ts: 't' }];
+  assert(code('manager', base, edit) === null, 'cost unchanged');
+  const bad = clone(edit); bad.sales[0].items[0].costRate = 1;
+  assert(code('manager', base, bad) === 'owner_only', 'edit lowers the cost');
+});
+test('R36 refund RET product: cost known only from a sale item (product cost since changed) passes; invented cost fails', function () {
+  const base = withProducts([{ id: 'p1', costRate: 5000 }]);
+  base.sales = [sale({ items: [{ pid: 'p1', name: 'Ring', weight: 5, qty: 1, lockedRate: 10000, making: 0, diamond: 0, costRate: 4000, costSnap: true }] })];
+  const refund = (n, cost, mark) => {
+    const x = clone(base);
+    x.products.push({ id: n, sku: 'RET-s1', metal: 'gold', costRate: cost, fromSaleId: 's1', fromSaleItemIndex: 0 });
+    if (mark) { x.sales[0].returnedItemIdx = [0]; x.sales[0].refunds = [{ reason: 'defect', amount: 100 }]; }
+    return x;
+  };
+  assert(code('manager', base, refund('r1', 4000, true)) === null, 'real refund keeps the bill item’s cost');
+  ['staff', 'manager'].forEach(function (r) {
+    assert(code(r, base, refund('r2', 4321, true)) === 'owner_only', r + ' invented cost');
+    assert(code(r, base, refund('r3', 4000, false)) === 'owner_only', r + ' item not marked returned in the same save');
+  });
+  const wrongSale = refund('r4', 4000, true); wrongSale.products[1].fromSaleId = 'nope';
+  assert(code('manager', base, wrongSale) === 'owner_only', 'points at no bill');
+  const wrongMetal = refund('r5', 4000, true); wrongMetal.products[1].metal = 'silver';
+  assert(code('manager', base, wrongMetal) === 'owner_only', 'metal differs from the returned item (audit 3)');
+  const replay = clone(base); replay.sales[0].returnedItemIdx = [0];
+  const again = clone(replay); again.products.push({ id: 'r6', sku: 'RET-s1', metal: 'gold', costRate: 4000, fromSaleId: 's1', fromSaleItemIndex: 0 });
+  ['staff', 'manager'].forEach(function (r) { assert(code(r, replay, again) === 'owner_only', r + ' item already returned: cannot mint another costed product (audit 3)'); });
+  const twice = refund('r7', 4000, true); twice.products.push({ id: 'r8', sku: 'RET-s1', metal: 'gold', costRate: 4000, fromSaleId: 's1', fromSaleItemIndex: 0 });
+  assert(code('manager', base, twice) === 'owner_only', 'two products for one returned item');
+});
+test('R36 audit probes: text or list costs, duplicate and id-less products, a cheaper product’s cost, offline bills', function () {
+  const cur = withProducts([{ id: 'p1', metal: 'gold', costRate: 7000 }, { id: 'p2', metal: 'silver', costRate: 80 }, { id: 'p3', metal: 'gold' }]);
+  const item = (o) => Object.assign({ pid: 'p1', metal: 'gold', name: 'Ring', weight: 5, qty: 1, lockedRate: 10000, making: 0, diamond: 0, costRate: 7000, costSnap: true }, o || {});
+  const mk = (it, base) => withSale(base || cur, sale({ id: 's2', invNo: 'INV-002', items: [it] }));
+  ['staff', 'manager'].forEach(function (r) {
+    assert(code(r, cur, mk(item({ costRate: '1' }))) === 'owner_only', r + ' text item cost (audit 2)');
+    assert(code(r, cur, mk(item({ costRate: [1] }))) !== null, r + ' list item cost');
+    const txt = clone(cur); txt.products[2].costRate = '999999';
+    assert(code(r, cur, txt) === 'bad_amount', r + ' text product cost (audit 2)');
+    const dup = clone(cur); dup.products.unshift({ id: 'p1', metal: 'gold', costRate: 1 });
+    assert(code(r, cur, dup) === 'bad_ids', r + ' duplicate product id (audit 3)');
+    const noId = clone(cur); noId.products.push({ name: 'x', costRate: 999999 });
+    assert(code(r, cur, noId) === 'bad_ids', r + ' product with no id (audit 4)');
+    assert(code(r, cur, mk(item({ pid: 'p2', costRate: 80 }))) === 'owner_only', r + ' gold line on the silver product (audit 6)');
+  });
+  const hist = clone(cur); hist.sales = [sale({ id: 'old', invNo: 'INV-000', items: [item({ costRate: 6800 })] })];
+  assert(code('staff', hist, mk(item({ costRate: 6800 }), hist)) === null, 'offline bill: owner raised the cost since, an earlier bill of this product holds 6800 (false refusal A)');
+  const gone = clone(hist); gone.products = gone.products.filter((p) => p.id !== 'p1');
+  assert(code('staff', gone, mk(item({ costRate: 6800 }), gone)) === null, 'offline bill: product deleted since, earlier bill holds the cost (false refusal B)');
+  assert(code('staff', gone, mk(item({ costRate: 1 }), gone)) === 'owner_only', 'but an invented cost still fails');
+  ['staff', 'manager'].forEach(function (r) {
+    assert(code(r, cur, mk(item({ pid: 'p2', costRate: 80, metal: undefined }))) === 'owner_only', r + ' line with no metal on the silver product (audit 6/1)');
+    const relabel = clone(cur); relabel.products[1].metal = 'gold';
+    assert(code(r, cur, relabel) === 'owner_only', r + ' cannot relabel a product’s metal (audit 2)');
+  });
+  const silverHist = clone(cur); silverHist.sales = [sale({ id: 'old', invNo: 'INV-000', items: [item({ pid: 'p2', metal: 'silver', costRate: 80 })] })];
+  silverHist.products = silverHist.products.filter((p) => p.id !== 'p2');
+  assert(code('staff', silverHist, mk(item({ pid: 'p2', metal: 'gold', costRate: 80 }), silverHist)) === 'owner_only', 'a deleted product’s old silver cost cannot be reused on a gold line (audit 5)');
+});
+test('R36 void restores stock: manager void with the sold piece going back on the shelf (cost untouched) passes; void that also changes its cost fails', function () {
+  const cur = withProducts([{ id: 'p1', status: 'sold', qty: 0, costRate: 4000 }]);
+  cur.sales = [sale({ items: [{ pid: 'p1', name: 'Ring', weight: 5, qty: 1, lockedRate: 10000, making: 0, diamond: 0, costRate: 4000, costSnap: true }] })];
+  const gone = clone(cur); gone.sales = []; gone.voidedInvNos = ['INV-001'];
+  gone.auditLog = [{ id: 'a9', entity: 'sale', entityId: 's1', action: 'delete', note: 'Bill INV-001 voided | reason: wrong customer' }];
+  gone.products[0].status = 'available'; gone.products[0].qty = 1;
+  assert(code('manager', cur, gone) === null, 'stock restore');
+  gone.products[0].costRate = 1;
+  assert(code('manager', cur, gone) === 'owner_only', 'cost change smuggled in');
 });
 test('helpers: deepEq treats undefined and null as empty; dayKey uses the Indian day', function () {
   assert(deepEq({ a: undefined }, {}) && deepEq(null, undefined) && !deepEq([1], [1, 2]));
