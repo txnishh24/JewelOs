@@ -9,6 +9,18 @@ Tanish has no coding background. Explain the reasoning, not just the fix.
 
 Full previous version (all history): `docs/CLAUDE-MD-FULL-2026-11-05.md`.
 
+## Taste
+
+- UI/UX: Apple-style, smooth, minimal colours, rich and attractive. Data-dense where it earns its place.
+- Phone first: check 360px and 390px wide. No sideways scroll on any tab.
+
+## Working rules
+
+- If a decision is Tanish's to make, pick the best option, state what you picked, and add your own improvements on top. Exceptions that still need his word: deploy, migration, key rotation, a new module file, a new workflow, deleting data.
+- A single prompt should be enough. Do not ask him to re-explain a module or his UI/UX taste.
+- Before saying a change is done, run `check.bat` and show the result. For login, sale, Girvi, Day Book, purchase, offline billing, invoice numbers, session restore or failed saves, also run `npm run test:e2e`. Say what you could not verify.
+- Format replies as bullets: direct, no filler, no emotion. Messages written for jewellers or the public are the exception: formal, polished, warm and persuasive.
+
 ## Before touching anything
 
 1. **Read `HANDOFF.md`'s NOW and WAITING ON TANISH sections and the newest 3 LOG entries.**
@@ -30,7 +42,7 @@ Full previous version (all history): `docs/CLAUDE-MD-FULL-2026-11-05.md`.
 
 ## The codebase
 
-PWA: `index.html` plus numbered `js/00`–`js/12` modules, loaded in order, ~18,000 lines.
+PWA: `index.html` plus numbered `js/00`–`js/12` modules, loaded in order, ~24,000 lines.
 The module-by-module map loads automatically when you open `js/` files
 (`.claude/rules/modules.md`). Grep before assuming placement. **Do not create a new module
 file** without Tanish's explicit sign-off.
@@ -39,6 +51,25 @@ Backend: Supabase project `uluzuwomwqsqxtejgzmf`, all access through Edge Functi
 (`store-proxy`, `auth-gateway`, `razorpay-webhook`). No direct PostgREST calls. Each shop is
 stored as **one JSON blob** — that single fact is why per-module permissions and stock
 reservation cannot be fixed incrementally. Live host: Cloudflare worker.
+
+## Map
+
+Modules load in order. Grep before assuming placement.
+
+- `js/00-config-state.js`: config, global state `S`, `UI`. Trap: shop state keys go through `shopScopedKey()`.
+- `js/01-sync-core.js`: cloud load and save, profit maths (`calcMonthProfit`, `shopHasNoCosts`). Trap: the save is a compare-and-swap on `_v`; a failed save must not lose the bill.
+- `js/02-ui-inactivity-modals.js`: modals, rates, `calcSaleTotals`, `buildInvoiceHTML`, sale-item creation. Trap: a sale item copies `costRate` and `costSnap` at sale time; never read cost live for an old sale.
+- `js/03-billing-numbers.js`: bill preview, `canChangeBill`, `fitInvoiceFrame`. Trap: the invoice is a fixed 720px page scaled to the frame; the `#inv-frame` CSS in `index.html` must stay outside the hover-only media block, or phones never get it.
+- `js/04-orders-detail.js`: orders. Order "Est. profit" is quote-based; leave it.
+- `js/05-auth-login.js`: login, role helpers (`isOwner`, `canSeeProfit`, `guardWrite`), tab gating.
+- `js/06-inventory-stock.js`: Stock and products.
+- `js/07-settings-plans.js`: Settings, Reports, analytics.
+- `js/08-girvi-viewmode.js`: Girvi. Trap: do not rewrite the interest engine.
+- `js/09-purchases.js`: purchases. Owner only.
+- `js/10-daybook.js`: Day Book. Trap: staff and manager see girvi, karigar and purchase lines folded into "Other cash movements".
+- `js/11-karigar.js`, `js/12-karigar-data.js`: Karigar ledger. Trap: karigar names are owner-only.
+- `supabase/functions/store-proxy`: server role check (`role-check.ts`), still in `ROLE_CHECK_MODE=log`. Client role gates alone are bypassable.
+- `checks/`: AST scripts. Trap: running `scope.js` rewrites `checks/globals.json`; reset it with `git checkout -- checks/globals.json`, do not commit the noise.
 
 ## Rules
 
