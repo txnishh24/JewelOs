@@ -157,7 +157,41 @@ const changedKeys = (a: any, b: any): string[] => {
   return Object.keys(keys).filter((k) => !deepEq(a[k], b[k]));
 };
 
-function checkNewSale(role: string, s: any, caps: any, closed: Record<string, boolean>): Violation | null {
+// R36: costs. Only the owner sets a cost (canSeeProfit = isOwner on the client). A non-owner save keeps every
+// stored cost, and a sale item may only carry a cost the shop already holds for that product.
+export const COST_SLACK = 0.005;
+const costOf = (x: any): number => num(x && x.costRate);
+const sameCost = (a: number, b: number) => Math.abs(a - b) <= COST_SLACK;
+// A sale item's cost must be 0 (none), the product's own cost, or (a bill edit) the cost that item already had.
+// R36 audit: the cost must be a real number (the app reads text with `> 0`), the line must be the product it names
+// (metal), and it may also carry a cost an earlier bill of that product already holds: an offline bill made before the
+// owner changed or deleted the product (replayOfflineSales) keeps the cost it captured.
+type CostCtx = { prods: Record<string, any>; hist: Record<string, { c: number; m: string }[]> };
+const isNum = (v: any) => typeof v === "number" && isFinite(v);
+const metalOf = (v: any): string => (v == null ? "" : String(v));
+// Known limit: a one-of-a-kind piece sold offline, then re-costed or deleted by the owner before the phone syncs, has no
+// earlier bill to match: the replay is refused and the phone sets the bill aside (same edge as the closed-day one above).
+function badItemCost(items: any[], ctx: CostCtx, before?: any[]): boolean {
+  const had: Record<string, number> = Object.create(null);
+  const hadRaw: Record<string, any> = Object.create(null);
+  for (const b of arr(before)) if (b && b.pid != null) { had[String(b.pid)] = costOf(b); hadRaw[String(b.pid)] = b.costRate; }
+  for (const i of arr(items)) {
+    if (!i || typeof i !== "object") continue;
+    const k = i.pid == null ? "" : String(i.pid);
+    if (i.costRate != null && !isNum(i.costRate) && !(k && hadRaw[k] !== undefined && deepEq(hadRaw[k], i.costRate))) return true;
+    const c = costOf(i);
+    if (!(c > 0)) continue;
+    const p = k ? ctx.prods[k] : null;
+    if (p && metalOf(i.metal) !== metalOf(p.metal)) return true;   // the client always copies metal from the product
+    if (p && sameCost(c, costOf(p))) continue;
+    if (k && had[k] !== undefined && sameCost(c, had[k])) continue;
+    if (k && (ctx.hist[k] || []).some((h) => sameCost(c, h.c) && h.m === metalOf(i.metal))) continue;
+    return true;
+  }
+  return false;
+}
+
+function checkNewSale(role: string, s: any, caps: any, closed: Record<string, boolean>, ctx: CostCtx): Violation | null {
   const inv = s.invNo || s.id;
   if (badMoneyType(s)) return bad("bad_amount", "Bill " + inv + " has an amount that is not a number, so it cannot be saved.");
   if (negativeAmount(s)) return bad("negative_amount", "Bill " + inv + " has a negative amount, so it cannot be saved.");
@@ -166,10 +200,11 @@ function checkNewSale(role: string, s: any, caps: any, closed: Record<string, bo
   const pct = pctOf(s);
   if (pct > cap + DISC_PCT_SLACK) return bad("discount_over_cap", "Bill " + inv + ": discount is " + pct.toFixed(2) + "% and your limit is " + cap + "%. Ask the owner.");
   if (totalTooLow(s, cap)) return bad("total_below_items", "Bill " + inv + ": the total is far below the value of its items, so it cannot be saved. Ask the owner.");
+  if (badItemCost(s.items, ctx)) return bad("owner_only", "Bill " + inv + ": item costs are set by the owner only, so it cannot be saved.");
   return null;
 }
 
-function checkChangedSale(role: string, before: any, afterRaw: any, caps: any, closed: Record<string, boolean>): Violation | null {
+function checkChangedSale(role: string, before: any, afterRaw: any, caps: any, closed: Record<string, boolean>, ctx: CostCtx): Violation | null {
   if (deepEq(before, afterRaw)) return null;   // most bills in a save are untouched: skip the copy below
   const after = withoutMigration(before, afterRaw, role);
   const keys = changedKeys(before, after);
@@ -227,6 +262,7 @@ function checkChangedSale(role: string, before: any, afterRaw: any, caps: any, c
       return bad("discount_over_cap", "Bill " + inv + ": discount is " + pct.toFixed(2) + "% and your limit is " + caps.manager + "%. Ask the owner.");
     }
     if (totalTooLow(after, caps.manager) && !totalTooLow(before, caps.manager)) return bad("total_below_items", "Bill " + inv + ": the total is far below the value of its items, so it cannot be saved. Ask the owner.");
+    if (badItemCost(after.items, ctx, before.items)) return bad("owner_only", "Bill " + inv + ": item costs are set by the owner only, so it cannot be saved.");
     return null;
   }
   return bad("edit_needs_reason", "Bill " + inv + " was changed without going through Edit Bill with a reason.");
@@ -243,6 +279,90 @@ function checkVoid(sale: any, cur: any, next: any, closed: Record<string, boolea
   const ok = arr(next.auditLog).some((e: any) => e && !had[e.id] && e.entity === "sale" && String(e.entityId) === String(sale.id) &&
     /\| reason: \S/.test(String(e.note || "")));
   if (!ok) return bad("reason_required", "Voiding bill " + inv + " needs a reason.");
+  return null;
+}
+
+// R36: Day Book entries. Mirrors dbAddEntry / dbVoidEntry (js/10): staff add and void nothing by hand; a manager adds
+// a manual entry on an open day and voids one with a reason; the system "adjust" entry (a sweep after a close) is
+// added by a manager when the Day Book opens (a staff device's sweep is refused here and at staff_close). Nothing is ever removed or edited in place.
+const VOID_KEYS = ["voided", "voidReason", "voidTs", "voidBy"];
+function checkEntries(role: string, cur: any, next: any, closed: Record<string, boolean>): Violation | null {
+  const ce = arr(cur.dayBook && cur.dayBook.entries), ne = arr(next.dayBook && next.dayBook.entries);
+  if (idless(ne) > idless(ce) || dupes(ne) > dupes(ce)) return bad("bad_ids", "A Day Book entry without its own id, or two with the same id, cannot be saved.");
+  const cm = idMap(ce), nm = idMap(ne);
+  for (const id of Object.keys(cm)) {
+    const b = cm[id], a = nm[id];
+    if (!a) return bad("entry_removed", "A Day Book entry cannot be removed. Void it with a reason instead.");
+    if (deepEq(b, a)) continue;
+    if (role !== "manager") return bad("staff_daybook", "Staff cannot change a Day Book entry. Ask the owner or a manager.");
+    const keys = changedKeys(b, a);
+    if (keys.some((k) => VOID_KEYS.indexOf(k) === -1) || b.voided || !a.voided) return bad("daybook_edit", "A Day Book entry can only be voided, with a reason. It cannot be edited.");
+    if (b.kind === "adjust") return bad("daybook_edit", "A correction entry cannot be voided.");
+    if (closed[dayKey(b.date)]) return bad("closed_day", "That Day Book entry is on a closed day. Only the owner can void it.");
+    if (!String(a.voidReason || "").trim()) return bad("reason_required", "Voiding a Day Book entry needs a reason.");
+  }
+  for (const id of Object.keys(nm)) {
+    if (cm[id]) continue;
+    const e = nm[id];
+    if (typeof e.amount !== "number" || !isFinite(e.amount) || !(e.amount > 0)) return bad("negative_amount", "A Day Book entry must be more than zero.");
+    if (e.dir !== "in" && e.dir !== "out") return bad("bad_amount", "A Day Book entry must be cash in or cash out.");
+    if (e.voided) return bad("daybook_edit", "A new Day Book entry cannot start voided.");
+    if (closed[dayKey(e.date)]) return bad("closed_day", "That day is closed. A Day Book entry cannot be added to it. Ask the owner.");
+    if (role !== "manager") return bad("staff_daybook", "Staff cannot add Day Book entries. Ask the owner or a manager.");
+    // R36 audit: a correction entry is only real when the same save records it on its close (dbPostAdjustment pushes both)
+    // and the figures must match the sweep (js/10 dbPostAdjustment): a close already stored, a NEW restatement row whose
+    // prev figures are that close's, and an entry equal to the change. Still open: a manager can rewrite a close's own
+    // figures (design doc gap), which this cannot see.
+    if (e.kind === "adjust") {
+      const sameDay = (c: any) => c && String(c.date) === String(e.srcDate);
+      const cc = arr(cur.dayBook && cur.dayBook.closes).find(sameDay), nc = arr(next.dayBook && next.dayBook.closes).find(sameDay);
+      const r = nc && arr(nc.restatements).find((x: any) => x && x.entryId === e.id);
+      const near = (a: any, b: any) => Math.abs(num(a) - num(b)) <= 0.01;
+      const delta = r ? (num(r.newIn) - num(r.prevIn)) - (num(r.newOut) - num(r.prevOut)) : 0;
+      const ok = cc && r && !arr(cc.restatements).some((x: any) => x && x.entryId === e.id) && near(r.prevIn, cc.autoIn) && near(r.prevOut, cc.autoOut) &&
+        near(e.amount, Math.abs(delta)) && e.dir === (delta >= 0 ? "in" : "out");
+      if (!ok) return bad("daybook_edit", "A correction entry must match the correction recorded on its closed day.");
+    }
+  }
+  return null;
+}
+
+// R36: products. Only the owner deletes a product or sets a cost. A returned piece (RET-) and any new product may carry
+// a cost the shop already holds on a product or a sale item, so a refund keeps its cost; nothing else is accepted.
+// R36 audit: a new product may carry a cost only as a returned piece (js/01 ~2733): it names the bill and item it came
+// from, that item holds this cost (or its product does), and the same save marks the item returned.
+function returnedPieceOk(n: any, cur: any, next: any, seen: Record<string, boolean>): boolean {
+  const sale = arr(cur.sales).find((s: any) => s && n.fromSaleId != null && String(s.id) === String(n.fromSaleId));
+  if (!sale) return false;
+  const idx = n.fromSaleItemIndex, item = arr(sale.items)[idx];
+  if (!item || typeof idx !== "number") return false;
+  // R36 audit: newly returned in THIS save (not already returned), one product per returned item, same metal as the item
+  if (arr(sale.returnedItemIdx).indexOf(idx) !== -1) return false;
+  const key = String(sale.id) + "#" + idx;
+  if (seen[key]) return false;
+  seen[key] = true;
+  if (metalOf(n.metal) !== metalOf(item.metal || "gold")) return false;
+  let allowed = costOf(item);
+  if (!(allowed > 0) && item.pid != null) allowed = costOf(arr(cur.products).find((p: any) => p && String(p.id) === String(item.pid)));
+  if (!(allowed > 0) || !sameCost(allowed, costOf(n))) return false;
+  const ns = arr(next.sales).find((s: any) => s && String(s.id) === String(sale.id));
+  return !!ns && arr(ns.returnedItemIdx).indexOf(idx) !== -1 && arr(ns.refunds).length > arr(sale.refunds).length;
+}
+function checkProducts(cur: any, next: any): Violation | null {
+  const cl = arr(cur.products), nl = arr(next.products);
+  if (idless(nl) > idless(cl) || dupes(nl) > dupes(cl)) return bad("bad_ids", "A product without its own id, or two products with the same id, cannot be saved.");
+  const cp = idMap(cl), np = idMap(nl);
+  for (const id of Object.keys(cp)) if (!np[id]) return bad("owner_only", "Only the owner can delete products.");
+  const seenReturn: Record<string, boolean> = Object.create(null);
+  for (const id of Object.keys(np)) {
+    const n = np[id];
+    // R36 audit: only the owner's restock (js/09) changes a product's metal; relabelling one would unlock another metal's cost
+    if (cp[id] && metalOf(cp[id].metal) !== metalOf(n.metal)) return bad("owner_only", "Only the owner can change a product's metal.");
+    if (cp[id] && deepEq(cp[id].costRate, n.costRate)) continue;
+    if (n.costRate != null && !isNum(n.costRate)) return bad("bad_amount", "A product cost must be a number, so this save was refused.");
+    if (cp[id]) { if (!sameCost(costOf(cp[id]), costOf(n))) return bad("owner_only", "Only the owner can change product costs."); }
+    else if (costOf(n) > 0 && !returnedPieceOk(n, cur, next, seenReturn)) return bad("owner_only", "Only the owner can set product costs.");
+  }
   return null;
 }
 
@@ -265,9 +385,17 @@ function checkRoleWriteInner(role: string, cur: any, next: any): Violation | nul
   // rates
   const cr = cur.rates || {}, nr = next.rates || {};
   if (!deepEq(cr.discCaps, nr.discCaps)) return bad("owner_only", "Only the owner can change the discount limits.");
-  if (!isManager) {
-    // every rate that existed must be unchanged; a key the client newly adds on load is tolerated
-    for (const k of Object.keys(cr)) if (!deepEq(cr[k], nr[k])) return bad("staff_rates", "Staff cannot change rates. Ask the owner or a manager.");
+  // R36: rates are owner-only for the manager too (js/02 saveRates). No rate may change or be added, except the
+  // load-time fill of an unset g22/g24/g18/sil from its old name (js/04 ~842, same truthiness test as the client).
+  const LEGACY_RATES: Record<string, string> = { g22: "gold22", g24: "gold24", g18: "gold18", sil: "silver" };
+  const rateKeys: Record<string, boolean> = Object.create(null);
+  for (const k of Object.keys(cr)) rateKeys[k] = true;
+  for (const k of Object.keys(nr)) rateKeys[k] = true;
+  for (const k of Object.keys(rateKeys)) {
+    if (deepEq(cr[k], nr[k])) continue;
+    const lg = LEGACY_RATES[k];
+    if (lg && !cr[k] && cr[lg] && nr[k] === cr[lg]) continue;
+    return isManager ? bad("rates_owner_only", "Only the owner can change rates.") : bad("staff_rates", "Staff cannot change rates. Ask the owner or a manager.");
   }
 
   // Day Book close / reopen
@@ -281,12 +409,22 @@ function checkRoleWriteInner(role: string, cur: any, next: any): Violation | nul
     for (const c of arr(cd.closes)) if (c && c.date && !have[String(c.date)]) return bad("owner_only", "Only the owner can reopen a closed day.");
   }
 
+  const eV = checkEntries(role, cur, next, closedDays(cur));
+  if (eV) return eV;
+  const pV = checkProducts(cur, next);
+  if (pV) return pV;
+
   // invoice numbers never go back
   for (const v of arr(cur.voidedInvNos)) if (arr(next.voidedInvNos).indexOf(v) === -1) return bad("owner_only", "A cancelled invoice number cannot be released.");
   if (num(next.nextInvNo) < num(cur.nextInvNo)) return bad("owner_only", "The invoice number counter cannot be lowered.");
 
   // sales
   const caps = discCaps(cur), closed = closedDays(cur);
+  const prods = idMap(arr(cur.products));
+  for (const p of arr(next.products)) if (p && p.id != null && !prods[String(p.id)]) prods[String(p.id)] = p;   // a product added in this same save
+  const hist: Record<string, { c: number; m: string }[]> = Object.create(null);
+  for (const s of arr(cur.sales)) for (const i of arr(s && s.items)) if (i && i.pid != null && costOf(i) > 0) (hist[String(i.pid)] = hist[String(i.pid)] || []).push({ c: costOf(i), m: metalOf(i.metal) });
+  const ctx: CostCtx = { prods, hist };
   if (!Array.isArray(next.sales) && next.sales != null) return bad("malformed", "The bills list is damaged, so this save was refused.");
   if (idless(arr(next.sales)) > idless(arr(cur.sales)) || dupes(arr(next.sales)) > dupes(arr(cur.sales))) return bad("bad_ids", "A bill without its own id, or two bills with the same id, cannot be saved.");
   const cs = idMap(arr(cur.sales)), ns = idMap(arr(next.sales));
@@ -299,14 +437,14 @@ function checkRoleWriteInner(role: string, cur: any, next: any): Violation | nul
       const v = checkVoid(cs[id], cur, next, closed);
       if (v) return v;
     } else {
-      const v = checkChangedSale(role, cs[id], ns[id], caps, closed);
+      const v = checkChangedSale(role, cs[id], ns[id], caps, closed, ctx);
       if (v) return v;
     }
   }
   for (const id of Object.keys(ns)) {
     if (cs[id]) continue;
     if (ns[id].invNo && usedNos[String(ns[id].invNo)]) return bad("invoice_reused", "Invoice number " + ns[id].invNo + " was already used, so this bill cannot be saved.");
-    const v = checkNewSale(role, ns[id], caps, closed);
+    const v = checkNewSale(role, ns[id], caps, closed, ctx);
     if (v) return v;
   }
   return null;

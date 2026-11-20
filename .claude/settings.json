@@ -9,8 +9,39 @@
       "Edit(**/credentials*)",
       "Bash(sudo*)",
       "Bash(chmod 777*)",
-      "Bash(ssh*)"
+      "Bash(ssh*)",
+      "Bash(rm -rf*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Read(**/.env.test)",
+      "Bash(cat *.env*)",
+      "Bash(type *.env*)",
+      "Bash(*dangerously-skip-permissions*)"
+    ],
+    "ask": [
+      "Bash(npx wrangler deploy*)",
+      "Bash(npx wrangler rollback*)",
+      "Bash(supabase db push*)",
+      "Bash(supabase migration*)",
+      "Bash(supabase db reset*)",
+      "mcp__plugin_supabase_supabase__apply_migration",
+      "Bash(git push*)",
+      "Bash(git merge*)"
+    ],
+    "allow": [
+      "Bash(node --check *)",
+      "Bash(node tests/*)",
+      "Bash(node checks/*)",
+      "Bash(npm run test:e2e*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)"
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "node .claude/statusline.js"
   },
   "hooks": {
     "PreToolUse": [
@@ -65,6 +96,9 @@
     "claude-code-setup@anthropic-plugin-directory": true,
     "supabase@anthropic-plugin-directory": true,
     "chrome-devtools-mcp@claude-plugins-official": true,
-    "agent-sdk-dev@anthropic-plugin-directory": true
+    "agent-sdk-dev@anthropic-plugin-directory": true,
+    "ponytail@ponytail": true,
+    "andrej-karpathy-skills@karpathy-skills": true,
+    "taste-skill@taste-skill": true
   }
 }

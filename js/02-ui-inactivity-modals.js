@@ -660,7 +660,7 @@ function addProduct(){
     sku:sku,
     weight:wt,
     netWeight:netwt,
-    costRate: parseFloat((document.getElementById('f-costrate')||{value:0}).value)||0,
+    costRate: canSeeProfit() ? (parseFloat((document.getElementById('f-costrate')||{value:0}).value)||0) : 0,   // R36: owner only, the server refuses a non-owner cost
     mcRate:   parseFloat((document.getElementById('f-mcrate')||{value:0}).value)||0,
     stoneWt: stoneWt, wastagePct: wastagePct,
     hallmarkCentre: ((document.getElementById('f-hallmark')||{value:''}).value||'').trim(),

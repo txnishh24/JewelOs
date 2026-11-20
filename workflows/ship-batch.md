@@ -45,7 +45,7 @@ Wrangler prints a Version ID; the verifier reports all files identical; HANDOFF 
 - Partial upload suspected: re-run the verifier; it compares every file.
 
 ## Learned
-(empty)
+- 20 Nov 2026 (R35): `checks/scope.js` rewrote tracked `checks/globals.json` on every run and dirtied main. It now writes the gitignored `.tmp/globals.json`; `handlers.js` reads it and says to run `scope.js` first if missing.
 
 ## Stop conditions needing Tanish's word
 Deploy, rollback, `ROLE_CHECK_MODE` change, any migration, pushing to GitHub, deleting tags or branches.
