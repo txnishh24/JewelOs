@@ -330,7 +330,9 @@ for (const [n, ws] of ig) console.log('  ' + n + '  ' + ws.slice(0, 5).map(w => 
 
 console.log('\n(parsed ' + parsed.length + ' files, ' + references.length + ' identifier references, ' + globalScope.vars.size + ' globals)');
 
-fs.writeFileSync(path.join(__dirname, 'globals.json'), JSON.stringify({
+// Cache goes to the gitignored <repo>/.tmp/, so a normal run leaves the tree clean (R35).
+fs.mkdirSync(path.join(ROOT, '.tmp'), { recursive: true });
+fs.writeFileSync(path.join(ROOT, '.tmp', 'globals.json'), JSON.stringify({
   globals: [...globalScope.vars.keys()],
   allDeclared: [...declSites.keys()],
   implicit: [...implicitNames]

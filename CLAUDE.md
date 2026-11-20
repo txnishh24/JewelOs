@@ -69,7 +69,7 @@ Modules load in order. Grep before assuming placement.
 - `js/10-daybook.js`: Day Book. Trap: staff and manager see girvi, karigar and purchase lines folded into "Other cash movements".
 - `js/11-karigar.js`, `js/12-karigar-data.js`: Karigar ledger. Trap: karigar names are owner-only.
 - `supabase/functions/store-proxy`: server role check (`role-check.ts`), still in `ROLE_CHECK_MODE=log`. Client role gates alone are bypassable.
-- `checks/`: AST scripts. Trap: running `scope.js` rewrites `checks/globals.json`; reset it with `git checkout -- checks/globals.json`, do not commit the noise.
+- `checks/`: AST scripts. `scope.js` writes its cache to gitignored `.tmp/globals.json`, so a run leaves the tree clean.
 
 ## Rules
 
