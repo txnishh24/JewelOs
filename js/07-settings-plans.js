@@ -1271,7 +1271,7 @@ function openGirviDetail(gid){
   // girviEventDate (08-girvi-viewmode.js) gives a payment its real date, not
   // the moment it was typed in; runs at render time, after 08 has loaded.
   (g.ledger||[]).forEach(function(l){ if(girviLedgerIsPayment(l)) return; allEvents.push({ts:girviEventDate(g,l),type:l.type,note:l.note,user:l.user||''}); });
-  (g.payments||[]).forEach(function(p){ var dt=/^(penalty|refund|waiver)$/.test(p.type); allEvents.push({ts:p.date||p.ts,type:dt?p.type:'payment',note:girviPayLabel(p)+' ₹'+Math.round(p.amount).toLocaleString('en-IN')+(dt?'':' via '+(p.mode||'Cash')),user:p.user||''}); });
+  (g.payments||[]).forEach(function(p){ var dt=/^(penalty|refund|topup|waiver)$/.test(p.type); allEvents.push({ts:p.date||p.ts,type:dt?p.type:'payment',note:girviPayLabel(p)+' ₹'+Math.round(p.amount).toLocaleString('en-IN')+(dt?'':' via '+(p.mode||'Cash')),user:p.user||''}); });
   (g.notesList||[]).forEach(function(n){ allEvents.push({ts:n.ts,type:'note',note:'Note: '+n.text,user:n.user||''}); });
   (g.amountAdjLog||[]).forEach(function(a){ allEvents.push({ts:a.ts,type:'adjustment',note:'Amount adjusted to ₹'+Math.round(a.newAmount).toLocaleString('en-IN')+' ('+a.reason+')',user:a.user||''}); });
   allEvents.sort(function(a,b){ return new Date(b.ts)-new Date(a.ts); });
@@ -1295,7 +1295,7 @@ function openGirviDetail(gid){
   }).reverse();
   var payRows = payRowsData.map(function(row){
     var p=row.p;
-    var isAdj = p.type==='penalty'||p.type==='refund';
+    var isAdj = p.type==='penalty'||p.type==='refund'||p.type==='topup';
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);font-size:12px;">'+
       '<div>'+
         '<div style="font-weight:700;font-size:13px;">\u20b9'+Math.round(p.amount).toLocaleString('en-IN')+' <span style="font-weight:400;color:var(--text3);font-size:11px;">'+escHtml(p.mode||(isAdj?p.type:'Cash'))+'</span></div>'+

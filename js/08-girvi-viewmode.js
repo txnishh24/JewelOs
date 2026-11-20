@@ -330,11 +330,12 @@ var _v20_renderGirvi_installed = false;
       if(status==='closed'){
         actionsHtml='<div style="text-align:center;font-size:11px;color:var(--text3);padding:8px;border-top:0.5px solid var(--border);">\ud83d\udd12 Released '+(g.closedAt?fmtDate(g.closedAt):'')+'</div>';
       } else {
-        actionsHtml='<div class="girvi-card-actions gca-6" onclick="event.stopPropagation();">'+
+        actionsHtml='<div class="girvi-card-actions gca-7" onclick="event.stopPropagation();">'+
           '<button class="gca call-btn" onclick="callCustomer(\''+jsAttrEsc(g.phone)+'\')"><span class="gca-icon">\ud83d\udcde</span>Call</button>'+
           '<button class="gca wa-btn" onclick="girviWhatsApp(\''+jsAttrEsc(g.id)+'\')"><span class="gca-icon">\ud83d\udcac</span>WA</button>'+
           '<button class="gca pay-btn" onclick="openGirviPayment(\''+jsAttrEsc(g.id)+'\')"><span class="gca-icon">\u20b9</span>Pay</button>'+
           '<button class="gca edit-btn" onclick="openGirviEditModal(\''+jsAttrEsc(g.id)+'\')"><span class="gca-icon">\u270f\ufe0f</span>Edit</button>'+
+          '<button class="gca pay-btn" onclick="openGirviTopup(\''+jsAttrEsc(g.id)+'\')"><span class="gca-icon">➕</span>Top-up</button>'+
           '<button class="gca ledger-btn" onclick="openGirviLedger(\''+jsAttrEsc(g.id)+'\')"><span class="gca-icon">\ud83d\udcd2</span>Ledger</button>'+
           '<button class="gca archive-btn" onclick="deleteGirviEntry(\''+jsAttrEsc(g.id)+'\')"><span class="gca-icon">\ud83d\udce6</span>Archive</button>'+
         '</div>';
@@ -709,6 +710,11 @@ function closeGirviLedgerModal(){
   _glGirviId=null;
 }
 
+// Card "Top-up" button: opens the entry form already on the Top-up type.
+function openGirviTopup(gid){
+  openGirviLedger(gid);
+  glSetType('topup', document.getElementById('gl-type-topup'));
+}
 function glSetType(type,btn){
   _glEntryType=type;
   document.querySelectorAll('.gl-type-btn').forEach(function(b){b.classList.remove('active');});
@@ -731,6 +737,8 @@ function glUpdateBalance(){
       :'<span style="color:var(--text3);">Balance after: <strong style="color:var(--ink);">\u20b9'+Math.round(remaining).toLocaleString('en-IN')+'</strong></span>';
   } else if(_glEntryType==='waiver'){
     el.innerHTML='<span style="color:var(--warning);">\ud83c\udff7 Waiver of \u20b9'+Math.round(amt).toLocaleString('en-IN')+' will reduce outstanding.</span>';
+  } else if(_glEntryType==='topup'){
+    el.innerHTML='<span style="color:var(--text3);">Loan now <strong style="color:var(--ink);">\u20b9'+Math.round(outstanding).toLocaleString('en-IN')+'</strong> then <strong style="color:var(--ink);">\u20b9'+Math.round(outstanding+amt).toLocaleString('en-IN')+'</strong> after top-up. Cash goes out of the shop; interest runs on the larger amount from the date below.</span>';
   } else if(_glEntryType==='penalty'){
     el.innerHTML='<span style="color:var(--danger);">\u26a0 Penalty of \u20b9'+Math.round(amt).toLocaleString('en-IN')+' will be added.</span>';
   } else {
@@ -776,8 +784,8 @@ function girviEventDate(g, e){
 // QA 1 Oct P1-10: every money entry is written to g.payments AND as a "\u20b9..." note
 // in g.ledger, so history views listed each payment twice. Views show the
 // payments row (it has the amount) and skip the matching ledger note.
-function girviLedgerIsPayment(l){ return /^(payment|interest|waiver|penalty|refund)$/.test(l.type) && /^\u20b9/.test(l.note||''); }
-var GIRVI_PAY_LABEL={general:'Payment',payment:'Payment',partial:'Partial repayment',full:'Full redemption',interest:'Interest',waiver:'Waiver',penalty:'Penalty charged',refund:'Refund'};
+function girviLedgerIsPayment(l){ return /^(payment|interest|waiver|penalty|refund|topup)$/.test(l.type) && /^\u20b9/.test(l.note||''); }
+var GIRVI_PAY_LABEL={general:'Payment',payment:'Payment',partial:'Partial repayment',full:'Full redemption',interest:'Interest',waiver:'Waiver',penalty:'Penalty charged',refund:'Refund',topup:'Top-up (more money given)'};
 function girviPayLabel(p){ return GIRVI_PAY_LABEL[p.type]||'Payment'; }
 // A bare YYYY-MM-DD has no time of day. Printing one would invent a time.
 function girviIsDateOnly(v){ return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v); }
@@ -787,11 +795,11 @@ function glRenderEntries(g){
   if(!el) return;
   var entries=[];
   (g.ledger||[]).forEach(function(l){if(girviLedgerIsPayment(l))return;entries.push({ts:girviEventDate(g,l),type:l.type,note:l.note,amount:l.amount||null,mode:null,user:l.user||''});});
-  (g.payments||[]).forEach(function(p){var dt=/^(penalty|refund|waiver)$/.test(p.type);entries.push({ts:p.date||p.ts,type:dt?p.type:'payment_entry',note:girviPayLabel(p),amount:parseFloat(p.amount)||0,mode:p.type==='waiver'?null:p.mode,ref:p.ref||''});});
+  (g.payments||[]).forEach(function(p){var dt=/^(penalty|refund|topup|waiver)$/.test(p.type);entries.push({ts:p.date||p.ts,type:dt?p.type:'payment_entry',note:girviPayLabel(p),amount:parseFloat(p.amount)||0,mode:p.type==='waiver'?null:p.mode,ref:p.ref||''});});
   entries.sort(function(a,b){return new Date(b.ts)-new Date(a.ts);});
 
-  var ICONS={payment:'\ud83d\udcb8',payment_entry:'\ud83d\udcb8',interest:'\ud83d\udcc8',waiver:'\ud83c\udff7',penalty:'\u26a0',refund:'\u21a9',created:'\ud83d\udfe2',closed:'\ud83d\udd12',renewal:'\ud83d\udd04',edit:'\u270f\ufe0f',defaulted:'\ud83d\udd34',whatsapp:'\ud83d\udcac'};
-  var DEBIT_TYPES={penalty:1,refund:1};
+  var ICONS={payment:'\ud83d\udcb8',payment_entry:'\ud83d\udcb8',interest:'\ud83d\udcc8',waiver:'\ud83c\udff7',penalty:'\u26a0',refund:'\u21a9',topup:'\u2795',created:'\ud83d\udfe2',closed:'\ud83d\udd12',renewal:'\ud83d\udd04',edit:'\u270f\ufe0f',defaulted:'\ud83d\udd34',whatsapp:'\ud83d\udcac'};
+  var DEBIT_TYPES={penalty:1,refund:1,topup:1};
 
   el.innerHTML=entries.length?entries.map(function(e){
     var icon=ICONS[e.type]||'\ud83d\udccb';
@@ -822,10 +830,11 @@ function submitLedgerEntry(){
   var note=((document.getElementById('gl-note')||{}).value||'').trim();
   var type=_glEntryType;
   if(!amt||amt<=0){toast('\u26a0 Enter a valid amount');return;}
+  if(type==='topup' && g.status==='closed'){ toast('\u26a0 This loan is closed. A top-up needs an open loan.'); return; }
 
   var currentUser=(typeof SAAS!=='undefined'&&SAAS.user)?(SAAS.user.name||SAAS.user.email||'User'):'User';
   var ts=new Date().toISOString();
-  var labels={payment:'Payment received',interest:'Interest cleared',waiver:'Waiver applied',penalty:'Penalty charged',refund:'Refund issued'};
+  var labels={payment:'Payment received',interest:'Interest cleared',waiver:'Waiver applied',penalty:'Penalty charged',refund:'Refund issued',topup:'Top-up given'};
   var noteText='\u20b9'+Math.round(amt).toLocaleString('en-IN')+' '+( note||(labels[type]||type))+(mode&&type!=='waiver'?' via '+mode:'')+(ref?' ('+ref+')':'');
 
   var _snap = _girviSnapshot(g.id);
@@ -861,6 +870,12 @@ function submitLedgerEntry(){
     if(!g.penalties) g.penalties=[]; // kept for audit-trail granularity
     g.penalties.push({amount:amt,date:date,reason:note||'Late penalty',ts:ts});
     g.ledger.push({type:'penalty',note:noteText,ts:ts,user:currentUser});
+    g.status=girviComputeStatus(g);
+  } else if(type==='topup'){
+    // More money lent on the SAME pledged item. Adds to the principal from this date (girviLedgerState), cash goes OUT of the shop (Day Book).
+    var tuId=(typeof crypto.randomUUID==='function')?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2);
+    g.payments.push({id:tuId,amount:amt,mode:mode,date:date,ref:ref,ts:ts,type:'topup'});
+    g.ledger.push({type:'topup',note:noteText,ts:ts,user:currentUser,amount:amt});
     g.status=girviComputeStatus(g);
   } else if(type==='refund'){
     var refId=(typeof crypto.randomUUID==='function')?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2);
@@ -904,7 +919,7 @@ function openGirviTimeline(gid){
   document.getElementById('gt-modal-title').innerHTML='\ud83d\udccb Timeline \u2014 '+escHtml(g.customer);
   var events=[];
   (g.ledger||[]).forEach(function(l){if(girviLedgerIsPayment(l))return;events.push({ts:girviEventDate(g,l),type:l.type||'edit',title:l.note||l.type,sub:l.user||''});});
-  (g.payments||[]).forEach(function(p){events.push({ts:p.date||p.ts,type:/^(penalty|refund|waiver)$/.test(p.type)?p.type:'payment',title:girviPayLabel(p)+': \u20b9'+Math.round(parseFloat(p.amount)||0).toLocaleString('en-IN')+' via '+p.mode,sub:p.ref||''});});
+  (g.payments||[]).forEach(function(p){events.push({ts:p.date||p.ts,type:/^(penalty|refund|topup|waiver)$/.test(p.type)?p.type:'payment',title:girviPayLabel(p)+': \u20b9'+Math.round(parseFloat(p.amount)||0).toLocaleString('en-IN')+' via '+p.mode,sub:p.ref||''});});
   events.sort(function(a,b){return new Date(b.ts)-new Date(a.ts);});
   var ICONS={created:'\ud83d\udfe2',payment:'\ud83d\udcb8',edit:'\u270f\ufe0f',closed:'\ud83d\udd12',renewal:'\ud83d\udd04',defaulted:'\ud83d\udd34',whatsapp:'\ud83d\udcac',waiver:'\ud83c\udff7',penalty:'\u26a0'};
   var body=document.getElementById('gt-body');
@@ -1064,7 +1079,7 @@ function openGirviReceiptModal(gid, receiptType){
 
   // The most recent real payment (used for the customer-facing headline
   // when this receipt is being generated right after a payment)
-  var realPayments=ledger.payments.filter(function(p){return p.type!=='penalty'&&p.type!=='refund'&&p.type!=='waiver';}); // a waiver is forgiven, not received
+  var realPayments=ledger.payments.filter(function(p){return p.type!=='penalty'&&p.type!=='refund'&&p.type!=='topup'&&p.type!=='waiver';}); // a waiver is forgiven, not received
   var lastPay=realPayments.length?realPayments[realPayments.length-1]:null;
 
   // ── Customer-facing headline: no interest math, just three numbers ──
@@ -1177,7 +1192,7 @@ function _loadHtml2Canvas(cb){
 
 function _girviReceiptWaMessage(g, ledger){
   var shopName=(typeof SAAS!=='undefined'&&SAAS.shop&&SAAS.shop.name)||'hamari dukaan';
-  var realPayments=ledger.payments.filter(function(p){return p.type!=='penalty'&&p.type!=='refund'&&p.type!=='waiver';}); // a waiver is forgiven, not received
+  var realPayments=ledger.payments.filter(function(p){return p.type!=='penalty'&&p.type!=='refund'&&p.type!=='topup'&&p.type!=='waiver';}); // a waiver is forgiven, not received
   var lastPay=realPayments.length?realPayments[realPayments.length-1]:null;
   var outstanding=Math.round(ledger.outstanding).toLocaleString('en-IN');
   if(lastPay){

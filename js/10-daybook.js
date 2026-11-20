@@ -248,9 +248,10 @@ function dbAutoLines(dateKey){
       // Deny-list, not allow-list: the Pay dialog saves general/partial/full
       // too (QA 1 Oct P0-1), and every one of those is cash in.
       if(type === 'penalty' || type === 'waiver') return;
-      var gDir = (type === 'refund') ? 'out' : 'in';
-      var gCat = (type === 'refund') ? 'girvi-refund' : 'girvi-repayment';
-      var gLabel = 'Loan '+(g.grvNo||'')+(type==='refund' ? ' refund' : '');
+      var gOut = (type === 'refund' || type === 'topup');   // money given to the customer, not received
+      var gDir = gOut ? 'out' : 'in';
+      var gCat = type === 'topup' ? 'girvi-topup' : (type === 'refund' ? 'girvi-refund' : 'girvi-repayment');
+      var gLabel = 'Loan '+(g.grvNo||'')+(type==='refund' ? ' refund' : (type==='topup' ? ' top-up' : ''));
       if(!dbIsCash(p.mode)){
         lines.push({dir:gDir, nonCash:true, mode:p.mode||'', amount:dbRound(p.amount), cat:gCat, label:gLabel, src:'girvi', srcId:g.id, ref:p.id});
         return;

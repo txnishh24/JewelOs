@@ -2301,7 +2301,7 @@ function calcCashFlow(fromDate, toDate){
       var pd = new Date(p.date||p.ts);
       // Same rule as the Day Book (C2): penalty/waiver are not cash, refund is cash out.
       if(pd >= from && pd <= to && p.type !== 'penalty' && p.type !== 'waiver'){
-        girviIn += (p.type === 'refund' ? -1 : 1) * (parseFloat(p.amount)||0);
+        girviIn += ((p.type === 'refund' || p.type === 'topup') ? -1 : 1) * (parseFloat(p.amount)||0);
       }
     });
   });

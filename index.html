@@ -1604,6 +1604,7 @@ body.sub-banner-on main.main{padding-top:calc(var(--topbar-h,64px) + 34px);}
   border-top:0.5px solid var(--border);
 }
 .girvi-card-actions.gca-6{grid-template-columns:1fr 1fr 1fr;}
+.girvi-card-actions.gca-7{grid-template-columns:repeat(4,1fr);}
 .gca{
   display:flex;flex-direction:column;align-items:center;
   justify-content:center;padding:9px 4px;gap:2px;
@@ -3204,6 +3205,7 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
           <button class="gl-type-btn" onclick="glSetType('interest',this)"><span data-icon="trendUp"></span> Interest</button>
           <button class="gl-type-btn" onclick="glSetType('waiver',this)"><span data-icon="tag"></span> Waiver</button>
           <button class="gl-type-btn" onclick="glSetType('penalty',this)"><span data-icon="alert"></span> Penalty</button>
+          <button class="gl-type-btn" id="gl-type-topup" onclick="glSetType('topup',this)">+ Top-up</button>
           <button class="gl-type-btn" onclick="glSetType('refund',this)"><span data-icon="refresh"></span> Refund</button>
         </div>
         <div class="ge-row"><div class="ge-fg"><label>Amount (₹)</label><input id="gl-amount" type="number" placeholder="0" inputmode="numeric" oninput="glUpdateBalance()"/></div><div class="ge-fg"><label>Mode</label><select id="gl-mode"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option></select></div></div>

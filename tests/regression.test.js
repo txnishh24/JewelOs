@@ -54,6 +54,68 @@ console.log('\nJewelOS Regression Suite\n' + '='.repeat(50));
 
 // ── Bug: Girvi interest overcharge on partial payments ────────────────────
 console.log('\nGirvi ledger:');
+test('Girvi top-up: more money on the same pledge adds to principal from its date, is not a receipt, and is a Day Book cash OUT', function(){
+  var day = function(n){ return new Date(Date.now() - n*86400000).toISOString().slice(0,10); };
+  var g = { id:'g1', grvNo:'G1', customer:'A', principal:50000, interestRate:2, rateType:'monthly', compound:false, startDate:day(100),
+            payments:[{ id:'t1', amount:20000, type:'topup', mode:'Cash', date:day(50) }] };
+  var st = app.girviLedgerState(g);
+  var rate = 0.02/30, expect = 70000 + 50000*rate*100 + 20000*rate*50;
+  assert(Math.abs(st.outstanding - expect) < 5, 'outstanding ' + st.outstanding + ' expected about ' + Math.round(expect));
+  assert(app.girviTotalPaid(g) === 0, 'a top-up is money given, never counted as received');
+  var noTop = app.girviLedgerState({ principal:50000, interestRate:2, rateType:'monthly', compound:false, startDate:day(100), payments:[] });
+  assert(Math.abs(noTop.outstanding - (50000 + 50000*rate*100)) < 5, 'a loan without a top-up is unchanged');
+  var a = loadApp(); a.dbInit(); a.S.girvi = [g]; a.S.sales = []; a.S.orders = []; a.S.products = [];
+  var out = a.dbAutoLines(day(50)).filter(function(l){ return l.src === 'girvi' && l.ref === 't1'; })[0];
+  assert(out && out.dir === 'out' && out.amount === 20000 && out.cat === 'girvi-topup', 'Day Book must show the top-up as cash out: ' + JSON.stringify(out));
+});
+
+test('Girvi top-up then full repayment settles to zero, and Reports count the top-up as money out', function(){
+  var day = function(n){ return new Date(Date.now() - n*86400000).toISOString().slice(0,10); };
+  function loan(extra){ return { id:'g1', grvNo:'G1', principal:50000, interestRate:2, rateType:'monthly', compound:false, startDate:day(100),
+    payments:[{ id:'t1', amount:20000, type:'topup', mode:'Cash', date:day(50) }].concat(extra || []) }; }
+  var owed = app.girviLedgerState(loan()).outstanding;
+  var settled = app.girviLedgerState(loan([{ id:'p1', amount:owed, type:'full', mode:'Cash', date:day(0) }]));
+  assert(settled.outstanding <= 0.5, 'paying exactly what is owed after a top-up must clear the loan (submitLedgerEntry closes at <= 0.5), got ' + settled.outstanding);
+  assert(Math.abs(settled.totalPrincipalPaid - 70000) < 1, 'principal repaid must include the topped-up 20000, got ' + settled.totalPrincipalPaid);
+  var short = app.girviLedgerState(loan([{ id:'p1', amount:50000, type:'full', mode:'Cash', date:day(0) }]));
+  assert(short.outstanding > 0.5, 'repaying only the original 50000 must NOT close a topped-up loan, got ' + short.outstanding);
+  var a = loadApp();
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-1', startDate:'2026-08-01', principal:0,
+    payments:[ { id:'p1', amount:5000, mode:'Cash', type:'general', date:'2026-09-05' },
+               { id:'p2', amount:2000, mode:'Cash', type:'topup',   date:'2026-09-06' } ] }];
+  var cf = a.calcCashFlow(new Date('2026-09-01'), new Date('2026-09-30T23:59:59'));
+  assert(cf.girviIn === 3000, 'top-up must subtract from girviIn like a refund (5000 - 2000), got ' + cf.girviIn);
+});
+
+test('Girvi renewal of a topped-up loan defaults the new principal to the topped-up outstanding and keeps the top-up on the closed loan only', function(){
+  var a = loadApp();
+  var day = function(n){ return new Date(Date.now() - n*86400000).toISOString().slice(0,10); };
+  a.S.girvi = [{ id:'g1', grvNo:'GRV-0001', status:'active', principal:50000, interestRate:2, rateType:'monthly', compound:false, duration:3,
+    startDate:day(100), ledger:[], payments:[{ id:'t1', amount:20000, type:'topup', mode:'Cash', date:day(50) }] }];
+  var owed = Math.round(a.girviOutstanding(a.S.girvi[0]));
+  assert(owed > 70000, 'sanity: outstanding includes the top-up, got ' + owed);
+  a.getNextCounter = function(n, cb){ cb(null, 900); };
+  a.openGirviRenewalModal('g1');
+  var html = a.document.getElementById('grn-body').innerHTML;
+  assert(html.indexOf('id="grn-principal" type="number" value="' + owed + '"') !== -1, 'renewal modal must default New Principal to ' + owed + ' (top-up included)');
+  var _get = a.document.getElementById;
+  a.document.getElementById = function(id){
+    if(id === 'grn-principal') return { value:String(owed) };
+    if(id === 'grn-rate') return { value:'2' };
+    if(id === 'grn-duration') return { value:'3' };
+    if(id === 'grn-ratetype') return { value:'monthly' };
+    return _get(id);
+  };
+  a.saveToCloud = function(cb){ cb(null); };
+  a.renderGirvi = function(){}; a.renderDash = function(){};
+  a.confirmGirviRenewal();
+  var oldL = a.S.girvi[0], newL = a.S.girvi[1];
+  assert(oldL.status === 'closed' && oldL.payments.length === 1 && oldL.payments[0].type === 'topup', 'closed loan keeps its top-up record');
+  assert(newL.principal === owed && newL.payments.length === 0, 'new loan starts at the topped-up outstanding with no copied payments, got principal ' + newL.principal);
+  var tops = a.dbAutoLines(day(50)).filter(function(l){ return l.cat === 'girvi-topup'; });
+  assert(tops.length === 1, 'the top-up must reach the Day Book exactly once after renewal, got ' + tops.length);
+});
+
 test('partial payment reduces the principal that future interest accrues on', function(){
   var startDate = new Date(Date.now() - 365*86400000).toISOString().slice(0,10);
   var payDate = new Date(Date.now() - 180*86400000).toISOString().slice(0,10);

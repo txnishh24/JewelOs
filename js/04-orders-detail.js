@@ -1792,7 +1792,7 @@ function girviLedgerState(g, asOfDate){
     if(isNaN(payDate.getTime()) || payDate < cursor) payDate = cursor; // ignore malformed/backdated entries
     accrueTo(payDate);
     var amt = parseFloat(pay.amount) || 0;
-    if(pay.type === 'penalty' || pay.type === 'refund'){
+    if(pay.type === 'penalty' || pay.type === 'refund' || pay.type === 'topup'){  // topup: more money lent on the same pledge, adds to principal like a refund
       // These INCREASE what's owed, not reduce it — a manually-charged
       // penalty or an issued refund both add to the outstanding balance
       // going forward (and will themselves start accruing interest, same
@@ -1883,7 +1883,7 @@ function girviTotalPaid(g){
   // receipt), refund (money given back, the opposite direction) and waiver
   // (money forgiven, never received).
   return (g.payments||[]).reduce(function(s,x){
-    if(x.type==='penalty' || x.type==='refund' || x.type==='waiver') return s;
+    if(x.type==='penalty' || x.type==='refund' || x.type==='topup' || x.type==='waiver') return s;
     return s+(parseFloat(x.amount)||0);
   }, 0);
 }
