@@ -26,6 +26,8 @@ var DB_CATS = {
   bankWithdrawal:{dir:'in',  label:'Bank Withdrawal',   group:'transfer', icon:'🏧', color:'var(--text3)'},
   cashShort:     {dir:'out', label:'Cash Short',        group:'reconcile',icon:'⚠️', color:'var(--danger)'},
   cashExcess:    {dir:'in',  label:'Cash Excess',       group:'reconcile',icon:'✅',        color:'var(--success)'},
+  otherIn:       {dir:'in',  label:'Credit',            group:'manual',   icon:'➕', color:'var(--success)'},
+  otherOut:      {dir:'out', label:'Debit',             group:'manual',   icon:'➖', color:'var(--danger)'},
   adjust:        {dir:null,  label:'Adjustment',        group:'system',   icon:'🔄', color:'var(--text3)'}
 };
 
@@ -98,12 +100,13 @@ function dbRound(n){
 function dbInit(){
   if(typeof S === 'undefined' || !S) return;
   if(!S.dayBook || typeof S.dayBook !== 'object'){
-    S.dayBook = {opening:null, entries:[], closes:[]};
+    S.dayBook = {opening:null, entries:[], closes:[], accounts:[]};
     return;
   }
   if(!Array.isArray(S.dayBook.entries)) S.dayBook.entries = [];
   if(!Array.isArray(S.dayBook.closes))  S.dayBook.closes  = [];
   if(!Array.isArray(S.dayBook.reopens)) S.dayBook.reopens = [];
+  if(!Array.isArray(S.dayBook.accounts)) S.dayBook.accounts = [];
   if(S.dayBook.opening !== null && typeof S.dayBook.opening !== 'object') S.dayBook.opening = null;
 }
 
@@ -362,13 +365,18 @@ function dbAutoTotals(dateKey){
 }
 
 // ── MANUAL LINES ──────────────────────────────────────────────────────
+// An entry with an account (GPay, bank...) is real money but NOT cash: it is shown as a non-cash line
+// (same flag the UPI/Card sale lines use), so every cash total, close and summary leaves it out.
 function dbManualLines(dateKey){
-  return (S.dayBook.entries||[]).filter(function(e){ return !e.voided && e.date === dateKey; });
+  return (S.dayBook.entries||[]).filter(function(e){ return !e.voided && e.date === dateKey; }).map(function(e){
+    return e.acct ? Object.assign({}, e, {nonCash:true, mode:dbAccountName(e.acct)}) : e;
+  });
 }
 
 function dbManualTotals(dateKey){
   var totals = {in:0, out:0};
   dbManualLines(dateKey).forEach(function(e){
+    if(e.nonCash) return;
     if(e.dir === 'in')  totals.in  = dbRound(totals.in  + e.amount);
     if(e.dir === 'out') totals.out = dbRound(totals.out + e.amount);
   });
@@ -428,7 +436,7 @@ function dbMovementDatesInRange(loKey, hiKeyExclusive, loInclusive){
       consider(dbDayKey(o.createdAt));
     }
   });
-  (S.dayBook.entries||[]).forEach(function(e){ if(!e.voided) consider(e.date); });
+  (S.dayBook.entries||[]).forEach(function(e){ if(!e.voided && !e.acct) consider(e.date); });
   return Object.keys(set).sort();
 }
 
@@ -583,6 +591,10 @@ var DB_ERR_TEXT = {
   'day-closed':'that day is closed',
   'future-date':'the date is in the future',
   'invalid-amount':'enter a valid amount',
+  'invalid-account':'that money account was not found',
+  'name-required':'enter a name',
+  'duplicate-account':'that account name already exists',
+  'owner-only':'only the owner can do this',
   'invalid-cat':'choose a category',
   'invalid-counted':'enter the cash you counted',
   'invalid-dir':'choose money in or money out',
@@ -628,7 +640,7 @@ function dbCleanParty(party){
 }
 
 // party is last (after cb) so existing positional callers are unaffected.
-function dbAddEntry(dateKey, dir, amount, cat, note, cb, party, srcClose){
+function dbAddEntry(dateKey, dir, amount, cat, note, cb, party, srcClose, acct){
   if(isStaff()){ if(cb) cb(new Error('staff-blocked')); return; }   // R30 A2
   if(dir !== 'in' && dir !== 'out'){ if(cb) cb(new Error('invalid-dir')); return; }
   if(!(amount > 0)){ if(cb) cb(new Error('invalid-amount')); return; }
@@ -637,6 +649,7 @@ function dbAddEntry(dateKey, dir, amount, cat, note, cb, party, srcClose){
   // "Record the shortfall?" dialog lands its entry there -- which this guard
   // refused as future-date, silently. Only that entry (a cash short/excess on
   // the first open day) may be dated ahead; manual entries still may not.
+  if(acct && !dbAccountOf(acct)){ if(cb) cb(new Error('invalid-account')); return; }
   var _closeCarry = (cat === 'cashShort' || cat === 'cashExcess') && dateKey === dbFirstOpenDay();
   if(dateKey > dbToday() && !_closeCarry){ if(cb) cb(new Error('future-date')); return; }
   if(dbCloseFor(dateKey)){ if(cb) cb(new Error('day-closed')); return; }
@@ -650,11 +663,36 @@ function dbAddEntry(dateKey, dir, amount, cat, note, cb, party, srcClose){
   };
   var cleanParty = dbCleanParty(party);
   if(cleanParty) entry.party = cleanParty;
+  if(acct) entry.acct = acct;   // money went through this account, not the cash drawer
   if(srcClose) entry.srcClose = srcClose;   // R27: the close that posted this shortfall/excess; reopening that close reverses it
   S.dayBook.entries.push(entry);
   saasActivityLog('daybook', (dir==='in'?'Cash in ':'Expense ')+fmt(entry.amount)+' '+DB_CATS[cat].label+' on '+dateKey);
   auditLog('create', 'daybook', entry.id, DB_CATS[cat].label+' '+entry.amount+' on '+dateKey);
   _dbCommit(snap, function(err){ if(cb) cb(err, err ? null : entry); });
+}
+
+// ── MONEY ACCOUNTS (GPay, bank...) — a plain list on S.dayBook; balance = opening + credits - debits ──
+function dbAccountOf(id){ return (S.dayBook.accounts||[]).filter(function(a){ return a.id === id; })[0] || null; }
+function dbAccountName(id){ var a = dbAccountOf(id); return a ? a.name : 'Account'; }
+function dbAccountBalance(id){
+  var a = dbAccountOf(id); if(!a) return 0;
+  var bal = parseFloat(a.opening) || 0;
+  (S.dayBook.entries||[]).forEach(function(e){
+    if(e.voided || e.acct !== id) return;
+    bal = dbRound(bal + (e.dir === 'in' ? e.amount : -e.amount));
+  });
+  return bal;
+}
+function dbAddAccount(name, opening, cb){
+  if(!isOwner()){ if(cb) cb(new Error('owner-only')); return; }
+  name = String(name||'').trim();
+  if(!name){ if(cb) cb(new Error('name-required')); return; }
+  if(!(opening >= 0)) opening = 0;
+  if((S.dayBook.accounts||[]).some(function(a){ return a.name.toLowerCase() === name.toLowerCase(); })){ if(cb) cb(new Error('duplicate-account')); return; }
+  var snap = _dbSnapshot();
+  S.dayBook.accounts.push({ id:(typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'AC-'+Date.now(), name:name, opening:dbRound(opening), created:new Date().toISOString() });
+  auditLog('create', 'daybook', name, 'Money account added: '+name+' opening '+opening);
+  _dbCommit(snap, function(err){ if(cb) cb(err); });
 }
 
 function dbVoidEntry(entryId, reason, cb){
@@ -1007,6 +1045,68 @@ function _dbPaint(){
   body.innerHTML = toggle + (_dbViewMode==='month' ? _dbPaintMonth() : _dbPaintDay());
 }
 
+// Money accounts card: one row per account with its live balance. Owner adds accounts; entries pick one in Add Entry.
+function _dbAccountsCardHtml(){
+  var accts = S.dayBook.accounts || [];
+  if(isStaff()) return '';
+  var rows = accts.map(function(a){
+    return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>'+escHtml(a.name)+'</span><b>'+fmt(dbAccountBalance(a.id))+'</b></div>';
+  }).join('');
+  return '<div class="card"><div class="card-title"><span>Money accounts (GPay, bank...)</span>'+
+    (isOwner() ? '<button class="btn btn-sm" onclick="dbOpenAccountModal()">+ Account</button>' : '')+'</div>'+
+    (rows || '<div style="font-size:12px;color:var(--text3);">No accounts yet. Add GPay or a bank account, then pick it when you add an entry. These never change your cash figures.</div>')+
+  '</div>';
+}
+function dbOpenAccountModal(){
+  document.getElementById('db-acct-name').value = ''; document.getElementById('db-acct-open').value = '';
+  document.getElementById('db-acct-modal').classList.add('open');
+}
+function dbSubmitAccount(){
+  var name = (document.getElementById('db-acct-name')||{}).value, open = parseFloat((document.getElementById('db-acct-open')||{}).value) || 0;
+  dbAddAccount(name, open, function(err){
+    if(err){ toast('⚠ Could not save: '+dbErrText(err)); return; }
+    document.getElementById('db-acct-modal').classList.remove('open');
+    toast('✓ Account added');
+    renderDayBook();
+  });
+}
+
+// Credit (money in) on the left, Debit (money out) on the right. Cash and account lines sit together, each tagged.
+function _dbColumnsHtml(v){
+  var sorted = v.lines.slice().sort(function(a,b){
+    var ta = a.ts || (a.date+'T00:00:00.000Z'), tb = b.ts || (b.date+'T00:00:00.000Z');
+    return ta < tb ? -1 : (ta > tb ? 1 : 0);
+  });
+  function lineHtml(line){
+    var catLabel = (line.cat && DB_CATS[line.cat]) ? DB_CATS[line.cat].label : (line.cat||'');
+    var label = line.label || ((line.cat === 'otherIn' || line.cat === 'otherOut') && line.note ? line.note : catLabel);
+    var extra = (line.cat === 'otherIn' || line.cat === 'otherOut') ? '' : (line.note ? ' • '+escHtml(line.note) : '');
+    var tag = line.nonCash ? '<span class="badge" style="margin-left:4px;">'+escHtml(line.mode||'non-cash')+'</span>' : '';
+    var party = line.party ? ' <span class="db-party-tag">👤 '+escHtml(line.party.name||line.party.phone)+'</span>' : '';
+    var canVoid = (line.kind==='manual') && !line.voided && !v.closed && !isStaff();
+    return '<div style="padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;'+(line.voided?'opacity:.5;':'')+'">'+
+      '<div style="display:flex;justify-content:space-between;gap:6px;"><span style="min-width:0;overflow-wrap:anywhere;">'+escHtml(label)+extra+tag+party+(line.voided?' (voided)':'')+'</span>'+
+      '<b style="white-space:nowrap;color:'+(line.dir==='in'?'var(--success)':'var(--danger)')+';">'+fmt(line.amount)+'</b></div>'+
+      (canVoid ? '<button class="btn btn-sm" style="margin-top:4px;" onclick="dbOpenVoidModal(\''+jsAttrEsc(line.id)+'\')">Void</button>' : '')+
+    '</div>';
+  }
+  var ins = sorted.filter(function(l){ return !l.unknown && l.dir === 'in'; });
+  var outs = sorted.filter(function(l){ return !l.unknown && l.dir === 'out'; });
+  var unk = sorted.filter(function(l){ return l.unknown; });
+  var empty = '<div style="color:var(--text3);font-size:12px;padding:10px 0;">—</div>';
+  var h = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'+
+    '<div class="card" style="margin:0;padding:10px;"><div style="font-weight:700;font-size:12px;color:var(--success);margin-bottom:4px;">CREDIT — money in</div>'+(ins.map(lineHtml).join('') || empty)+
+      '<div style="margin-top:8px;font-size:12px;">Cash total <b>'+fmt(v.totalIn)+'</b></div></div>'+
+    '<div class="card" style="margin:0;padding:10px;"><div style="font-weight:700;font-size:12px;color:var(--danger);margin-bottom:4px;">DEBIT — money out</div>'+(outs.map(lineHtml).join('') || empty)+
+      '<div style="margin-top:8px;font-size:12px;">Cash total <b>'+fmt(v.totalOut)+'</b></div></div>'+
+  '</div>';
+  if(unk.length){
+    h += '<div class="card" style="opacity:.8;"><div class="card-title">Not counted (payment mode unknown)</div>'+
+      unk.map(function(l){ return '<div style="font-size:12px;padding:4px 0;">'+fmt(l.amount)+' — '+escHtml(l.label||'')+'</div>'; }).join('')+'</div>';
+  }
+  return h;
+}
+
 function _dbPaintDay(){
   var dateKey = dbUiDate();
   var v = dbDayView(dateKey);
@@ -1064,50 +1164,8 @@ function _dbPaintDay(){
     '</div>';
   }
 
-  html += '<div class="card"><div class="card-title">Lines</div>';
-  var sortedLines = v.lines.slice().sort(function(a,b){
-    var ta = a.ts || (a.date+'T00:00:00.000Z'), tb = b.ts || (b.date+'T00:00:00.000Z');
-    return ta < tb ? -1 : (ta > tb ? 1 : 0);
-  });
-  if(!sortedLines.length){
-    html += '<div style="text-align:center;color:var(--text3);padding:16px;font-size:13px;">No lines yet for this day.</div>';
-  } else {
-    var running = v.opening;
-    sortedLines.forEach(function(line){
-      if(line.unknown){
-        html += '<div class="gl-entry" style="opacity:.7;">'+
-          '<div class="gl-entry-left"><div class="gl-entry-amt">'+fmt(line.amount)+' — not counted</div>'+
-          '<div class="gl-entry-meta">'+escHtml(line.label||'')+'</div></div>'+
-        '</div>';
-        return;
-      }
-      if(line.nonCash){
-        html += '<div class="gl-entry" style="opacity:.7;">'+
-          '<div class="gl-entry-left"><div class="gl-entry-amt">'+fmt(line.amount)+' — '+escHtml(line.mode||'non-cash')+', not counted</div>'+
-          '<div class="gl-entry-meta">'+escHtml(line.label||'')+'</div></div>'+
-        '</div>';
-        return;
-      }
-      running = dbRound(running + (line.dir==='in' ? line.amount : -line.amount));
-      var canVoid = (line.kind==='manual') && !line.voided && !v.closed && !isStaff();
-      var catLabel = (line.cat && DB_CATS[line.cat]) ? DB_CATS[line.cat].label : (line.cat||'');
-      var sourceTag = line.src ? ' • auto' : (line.kind==='manual' ? ' • manual' : '');
-      var lineIcon = dbLineIcon(line);
-      var iconBadge = '<span style="display:inline-block;width:16px;text-align:center;margin-right:5px;color:'+lineIcon.color+';">'+lineIcon.icon+'</span>';
-      var partyTag = line.party ? ' <span class="db-party-tag">👤 '+escHtml(line.party.name||line.party.phone)+'</span>' : '';
-      html += '<div class="gl-entry"'+(line.voided?' style="opacity:.5;"':'')+'>'+
-        '<div class="gl-entry-left">'+
-          '<div class="gl-entry-amt '+(line.dir==='in'?'credit':'debit')+'">'+(line.dir==='in'?'+':'−')+fmt(line.amount)+(line.voided?' (voided)':'')+'</div>'+
-          '<div class="gl-entry-meta">'+iconBadge+escHtml(line.label||catLabel)+(line.note?' • '+escHtml(line.note):'')+partyTag+(line.kind==='adjust'?' • system adjustment':sourceTag)+(line.voided?' • '+escHtml(line.voidReason||''):'')+'</div>'+
-        '</div>'+
-        '<div class="gl-entry-right">'+
-          '<div style="font-size:12px;font-weight:600;color:var(--ink3);">'+fmt(running)+'</div>'+
-          (canVoid ? '<button class="btn btn-sm" style="margin-top:4px;" onclick="dbOpenVoidModal(\''+jsAttrEsc(line.id)+'\')">Void</button>' : '')+
-        '</div>'+
-      '</div>';
-    });
-  }
-  html += '</div>';
+  html += _dbAccountsCardHtml();
+  html += _dbColumnsHtml(v);
 
   // Add Entry / Close Day stay reachable while scrolling a long day
   // (UI/UX audit, 15 Oct) — sticky just above the bottom nav on mobile.
@@ -1250,17 +1308,20 @@ function dbSubmitOpening(){
   });
 }
 
-var DB_ENTRY_CHIP_CATS = ['rent','salary','electricity','tea','transport','repair','misc','drawings','capital','bankDeposit','bankWithdrawal'];
+var DB_ENTRY_CHIP_CATS = ['otherIn','otherOut'];
 
 function dbOpenEntryModal(){
   _dbEntryCat = null;
   var row = document.getElementById('db-entry-cat-row');
   if(row){
+    // No preset list: the owner picks money in or out and types what it was for.
     row.innerHTML = DB_ENTRY_CHIP_CATS.map(function(k){
       var c = DB_CATS[k];
-      return '<button type="button" class="gl-type-btn db-cat-chip" style="border-color:'+c.color+';" onclick="dbSetEntryCat(\''+jsAttrEsc(k)+'\',this)">'+c.icon+' '+escHtml(c.label)+'</button>';
+      return '<button type="button" class="gl-type-btn db-cat-chip" style="flex:1;min-height:44px;border-color:'+c.color+';" onclick="dbSetEntryCat(this.dataset.cat,this)" data-cat="'+escHtml(k)+'">'+c.icon+' '+escHtml(c.label)+(k==='otherIn'?' (money in)':' (money out)')+'</button>';
     }).join('');
   }
+  var acctEl = document.getElementById('db-entry-acct');
+  if(acctEl) acctEl.innerHTML = '<option value="">Cash (drawer)</option>'+(S.dayBook.accounts||[]).map(function(a){ return '<option value="'+escHtml(a.id)+'">'+escHtml(a.name)+'</option>'; }).join('');
   var amtEl = document.getElementById('db-entry-amt'); if(amtEl) amtEl.value = '';
   var noteEl = document.getElementById('db-entry-note'); if(noteEl) noteEl.value = '';
   var partyEl = document.getElementById('db-entry-party'); if(partyEl) partyEl.value = '';
@@ -1306,9 +1367,11 @@ function dbSetEntryCat(cat, el){
 }
 
 function dbSubmitEntry(){
-  if(!_dbEntryCat){ toast('⚠ Choose a category'); return; }
+  if(!_dbEntryCat){ toast('⚠ Choose Credit (money in) or Debit (money out)'); return; }
   var amt = parseFloat((document.getElementById('db-entry-amt')||{}).value);
-  var note = (document.getElementById('db-entry-note')||{}).value || '';
+  var note = ((document.getElementById('db-entry-note')||{}).value || '').trim();
+  if(!note){ toast('⚠ Write what this entry is for'); return; }
+  var acct = (document.getElementById('db-entry-acct')||{}).value || '';
   var partyText = (document.getElementById('db-entry-party')||{}).value || '';
   // Typed text made only of phone-ish characters (digits, spaces, +, -,
   // parens) with 7+ real digits is a phone number, not a name -- store it
@@ -1324,7 +1387,7 @@ function dbSubmitEntry(){
     document.getElementById('db-entry-modal').classList.remove('open');
     toast('✓ Entry saved');
     renderDayBook();
-  }, party);
+  }, party, null, acct);
 }
 
 function dbOpenVoidModal(entryId){

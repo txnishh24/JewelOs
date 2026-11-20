@@ -3285,10 +3285,22 @@ body:has(#panel-karigars.active){background:#F5F5F7;}
     <div class="gl-body">
       <div id="db-entry-cat-row" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
       <div class="ge-fg" style="margin-bottom:10px;"><label>Amount (₹)</label><input id="db-entry-amt" type="number" placeholder="0" inputmode="numeric"/></div>
-      <div class="ge-fg" style="margin-bottom:10px;"><label>Note (optional)</label><input id="db-entry-note" placeholder="e.g. Electricity bill Sept"/></div>
+      <div class="ge-fg" style="margin-bottom:10px;"><label>What is this for?</label><input id="db-entry-note" placeholder="e.g. Nose pin sold, Electricity bill, Scheme instalment"/></div>
+      <div class="ge-fg" style="margin-bottom:10px;"><label>Received / paid through</label><select id="db-entry-acct"></select></div>
       <div class="ge-fg" style="margin-bottom:10px;"><label>Link to a person (optional)</label><input id="db-entry-party" placeholder="Name or phone" autocomplete="off" oninput="dbPartyAutocomplete()"/></div>
       <div id="db-party-suggestions" class="ac-panel" style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);margin-top:-6px;margin-bottom:10px;overflow-y:auto;"></div>
       <button class="btn btn-gold" style="width:100%;" onclick="dbSubmitEntry()">Save Entry</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="db-acct-modal">
+  <div class="gl-wrap">
+    <div class="gl-header"><h2>Add Money Account</h2><button class="ge-close" onclick="document.getElementById('db-acct-modal').classList.remove('open')">✕</button></div>
+    <div class="gl-body">
+      <div class="ge-fg" style="margin-bottom:10px;"><label>Account name</label><input id="db-acct-name" placeholder="e.g. GPay - Shop, HDFC current, Paytm"/></div>
+      <div class="ge-fg" style="margin-bottom:14px;"><label>Balance in it right now (₹)</label><input id="db-acct-open" type="number" inputmode="decimal" placeholder="0"/></div>
+      <button class="btn btn-gold" style="width:100%;" onclick="dbSubmitAccount()">Save Account</button>
     </div>
   </div>
 </div>

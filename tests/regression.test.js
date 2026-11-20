@@ -5525,6 +5525,22 @@ test('voiding a manual line removes it from totals and leaves a visible void wit
   });
 });
 
+test('Money accounts: a GPay entry changes the account balance, never the cash totals; voiding reverses it', function(){
+  var a = _dbHarness(), d = '2026-09-05'; a.SAAS.user = { id:'u1', name:'o', role:'owner' }; a.SAAS.shop = { id:'s1', name:'T' };
+  a.dbAddAccount('GPay', 1000, function(err){ assert(!err, 'add account: ' + (err && err.message)); });
+  var id = a.S.dayBook.accounts[0].id;
+  a.dbAddEntry(d,'in',300,'otherIn','Nose pin sold',function(e1){ assert(!e1, 'gpay credit: ' + (e1 && e1.message)); },null,null,id);
+  a.dbAddEntry(d,'out',50,'otherOut','Tea',function(e2){ assert(!e2, 'cash debit: ' + (e2 && e2.message)); });
+  assert(a.dbAccountBalance(id) === 1300, 'account balance ' + a.dbAccountBalance(id));
+  var t = a.dbManualTotals(d);
+  assert(t.in === 0 && t.out === 50, 'cash totals must ignore the account entry: ' + JSON.stringify(t));
+  var ln = a.dbManualLines(d).filter(function(l){ return l.acct === id; })[0];
+  assert(ln && ln.nonCash === true && ln.mode === 'GPay', 'account line is a non-cash line tagged with the account');
+  a.dbAddEntry(d,'in',10,'otherIn','x',function(e3){ assert(e3 && e3.message === 'invalid-account', 'unknown account refused'); },null,null,'nope');
+  a.dbVoidEntry(a.S.dayBook.entries[0].id, 'mistake', function(){});
+  assert(a.dbAccountBalance(id) === 1000, 'void puts the balance back: ' + a.dbAccountBalance(id));
+});
+
 test('a voided line cannot be voided twice', function(){
   var a = _dbHarness();
   a.dbAddEntry('2026-09-05','out',500,'rent','',function(err, entry){
@@ -6190,9 +6206,9 @@ test('dbSubmitEntry stores a typed phone number as party.phone, not party.name',
   var a = _dbHarness();
   a.S.dayBook.opening = { date:'2026-09-01', amount:0, ts:'2026-09-01T00:00:00.000Z' };
   a._dbDate = '2026-09-05';
-  a._dbEntryCat = 'rent';
+  a._dbEntryCat = 'otherOut';
   a._els['db-entry-amt'] = { value:'500' };
-  a._els['db-entry-note'] = { value:'' };
+  a._els['db-entry-note'] = { value:'Tea money' };
   a._els['db-entry-party'] = { value:'9876543210' };
   a.dbSubmitEntry();
   var p = a.S.dayBook.entries[0].party;
@@ -6203,9 +6219,9 @@ test('dbSubmitEntry still stores typed free text as party.name, not phone', func
   var a = _dbHarness();
   a.S.dayBook.opening = { date:'2026-09-01', amount:0, ts:'2026-09-01T00:00:00.000Z' };
   a._dbDate = '2026-09-05';
-  a._dbEntryCat = 'rent';
+  a._dbEntryCat = 'otherOut';
   a._els['db-entry-amt'] = { value:'500' };
-  a._els['db-entry-note'] = { value:'' };
+  a._els['db-entry-note'] = { value:'Tea money' };
   a._els['db-entry-party'] = { value:'MSEB' };
   a.dbSubmitEntry();
   var p = a.S.dayBook.entries[0].party;
@@ -6216,9 +6232,9 @@ test('dbSubmitEntry does not treat a non-Latin name typed alongside a phone numb
   var a = _dbHarness();
   a.S.dayBook.opening = { date:'2026-09-01', amount:0, ts:'2026-09-01T00:00:00.000Z' };
   a._dbDate = '2026-09-05';
-  a._dbEntryCat = 'rent';
+  a._dbEntryCat = 'otherOut';
   a._els['db-entry-amt'] = { value:'500' };
-  a._els['db-entry-note'] = { value:'' };
+  a._els['db-entry-note'] = { value:'Tea money' };
   a._els['db-entry-party'] = { value:'राम 9876543210' }; // "Ram" in Devanagari + a phone
   a.dbSubmitEntry();
   var p = a.S.dayBook.entries[0].party;
