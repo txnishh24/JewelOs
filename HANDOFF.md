@@ -79,6 +79,16 @@ or re-add tier UI.
 
 ## LOG — newest first
 
+### 2026-11-20 (two-hundred-and-forty-seventh entry) - Claude Code (Sonnet) - R35 item 4 closed: `/context` numbers recorded. Docs only, no app code
+
+- **Fresh session after `/clear`:** 47.5k of 1m tokens (5%). Fixed overhead (no messages): system prompt 4.3k, system tools 15.5k, MCP instructions 4k, custom agents 3.2k (35 agents), memory files 5.5k, skills 9.9k (428 skills).
+- **After one HANDOFF read:** 98.5k (10%); messages 55.4k. Most of that was reading HANDOFF.md.
+- **Deferred MCP tools:** 653.6k "if all loaded" (770 tools; CodeRabbit 221k, Vercel 219k, Canva 53k, Figma 42k, Gmail 31k). Loaded on demand only, so they do not cost context until used.
+- **No before/after delta:** no baseline was taken before the 20 Nov plugin disable, so the effect of that cleanup is not measurable. Not checked: whether the status line renders in a live session.
+
+-> FOR COWORK: nothing - FYI only.
+-> FOR TANISH: R35 item 4 is done; only the status-line check after a restart is left.
+
 ### 2026-11-20 (two-hundred-and-forty-sixth entry) - Claude Code (Sonnet) - R35 workflow hardening on branch `claude/r35-tooling`; tooling and docs only, no app code
 
 - **Permissions** (`.claude/settings.json`): ask for `npx wrangler deploy*`, `npx wrangler rollback*`, `supabase db push/migration/reset`, the Supabase `apply_migration` tool, `git push*`, `git merge*`. Deny `rm -rf*`, `git push --force/-f*`, `git reset --hard*`, the e2e test env file, `cat/type` of env files, any `dangerously-skip-permissions`. Allow `node --check`, `node tests/*`, `node checks/*`, `npm run test:e2e`, read-only git. Deny wins over ask over allow. `settings.local.json` still allows `npx wrangler deploy`; the project-level ask should still prompt, but I did not test that.
