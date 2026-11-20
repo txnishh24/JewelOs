@@ -3280,7 +3280,7 @@ test('shareWhatsApp uses this shop\'s own name, not a hard-coded "Sri Sai Jewell
     items:[{ name:'Ring', purity:'22K', metal:'gold', weight:5, qty:1, lockedRate:7200, making:0, diamond:0 }]
   };
   withGlobals({ open: function(url){ capturedUrl = url; return {}; } }, function(){
-    app.shareWhatsApp();
+    app.shareWhatsAppText();
   });
   app.CURRENT_SALE_FOR_PDF = null;
   var msg = decodeURIComponent((capturedUrl.split('text=')[1] || ''));

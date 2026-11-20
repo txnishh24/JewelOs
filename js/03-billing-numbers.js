@@ -89,33 +89,103 @@ function closeModal(){
   CURRENT_SALE_FOR_PDF = null;
 }
 
+// ── REAL PDF OF THE BILL ─────────────────────────────────────────────────
+// The bill page (buildInvoiceHTML) is drawn off-screen, photographed with html2canvas (already used for Girvi
+// receipts) and cut into A4 pages with jsPDF. Both libraries load from cdnjs on first use only.
+var _jspdfLoading = null;
+function _loadJsPdf(cb){
+  if(window.jspdf && window.jspdf.jsPDF){ cb(true); return; }
+  if(_jspdfLoading){ _jspdfLoading.push(cb); return; }
+  _jspdfLoading = [cb];
+  var sc = document.createElement('script');
+  sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  sc.onload = function(){ var q = _jspdfLoading; _jspdfLoading = null; q.forEach(function(f){ f(true); }); };
+  sc.onerror = function(){ var q = _jspdfLoading; _jspdfLoading = null; q.forEach(function(f){ f(false); }); };
+  document.head.appendChild(sc);
+}
+// cb(blob) on success, cb(null) when anything fails (offline, library blocked, drawing error).
+function buildBillPdfBlob(sale, billType, cb){
+  var done = false, frame = null;
+  function finish(blob){ if(done) return; done = true; if(frame && frame.parentNode) frame.parentNode.removeChild(frame); cb(blob); }
+  _loadHtml2Canvas(function(){
+    _loadJsPdf(function(ok){
+      if(!ok || typeof html2canvas === 'undefined'){ finish(null); return; }
+      try{
+        frame = document.createElement('iframe');
+        frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:720px;height:1200px;border:0;background:#fff;';
+        frame.onload = function(){
+          setTimeout(function(){
+            try{
+              var body = frame.contentDocument.body;
+              frame.style.height = (body.scrollHeight + 20) + 'px';
+              html2canvas(body, { scale:2, backgroundColor:'#ffffff', width:720, windowWidth:720 }).then(function(canvas){
+                var pdf = new window.jspdf.jsPDF({ unit:'mm', format:'a4' });
+                var pageW = 210, pageH = 297, pxPerPage = Math.floor(canvas.width * pageH / pageW), y = 0, first = true;
+                while(y < canvas.height){
+                  var h = Math.min(pxPerPage, canvas.height - y), part = document.createElement('canvas');
+                  part.width = canvas.width; part.height = h;
+                  part.getContext('2d').drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+                  if(!first) pdf.addPage();
+                  pdf.addImage(part.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pageW, h * pageW / canvas.width);
+                  first = false; y += h;
+                }
+                finish(pdf.output('blob'));
+              }).catch(function(){ finish(null); });
+            }catch(e){ finish(null); }
+          }, 500);
+        };
+        frame.srcdoc = buildInvoiceHTML(sale, billType);
+        document.body.appendChild(frame);
+      }catch(e){ finish(null); }
+    });
+  });
+  setTimeout(function(){ finish(null); }, 25000);   // never leave the button spinning
+}
+function _billPdfName(sale){ return String((sale && sale.invNo) || 'Invoice').replace(/[^A-Za-z0-9_-]+/g, '-') + '.pdf'; }
+function _billCaption(sale){
+  var t = calcSaleTotals(sale), shop = (SAAS && SAAS.shop && SAAS.shop.name) || 'our shop', nl = String.fromCharCode(10);
+  return 'Invoice ' + sale.invNo + ' from *' + shop + '*' + nl + 'Total: ' + fmt(t.grand) + (t.bal > 0 ? nl + 'Balance due: ' + fmt(t.bal) : nl + 'Fully paid') + nl + 'Thank you!';
+}
+// Download button: a real .pdf file.
 function downloadPDF(){
-  if(!CURRENT_SALE_FOR_PDF){toast('No invoice loaded');return;}
-  var btn = document.getElementById('pdf-btn');
-  if(btn){btn.textContent='Opening...';btn.disabled=true;}
-  var html = buildInvoiceHTML(CURRENT_SALE_FOR_PDF, _billType);
-  var blob = new Blob([html],{type:'text/html;charset=utf-8'});
-  var url = URL.createObjectURL(blob);
-  var win = window.open(url,'_blank');
-  var shopName = ((SAAS&&SAAS.shop&&SAAS.shop.name)||'Invoice').replace(/\s+/g,'-');
-  var typeLabel = _billType==='gst' ? 'TaxInvoice' : 'Memo';
-  if(win){
-    win.onload = function(){ setTimeout(function(){win.print();},500); };
-    toast('Bill opened! Tap Print \u2192 Save as PDF');
-  } else {
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = (CURRENT_SALE_FOR_PDF.invNo||'Invoice')+'-'+typeLabel+'-'+shopName+'.html';
-    a.click();
-    toast('Downloaded! Open file and Print \u2192 Save as PDF');
-  }
-  setTimeout(function(){
-    URL.revokeObjectURL(url);
-    if(btn){btn.textContent='\u2193 Download PDF';btn.disabled=false;}
-  }, 3000);
+  if(!CURRENT_SALE_FOR_PDF){ toast('No invoice loaded'); return; }
+  var sale = CURRENT_SALE_FOR_PDF, btn = document.getElementById('pdf-btn');
+  if(btn){ btn.textContent = 'Making PDF...'; btn.disabled = true; }
+  buildBillPdfBlob(sale, _billType, function(blob){
+    if(btn){ btn.innerHTML = '&#11015; Download PDF'; btn.disabled = false; }
+    if(!blob){ toast('Could not make the PDF (check internet). Use Print Bill, then Save as PDF.'); return; }
+    var a = document.createElement('a'), url = URL.createObjectURL(blob);
+    a.href = url; a.download = _billPdfName(sale);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 3000);
+    toast('PDF downloaded');
+  });
+}
+// WhatsApp button: the PDF itself goes through the phone's share sheet (Android and iPhone), so WhatsApp gets the file.
+// Where the phone cannot share files, the PDF is saved and WhatsApp opens with a short note to attach it to.
+// If the PDF cannot be made at all, the old text bill is sent so a sale is never blocked.
+function shareWhatsApp(){
+  if(!CURRENT_SALE_FOR_PDF){ toast('No invoice loaded'); return; }
+  var sale = CURRENT_SALE_FOR_PDF;
+  toast('Preparing the PDF bill...');
+  buildBillPdfBlob(sale, _billType, function(blob){
+    if(!blob){ toast('PDF not available, sending the bill as text'); shareWhatsAppText(); return; }
+    var file = new File([blob], _billPdfName(sale), { type:'application/pdf' });
+    var phone = (sale.phone || '').replace(/[^0-9]/g, '');
+    if(navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
+      navigator.share({ files:[file], text:_billCaption(sale), title:'Invoice ' + sale.invNo }).catch(function(){});
+      return;
+    }
+    var a = document.createElement('a'), url = URL.createObjectURL(blob);
+    a.href = url; a.download = _billPdfName(sale);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 3000);
+    toast('PDF saved. Attach it in WhatsApp.');
+    window.open((phone ? 'https://wa.me/91' + phone : 'https://wa.me/') + (phone ? '?' : '?') + 'text=' + encodeURIComponent(_billCaption(sale)), '_blank');
+  });
 }
 
-function shareWhatsApp(){
+function shareWhatsAppText(){
   if(!CURRENT_SALE_FOR_PDF){toast('No invoice loaded');return;}
   var s = CURRENT_SALE_FOR_PDF;
   var t = calcSaleTotals(s);
